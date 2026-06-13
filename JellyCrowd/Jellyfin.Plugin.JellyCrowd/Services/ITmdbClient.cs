@@ -75,4 +75,12 @@ public interface ITmdbClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The item details, or <c>null</c> if not found.</returns>
   Task<CatalogItem?> GetDetailsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Resolves a show's TVDB id from its TMDB id (used to add the series to Sonarr, which is TVDB-based).
+  /// </summary>
+  /// <param name="tmdbId">The show's TMDB identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The TVDB id, or <c>null</c> when unknown.</returns>
+  Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken);
 }

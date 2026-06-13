@@ -153,4 +153,19 @@ public class TmdbResponseParserTests
     Assert.Equal(28, genres[0].Id);
     Assert.Equal("Action", genres[0].Name);
   }
+
+  [Fact]
+  public void ParseTvdbId_ReturnsId_WhenPresent()
+  {
+    Assert.Equal(81189, TmdbResponseParser.ParseTvdbId("""{ "id": 1396, "tvdb_id": 81189, "imdb_id": "tt0903747" }"""));
+  }
+
+  [Theory]
+  [InlineData("""{ "id": 1396, "tvdb_id": 0 }""")]
+  [InlineData("""{ "id": 1396, "tvdb_id": null }""")]
+  [InlineData("""{ "id": 1396 }""")]
+  public void ParseTvdbId_ReturnsNull_WhenMissingOrZero(string json)
+  {
+    Assert.Null(TmdbResponseParser.ParseTvdbId(json));
+  }
 }

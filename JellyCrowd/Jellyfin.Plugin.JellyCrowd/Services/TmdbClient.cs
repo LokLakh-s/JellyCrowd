@@ -141,6 +141,14 @@ public class TmdbClient : ITmdbClient
     return TmdbResponseParser.ParseSeasons(json);
   }
 
+  /// <inheritdoc />
+  public async Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
+  {
+    var id = tmdbId.ToString(CultureInfo.InvariantCulture);
+    var json = await GetAsync($"/tv/{id}/external_ids", cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseTvdbId(json);
+  }
+
   private static void EnsureMediaType(string mediaType)
   {
     if (!string.Equals(mediaType, "movie", StringComparison.Ordinal)
