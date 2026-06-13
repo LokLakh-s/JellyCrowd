@@ -373,7 +373,8 @@
     var el = document.createElement('button');
     el.type = 'button';
     el.className = 'jellycrowd-cal-item';
-    el.title = item.Title || '';
+    var epTag = item.EpisodeNumber ? (' S' + (item.SeasonNumber || 0) + 'E' + item.EpisodeNumber) : '';
+    el.title = (item.Title || '') + epTag + (item.EpisodeName ? ' — ' + item.EpisodeName : '');
     if (item.PosterPath) {
       var img = document.createElement('img');
       img.loading = 'lazy';
@@ -382,7 +383,7 @@
       el.appendChild(img);
     }
     var label = document.createElement('span');
-    label.textContent = item.Title || '';
+    label.textContent = (item.Title || '') + epTag;
     el.appendChild(label);
     el.addEventListener('click', function () {
       if (item.Available && item.JellyfinItemId) { navigateToItem(item.JellyfinItemId); } else { openModal(item); }

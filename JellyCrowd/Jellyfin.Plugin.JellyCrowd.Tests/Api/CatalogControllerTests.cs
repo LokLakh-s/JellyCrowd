@@ -9,6 +9,7 @@ using Jellyfin.Plugin.JellyCrowd.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
@@ -18,8 +19,14 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
 /// </summary>
 public class CatalogControllerTests
 {
-  private static CatalogController CreateController(ITmdbClient client)
-    => new(client, new FakeLibraryMatcher(), NullLogger<CatalogController>.Instance);
+  private static CatalogController CreateController(ITmdbClient client, IReadOnlyList<RequestRecord>? userRequests = null)
+  {
+    var store = Mock.Of<IRequestStore>(s =>
+      s.GetByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())
+        == Task.FromResult(userRequests ?? new List<RequestRecord>()));
+    var accessor = Mock.Of<ICurrentUserAccessor>(a => a.GetUserIdAsync(It.IsAny<HttpRequest>()) == Task.FromResult(Guid.Empty));
+    return new CatalogController(client, new FakeLibraryMatcher(), store, accessor, NullLogger<CatalogController>.Instance);
+  }
 
   private sealed class FakeLibraryMatcher : ILibraryMatcher
   {
@@ -43,6 +50,30 @@ public class CatalogControllerTests
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(ok.Value);
     Assert.Single(payload);
+  }
+
+  [Fact]
+  public async Task Calendar_WithRange_IncludesFollowedShowEpisodesInRange()
+  {
+    var tmdb = new FakeTmdbClient
+    {
+      Seasons = new List<Season> { new() { SeasonNumber = 2, Name = "Season 2", EpisodeCount = 2 } },
+      Episodes = new List<Episode>
+      {
+        new() { SeasonNumber = 2, EpisodeNumber = 1, Name = "Ep1", AirDate = "2026-06-10" },
+        new() { SeasonNumber = 2, EpisodeNumber = 2, Name = "Ep2", AirDate = "2026-07-10" }
+      }
+    };
+    var followed = new List<RequestRecord> { new() { TmdbId = 7, MediaType = "tv", Title = "Show" } };
+    var controller = CreateController(tmdb, followed);
+
+    var result = await controller.Calendar(null, null, "2026-06-01", "2026-06-30", CancellationToken.None);
+
+    var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    var episode = Assert.Single(payload, i => i.EpisodeNumber == 1);
+    Assert.Equal("Show", episode.Title);
+    Assert.Equal(2, episode.SeasonNumber);
+    Assert.DoesNotContain(payload, i => i.EpisodeNumber == 2); // out-of-range episode excluded
   }
 
   [Fact]
@@ -171,6 +202,10 @@ public class CatalogControllerTests
 
     public CatalogItem? Detail { get; set; } = new() { TmdbId = 1, MediaType = "movie", Title = "Detail" };
 
+    public IReadOnlyList<Season> Seasons { get; set; } = new List<Season>();
+
+    public IReadOnlyList<Episode> Episodes { get; set; } = new List<Episode>();
+
     public Exception? Throw { get; set; }
 
     public Task<IReadOnlyList<CatalogItem>> GetTrendingAsync(string language, CancellationToken cancellationToken)
@@ -230,7 +265,7 @@ public class CatalogControllerTests
         throw Throw;
       }
 
-      return Task.FromResult<IReadOnlyList<Season>>(new List<Season>());
+      return Task.FromResult(Seasons);
     }
 
     public Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken)
@@ -240,7 +275,7 @@ public class CatalogControllerTests
         throw Throw;
       }
 
-      return Task.FromResult<IReadOnlyList<Episode>>(new List<Episode>());
+      return Task.FromResult(Episodes);
     }
 
     public Task<IReadOnlyList<WatchProvider>> GetWatchProvidersAsync(string mediaType, string region, string language, CancellationToken cancellationToken)
