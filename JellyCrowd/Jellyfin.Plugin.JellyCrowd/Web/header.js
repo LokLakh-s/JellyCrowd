@@ -28,6 +28,21 @@
   // request just made from the catalog without a full page reload.
   var viewRefreshers = {};
 
+  // Header nav buttons (Catalog / My requests) keyed by view id, and which view the overlay is
+  // currently showing. The matching button is white (selected); the rest are grey. When the overlay
+  // closes, activeNavId is null so all are grey.
+  var headerNavButtons = {};
+  var activeNavId = null;
+  var NAV_GREY = 'rgba(255,255,255,0.6)';
+  var NAV_WHITE = '#fff';
+
+  function setActiveNav(id) {
+    activeNavId = id;
+    Object.keys(headerNavButtons).forEach(function (key) {
+      headerNavButtons[key].style.color = (key === id) ? NAV_WHITE : NAV_GREY;
+    });
+  }
+
   function getUrl(p) {
     return (window.ApiClient && window.ApiClient.getUrl) ? window.ApiClient.getUrl(p) : '/' + p;
   }
@@ -133,6 +148,7 @@
     }
 
     overlay.style.display = '';
+    setActiveNav(id);
     VIEWS.forEach(function (v) {
       if (v.container) {
         v.container.style.display = (v.id === id) ? '' : 'none';
@@ -168,6 +184,7 @@
     if (overlay) {
       overlay.style.display = 'none';
     }
+    setActiveNav(null);
   }
 
   // Let our pages (e.g. the requests quota bar) switch views without touching the URL hash.
@@ -188,9 +205,12 @@
     // the default <button> outline that the native is="emby-button" tabs don't have. We deliberately do
     // NOT reuse the .emby-tab-button class: inside Jellyfin's emby-tabs, that made our buttons get
     // treated as real tabs (Jellyfin would navigate on click, closing the overlay / blanking the page).
-    a.style.cssText = 'box-sizing:border-box;margin:0;padding:1.5em 1.5em;border:0;outline:none;box-shadow:none;background:transparent;color:#fff;font-family:inherit;font-size:inherit;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
-    a.addEventListener('mouseenter', function () { a.style.opacity = '.7'; });
-    a.addEventListener('mouseleave', function () { a.style.opacity = '1'; });
+    a.style.cssText = 'box-sizing:border-box;margin:0;padding:1.5em 1.5em;border:0;outline:none;box-shadow:none;background:transparent;font-family:inherit;font-size:inherit;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
+    headerNavButtons[viewId] = a;
+    a.style.color = (viewId === activeNavId) ? NAV_WHITE : NAV_GREY;
+    // Hover hints white; on leave restore the selected/unselected colour.
+    a.addEventListener('mouseenter', function () { a.style.color = NAV_WHITE; });
+    a.addEventListener('mouseleave', function () { a.style.color = (viewId === activeNavId) ? NAV_WHITE : NAV_GREY; });
     // stopPropagation: keep the click from reaching Jellyfin's tab-bar click handler.
     a.addEventListener('click', function (e) { e.stopPropagation(); showView(viewId); });
     return a;
