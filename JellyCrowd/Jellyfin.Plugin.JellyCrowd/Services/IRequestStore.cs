@@ -125,4 +125,22 @@ public interface IRequestStore
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when the request has been removed.</returns>
   Task DeleteAsync(Guid id, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Stamps the time a request was dispatched to the download backend (idempotency marker).
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="whenUtc">The dispatch time (UTC).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found.</returns>
+  Task<RequestRecord?> MarkDispatchedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets approved requests that are due for download dispatch: not yet dispatched and whose desired
+  /// time (if any) is at or before the given instant.
+  /// </summary>
+  /// <param name="nowUtc">The current instant (UTC).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The requests due for dispatch.</returns>
+  Task<IReadOnlyList<RequestRecord>> GetDueForDispatchAsync(DateTime nowUtc, CancellationToken cancellationToken);
 }

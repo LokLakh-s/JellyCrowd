@@ -83,4 +83,10 @@ public class RequestRecord
   /// The scheduled deletion task removes it once the retention period has elapsed.
   /// </summary>
   public DateTime? DeletionRequestedAt { get; set; }
+
+  /// <summary>
+  /// Gets or sets the UTC time this request was dispatched to the configured download backend
+  /// (Radarr/Sonarr, webhook, …), if any. Used to make dispatch idempotent (no double send).
+  /// </summary>
+  public DateTime? DispatchedAt { get; set; }
 }

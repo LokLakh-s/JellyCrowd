@@ -23,6 +23,7 @@ public class RequestsController : ControllerBase
   private readonly ICurrentUserAccessor _userAccessor;
   private readonly IQuotaService _quotaService;
   private readonly INotificationService _notificationService;
+  private readonly IDownloadDispatcher _downloadDispatcher;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="RequestsController"/> class.
@@ -31,16 +32,19 @@ public class RequestsController : ControllerBase
   /// <param name="userAccessor">The current-user accessor.</param>
   /// <param name="quotaService">The quota service used to enforce per-user limits.</param>
   /// <param name="notificationService">The notification service.</param>
+  /// <param name="downloadDispatcher">The download dispatcher triggered on approval.</param>
   public RequestsController(
     IRequestStore store,
     ICurrentUserAccessor userAccessor,
     IQuotaService quotaService,
-    INotificationService notificationService)
+    INotificationService notificationService,
+    IDownloadDispatcher downloadDispatcher)
   {
     _store = store;
     _userAccessor = userAccessor;
     _quotaService = quotaService;
     _notificationService = notificationService;
+    _downloadDispatcher = downloadDispatcher;
   }
 
   /// <summary>
@@ -237,6 +241,13 @@ public class RequestsController : ControllerBase
 
     var notificationEvent = status == RequestStatus.Approved ? NotificationEvent.Approved : NotificationEvent.Denied;
     _ = _notificationService.NotifyRequestEventAsync(updated, notificationEvent, CancellationToken.None);
+
+    // On approval, hand the request to the configured download backend (no-op if none / not due).
+    if (status == RequestStatus.Approved)
+    {
+      _ = _downloadDispatcher.DispatchAsync(updated, CancellationToken.None);
+    }
+
     return Ok(updated);
   }
 }

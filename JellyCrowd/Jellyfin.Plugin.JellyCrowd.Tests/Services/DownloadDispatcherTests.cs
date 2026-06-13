@@ -1,0 +1,139 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Jellyfin.Plugin.JellyCrowd.Configuration;
+using Jellyfin.Plugin.JellyCrowd.Models;
+using Jellyfin.Plugin.JellyCrowd.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+
+namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
+
+/// <summary>
+/// Tests for <see cref="DownloadDispatcher"/> using a real <see cref="JsonRequestStore"/> and a fake client.
+/// </summary>
+public sealed class DownloadDispatcherTests : IDisposable
+{
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly JsonRequestStore _store;
+  private readonly FakeDownloadClient _client = new();
+  private readonly PluginConfiguration _config = new() { DownloadBackend = "webhook", DownloadWebhookUrl = "http://example/hook" };
+
+  public DownloadDispatcherTests()
+  {
+    _store = new JsonRequestStore(_path);
+  }
+
+  public void Dispose()
+  {
+    _store.Dispose();
+    if (File.Exists(_path))
+    {
+      File.Delete(_path);
+    }
+  }
+
+  private DownloadDispatcher CreateDispatcher()
+    => new(new IDownloadClient[] { _client }, _store, _ => "tester", () => _config, NullLogger<DownloadDispatcher>.Instance);
+
+  private async Task<RequestRecord> SeedApprovedAsync()
+  {
+    var created = await _store.CreateAsync(new RequestRecord { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
+    return (await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None))!;
+  }
+
+  [Fact]
+  public async Task DispatchAsync_Eligible_DispatchesAndStamps()
+  {
+    var request = await SeedApprovedAsync();
+
+    var dispatched = await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+
+    Assert.True(dispatched);
+    Assert.Single(_client.Dispatched);
+    Assert.Equal(603, _client.Dispatched[0].TmdbId);
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.NotNull(stored!.DispatchedAt);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_Pending_NotDispatched()
+  {
+    var created = await _store.CreateAsync(new RequestRecord { TmdbId = 1, MediaType = "movie", Title = "X" }, CancellationToken.None);
+
+    var dispatched = await CreateDispatcher().DispatchAsync(created, CancellationToken.None);
+
+    Assert.False(dispatched);
+    Assert.Empty(_client.Dispatched);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_BackendNone_NotDispatched()
+  {
+    _config.DownloadBackend = "none";
+    var request = await SeedApprovedAsync();
+
+    var dispatched = await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+
+    Assert.False(dispatched);
+    Assert.Empty(_client.Dispatched);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_ClientThrows_NotStamped()
+  {
+    _client.Throw = true;
+    var request = await SeedApprovedAsync();
+
+    var dispatched = await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+
+    Assert.False(dispatched);
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.Null(stored!.DispatchedAt);
+  }
+
+  [Fact]
+  public async Task DispatchDueAsync_DispatchesEveryDueRequest()
+  {
+    await SeedApprovedAsync();
+    await SeedApprovedAsync();
+
+    await CreateDispatcher().DispatchDueAsync(CancellationToken.None);
+
+    Assert.Equal(2, _client.Dispatched.Count);
+  }
+
+  [Fact]
+  public async Task TestActiveAsync_NoneBackend_Throws()
+  {
+    _config.DownloadBackend = "none";
+
+    await Assert.ThrowsAsync<InvalidOperationException>(() => CreateDispatcher().TestActiveAsync(CancellationToken.None));
+  }
+
+  private sealed class FakeDownloadClient : IDownloadClient
+  {
+    public List<DownloadDispatch> Dispatched { get; } = new();
+
+    public bool Throw { get; set; }
+
+    public string Backend => "webhook";
+
+    public bool IsConfigured(PluginConfiguration config) => true;
+
+    public Task DispatchAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+    {
+      if (Throw)
+      {
+        throw new InvalidOperationException("boom");
+      }
+
+      Dispatched.Add(dispatch);
+      return Task.CompletedTask;
+    }
+
+    public Task TestAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+  }
+}
