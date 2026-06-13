@@ -1,0 +1,12 @@
+[
+  {
+    "guid": "a1994160-4ea2-4d81-bd3c-ffe825700d98",
+    "name": "Jelly Crowd",
+    "description": "Discovery catalog & media requests (Overseerr-style) with per-user disk quotas, inside Jellyfin.",
+    "overview": "Browse a TMDB catalog, request titles through an admin approval queue, and enforce per-user disk quotas.",
+    "owner": "LokLakh-s",
+    "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/LokLakh-s/jellyfin-plugins/main/JellyCrowd/Jellyfin.Plugin.JellyCrowd/Web/logo.png",
+    "versions": []
+  }
+]

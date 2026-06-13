@@ -1,0 +1,88 @@
+<!--
+  Jelly Crowd catalog page. Served by WebController and loaded by our own web shell (header.js),
+  which fetches this file and injects it as a document fragment into the Jellyfin web client. It
+  must therefore be a fragment (no <html>/<head>/<body>) and reference its assets via absolute URLs
+  (ApiClient.getUrl), since relative paths would resolve against /web/ and 404.
+-->
+<div id="jellyCrowdApp" class="jellycrowd">
+  <header class="jellycrowd-header">
+    <div class="jellycrowd-brand">
+      <img id="jcLogo" class="jellycrowd-logo" alt="" />
+      <h1 id="jcTitle" class="jellycrowd-title">Jelly Crowd</h1>
+    </div>
+    <form id="jcSearchForm" class="jellycrowd-search">
+      <input id="jcSearchInput" type="search" autocomplete="off" />
+      <button id="jcSearchButton" type="submit"></button>
+    </form>
+  </header>
+
+  <div class="jellycrowd-filters" id="jcFilters">
+    <div class="jellycrowd-filter">
+      <span class="jellycrowd-filter-label" id="jcLabelType"></span>
+      <div class="jellycrowd-typetoggle">
+        <button type="button" id="jcTypeMovie" class="jellycrowd-chip jellycrowd-chip-active"></button>
+        <button type="button" id="jcTypeTv" class="jellycrowd-chip"></button>
+      </div>
+    </div>
+    <div class="jellycrowd-filter" style="min-width:20em">
+      <span class="jellycrowd-filter-label" id="jcLabelGenres"></span>
+      <div class="jellycrowd-genres" id="jcGenres"></div>
+    </div>
+    <div class="jellycrowd-filter">
+      <span class="jellycrowd-filter-label" id="jcLabelYear"></span>
+      <div class="jellycrowd-dual" id="jcYear"></div>
+    </div>
+    <div class="jellycrowd-filter">
+      <span class="jellycrowd-filter-label" id="jcLabelRating"></span>
+      <div class="jellycrowd-dual" id="jcRating"></div>
+    </div>
+    <div class="jellycrowd-filter" style="min-width:10em">
+      <span class="jellycrowd-filter-label" id="jcLabelSort"></span>
+      <select id="jcSort"></select>
+    </div>
+    <div class="jellycrowd-filter" style="min-width:auto">
+      <span class="jellycrowd-filter-label">&nbsp;</span>
+      <button type="button" id="jcReset" class="jellycrowd-chip"></button>
+    </div>
+  </div>
+
+  <section class="jellycrowd-section">
+    <h2 id="jcSectionTitle" class="jellycrowd-section-title"></h2>
+    <p id="jcMessage" class="jellycrowd-message" hidden></p>
+    <div id="jcFeed" class="jellycrowd-feed" aria-live="polite"></div>
+    <div id="jcSentinel" class="jellycrowd-sentinel"></div>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var get = (window.ApiClient && window.ApiClient.getUrl)
+      ? function (p) { return window.ApiClient.getUrl(p); }
+      : function (p) { return '/' + p; };
+
+    if (!document.getElementById('jellycrowd-css')) {
+      var css = document.createElement('link');
+      css.id = 'jellycrowd-css';
+      css.rel = 'stylesheet';
+      css.href = get('JellyCrowd/Web/jellycrowd.css');
+      document.head.appendChild(css);
+    }
+
+    function load(src) {
+      var s = document.createElement('script');
+      s.src = get(src);
+      document.head.appendChild(s);
+    }
+
+    function start() { load('JellyCrowd/Web/catalog.js'); }
+
+    if (window.JellyCrowdLib) {
+      start();
+    } else {
+      var lib = document.createElement('script');
+      lib.src = get('JellyCrowd/Web/catalog.lib.js');
+      lib.onload = start;
+      document.head.appendChild(lib);
+    }
+  })();
+</script>

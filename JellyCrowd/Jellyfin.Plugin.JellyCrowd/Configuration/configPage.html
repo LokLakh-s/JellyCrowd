@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Jelly Crowd</title>
+</head>
+<body>
+  <div id="JellyCrowdConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+       data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <style>
+      /* Inlined inside the page div: Jellyfin injects only this element, not <head>. */
+      .jcTabBar { display: flex; gap: 0.5em; margin: 1em 0 1.5em; flex-wrap: wrap; }
+      .jcTab { padding: 0.5em 1em; border: none; border-radius: 0.3em; cursor: pointer;
+               background: rgba(127, 127, 127, 0.15); color: inherit; }
+      .jcTab.jcTabActive { background: #00a4dc; color: #fff; }
+      .jcTable { width: 100%; border-collapse: collapse; }
+      .jcTable th, .jcTable td { text-align: left; padding: 0.55em 0.8em; border-bottom: 1px solid rgba(127, 127, 127, 0.2); vertical-align: middle; }
+      .jcTable th { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; font-weight: 600; }
+      .jcTable td.jcColActions { text-align: right; white-space: nowrap; }
+      .jcAdminPoster { width: 2.4em; height: 3.6em; object-fit: cover; border-radius: 0.25em; background: rgba(127, 127, 127, 0.2); display: block; }
+      .jcAdminSub { opacity: 0.65; font-size: 0.85em; }
+      .jcStatus { font-size: 0.8em; padding: 0.2em 0.7em; border-radius: 1em; background: rgba(127, 127, 127, 0.3); white-space: nowrap; }
+      .jcStatus-pending { background: #b58900; color: #fff; }
+      .jcStatus-approved { background: #268bd2; color: #fff; }
+      .jcStatus-available { background: #2e7d32; color: #fff; }
+      .jcStatus-denied { background: #c0392b; color: #fff; }
+      .jcAvatar { width: 2em; height: 2em; border-radius: 50%; object-fit: cover; background: rgba(127, 127, 127, 0.3); display: block; }
+      .jcTable input[type="number"] { width: 7em; }
+      .jcTestRow { display: flex; align-items: center; gap: 0.8em; margin-top: 0.5em; flex-wrap: wrap; }
+      .jcTestResult { font-size: 0.85em; }
+    </style>
+    <div data-role="content">
+      <div class="content-primary">
+        <h2 class="sectionTitle">Jelly Crowd</h2>
+
+        <div class="jcTabBar">
+          <button type="button" id="jcTabRequests" class="jcTab jcTabActive">Requests</button>
+          <button type="button" id="jcTabQuotas" class="jcTab">User quotas</button>
+          <button type="button" id="jcTabSettings" class="jcTab">Settings</button>
+          <button type="button" id="jcTabNotifications" class="jcTab">Notifications</button>
+        </div>
+
+        <form id="JellyCrowdConfigForm">
+          <div id="jcPaneSettings" class="jcTabPane">
+            <div class="selectContainer">
+              <label class="selectLabel" for="Language">Language</label>
+              <select is="emby-select" id="Language" class="emby-select-withcolor emby-select">
+                <option value="auto">Auto (follow each user's language)</option>
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+              </select>
+              <div class="fieldDescription">Language of the Jelly Crowd user pages and notifications. "Auto" follows each user's browser/Jellyfin language.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key</label>
+              <input id="TmdbApiKey" name="TmdbApiKey" type="text" is="emby-input" />
+              <div class="fieldDescription">TMDB v3 API key used to power the discovery catalog.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="DefaultUserQuotaGiB">Default quota (GiB)</label>
+              <input id="DefaultUserQuotaGiB" name="DefaultUserQuotaGiB" type="number" is="emby-input" min="0" step="1" />
+              <div class="fieldDescription">Default per-user disk quota, in GiB. 0 means unlimited.</div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="RequireApproval" name="RequireApproval" type="checkbox" is="emby-checkbox" />
+                <span>Require admin approval for requests</span>
+              </label>
+              <div class="fieldDescription">When enabled, requests stay pending until an administrator approves them.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="EstimatedMovieSizeGiB">Estimated movie size (GiB)</label>
+              <input id="EstimatedMovieSizeGiB" name="EstimatedMovieSizeGiB" type="number" is="emby-input" min="0" step="0.5" />
+              <div class="fieldDescription">Used for quota pre-checks before the real size is known.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="EstimatedEpisodeSizeGiB">Estimated episode size (GiB)</label>
+              <input id="EstimatedEpisodeSizeGiB" name="EstimatedEpisodeSizeGiB" type="number" is="emby-input" min="0" step="0.5" />
+              <div class="fieldDescription">Used for quota pre-checks on series.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="MaxRequestsPerPeriod">Max requests per period</label>
+              <input id="MaxRequestsPerPeriod" type="number" is="emby-input" min="0" step="1" />
+              <div class="fieldDescription">Maximum requests a user can make per period. 0 = unlimited.</div>
+            </div>
+
+            <div class="selectContainer">
+              <label class="selectLabel" for="RequestPeriod">Request period</label>
+              <select is="emby-select" id="RequestPeriod" class="emby-select-withcolor emby-select">
+                <option value="Day">Day</option>
+                <option value="Week">Week</option>
+                <option value="Month">Month</option>
+              </select>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="DeletionRetentionHours">Deletion retention (hours)</label>
+              <input id="DeletionRetentionHours" type="number" is="emby-input" min="0" step="1" />
+              <div class="fieldDescription">Grace period before media a user flagged for deletion is removed from disk.</div>
+            </div>
+          </div>
+
+          <div id="jcPaneQuotas" class="jcTabPane" style="display:none">
+            <div class="verticalSection">
+              <h3 class="sectionTitle" id="jcQuotaOverridesTitle">Per-user disk quotas (GiB)</h3>
+              <div class="fieldDescription" id="jcQuotaOverridesHint"></div>
+              <div id="jcQuotaOverrides"></div>
+            </div>
+          </div>
+
+          <div id="jcPaneNotifications" class="jcTabPane" style="display:none">
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="DiscordWebhookUrl">Discord webhook URL</label>
+              <input id="DiscordWebhookUrl" type="text" is="emby-input" />
+              <div class="fieldDescription">Posts request events to this Discord channel. Leave empty to disable.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="SmtpHost">SMTP host</label>
+              <input id="SmtpHost" type="text" is="emby-input" />
+              <div class="fieldDescription">Leave empty to disable email notifications.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="SmtpPort">SMTP port</label>
+              <input id="SmtpPort" type="number" is="emby-input" min="1" step="1" />
+              <div class="fieldDescription">Use 587 (STARTTLS) or 465 (implicit SSL) with SSL enabled.</div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="SmtpUseSsl" type="checkbox" is="emby-checkbox" />
+                <span>Use SSL/TLS</span>
+              </label>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="SmtpUsername">SMTP username</label>
+              <input id="SmtpUsername" type="text" is="emby-input" />
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="SmtpPassword">SMTP password</label>
+              <input id="SmtpPassword" type="password" is="emby-input" />
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="SmtpFromAddress">From address</label>
+              <input id="SmtpFromAddress" type="text" is="emby-input" />
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="NotificationEmailTo">Notification recipient</label>
+              <input id="NotificationEmailTo" type="text" is="emby-input" />
+              <div class="fieldDescription">Email address that receives request notifications (e.g. the admin/ops mailbox).</div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="SmtpAllowInvalidCertificate" type="checkbox" is="emby-checkbox" />
+                <span>Accept invalid / self-signed SMTP certificate (insecure)</span>
+              </label>
+              <div class="fieldDescription">Enable only for a trusted self-hosted server whose certificate is self-signed or expired.</div>
+            </div>
+
+            <div class="fieldDescription">Send a test notification (save your settings first).</div>
+            <div class="jcTestRow">
+              <button is="emby-button" type="button" id="jcTestDiscord" class="raised emby-button"><span>Test Discord</span></button>
+              <button is="emby-button" type="button" id="jcTestEmail" class="raised emby-button"><span>Test email</span></button>
+              <span id="jcTestResult" class="jcTestResult"></span>
+            </div>
+          </div>
+
+          <div>
+            <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+              <span>Save</span>
+            </button>
+          </div>
+        </form>
+
+        <div id="jcPaneRequests" class="jcTabPane" style="display:none">
+          <div class="verticalSection">
+            <h2 id="jcAdminPendingTitle" class="sectionTitle">Pending requests</h2>
+            <p id="jcAdminPendingEmpty" class="fieldDescription" hidden></p>
+            <div id="jcAdminPending"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      var JellyCrowdConfig = {
+        pluginUniqueId: 'a1994160-4ea2-4d81-bd3c-ffe825700d98',
+        bytesPerGiB: 1024 * 1024 * 1024
+      };
+
+      function jcActivateTab(tab) {
+        var isRequests = tab === 'requests';
+        document.querySelector('#JellyCrowdConfigForm').style.display = isRequests ? 'none' : '';
+        document.querySelector('#jcPaneRequests').style.display = isRequests ? '' : 'none';
+        document.querySelector('#jcPaneSettings').style.display = tab === 'settings' ? '' : 'none';
+        document.querySelector('#jcPaneQuotas').style.display = tab === 'quotas' ? '' : 'none';
+        document.querySelector('#jcPaneNotifications').style.display = tab === 'notifications' ? '' : 'none';
+        document.querySelector('#jcTabSettings').classList.toggle('jcTabActive', tab === 'settings');
+        document.querySelector('#jcTabQuotas').classList.toggle('jcTabActive', tab === 'quotas');
+        document.querySelector('#jcTabNotifications').classList.toggle('jcTabActive', tab === 'notifications');
+        document.querySelector('#jcTabRequests').classList.toggle('jcTabActive', isRequests);
+      }
+
+      function buildQuotaOverrides(config) {
+        var container = document.querySelector('#jcQuotaOverrides');
+        container.innerHTML = '';
+        var overrides = config.QuotaOverrides || [];
+        ApiClient.getUsers().then(function (users) {
+          var table = document.createElement('table');
+          table.className = 'jcTable';
+          var thead = document.createElement('thead');
+          var htr = document.createElement('tr');
+          ['', 'User', 'Quota (GiB)'].forEach(function (h) {
+            var th = document.createElement('th');
+            th.textContent = h;
+            htr.appendChild(th);
+          });
+          thead.appendChild(htr);
+          table.appendChild(thead);
+
+          var tbody = document.createElement('tbody');
+          users.forEach(function (user) {
+            var existing = overrides.filter(function (o) { return o.UserId === user.Id; })[0];
+            var tr = document.createElement('tr');
+
+            var tdAvatar = document.createElement('td');
+            var avatar = document.createElement('img');
+            avatar.className = 'jcAvatar';
+            try { avatar.src = ApiClient.getUserImageUrl(user.Id, { type: 'Primary' }); } catch (e) { /* no image */ }
+            avatar.addEventListener('error', function () { avatar.style.visibility = 'hidden'; });
+            tdAvatar.appendChild(avatar);
+            tr.appendChild(tdAvatar);
+
+            var tdName = document.createElement('td');
+            tdName.textContent = user.Name;
+            tr.appendChild(tdName);
+
+            var tdQuota = document.createElement('td');
+            var input = document.createElement('input');
+            input.type = 'number';
+            input.min = '0';
+            input.step = '1';
+            input.placeholder = 'default';
+            input.setAttribute('is', 'emby-input');
+            input.className = 'jc-quota-override';
+            input.setAttribute('data-userid', user.Id);
+            if (existing) {
+              input.value = (existing.QuotaBytes || 0) / JellyCrowdConfig.bytesPerGiB;
+            }
+            tdQuota.appendChild(input);
+            tr.appendChild(tdQuota);
+
+            tbody.appendChild(tr);
+          });
+
+          table.appendChild(tbody);
+          container.appendChild(table);
+        });
+      }
+
+      function jcRunNotifTest(channel) {
+        var result = document.querySelector('#jcTestResult');
+        result.textContent = '…';
+        fetch(ApiClient.getUrl('JellyCrowd/Notifications/Test/' + channel), {
+          method: 'POST',
+          headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+        }).then(function (r) {
+          if (r.ok) {
+            result.textContent = '✅ ' + channel + ' OK';
+            return null;
+          }
+          return r.text().then(function (body) {
+            var msg = body;
+            try { msg = JSON.parse(body).detail || body; } catch (e) { /* not JSON */ }
+            result.textContent = '❌ ' + (msg || ('HTTP ' + r.status));
+          });
+        }).catch(function (e) {
+          result.textContent = '❌ ' + (e && e.message ? e.message : 'request failed');
+        });
+      }
+
+      function collectQuotaOverrides() {
+        var gib = JellyCrowdConfig.bytesPerGiB;
+        var result = [];
+        document.querySelectorAll('.jc-quota-override').forEach(function (input) {
+          if (input.value !== '' && input.value !== null) {
+            result.push({
+              UserId: input.getAttribute('data-userid'),
+              QuotaBytes: Math.round(parseFloat(input.value) * gib)
+            });
+          }
+        });
+        return result;
+      }
+
+      document.querySelector('#jcTabSettings').addEventListener('click', function () { jcActivateTab('settings'); });
+      document.querySelector('#jcTabQuotas').addEventListener('click', function () { jcActivateTab('quotas'); });
+      document.querySelector('#jcTabNotifications').addEventListener('click', function () { jcActivateTab('notifications'); });
+      document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
+
+      document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
+      document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
+
+      document.querySelector('#JellyCrowdConfigPage')
+        .addEventListener('pageshow', function () {
+          jcActivateTab('requests');
+          Dashboard.showLoadingMsg();
+          ApiClient.getPluginConfiguration(JellyCrowdConfig.pluginUniqueId).then(function (config) {
+            var gib = JellyCrowdConfig.bytesPerGiB;
+            document.querySelector('#Language').value = config.Language || 'auto';
+            document.querySelector('#TmdbApiKey').value = config.TmdbApiKey || '';
+            document.querySelector('#DefaultUserQuotaGiB').value = (config.DefaultUserQuotaBytes || 0) / gib;
+            document.querySelector('#RequireApproval').checked = !!config.RequireApproval;
+            document.querySelector('#EstimatedMovieSizeGiB').value = (config.EstimatedMovieSizeBytes || 0) / gib;
+            document.querySelector('#EstimatedEpisodeSizeGiB').value = (config.EstimatedEpisodeSizeBytes || 0) / gib;
+            document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
+            document.querySelector('#RequestPeriod').value = config.RequestPeriod || 'Week';
+            document.querySelector('#DeletionRetentionHours').value = config.DeletionRetentionHours != null ? config.DeletionRetentionHours : 24;
+            document.querySelector('#DiscordWebhookUrl').value = config.DiscordWebhookUrl || '';
+            document.querySelector('#SmtpHost').value = config.SmtpHost || '';
+            document.querySelector('#SmtpPort').value = config.SmtpPort || 587;
+            document.querySelector('#SmtpUseSsl').checked = !!config.SmtpUseSsl;
+            document.querySelector('#SmtpUsername').value = config.SmtpUsername || '';
+            document.querySelector('#SmtpPassword').value = config.SmtpPassword || '';
+            document.querySelector('#SmtpFromAddress').value = config.SmtpFromAddress || '';
+            document.querySelector('#NotificationEmailTo').value = config.NotificationEmailTo || '';
+            document.querySelector('#SmtpAllowInvalidCertificate').checked = !!config.SmtpAllowInvalidCertificate;
+            buildQuotaOverrides(config);
+            Dashboard.hideLoadingMsg();
+          });
+        });
+
+      document.querySelector('#JellyCrowdConfigForm')
+        .addEventListener('submit', function (e) {
+          Dashboard.showLoadingMsg();
+          ApiClient.getPluginConfiguration(JellyCrowdConfig.pluginUniqueId).then(function (config) {
+            var gib = JellyCrowdConfig.bytesPerGiB;
+            config.Language = document.querySelector('#Language').value;
+            config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
+            config.DefaultUserQuotaBytes = Math.round(parseFloat(document.querySelector('#DefaultUserQuotaGiB').value || '0') * gib);
+            config.RequireApproval = document.querySelector('#RequireApproval').checked;
+            config.EstimatedMovieSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedMovieSizeGiB').value || '0') * gib);
+            config.EstimatedEpisodeSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedEpisodeSizeGiB').value || '0') * gib);
+            config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);
+            config.RequestPeriod = document.querySelector('#RequestPeriod').value;
+            config.DeletionRetentionHours = parseInt(document.querySelector('#DeletionRetentionHours').value || '0', 10);
+            config.DiscordWebhookUrl = document.querySelector('#DiscordWebhookUrl').value;
+            config.SmtpHost = document.querySelector('#SmtpHost').value;
+            config.SmtpPort = parseInt(document.querySelector('#SmtpPort').value || '587', 10);
+            config.SmtpUseSsl = document.querySelector('#SmtpUseSsl').checked;
+            config.SmtpUsername = document.querySelector('#SmtpUsername').value;
+            config.SmtpPassword = document.querySelector('#SmtpPassword').value;
+            config.SmtpFromAddress = document.querySelector('#SmtpFromAddress').value;
+            config.NotificationEmailTo = document.querySelector('#NotificationEmailTo').value;
+            config.SmtpAllowInvalidCertificate = document.querySelector('#SmtpAllowInvalidCertificate').checked;
+            config.QuotaOverrides = collectQuotaOverrides();
+            ApiClient.updatePluginConfiguration(JellyCrowdConfig.pluginUniqueId, config).then(function (result) {
+              Dashboard.processPluginConfigurationUpdateResult(result);
+            });
+          });
+          e.preventDefault();
+          return false;
+        });
+    </script>
+    <script type="text/javascript">
+      (function () {
+        var SUPPORTED = ['en', 'fr'];
+        var strings = {};
+        var usersById = {};
+
+        function lang() {
+          var code = (navigator.language || 'en').slice(0, 2).toLowerCase();
+          return SUPPORTED.indexOf(code) >= 0 ? code : 'en';
+        }
+
+        function loadUsers() {
+          return ApiClient.getUsers()
+            .then(function (users) { (users || []).forEach(function (u) { usersById[u.Id] = u.Name; }); })
+            .catch(function () { /* names are best-effort */ });
+        }
+
+        function t(key) {
+          return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key;
+        }
+
+        function isPending(request) {
+          return request.Status === 0 || request.Status === 'Pending';
+        }
+
+        function loadStrings() {
+          return ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Web/strings/' + lang() + '.json'), dataType: 'json' })
+            .then(function (data) { strings = data || {}; })
+            .catch(function () { strings = {}; });
+        }
+
+        // Load the shared pure helpers (statusRank / statusLabelKey) once.
+        function ensureLib() {
+          if (window.JellyCrowdLib) {
+            return Promise.resolve();
+          }
+          return new Promise(function (resolve) {
+            var s = document.createElement('script');
+            s.src = ApiClient.getUrl('JellyCrowd/Web/catalog.lib.js');
+            s.onload = resolve;
+            s.onerror = resolve;
+            document.head.appendChild(s);
+          });
+        }
+
+        function applyLabels() {
+          document.querySelector('#jcTabSettings').textContent = t('tab_settings');
+          document.querySelector('#jcTabQuotas').textContent = t('tab_quotas');
+          document.querySelector('#jcTabNotifications').textContent = t('tab_notifications');
+          document.querySelector('#jcTabRequests').textContent = t('tab_requests');
+          document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
+          document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
+          document.querySelector('#jcAdminPendingTitle').textContent = t('tab_requests');
+        }
+
+        function decide(id, action) {
+          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + id + '/' + action) })
+            .then(load)
+            .catch(function () { /* ignore */ });
+        }
+
+        function render(requests) {
+          var all = (requests || []).slice();
+          if (window.JellyCrowdLib) {
+            all.sort(function (a, b) { return window.JellyCrowdLib.statusRank(a.Status) - window.JellyCrowdLib.statusRank(b.Status); });
+          }
+
+          var container = document.querySelector('#jcAdminPending');
+          var empty = document.querySelector('#jcAdminPendingEmpty');
+          container.innerHTML = '';
+
+          if (all.length === 0) {
+            empty.textContent = t('admin_no_requests');
+            empty.hidden = false;
+            return;
+          }
+
+          empty.hidden = true;
+
+          var table = document.createElement('table');
+          table.className = 'jcTable';
+          var thead = document.createElement('thead');
+          var htr = document.createElement('tr');
+          ['', t('col_title'), t('admin_requested_by'), t('col_date'), t('col_status'), ''].forEach(function (h) {
+            var th = document.createElement('th');
+            th.textContent = h;
+            htr.appendChild(th);
+          });
+          thead.appendChild(htr);
+          table.appendChild(thead);
+
+          var tbody = document.createElement('tbody');
+          all.forEach(function (request) {
+            var tr = document.createElement('tr');
+
+            var tdPoster = document.createElement('td');
+            var poster = document.createElement(request.PosterPath ? 'img' : 'div');
+            poster.className = 'jcAdminPoster';
+            if (request.PosterPath) {
+              poster.loading = 'lazy';
+              poster.src = 'https://image.tmdb.org/t/p/w92' + request.PosterPath;
+            }
+            tdPoster.appendChild(poster);
+            tr.appendChild(tdPoster);
+
+            var tdTitle = document.createElement('td');
+            var year = request.ReleaseDate ? (' (' + String(request.ReleaseDate).slice(0, 4) + ')') : '';
+            tdTitle.textContent = request.Title + year + (request.Season ? ' · S' + request.Season : '');
+            tr.appendChild(tdTitle);
+
+            var tdUser = document.createElement('td');
+            tdUser.textContent = usersById[request.UserId] || '?';
+            tr.appendChild(tdUser);
+
+            var tdDate = document.createElement('td');
+            tdDate.className = 'jcAdminSub';
+            tdDate.textContent = request.RequestedAt ? new Date(request.RequestedAt).toLocaleDateString() : '';
+            tr.appendChild(tdDate);
+
+            var tdStatus = document.createElement('td');
+            var statusKey = window.JellyCrowdLib ? window.JellyCrowdLib.statusLabelKey(request.Status) : 'status_pending';
+            var status = document.createElement('span');
+            status.className = 'jcStatus jcStatus-' + statusKey.replace('status_', '');
+            status.textContent = t(statusKey);
+            tdStatus.appendChild(status);
+            tr.appendChild(tdStatus);
+
+            var tdActions = document.createElement('td');
+            tdActions.className = 'jcColActions';
+            if (isPending(request)) {
+              var approve = document.createElement('button');
+              approve.type = 'button';
+              approve.className = 'raised emby-button';
+              approve.textContent = t('admin_approve');
+              approve.addEventListener('click', function () { decide(request.Id, 'Approve'); });
+              tdActions.appendChild(approve);
+
+              var deny = document.createElement('button');
+              deny.type = 'button';
+              deny.className = 'raised emby-button';
+              deny.textContent = t('admin_deny');
+              deny.addEventListener('click', function () { decide(request.Id, 'Deny'); });
+              tdActions.appendChild(deny);
+            }
+            tr.appendChild(tdActions);
+
+            tbody.appendChild(tr);
+          });
+
+          table.appendChild(tbody);
+          container.appendChild(table);
+        }
+
+        function load() {
+          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Requests'), dataType: 'json' })
+            .then(render)
+            .catch(function () { /* ignore */ });
+        }
+
+        document.querySelector('#JellyCrowdConfigPage').addEventListener('pageshow', function () {
+          loadStrings().then(ensureLib).then(loadUsers).then(function () {
+            applyLabels();
+            load();
+          });
+        });
+      })();
+    </script>
+  </div>
+</body>
+</html>

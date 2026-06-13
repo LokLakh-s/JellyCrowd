@@ -1,0 +1,648 @@
+.jellycrowd {
+  padding: 1.5em;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Full-screen overlay that hosts the user pages (Jelly Crowd's own tabbed shell). */
+.jellycrowd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--theme-body-background, #101013);
+}
+
+.jellycrowd-overlay-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.4em 0.8em;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.jellycrowd-overlay-tabs {
+  display: flex;
+  gap: 0.25em;
+  flex-wrap: wrap;
+}
+
+.jellycrowd-overlay-tab {
+  padding: 0.5em 1em;
+  border: none;
+  border-radius: 0.3em;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.95em;
+}
+
+.jellycrowd-overlay-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.jellycrowd-overlay-tab-active {
+  background: #00a4dc;
+  color: #fff;
+}
+
+.jellycrowd-overlay-close {
+  flex: 0 0 auto;
+  width: 2em;
+  height: 2em;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  cursor: pointer;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.jellycrowd-overlay-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.jellycrowd-overlay-views {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.jellycrowd-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 1.5em;
+}
+
+.jellycrowd-title {
+  margin: 0;
+}
+
+.jellycrowd-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.jellycrowd-logo {
+  height: 1.8em;
+  border-radius: 0.25em;
+}
+
+.jellycrowd-search {
+  display: flex;
+  gap: 0.5em;
+}
+
+.jellycrowd-search input {
+  min-width: 16em;
+  padding: 0.5em 0.75em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+.jellycrowd-search button {
+  padding: 0.5em 1em;
+  border-radius: 0.3em;
+  border: none;
+  cursor: pointer;
+}
+
+.jellycrowd-section-title {
+  margin: 0 0 0.75em;
+}
+
+.jellycrowd-message {
+  opacity: 0.75;
+}
+
+.jellycrowd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1em;
+}
+
+.jellycrowd-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5em;
+}
+
+.jellycrowd-sentinel {
+  height: 1px;
+}
+
+.jellycrowd-row-title {
+  margin: 0 0 0.6em;
+  font-size: 1.1em;
+}
+
+.jellycrowd-row-strip {
+  display: flex;
+  gap: 1em;
+  overflow-x: auto;
+  padding-bottom: 0.6em;
+  scrollbar-width: thin;
+}
+
+.jellycrowd-row-strip .jellycrowd-card {
+  width: 140px;
+  flex: 0 0 auto;
+}
+
+.jellycrowd-row-strip .jellycrowd-chip {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 0.95em;
+  padding: 0.5em 1em;
+}
+
+.jellycrowd-provider-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0.4em 0.7em;
+  border: none;
+  border-radius: 0.4em;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  white-space: nowrap;
+}
+
+.jellycrowd-provider-logo {
+  width: 1.8em;
+  height: 1.8em;
+  border-radius: 0.3em;
+  object-fit: cover;
+}
+
+.jellycrowd-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.jellycrowd-poster-wrap {
+  position: relative;
+}
+
+.jellycrowd-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 0.4em;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.jellycrowd-poster-empty {
+  display: block;
+}
+
+.jellycrowd-badge {
+  position: absolute;
+  top: 0.5em;
+  left: 0.5em;
+  padding: 0.15em 0.5em;
+  font-size: 0.75em;
+  border-radius: 0.3em;
+  background: #2e7d32;
+  color: #fff;
+}
+
+.jellycrowd-card-title {
+  margin-top: 0.5em;
+  font-size: 0.9em;
+  line-height: 1.3;
+}
+
+.jellycrowd-request {
+  margin-top: 0.5em;
+  padding: 0.4em 0.75em;
+  border: none;
+  border-radius: 0.3em;
+  cursor: pointer;
+  background: #00a4dc;
+  color: #fff;
+}
+
+.jellycrowd-request:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.jellycrowd-request-blocked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(127, 127, 127, 0.4);
+}
+
+.jellycrowd-desired-date {
+  margin-top: 0.75em;
+  font-size: 0.85em;
+}
+
+.jellycrowd-desired-date label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  max-width: 12em;
+}
+
+.jellycrowd-desired-date input {
+  padding: 0.3em 0.4em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+}
+
+.jellycrowd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.jellycrowd-request-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.6em 0.8em;
+  border-radius: 0.4em;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.jellycrowd-status {
+  font-size: 0.85em;
+  padding: 0.15em 0.6em;
+  border-radius: 0.3em;
+  background: rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+}
+
+.jellycrowd-status-pending { background: #b58900; color: #fff; }
+.jellycrowd-status-approved { background: #268bd2; color: #fff; }
+.jellycrowd-status-available { background: #2e7d32; color: #fff; }
+.jellycrowd-status-denied { background: #c0392b; color: #fff; }
+
+.jellycrowd-request-poster {
+  width: 2.6em;
+  height: 3.9em;
+  object-fit: cover;
+  border-radius: 0.2em;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.jellycrowd-request-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.jellycrowd-request-year {
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+
+.jellycrowd-card-clickable {
+  cursor: pointer;
+}
+
+.jellycrowd-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5em;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.jellycrowd-modal {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 0.6em;
+  background-color: #101010;
+  background-size: cover;
+  background-position: center top;
+  color: #fff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+.jellycrowd-modal-body {
+  display: flex;
+  gap: 1.25em;
+  align-items: flex-start;
+  padding: 1.5em;
+  background: linear-gradient(to bottom, rgba(16, 16, 16, 0.55) 0%, rgba(16, 16, 16, 0.92) 45%, #101010 100%);
+}
+
+.jellycrowd-modal-poster {
+  width: 32%;
+  max-width: 220px;
+  flex-shrink: 0;
+  border-radius: 0.4em;
+}
+
+.jellycrowd-modal-content {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .jellycrowd-modal-body {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .jellycrowd-modal-poster {
+    width: 50%;
+  }
+}
+
+.jellycrowd-modal-close {
+  position: absolute;
+  top: 0.6em;
+  right: 0.6em;
+  width: 2em;
+  height: 2em;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 1em;
+}
+
+.jellycrowd-modal-title {
+  margin: 0 0 0.25em;
+}
+
+.jellycrowd-modal-meta {
+  display: flex;
+  gap: 1em;
+  margin-bottom: 1em;
+  opacity: 0.85;
+  font-size: 0.9em;
+}
+
+.jellycrowd-modal-overview {
+  margin: 0 0 1.25em;
+  line-height: 1.5;
+  max-width: 60ch;
+}
+
+.jellycrowd-modal .jellycrowd-request {
+  margin-top: 0;
+}
+
+.jellycrowd-quota {
+  margin-bottom: 1.5em;
+}
+
+.jellycrowd-quota-clickable {
+  cursor: pointer;
+}
+
+.jellycrowd-quota-label {
+  margin-bottom: 0.4em;
+  font-size: 0.9em;
+  opacity: 0.9;
+}
+
+.jellycrowd-quota-track {
+  height: 0.6em;
+  border-radius: 0.3em;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.jellycrowd-quota-fill {
+  height: 100%;
+  background: #00a4dc;
+  transition: width 0.3s ease;
+}
+
+/* Filters */
+.jellycrowd-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25em;
+  align-items: flex-end;
+  margin-bottom: 1.5em;
+  padding: 1em;
+  border-radius: 0.5em;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.jellycrowd-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-width: 12em;
+}
+
+.jellycrowd-filter-label {
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+.jellycrowd-typetoggle, .jellycrowd-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+}
+
+.jellycrowd-chip {
+  padding: 0.3em 0.7em;
+  border: none;
+  border-radius: 1em;
+  cursor: pointer;
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+.jellycrowd-chip.jellycrowd-chip-active {
+  background: #00a4dc;
+  color: #fff;
+}
+
+.jellycrowd-genres {
+  max-width: 36em;
+  max-height: 6.5em;
+  overflow-y: auto;
+}
+
+.jellycrowd-filter select {
+  padding: 0.4em;
+  border-radius: 0.3em;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Dual range slider */
+.jellycrowd-dual {
+  position: relative;
+  height: 2.2em;
+  width: 14em;
+}
+
+.jellycrowd-dual-track {
+  position: absolute;
+  top: 0.7em;
+  left: 0;
+  right: 0;
+  height: 0.35em;
+  border-radius: 0.2em;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.jellycrowd-dual-fill {
+  position: absolute;
+  top: 0.7em;
+  height: 0.35em;
+  border-radius: 0.2em;
+  background: #00a4dc;
+}
+
+.jellycrowd-dual input[type="range"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.jellycrowd-dual input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: all;
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #00a4dc;
+  cursor: pointer;
+}
+
+.jellycrowd-dual input[type="range"]::-moz-range-thumb {
+  pointer-events: all;
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #00a4dc;
+  cursor: pointer;
+}
+
+.jellycrowd-dual-values {
+  position: absolute;
+  bottom: -0.2em;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8em;
+  opacity: 0.85;
+}
+
+/* Card hover */
+.jellycrowd-card-clickable .jellycrowd-poster {
+  transition: transform 0.15s ease;
+}
+
+.jellycrowd-card-clickable:hover .jellycrowd-poster {
+  transform: scale(1.04);
+}
+
+.jellycrowd-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0.5em;
+  border-radius: 0.4em;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0) 60%);
+  pointer-events: none;
+  font-size: 0.85em;
+}
+
+.jellycrowd-hover-title {
+  font-weight: 600;
+  line-height: 1.2;
+  max-height: 3.6em;
+  overflow: hidden;
+}
+
+.jellycrowd-hover-meta {
+  opacity: 0.85;
+  margin-top: 0.2em;
+}
+
+.jellycrowd-card-clickable:hover .jellycrowd-hover {
+  opacity: 1;
+}
+
+/* Modal extras */
+.jellycrowd-modal-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  margin-bottom: 1em;
+}
+
+.jellycrowd-modal-links {
+  display: flex;
+  gap: 0.6em;
+  margin-bottom: 1.25em;
+}
+
+.jellycrowd-modal-links a {
+  padding: 0.35em 0.8em;
+  border-radius: 0.3em;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  text-decoration: none;
+}
+
+.jellycrowd-seasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin-top: 0.5em;
+}
+
+.jellycrowd-season-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.35em 0.6em;
+  border-radius: 0.3em;
+  background: rgba(255, 255, 255, 0.06);
+}
