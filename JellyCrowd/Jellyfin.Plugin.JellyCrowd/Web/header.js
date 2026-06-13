@@ -35,6 +35,7 @@
   var activeNavId = null;
   var NAV_GREY = 'rgba(255,255,255,0.6)';
   var NAV_WHITE = '#fff';
+  var NAV_BLUE = '#00a4dc';
 
   function setActiveNav(id) {
     activeNavId = id;
@@ -205,11 +206,11 @@
     // the default <button> outline that the native is="emby-button" tabs don't have. We deliberately do
     // NOT reuse the .emby-tab-button class: inside Jellyfin's emby-tabs, that made our buttons get
     // treated as real tabs (Jellyfin would navigate on click, closing the overlay / blanking the page).
-    a.style.cssText = 'box-sizing:border-box;margin:0;padding:1.5em 1.5em;border:0;outline:none;box-shadow:none;background:transparent;font-family:inherit;font-size:inherit;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
+    a.style.cssText = 'box-sizing:border-box;margin:0;padding:1.5em 1.5em;border:0;outline:none;box-shadow:none;background:transparent;font-family:inherit;font-size:0.92em;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
     headerNavButtons[viewId] = a;
     a.style.color = (viewId === activeNavId) ? NAV_WHITE : NAV_GREY;
-    // Hover hints white; on leave restore the selected/unselected colour.
-    a.addEventListener('mouseenter', function () { a.style.color = NAV_WHITE; });
+    // Hover turns blue (Jellyfin accent); on leave restore the selected/unselected colour.
+    a.addEventListener('mouseenter', function () { a.style.color = NAV_BLUE; });
     a.addEventListener('mouseleave', function () { a.style.color = (viewId === activeNavId) ? NAV_WHITE : NAV_GREY; });
     // stopPropagation: keep the click from reaching Jellyfin's tab-bar click handler.
     a.addEventListener('click', function (e) { e.stopPropagation(); showView(viewId); });
