@@ -86,6 +86,23 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Create_Episode_StoresEpisodeAndAllowsOtherEpisodes()
+  {
+    var store = new FakeRequestStore();
+    var ep3 = new CreateRequestDto { TmdbId = 7, MediaType = "tv", Title = "Show", Season = 2, Episode = 3 };
+
+    var created = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>((await CreateController(store).Create(ep3, CancellationToken.None)).Result).Value);
+    Assert.Equal(3, created.Episode);
+
+    // Same episode again -> conflict.
+    Assert.IsType<ConflictObjectResult>((await CreateController(store).Create(ep3, CancellationToken.None)).Result);
+
+    // A different episode of the same season is allowed.
+    var ep4 = new CreateRequestDto { TmdbId = 7, MediaType = "tv", Title = "Show", Season = 2, Episode = 4 };
+    Assert.IsType<OkObjectResult>((await CreateController(store).Create(ep4, CancellationToken.None)).Result);
+  }
+
+  [Fact]
   public async Task Create_InvalidMediaType_ReturnsBadRequest()
   {
     var controller = CreateController(new FakeRequestStore());
@@ -284,11 +301,12 @@ public class RequestsControllerTests
       return Task.FromResult(record);
     }
 
-    public Task<bool> ExistsActiveAsync(Guid userId, int tmdbId, string mediaType, int? season, CancellationToken cancellationToken)
+    public Task<bool> ExistsActiveAsync(Guid userId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken)
       => Task.FromResult(_items.Any(r =>
         r.UserId == userId && r.TmdbId == tmdbId
         && string.Equals(r.MediaType, mediaType, StringComparison.Ordinal)
         && r.Season == season
+        && r.Episode == episode
         && r.Status != RequestStatus.Denied));
 
     public Task<int> CountUserRequestsSinceAsync(Guid userId, DateTime sinceUtc, CancellationToken cancellationToken)

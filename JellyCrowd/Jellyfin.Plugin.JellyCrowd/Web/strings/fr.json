@@ -28,6 +28,8 @@
   "view_tmdb": "TMDB",
   "view_imdb": "IMDb",
   "request_button": "Demander",
+  "request_season": "Demander la saison",
+  "episodes": "Épisodes",
   "details_button": "Détails",
   "desired_date_label": "Date souhaitée",
   "cancel": "Annuler",

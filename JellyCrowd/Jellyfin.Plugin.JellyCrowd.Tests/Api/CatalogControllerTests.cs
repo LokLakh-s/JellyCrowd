@@ -46,6 +46,16 @@ public class CatalogControllerTests
   }
 
   [Fact]
+  public async Task Episodes_ReturnsOk()
+  {
+    var controller = CreateController(new FakeTmdbClient());
+
+    var result = await controller.Episodes(7, 2, null, CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+  }
+
+  [Fact]
   public async Task Calendar_ReturnsUpcomingOrderedByDate()
   {
     var items = new List<CatalogItem>
@@ -221,6 +231,16 @@ public class CatalogControllerTests
       }
 
       return Task.FromResult<IReadOnlyList<Season>>(new List<Season>());
+    }
+
+    public Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken)
+    {
+      if (Throw is not null)
+      {
+        throw Throw;
+      }
+
+      return Task.FromResult<IReadOnlyList<Episode>>(new List<Episode>());
     }
 
     public Task<IReadOnlyList<WatchProvider>> GetWatchProvidersAsync(string mediaType, string region, string language, CancellationToken cancellationToken)

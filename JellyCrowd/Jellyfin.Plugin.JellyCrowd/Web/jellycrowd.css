@@ -648,6 +648,45 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.jellycrowd-season-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  flex: 0 0 auto;
+}
+
+.jellycrowd-ep-toggle {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  border-radius: 0.3em;
+  padding: 0.35em 0.7em;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.jellycrowd-ep-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.jellycrowd-episodes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0.2em 0 0.4em 1em;
+}
+
+.jellycrowd-episode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.3em 0.5em;
+  border-radius: 0.3em;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.9em;
+}
+
 /* Monthly calendar */
 .jellycrowd-cal-nav {
   display: flex;

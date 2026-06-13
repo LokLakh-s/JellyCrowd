@@ -155,6 +155,33 @@ public class TmdbResponseParserTests
   }
 
   [Fact]
+  public void ParseEpisodes_MapsNumberNameAndAirDate()
+  {
+    const string json = """
+    { "episodes": [
+      { "season_number": 2, "episode_number": 1, "name": "Pilot", "air_date": "2026-09-01", "still_path": "/s.jpg" },
+      { "season_number": 2, "episode_number": 2, "name": "Next", "air_date": "2026-09-08" }
+    ] }
+    """;
+
+    var episodes = TmdbResponseParser.ParseEpisodes(json);
+
+    Assert.Equal(2, episodes.Count);
+    Assert.Equal(2, episodes[0].SeasonNumber);
+    Assert.Equal(1, episodes[0].EpisodeNumber);
+    Assert.Equal("Pilot", episodes[0].Name);
+    Assert.Equal("2026-09-01", episodes[0].AirDate);
+    Assert.Equal("/s.jpg", episodes[0].StillPath);
+    Assert.Null(episodes[1].StillPath);
+  }
+
+  [Fact]
+  public void ParseEpisodes_NoEpisodes_ReturnsEmpty()
+  {
+    Assert.Empty(TmdbResponseParser.ParseEpisodes("{}"));
+  }
+
+  [Fact]
   public void ParseTvdbId_ReturnsId_WhenPresent()
   {
     Assert.Equal(81189, TmdbResponseParser.ParseTvdbId("""{ "id": 1396, "tvdb_id": 81189, "imdb_id": "tt0903747" }"""));

@@ -48,6 +48,11 @@ public class RequestRecord
   public int? Season { get; set; }
 
   /// <summary>
+  /// Gets or sets the requested episode number within the season (null = whole season/movie).
+  /// </summary>
+  public int? Episode { get; set; }
+
+  /// <summary>
   /// Gets or sets the current status.
   /// </summary>
   public RequestStatus Status { get; set; }

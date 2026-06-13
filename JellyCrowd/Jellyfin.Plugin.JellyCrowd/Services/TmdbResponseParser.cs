@@ -167,6 +167,37 @@ public static class TmdbResponseParser
   }
 
   /// <summary>
+  /// Parses a TMDB season payload (<c>/tv/{id}/season/{n}</c>) into its episodes.
+  /// </summary>
+  /// <param name="json">The raw TMDB JSON payload.</param>
+  /// <returns>The parsed episodes.</returns>
+  public static IReadOnlyList<Episode> ParseEpisodes(string json)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    var episodes = new List<Episode>();
+    using var doc = JsonDocument.Parse(json);
+    if (!doc.RootElement.TryGetProperty("episodes", out var array) || array.ValueKind != JsonValueKind.Array)
+    {
+      return episodes;
+    }
+
+    foreach (var element in array.EnumerateArray())
+    {
+      episodes.Add(new Episode
+      {
+        SeasonNumber = GetInt(element, "season_number"),
+        EpisodeNumber = GetInt(element, "episode_number"),
+        Name = GetString(element, "name") ?? string.Empty,
+        AirDate = GetString(element, "air_date"),
+        StillPath = GetString(element, "still_path")
+      });
+    }
+
+    return episodes;
+  }
+
+  /// <summary>
   /// Parses a TMDB watch-providers payload (<c>/watch/providers/{movie|tv}?watch_region=…</c>), sorted by
   /// regional display priority.
   /// </summary>
