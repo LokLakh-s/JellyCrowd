@@ -1,7 +1,9 @@
 {
   "app_title": "Jelly Crowd",
   "nav_catalog": "Catalog",
+  "nav_calendar": "Calendar",
   "nav_requests": "My requests",
+  "calendar_title": "Upcoming releases",
   "search_placeholder": "Search movies & shows…",
   "search_button": "Search",
   "trending_title": "Trending this week",

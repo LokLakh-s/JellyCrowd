@@ -83,4 +83,15 @@ public interface ITmdbClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The TVDB id, or <c>null</c> when unknown.</returns>
   Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets upcoming releases for a media type (movies via <c>movie/upcoming</c>, shows via
+  /// <c>tv/on_the_air</c>), used by the releases calendar.
+  /// </summary>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="region">The ISO 3166-1 region (movies).</param>
+  /// <param name="language">The TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The upcoming catalog items.</returns>
+  Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken);
 }

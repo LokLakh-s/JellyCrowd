@@ -127,6 +127,26 @@
     return p > 100 ? 100 : p;
   }
 
+  // Group catalog items by their release date (YYYY-MM-DD), returning date-ascending groups.
+  // Items without a parseable date are dropped. Used by the releases calendar.
+  function groupByReleaseDate(items) {
+    var byDate = {};
+    var dates = [];
+    (items || []).forEach(function (item) {
+      var date = item && item.ReleaseDate ? String(item.ReleaseDate).slice(0, 10) : '';
+      if (date.length !== 10) {
+        return;
+      }
+      if (!Object.prototype.hasOwnProperty.call(byDate, date)) {
+        byDate[date] = [];
+        dates.push(date);
+      }
+      byDate[date].push(item);
+    });
+    dates.sort();
+    return dates.map(function (date) { return { date: date, items: byDate[date] }; });
+  }
+
   // Quota fill colour, grading from green (empty) through yellow (half) to red (full).
   // Interpolates the HSL hue 120 -> 0 across 0..100%.
   function quotaColor(percent) {
@@ -150,6 +170,7 @@
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,
-    quotaColor: quotaColor
+    quotaColor: quotaColor,
+    groupByReleaseDate: groupByReleaseDate
   };
 });

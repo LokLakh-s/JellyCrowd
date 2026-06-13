@@ -310,6 +310,52 @@ public class CatalogController : ControllerBase
     }
   }
 
+  /// <summary>
+  /// Lists upcoming movie and show releases (combined), soonest first, for the releases calendar.
+  /// </summary>
+  /// <param name="language">Optional TMDB language code (defaults to <c>en-US</c>).</param>
+  /// <param name="region">ISO 3166-1 region for movie releases (defaults to <c>US</c>).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">Upcoming items returned.</response>
+  /// <response code="503">TMDB is not configured or unreachable.</response>
+  /// <returns>The upcoming catalog items, ordered by release date.</returns>
+  [HttpGet("Calendar")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+  public async Task<ActionResult<IReadOnlyList<CatalogItem>>> Calendar(
+    [FromQuery] string? language,
+    [FromQuery] string? region,
+    CancellationToken cancellationToken)
+  {
+    var lang = Normalize(language);
+    var watchRegion = string.IsNullOrWhiteSpace(region) ? "US" : region;
+
+    try
+    {
+      var movies = await _tmdbClient.GetUpcomingAsync("movie", watchRegion, lang, cancellationToken).ConfigureAwait(false);
+      var shows = await _tmdbClient.GetUpcomingAsync("tv", watchRegion, lang, cancellationToken).ConfigureAwait(false);
+      var merged = new List<CatalogItem>(movies);
+      merged.AddRange(shows);
+
+      var ordered = CalendarPlanner.OrderUpcoming(merged, DateTime.UtcNow);
+      foreach (var item in ordered)
+      {
+        item.JellyfinItemId = _libraryMatcher.FindItemId(item.MediaType, item.TmdbId);
+        item.Available = item.JellyfinItemId is not null;
+      }
+
+      return Ok(ordered);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return NotConfigured(ex);
+    }
+    catch (HttpRequestException ex)
+    {
+      return Upstream(ex);
+    }
+  }
+
   private static string Normalize(string? language)
     => string.IsNullOrWhiteSpace(language) ? DefaultLanguage : language;
 

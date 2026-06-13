@@ -17,6 +17,7 @@
   // The user pages we host. Order defines the overlay tab order.
   var VIEWS = [
     { id: 'catalog', file: 'catalog.html', labelKey: 'nav_catalog' },
+    { id: 'calendar', file: 'calendar.html', labelKey: 'nav_calendar' },
     { id: 'requests', file: 'requests.html', labelKey: 'nav_requests' },
     { id: 'mymedia', file: 'mymedia.html', labelKey: 'my_media_title' }
   ];
@@ -285,6 +286,7 @@
     nav.className = 'jcHeaderNav';
     nav.style.cssText = 'display:inline-flex;align-items:center;';
     nav.appendChild(navButton('nav_catalog', 'catalog'));
+    nav.appendChild(navButton('nav_calendar', 'calendar'));
     nav.appendChild(navButton('nav_requests', 'requests'));
     // Sit on the same line as the real tabs when the slider exists, else in the centered row itself.
     var slider = tabs.querySelector('.emby-tabs-slider');
