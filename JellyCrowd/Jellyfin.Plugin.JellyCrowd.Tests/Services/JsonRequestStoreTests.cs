@@ -119,6 +119,49 @@ public sealed class JsonRequestStoreTests : IDisposable
     }
   }
 
+  [Fact]
+  public async Task MarkDispatchedAsync_SetsDispatchedAt()
+  {
+    var created = await _store.CreateAsync(NewRecord(Guid.NewGuid()), CancellationToken.None);
+    var when = new DateTime(2026, 6, 13, 10, 0, 0, DateTimeKind.Utc);
+
+    var updated = await _store.MarkDispatchedAsync(created.Id, when, CancellationToken.None);
+
+    Assert.NotNull(updated);
+    Assert.Equal(when, updated!.DispatchedAt);
+    Assert.Null(await _store.MarkDispatchedAsync(Guid.NewGuid(), when, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task GetDueForDispatchAsync_ReturnsApprovedNotDispatchedAndDue()
+  {
+    var admin = Guid.NewGuid();
+    var now = DateTime.UtcNow;
+
+    // Approved + due (no desired date) -> included.
+    var due = await _store.CreateAsync(NewRecord(Guid.NewGuid(), 1), CancellationToken.None);
+    await _store.UpdateStatusAsync(due.Id, RequestStatus.Approved, admin, CancellationToken.None);
+
+    // Approved but already dispatched -> excluded.
+    var dispatched = await _store.CreateAsync(NewRecord(Guid.NewGuid(), 2), CancellationToken.None);
+    await _store.UpdateStatusAsync(dispatched.Id, RequestStatus.Approved, admin, CancellationToken.None);
+    await _store.MarkDispatchedAsync(dispatched.Id, now, CancellationToken.None);
+
+    // Approved but desired in the future -> excluded.
+    var future = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 3, MediaType = "movie", Title = "Later", DesiredAt = now.AddDays(2) },
+      CancellationToken.None);
+    await _store.UpdateStatusAsync(future.Id, RequestStatus.Approved, admin, CancellationToken.None);
+
+    // Still pending -> excluded.
+    await _store.CreateAsync(NewRecord(Guid.NewGuid(), 4), CancellationToken.None);
+
+    var result = await _store.GetDueForDispatchAsync(now, CancellationToken.None);
+
+    Assert.Single(result);
+    Assert.Equal(due.Id, result[0].Id);
+  }
+
   private static RequestRecord NewRecord(Guid userId, int tmdbId = 1)
     => new() { UserId = userId, TmdbId = tmdbId, MediaType = "movie", Title = "Test" };
 }

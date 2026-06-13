@@ -21,7 +21,7 @@ public class RequestsControllerTests
 
   private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService())
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), new FakeDownloadDispatcher())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -228,6 +228,15 @@ public class RequestsControllerTests
     public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
   }
 
+  private sealed class FakeDownloadDispatcher : IDownloadDispatcher
+  {
+    public Task<bool> DispatchAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(false);
+
+    public Task DispatchDueAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task TestActiveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+  }
+
   private sealed class FakeRequestStore : IRequestStore
   {
     private readonly List<RequestRecord> _items = new();
@@ -321,5 +330,21 @@ public class RequestsControllerTests
       _items.RemoveAll(r => r.Id == id);
       return Task.CompletedTask;
     }
+
+    public Task<RequestRecord?> MarkDispatchedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is not null)
+      {
+        record.DispatchedAt = whenUtc;
+      }
+
+      return Task.FromResult(record);
+    }
+
+    public Task<IReadOnlyList<RequestRecord>> GetDueForDispatchAsync(DateTime nowUtc, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyList<RequestRecord>>(_items.Where(r =>
+        r.Status == RequestStatus.Approved && r.DispatchedAt is null
+        && (r.DesiredAt is null || r.DesiredAt <= nowUtc)).ToList());
   }
 }

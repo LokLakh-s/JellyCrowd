@@ -37,6 +37,18 @@ public class PluginConfiguration : BasePluginConfiguration
     NotificationEmailTo = string.Empty;
     SmtpAllowInvalidCertificate = false;
     Language = "auto";
+    DownloadBackend = "none";
+    DownloadWebhookUrl = string.Empty;
+    DownloadWebhookHeaders = string.Empty;
+    RadarrUrl = string.Empty;
+    RadarrApiKey = string.Empty;
+    RadarrRootFolderPath = string.Empty;
+    RadarrQualityProfileId = 0;
+    SonarrUrl = string.Empty;
+    SonarrApiKey = string.Empty;
+    SonarrRootFolderPath = string.Empty;
+    SonarrQualityProfileId = 0;
+    SonarrLanguageProfileId = 1;
   }
 
   /// <summary>
@@ -135,4 +147,66 @@ public class PluginConfiguration : BasePluginConfiguration
   /// browser/Jellyfin language; a 2-letter code (e.g. <c>"en"</c>, <c>"fr"</c>) forces that language.
   /// </summary>
   public string Language { get; set; }
+
+  /// <summary>
+  /// Gets or sets the download backend that fulfills approved requests:
+  /// <c>"none"</c> (manual admin queue, default), <c>"webhook"</c> (POST the request to a URL),
+  /// or <c>"servarr"</c> (Radarr for movies / Sonarr for shows).
+  /// </summary>
+  public string DownloadBackend { get; set; }
+
+  /// <summary>
+  /// Gets or sets the URL the request is POSTed to when <see cref="DownloadBackend"/> is <c>"webhook"</c>.
+  /// </summary>
+  public string DownloadWebhookUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets optional HTTP headers for the webhook, one per line as <c>Name: Value</c>.
+  /// </summary>
+  public string DownloadWebhookHeaders { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Radarr base URL (e.g. <c>http://localhost:7878</c>) used to add requested movies.
+  /// </summary>
+  public string RadarrUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Radarr API key.
+  /// </summary>
+  public string RadarrApiKey { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Radarr root folder path new movies are added under.
+  /// </summary>
+  public string RadarrRootFolderPath { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Radarr quality profile id applied to new movies.
+  /// </summary>
+  public int RadarrQualityProfileId { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr base URL (e.g. <c>http://localhost:8989</c>) used to add requested shows.
+  /// </summary>
+  public string SonarrUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr API key.
+  /// </summary>
+  public string SonarrApiKey { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr root folder path new series are added under.
+  /// </summary>
+  public string SonarrRootFolderPath { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr quality profile id applied to new series.
+  /// </summary>
+  public int SonarrQualityProfileId { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr language profile id (Sonarr v3 requires one; ignored by v4). Defaults to 1.
+  /// </summary>
+  public int SonarrLanguageProfileId { get; set; }
 }

@@ -38,6 +38,7 @@
           <button type="button" id="jcTabQuotas" class="jcTab">User quotas</button>
           <button type="button" id="jcTabSettings" class="jcTab">Settings</button>
           <button type="button" id="jcTabNotifications" class="jcTab">Notifications</button>
+          <button type="button" id="jcTabDownload" class="jcTab">Download</button>
         </div>
 
         <form id="JellyCrowdConfigForm">
@@ -177,6 +178,37 @@
             </div>
           </div>
 
+          <div id="jcPaneDownload" class="jcTabPane" style="display:none">
+            <div class="selectContainer">
+              <label class="selectLabel" for="DownloadBackend">Download backend</label>
+              <select is="emby-select" id="DownloadBackend" class="emby-select-withcolor emby-select">
+                <option value="none">None (manual admin queue)</option>
+                <option value="webhook">Webhook (POST request to a URL)</option>
+              </select>
+              <div class="fieldDescription">How approved requests are fulfilled. Jelly Crowd only emits the request; the backend searches and downloads.</div>
+            </div>
+
+            <div id="jcWebhookFields">
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="DownloadWebhookUrl">Webhook URL</label>
+                <input id="DownloadWebhookUrl" type="text" is="emby-input" />
+                <div class="fieldDescription">Approved requests are POSTed here as JSON (tmdbId, mediaType, title, year, season…).</div>
+              </div>
+
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="DownloadWebhookHeaders">Webhook headers</label>
+                <textarea id="DownloadWebhookHeaders" rows="3" style="width:100%"></textarea>
+                <div class="fieldDescription">Optional. One per line as "Name: Value" (e.g. an authorization header).</div>
+              </div>
+            </div>
+
+            <div class="fieldDescription">Send a test dispatch to the selected backend (save your settings first).</div>
+            <div class="jcTestRow">
+              <button is="emby-button" type="button" id="jcTestDownload" class="raised emby-button"><span>Test backend</span></button>
+              <span id="jcTestDownloadResult" class="jcTestResult"></span>
+            </div>
+          </div>
+
           <div>
             <button is="emby-button" type="submit" class="raised button-submit block emby-button">
               <span>Save</span>
@@ -207,10 +239,17 @@
         document.querySelector('#jcPaneSettings').style.display = tab === 'settings' ? '' : 'none';
         document.querySelector('#jcPaneQuotas').style.display = tab === 'quotas' ? '' : 'none';
         document.querySelector('#jcPaneNotifications').style.display = tab === 'notifications' ? '' : 'none';
+        document.querySelector('#jcPaneDownload').style.display = tab === 'download' ? '' : 'none';
         document.querySelector('#jcTabSettings').classList.toggle('jcTabActive', tab === 'settings');
         document.querySelector('#jcTabQuotas').classList.toggle('jcTabActive', tab === 'quotas');
         document.querySelector('#jcTabNotifications').classList.toggle('jcTabActive', tab === 'notifications');
+        document.querySelector('#jcTabDownload').classList.toggle('jcTabActive', tab === 'download');
         document.querySelector('#jcTabRequests').classList.toggle('jcTabActive', isRequests);
+      }
+
+      function jcUpdateDownloadVisibility() {
+        var backend = document.querySelector('#DownloadBackend').value;
+        document.querySelector('#jcWebhookFields').style.display = backend === 'webhook' ? '' : 'none';
       }
 
       function buildQuotaOverrides(config) {
@@ -270,15 +309,14 @@
         });
       }
 
-      function jcRunNotifTest(channel) {
-        var result = document.querySelector('#jcTestResult');
+      function jcPostTest(url, result, okLabel) {
         result.textContent = '…';
-        fetch(ApiClient.getUrl('JellyCrowd/Notifications/Test/' + channel), {
+        fetch(ApiClient.getUrl(url), {
           method: 'POST',
           headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
         }).then(function (r) {
           if (r.ok) {
-            result.textContent = '✅ ' + channel + ' OK';
+            result.textContent = '✅ ' + okLabel;
             return null;
           }
           return r.text().then(function (body) {
@@ -289,6 +327,10 @@
         }).catch(function (e) {
           result.textContent = '❌ ' + (e && e.message ? e.message : 'request failed');
         });
+      }
+
+      function jcRunNotifTest(channel) {
+        jcPostTest('JellyCrowd/Notifications/Test/' + channel, document.querySelector('#jcTestResult'), channel + ' OK');
       }
 
       function collectQuotaOverrides() {
@@ -308,10 +350,13 @@
       document.querySelector('#jcTabSettings').addEventListener('click', function () { jcActivateTab('settings'); });
       document.querySelector('#jcTabQuotas').addEventListener('click', function () { jcActivateTab('quotas'); });
       document.querySelector('#jcTabNotifications').addEventListener('click', function () { jcActivateTab('notifications'); });
+      document.querySelector('#jcTabDownload').addEventListener('click', function () { jcActivateTab('download'); });
       document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
 
       document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
+      document.querySelector('#jcTestDownload').addEventListener('click', function () { jcPostTest('JellyCrowd/Download/Test', document.querySelector('#jcTestDownloadResult'), 'OK'); });
+      document.querySelector('#DownloadBackend').addEventListener('change', jcUpdateDownloadVisibility);
 
       document.querySelector('#JellyCrowdConfigPage')
         .addEventListener('pageshow', function () {
@@ -337,6 +382,10 @@
             document.querySelector('#SmtpFromAddress').value = config.SmtpFromAddress || '';
             document.querySelector('#NotificationEmailTo').value = config.NotificationEmailTo || '';
             document.querySelector('#SmtpAllowInvalidCertificate').checked = !!config.SmtpAllowInvalidCertificate;
+            document.querySelector('#DownloadBackend').value = config.DownloadBackend || 'none';
+            document.querySelector('#DownloadWebhookUrl').value = config.DownloadWebhookUrl || '';
+            document.querySelector('#DownloadWebhookHeaders').value = config.DownloadWebhookHeaders || '';
+            jcUpdateDownloadVisibility();
             buildQuotaOverrides(config);
             Dashboard.hideLoadingMsg();
           });
@@ -365,6 +414,9 @@
             config.SmtpFromAddress = document.querySelector('#SmtpFromAddress').value;
             config.NotificationEmailTo = document.querySelector('#NotificationEmailTo').value;
             config.SmtpAllowInvalidCertificate = document.querySelector('#SmtpAllowInvalidCertificate').checked;
+            config.DownloadBackend = document.querySelector('#DownloadBackend').value;
+            config.DownloadWebhookUrl = document.querySelector('#DownloadWebhookUrl').value;
+            config.DownloadWebhookHeaders = document.querySelector('#DownloadWebhookHeaders').value;
             config.QuotaOverrides = collectQuotaOverrides();
             ApiClient.updatePluginConfiguration(JellyCrowdConfig.pluginUniqueId, config).then(function (result) {
               Dashboard.processPluginConfigurationUpdateResult(result);
@@ -423,6 +475,7 @@
           document.querySelector('#jcTabSettings').textContent = t('tab_settings');
           document.querySelector('#jcTabQuotas').textContent = t('tab_quotas');
           document.querySelector('#jcTabNotifications').textContent = t('tab_notifications');
+          document.querySelector('#jcTabDownload').textContent = t('tab_download');
           document.querySelector('#jcTabRequests').textContent = t('tab_requests');
           document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');

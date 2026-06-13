@@ -3,6 +3,7 @@ using System.IO;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -31,6 +32,20 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       sp.GetRequiredService<ILibraryMatcher>(),
       sp.GetRequiredService<Func<PluginConfiguration>>()));
     serviceCollection.AddSingleton<IRequestReconciler, RequestReconciler>();
+
+    // Download backends (request fulfillment). Jelly Crowd only emits requests; the backend searches/downloads.
+    serviceCollection.AddSingleton<IDownloadClient, WebhookDownloadClient>();
+    serviceCollection.AddSingleton<Func<Guid, string>>(sp =>
+    {
+      var userManager = sp.GetRequiredService<IUserManager>();
+      return userId =>
+      {
+        var user = userManager.GetUserById(userId);
+        return user?.Username ?? "Unknown";
+      };
+    });
+    serviceCollection.AddSingleton<IDownloadDispatcher, DownloadDispatcher>();
+
     serviceCollection.AddHostedService<WebInjectionService>();
     serviceCollection.AddHostedService<LibraryEventEntryPoint>();
   }
