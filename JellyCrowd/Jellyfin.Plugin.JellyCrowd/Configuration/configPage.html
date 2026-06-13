@@ -693,7 +693,7 @@ Content-Type: application/json
 
             var tdTitle = document.createElement('td');
             var year = request.ReleaseDate ? (' (' + String(request.ReleaseDate).slice(0, 4) + ')') : '';
-            tdTitle.textContent = request.Title + year + (request.Season ? ' · S' + request.Season : '');
+            tdTitle.textContent = request.Title + year + (request.Season ? ' · S' + request.Season : '') + (request.Episode ? 'E' + request.Episode : '');
             tr.appendChild(tdTitle);
 
             var tdUser = document.createElement('td');

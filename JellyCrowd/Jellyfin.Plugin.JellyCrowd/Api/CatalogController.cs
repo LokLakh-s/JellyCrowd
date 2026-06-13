@@ -267,6 +267,40 @@ public class CatalogController : ControllerBase
   }
 
   /// <summary>
+  /// Lists the episodes of a show's season (with air dates), for per-episode requests.
+  /// </summary>
+  /// <param name="tmdbId">The show's TMDB identifier.</param>
+  /// <param name="season">The season number.</param>
+  /// <param name="language">Optional TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The episodes.</response>
+  /// <response code="503">TMDB is not configured or unreachable.</response>
+  /// <returns>The season's episodes.</returns>
+  [HttpGet("Episodes/{tmdbId:int}/{season:int}")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+  public async Task<ActionResult<IReadOnlyList<Episode>>> Episodes(
+    int tmdbId,
+    int season,
+    [FromQuery] string? language,
+    CancellationToken cancellationToken)
+  {
+    try
+    {
+      var episodes = await _tmdbClient.GetSeasonEpisodesAsync(tmdbId, season, Normalize(language), cancellationToken).ConfigureAwait(false);
+      return Ok(episodes);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return NotConfigured(ex);
+    }
+    catch (HttpRequestException ex)
+    {
+      return Upstream(ex);
+    }
+  }
+
+  /// <summary>
   /// Lists the watch providers (streaming platforms) available in a region.
   /// </summary>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>

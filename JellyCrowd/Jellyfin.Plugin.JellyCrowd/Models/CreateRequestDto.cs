@@ -38,6 +38,11 @@ public class CreateRequestDto
   public int? Season { get; set; }
 
   /// <summary>
+  /// Gets or sets the requested episode number within the season (null = whole season/movie).
+  /// </summary>
+  public int? Episode { get; set; }
+
+  /// <summary>
   /// Gets or sets the date/time the user wants the request fulfilled. Null defaults to "now".
   /// Reserved for future Servarr/custom download-script scheduling.
   /// </summary>

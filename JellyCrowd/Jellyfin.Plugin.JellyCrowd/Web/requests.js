@@ -95,7 +95,9 @@
 
     var main = document.createElement('div');
     main.className = 'jellycrowd-request-main';
-    main.textContent = lib.formatTitle(request) + (request.Season ? ' · S' + request.Season : '');
+    main.textContent = lib.formatTitle(request)
+      + (request.Season ? ' · S' + request.Season : '')
+      + (request.Episode ? 'E' + request.Episode : '');
     row.appendChild(main);
 
     var status = document.createElement('span');

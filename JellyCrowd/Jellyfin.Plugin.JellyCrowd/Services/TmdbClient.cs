@@ -187,6 +187,15 @@ public class TmdbClient : ITmdbClient
     return TmdbResponseParser.ParseResults(json, mediaType);
   }
 
+  /// <inheritdoc />
+  public async Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken)
+  {
+    var id = tmdbId.ToString(CultureInfo.InvariantCulture);
+    var season = seasonNumber.ToString(CultureInfo.InvariantCulture);
+    var json = await GetAsync($"/tv/{id}/season/{season}?language={Escape(language)}", cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseEpisodes(json);
+  }
+
   private static void EnsureMediaType(string mediaType)
   {
     if (!string.Equals(mediaType, "movie", StringComparison.Ordinal)

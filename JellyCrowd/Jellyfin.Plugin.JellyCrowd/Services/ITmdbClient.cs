@@ -67,6 +67,16 @@ public interface ITmdbClient
   Task<IReadOnlyList<Season>> GetSeasonsAsync(int tmdbId, string language, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Gets the episodes of a show's season (with air dates), used for per-episode requests and the calendar.
+  /// </summary>
+  /// <param name="tmdbId">The show's TMDB identifier.</param>
+  /// <param name="seasonNumber">The season number.</param>
+  /// <param name="language">The TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The season's episodes.</returns>
+  Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Gets the details for a single movie or show.
   /// </summary>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>

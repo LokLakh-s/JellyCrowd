@@ -203,6 +203,22 @@ Objectif : donner à l'admin la main sur les demandes (au-delà d'approuver/refu
   quota/limite optionnel.
 - ☐ Endpoints admin (`RequiresElevation`) + UI dans l'onglet Demandes ; tests (nominal + autorisation).
 
+## M14 — Granularité épisode  ◐ (Partie A faite, Partie B à venir)
+
+Objectif : demander un **épisode** seul, garder le bouton **saison entière** (pas série entière), et un
+**calendrier par épisode**.
+
+- ☑ **Partie A — Requêtes épisode** : champ `Episode` (demande + dédup par épisode) ; endpoint
+  `Catalog/Episodes/{tmdbId}/{season}` (TMDB, dates de diffusion) ; fiche série = liste d'épisodes
+  (bouton par épisode) + bouton « Demander la saison » qui, si la saison a des épisodes non sortis,
+  crée **une demande par épisode planifiée à sa date de diffusion** (sinon une demande de saison).
+  Affichage `S2E3` dans Mes demandes + file admin. Tests (parser/dédup/contrôleur).
+- ☐ **Partie B — Calendrier par épisode** : la grille mensuelle liste les **épisodes** des **séries
+  suivies** (demandées ou en biblio) + sorties de films. Récupération par série (pas d'endpoint global
+  TMDB) ; bornage aux séries suivies de l'utilisateur. Logique pure testée + vérif live.
+- ⚠️ Limite connue : la réconciliation/disponibilité reste **au niveau série** (un épisode passe
+  `Available` quand la série est en biblio) ; matching par épisode = amélioration future.
+
 ---
 
 ## Hors périmètre / idées futures

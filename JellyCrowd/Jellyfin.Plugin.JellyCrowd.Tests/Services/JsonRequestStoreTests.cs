@@ -60,11 +60,24 @@ public sealed class JsonRequestStoreTests : IDisposable
     var user = Guid.NewGuid();
     var created = await _store.CreateAsync(NewRecord(user, 42), CancellationToken.None);
 
-    Assert.True(await _store.ExistsActiveAsync(user, 42, "movie", null, CancellationToken.None));
+    Assert.True(await _store.ExistsActiveAsync(user, 42, "movie", null, null, CancellationToken.None));
 
     await _store.UpdateStatusAsync(created.Id, RequestStatus.Denied, Guid.NewGuid(), CancellationToken.None);
 
-    Assert.False(await _store.ExistsActiveAsync(user, 42, "movie", null, CancellationToken.None));
+    Assert.False(await _store.ExistsActiveAsync(user, 42, "movie", null, null, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task ExistsActiveAsync_DistinguishesEpisodes()
+  {
+    var user = Guid.NewGuid();
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 7, MediaType = "tv", Title = "Show", Season = 2, Episode = 3 },
+      CancellationToken.None);
+
+    Assert.True(await _store.ExistsActiveAsync(user, 7, "tv", 2, 3, CancellationToken.None));
+    Assert.False(await _store.ExistsActiveAsync(user, 7, "tv", 2, 4, CancellationToken.None));
+    Assert.False(await _store.ExistsActiveAsync(user, 7, "tv", 2, null, CancellationToken.None));
   }
 
   [Fact]
