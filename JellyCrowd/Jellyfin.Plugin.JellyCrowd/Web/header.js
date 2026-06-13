@@ -182,9 +182,10 @@
     var a = document.createElement('button');
     a.type = 'button';
     a.textContent = t(labelKey);
-    // Match the look of Jellyfin's own header links (Home / Favorites): white text, same size,
-    // vertically centered. The header theme varies, so colours are forced rather than inherited.
-    a.style.cssText = 'margin:0;padding:0 .8em;color:#fff;background:none;border:none;font-size:1em;font-weight:400;line-height:1;cursor:pointer;align-self:center;white-space:nowrap;';
+    // Match Jellyfin's own header tabs (Home / Favorites, the .emby-tab-button class): a <button>
+    // does NOT inherit font-family, so force `font: inherit` to pick up the Jellyfin font, plus the
+    // tabs' semi-bold weight (600) and line-height. White text is forced as the header theme varies.
+    a.style.cssText = 'margin:0;padding:.3em .7em;color:#fff;background:none;border:none;font-family:inherit;font-size:inherit;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
     a.addEventListener('mouseenter', function () { a.style.opacity = '.7'; });
     a.addEventListener('mouseleave', function () { a.style.opacity = '1'; });
     a.addEventListener('click', function () { showView(viewId); });
@@ -232,21 +233,50 @@
     return box;
   }
 
-  function insert(host) {
-    if (!host || document.querySelector('.jcHeaderBtns')) {
+  // Catalog / My requests: centered in the top header row, like Jellyfin's own Home / Favorites tabs
+  // (which sit centered in the second .headerTabs row). We absolute-center inside the top row, whose
+  // middle is otherwise empty (title is left-aligned, action buttons right-aligned).
+  function insertNav() {
+    if (document.querySelector('.jcHeaderNav')) {
+      return;
+    }
+    var row = document.querySelector('.headerTop') || document.querySelector('.skinHeader');
+    if (!row) {
+      return;
+    }
+    if (window.getComputedStyle(row).position === 'static') {
+      row.style.position = 'relative';
+    }
+    var nav = document.createElement('div');
+    nav.className = 'jcHeaderNav';
+    nav.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:.5em;z-index:1;';
+    nav.appendChild(navButton('nav_catalog', 'catalog'));
+    nav.appendChild(navButton('nav_requests', 'requests'));
+    row.appendChild(nav);
+  }
+
+  // Quota bar lives in .headerRight, placed between the search icon and the user avatar
+  // (i.e. just before the .headerUserButton), per request.
+  function insertQuota() {
+    var host = document.querySelector('.headerRight');
+    if (!host || document.querySelector('.jcHeaderQuota')) {
       return;
     }
     var wrap = document.createElement('span');
-    wrap.className = 'jcHeaderBtns';
+    wrap.className = 'jcHeaderQuota';
     wrap.style.cssText = 'display:inline-flex;align-items:center;';
-    wrap.appendChild(navButton('nav_catalog', 'catalog'));
-    wrap.appendChild(navButton('nav_requests', 'requests'));
     wrap.appendChild(buildQuota());
-    host.insertBefore(wrap, host.firstChild);
+    var userBtn = host.querySelector('.headerUserButton');
+    if (userBtn) {
+      host.insertBefore(wrap, userBtn);
+    } else {
+      host.appendChild(wrap);
+    }
   }
 
   function tryInsert() {
-    insert(document.querySelector('.headerRight'));
+    insertNav();
+    insertQuota();
   }
 
   function start() {
