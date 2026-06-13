@@ -115,3 +115,11 @@ test('quotaPercent clamps and treats <=0 quota as unlimited', () => {
   assert.strictEqual(lib.quotaPercent(15, 10), 100);
   assert.strictEqual(lib.quotaPercent(1, 0), 0);
 });
+
+test('quotaColor grades green -> yellow -> red and clamps', () => {
+  assert.strictEqual(lib.quotaColor(0), 'hsl(120, 70%, 45%)');   // green when empty
+  assert.strictEqual(lib.quotaColor(50), 'hsl(60, 70%, 45%)');   // yellow at half
+  assert.strictEqual(lib.quotaColor(100), 'hsl(0, 70%, 45%)');   // red when full
+  assert.strictEqual(lib.quotaColor(150), 'hsl(0, 70%, 45%)');   // clamps above 100
+  assert.strictEqual(lib.quotaColor(-10), 'hsl(120, 70%, 45%)'); // clamps below 0
+});
