@@ -203,7 +203,7 @@ Objectif : donner à l'admin la main sur les demandes (au-delà d'approuver/refu
   quota/limite optionnel.
 - ☐ Endpoints admin (`RequiresElevation`) + UI dans l'onglet Demandes ; tests (nominal + autorisation).
 
-## M14 — Granularité épisode  ◐ (Partie A faite, Partie B à venir)
+## M14 — Granularité épisode  ◐ (code fait, reste la vérif live)
 
 Objectif : demander un **épisode** seul, garder le bouton **saison entière** (pas série entière), et un
 **calendrier par épisode**.

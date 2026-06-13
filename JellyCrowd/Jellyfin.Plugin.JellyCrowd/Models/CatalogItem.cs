@@ -74,4 +74,19 @@ public class CatalogItem
   /// Gets or sets the IMDb identifier (e.g. <c>tt1234567</c>), if known.
   /// </summary>
   public string? ImdbId { get; set; }
+
+  /// <summary>
+  /// Gets or sets the season number when this entry represents a specific episode (calendar), else <c>null</c>.
+  /// </summary>
+  public int? SeasonNumber { get; set; }
+
+  /// <summary>
+  /// Gets or sets the episode number when this entry represents a specific episode (calendar), else <c>null</c>.
+  /// </summary>
+  public int? EpisodeNumber { get; set; }
+
+  /// <summary>
+  /// Gets or sets the episode name when this entry represents a specific episode (calendar), else <c>null</c>.
+  /// </summary>
+  public string? EpisodeName { get; set; }
 }

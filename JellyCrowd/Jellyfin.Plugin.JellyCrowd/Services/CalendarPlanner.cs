@@ -51,7 +51,11 @@ public static class CalendarPlanner
         continue;
       }
 
-      if (seen.Add(item.MediaType + ":" + item.TmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+      var key = item.MediaType
+        + ":" + item.TmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        + ":" + (item.SeasonNumber?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-")
+        + ":" + (item.EpisodeNumber?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-");
+      if (seen.Add(key))
       {
         dated.Add((item, date.Value));
       }

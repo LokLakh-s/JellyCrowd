@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Mime;
 using System.Threading;
@@ -24,8 +25,12 @@ public class CatalogController : ControllerBase
 {
   private const string DefaultLanguage = "en-US";
 
+  private const int MaxFollowedShows = 40;
+
   private readonly ITmdbClient _tmdbClient;
   private readonly ILibraryMatcher _libraryMatcher;
+  private readonly IRequestStore _requestStore;
+  private readonly ICurrentUserAccessor _userAccessor;
   private readonly ILogger<CatalogController> _logger;
 
   /// <summary>
@@ -33,11 +38,20 @@ public class CatalogController : ControllerBase
   /// </summary>
   /// <param name="tmdbClient">The TMDB client.</param>
   /// <param name="libraryMatcher">The library matcher used to flag already-available titles.</param>
+  /// <param name="requestStore">The request store, used to resolve the user's followed shows for the calendar.</param>
+  /// <param name="userAccessor">The current-user accessor.</param>
   /// <param name="logger">The logger.</param>
-  public CatalogController(ITmdbClient tmdbClient, ILibraryMatcher libraryMatcher, ILogger<CatalogController> logger)
+  public CatalogController(
+    ITmdbClient tmdbClient,
+    ILibraryMatcher libraryMatcher,
+    IRequestStore requestStore,
+    ICurrentUserAccessor userAccessor,
+    ILogger<CatalogController> logger)
   {
     _tmdbClient = tmdbClient;
     _libraryMatcher = libraryMatcher;
+    _requestStore = requestStore;
+    _userAccessor = userAccessor;
     _logger = logger;
   }
 
@@ -376,20 +390,20 @@ public class CatalogController : ControllerBase
       IReadOnlyList<CatalogItem> ordered;
       if (useRange)
       {
+        // Movie releases in range...
         var items = new List<CatalogItem>();
-        foreach (var type in new[] { "movie", "tv" })
+        for (var page = 1; page <= 2; page++)
         {
-          for (var page = 1; page <= 2; page++)
+          var batch = await _tmdbClient.GetReleasesAsync("movie", from!, to!, watchRegion, lang, page, cancellationToken).ConfigureAwait(false);
+          items.AddRange(batch);
+          if (batch.Count < 20)
           {
-            var batch = await _tmdbClient.GetReleasesAsync(type, from!, to!, watchRegion, lang, page, cancellationToken).ConfigureAwait(false);
-            items.AddRange(batch);
-            if (batch.Count < 20)
-            {
-              break;
-            }
+            break;
           }
         }
 
+        // ...plus episodes of the user's followed shows airing in the range.
+        items.AddRange(await BuildFollowedEpisodesAsync(from!, to!, lang, cancellationToken).ConfigureAwait(false));
         ordered = CalendarPlanner.OrderByDate(items);
       }
       else
@@ -417,6 +431,70 @@ public class CatalogController : ControllerBase
     {
       return Upstream(ex);
     }
+  }
+
+  // Episodes of the user's followed shows (shows they have requested) airing in the date range.
+  // TMDB has no global episode calendar, so we fetch per show; bounded to MaxFollowedShows and to each
+  // show's latest season (best for the current/upcoming months).
+  private async Task<IReadOnlyList<CatalogItem>> BuildFollowedEpisodesAsync(string from, string to, string language, CancellationToken cancellationToken)
+  {
+    var result = new List<CatalogItem>();
+    var fromDate = RequestScheduling.ParseReleaseDate(from);
+    var toDate = RequestScheduling.ParseReleaseDate(to);
+    if (fromDate is null || toDate is null)
+    {
+      return result;
+    }
+
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var requests = await _requestStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+    var shows = requests
+      .Where(r => string.Equals(r.MediaType, "tv", StringComparison.Ordinal))
+      .GroupBy(r => r.TmdbId)
+      .Select(g => g.First())
+      .Take(MaxFollowedShows)
+      .ToList();
+
+    foreach (var show in shows)
+    {
+      try
+      {
+        var seasons = await _tmdbClient.GetSeasonsAsync(show.TmdbId, language, cancellationToken).ConfigureAwait(false);
+        var latest = seasons.Where(s => s.SeasonNumber > 0).OrderByDescending(s => s.SeasonNumber).FirstOrDefault();
+        if (latest is null)
+        {
+          continue;
+        }
+
+        var episodes = await _tmdbClient.GetSeasonEpisodesAsync(show.TmdbId, latest.SeasonNumber, language, cancellationToken).ConfigureAwait(false);
+        foreach (var episode in episodes)
+        {
+          var air = RequestScheduling.ParseReleaseDate(episode.AirDate);
+          if (air is null || air.Value.Date < fromDate.Value.Date || air.Value.Date > toDate.Value.Date)
+          {
+            continue;
+          }
+
+          result.Add(new CatalogItem
+          {
+            TmdbId = show.TmdbId,
+            MediaType = "tv",
+            Title = show.Title,
+            PosterPath = show.PosterPath,
+            ReleaseDate = episode.AirDate,
+            SeasonNumber = episode.SeasonNumber,
+            EpisodeNumber = episode.EpisodeNumber,
+            EpisodeName = episode.Name
+          });
+        }
+      }
+      catch (HttpRequestException ex)
+      {
+        _logger.LogDebug(ex, "Calendar: could not load episodes for show {TmdbId}", show.TmdbId);
+      }
+    }
+
+    return result;
   }
 
   private static string Normalize(string? language)
