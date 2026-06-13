@@ -148,16 +148,20 @@
     var unlimited = info.Unlimited || info.QuotaBytes <= 0;
     var label = document.createElement('div');
     label.className = 'jellycrowd-quota-label';
+    label.style.color = '#fff';
     label.textContent = t('quota_storage') + ' : ' + lib.formatBytes(info.UsedBytes)
       + ' / ' + (unlimited ? t('quota_unlimited') : lib.formatBytes(info.QuotaBytes));
     el.appendChild(label);
 
     if (!unlimited) {
+      var percent = lib.quotaPercent(info.UsedBytes, info.QuotaBytes);
       var track = document.createElement('div');
       track.className = 'jellycrowd-quota-track';
       var fill = document.createElement('div');
       fill.className = 'jellycrowd-quota-fill';
-      fill.style.width = lib.quotaPercent(info.UsedBytes, info.QuotaBytes) + '%';
+      fill.style.width = percent + '%';
+      // Grade green -> yellow -> red by fill level (overrides the static CSS colour).
+      fill.style.background = lib.quotaColor(percent);
       track.appendChild(fill);
       el.appendChild(track);
     }

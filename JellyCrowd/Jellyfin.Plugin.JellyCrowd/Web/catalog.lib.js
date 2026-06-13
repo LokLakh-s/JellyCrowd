@@ -127,6 +127,15 @@
     return p > 100 ? 100 : p;
   }
 
+  // Quota fill colour, grading from green (empty) through yellow (half) to red (full).
+  // Interpolates the HSL hue 120 -> 0 across 0..100%.
+  function quotaColor(percent) {
+    var p = Number(percent) || 0;
+    if (p < 0) { p = 0; }
+    if (p > 100) { p = 100; }
+    return 'hsl(' + (120 - p * 1.2) + ', 70%, 45%)';
+  }
+
   return {
     pickLang: pickLang,
     resolveLang: resolveLang,
@@ -140,6 +149,7 @@
     statusRank: statusRank,
     orderPair: orderPair,
     formatBytes: formatBytes,
-    quotaPercent: quotaPercent
+    quotaPercent: quotaPercent,
+    quotaColor: quotaColor
   };
 });

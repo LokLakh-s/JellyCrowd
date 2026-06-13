@@ -181,18 +181,28 @@
   function navButton(labelKey, viewId) {
     var a = document.createElement('button');
     a.type = 'button';
-    // Reuse Jellyfin's own tab class so Catalog / My requests render identically to Home / Favorites
-    // (font, weight, padding, sizing). We only force white (the inactive-tab colour is muted) and add
-    // our own click handler. White-space:nowrap keeps multi-word labels on one line.
-    a.className = 'emby-tab-button jcHeaderTab';
+    a.className = 'jcHeaderTab';
     a.textContent = t(labelKey);
-    a.style.color = '#fff';
-    a.style.cursor = 'pointer';
-    a.style.whiteSpace = 'nowrap';
+    // Replicate Jellyfin's .emby-tab-button look INLINE (jellycrowd.css isn't loaded on the base page):
+    // same font / weight / padding so we sit flush with Home / Favorites. border:0 + outline:none drop
+    // the default <button> outline that the native is="emby-button" tabs don't have. We deliberately do
+    // NOT reuse the .emby-tab-button class: inside Jellyfin's emby-tabs, that made our buttons get
+    // treated as real tabs (Jellyfin would navigate on click, closing the overlay / blanking the page).
+    a.style.cssText = 'box-sizing:border-box;margin:0;padding:1.5em 1.5em;border:0;outline:none;box-shadow:none;background:transparent;color:#fff;font-family:inherit;font-size:inherit;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
     a.addEventListener('mouseenter', function () { a.style.opacity = '.7'; });
     a.addEventListener('mouseleave', function () { a.style.opacity = '1'; });
-    a.addEventListener('click', function () { showView(viewId); });
+    // stopPropagation: keep the click from reaching Jellyfin's tab-bar click handler.
+    a.addEventListener('click', function (e) { e.stopPropagation(); showView(viewId); });
     return a;
+  }
+
+  // Quota fill colour, grading green (empty) -> yellow (half) -> red (full). Mirrors
+  // JellyCrowdLib.quotaColor, duplicated because the base-page header has no access to that module.
+  function quotaColor(percent) {
+    var p = Number(percent) || 0;
+    if (p < 0) { p = 0; }
+    if (p > 100) { p = 100; }
+    return 'hsl(' + (120 - p * 1.2) + ', 70%, 45%)';
   }
 
   function bytes(n) {
@@ -209,10 +219,11 @@
     box.title = t('my_media_title');
     box.addEventListener('click', function () { showView('mymedia'); });
     var label = document.createElement('span');
+    label.style.color = '#fff';
     var track = document.createElement('span');
     track.style.cssText = 'height:.35em;border-radius:.2em;background:rgba(255,255,255,.2);overflow:hidden;display:block;margin-top:.2em;';
     var fill = document.createElement('span');
-    fill.style.cssText = 'display:block;height:100%;background:#00a4dc;width:0%;';
+    fill.style.cssText = 'display:block;height:100%;background:' + quotaColor(0) + ';width:0%;';
     track.appendChild(fill);
     box.appendChild(label);
     box.appendChild(track);
@@ -228,6 +239,7 @@
             label.textContent = bytes(q.UsedBytes) + ' / ' + bytes(q.QuotaBytes);
             var p = q.QuotaBytes > 0 ? Math.min(100, q.UsedBytes / q.QuotaBytes * 100) : 0;
             fill.style.width = p + '%';
+            fill.style.background = quotaColor(p);
           }
         })
         .catch(function () { /* ignore */ });
