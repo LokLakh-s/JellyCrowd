@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: JellyCrowd
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test (.NET)
+        run: dotnet test --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+      - name: Test (JS)
+        run: node --test tests/js/*.test.js
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/test-results.trx'
+          if-no-files-found: ignore
+
+      - name: Package plugin
+        run: |
+          mkdir -p artifacts
+          # Copy the plugin and its bundled runtime dependencies (MailKit/MimeKit/BouncyCastle);
+          # host-provided assemblies are ExcludeAssets=runtime and absent from the output.
+          cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/*.dll artifacts/
+          cp build.yaml artifacts/
+          cd artifacts && zip jelly-crowd.zip *.dll build.yaml
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jelly-crowd-plugin
+          path: JellyCrowd/artifacts/jelly-crowd.zip

@@ -1,0 +1,29 @@
+# .NET build output
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+
+# IDE
+.vs/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+
+# Plugin packaging
+*.zip
+
+# Local SQLite / runtime data
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Secrets / local config
+*.local.json
+.env
