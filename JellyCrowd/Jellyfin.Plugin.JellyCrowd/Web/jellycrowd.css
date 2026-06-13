@@ -296,6 +296,7 @@
 .jellycrowd-status-approved { background: #268bd2; color: #fff; }
 .jellycrowd-status-available { background: #2e7d32; color: #fff; }
 .jellycrowd-status-denied { background: #c0392b; color: #fff; }
+.jellycrowd-status-scheduled { background: #6c4ab6; color: #fff; }
 
 .jellycrowd-request-poster {
   width: 2.6em;

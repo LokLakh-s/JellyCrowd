@@ -28,6 +28,14 @@
       .jcTable input[type="number"] { width: 7em; }
       .jcTestRow { display: flex; align-items: center; gap: 0.8em; margin-top: 0.5em; flex-wrap: wrap; }
       .jcTestResult { font-size: 0.85em; }
+      .jcHelp { position: relative; display: inline-flex; align-items: center; justify-content: center;
+                width: 1.3em; height: 1.3em; margin-left: 0.4em; border-radius: 50%; cursor: help;
+                background: rgba(127, 127, 127, 0.45); color: #fff; font-size: 0.8em; font-weight: 600; vertical-align: middle; }
+      .jcHelp .jcTooltip { display: none; position: absolute; top: 1.7em; left: 0; z-index: 20; width: max-content;
+                           max-width: 34em; padding: 0.7em 0.9em; border-radius: 0.4em; background: #101010; color: #fff;
+                           box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55); text-align: left; font-weight: 400; }
+      .jcHelp:hover .jcTooltip, .jcHelp:focus .jcTooltip { display: block; }
+      .jcHelp .jcTooltip pre { margin: 0; white-space: pre-wrap; font-size: 1.15em; line-height: 1.4; }
     </style>
     <div data-role="content">
       <div class="content-primary">
@@ -190,9 +198,26 @@
 
             <div id="jcWebhookFields">
               <div class="inputContainer">
-                <label class="inputLabel inputLabelUnfocused" for="DownloadWebhookUrl">Webhook URL</label>
+                <label class="inputLabel inputLabelUnfocused" for="DownloadWebhookUrl">Webhook URL<span class="jcHelp" tabindex="0">?<span class="jcTooltip"><pre>POST https://your-endpoint.example/hook
+Content-Type: application/json
+
+{
+  "RequestId": "8f1c…",
+  "UserId": "a2b9…",
+  "UserName": "alice",
+  "TmdbId": 603,
+  "MediaType": "movie",
+  "Title": "The Matrix",
+  "Year": 1999,
+  "ReleaseDate": "1999-03-30",
+  "Season": null,
+  "PosterPath": "/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg",
+  "RequestedAt": "2026-06-13T12:00:00Z",
+  "DesiredAt": "2026-06-13T12:00:00Z",
+  "TmdbUrl": "https://www.themoviedb.org/movie/603"
+}</pre></span></span></label>
                 <input id="DownloadWebhookUrl" type="text" is="emby-input" />
-                <div class="fieldDescription">Approved requests are POSTed here as JSON (tmdbId, mediaType, title, year, season…).</div>
+                <div class="fieldDescription">Approved requests are POSTed here as JSON (hover the ? for an example). For shows, "Season" is the requested season.</div>
               </div>
 
               <div class="inputContainer">
@@ -202,10 +227,12 @@
               </div>
             </div>
 
-            <div class="fieldDescription">Send a test dispatch to the selected backend (save your settings first).</div>
-            <div class="jcTestRow">
-              <button is="emby-button" type="button" id="jcTestDownload" class="raised emby-button"><span>Test backend</span></button>
-              <span id="jcTestDownloadResult" class="jcTestResult"></span>
+            <div id="jcDownloadTestRow">
+              <div class="fieldDescription">Send a test dispatch to the selected backend (save your settings first).</div>
+              <div class="jcTestRow">
+                <button is="emby-button" type="button" id="jcTestDownload" class="raised emby-button"><span>Test backend</span></button>
+                <span id="jcTestDownloadResult" class="jcTestResult"></span>
+              </div>
             </div>
           </div>
 
@@ -248,8 +275,10 @@
       }
 
       function jcUpdateDownloadVisibility() {
+        // The backend dropdown drives which settings show: webhook -> webhook fields, none -> nothing.
         var backend = document.querySelector('#DownloadBackend').value;
         document.querySelector('#jcWebhookFields').style.display = backend === 'webhook' ? '' : 'none';
+        document.querySelector('#jcDownloadTestRow').style.display = backend === 'none' ? 'none' : '';
       }
 
       function buildQuotaOverrides(config) {

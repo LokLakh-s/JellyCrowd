@@ -73,6 +73,19 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Create_FutureRelease_SchedulesDesiredAtRelease()
+  {
+    var controller = CreateController(new FakeRequestStore());
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 1, MediaType = "movie", Title = "Future", ReleaseDate = "2030-01-15" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(new DateTime(2030, 1, 15, 0, 0, 0, DateTimeKind.Utc), record.DesiredAt);
+  }
+
+  [Fact]
   public async Task Create_InvalidMediaType_ReturnsBadRequest()
   {
     var controller = CreateController(new FakeRequestStore());
