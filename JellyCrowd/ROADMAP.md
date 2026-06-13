@@ -9,11 +9,24 @@ Légende : ☐ à faire · ☑ fait · ◐ en cours
 
 ## 📍 État actuel (point de reprise) — au 2026-06-13
 
-- **Version publiée** : releases auto sur GitHub `LokLakh-s/jellyfin-plugins` (dernière `v0.5.28`). Branche `main`, CI **verte**.
-- **Fait (code, M0→M6)** : catalogue TMDB enrichi (filtres double-sliders genres/années/notes, tri, survol, fiche complète avec affiche + liens TMDB/IMDb, clic dispo → fiche Jellyfin, **scroll infini + rangées de catégories/plateformes**) ; requêtes en file admin **par saison**, **annulables tant que Pending**, avec **date souhaitée** optionnelle (`DesiredAt`, socle pour l'auto-download) ; quotas disque par user (overrides, barre d'usage, refus 403/bouton grisé) ; **limite de requêtes par période** ; disponibilité **temps réel** (`IRequestReconciler` sur `ItemAdded`/`ItemRemoved` + tâche planifiée de secours) ; **« Mes médias » + suppression disque** après rétention, **multi-user aware** (tâche) ; **notifications Discord (embeds) + e-mail SMTP (MailKit, 465/587)** avec boutons de test ; **réglage de langue admin** (auto/en/fr) ; **logo** ; **page admin à onglets** (Demandes/Quotas/Réglages/Notifs) ; **manifest de dépôt** (MAJ auto).
-- **UI auto-hébergée** : Jelly Crowd injecte son shell (`header.js`) via **File Transformation** (seule dépendance plugin) et **héberge ses propres pages** dans un overlay à onglets — **Plugin Pages retiré**.
-- **En cours / prochaine action** : **M7 — Téléchargement automatique des requêtes** (intégration Servarr / scripts custom).
-- **Bloqué côté agent (à faire par l'utilisateur)** : vérifs live — shell/onglets + thème, suppression (destructif, rétention courte), notifications (Discord/e-mail), séries par saison.
+- **Dépôt** : le plugin vit dans le monorepo **`LokLakh-s/jellyfin-plugins`**, sous **`JellyCrowd/`**
+  (migré depuis l'ancien `Klakh/jelly-crowd`). **Manifeste de dépôt à la racine** du repo (1 entrée/plugin,
+  3 versions max). URL dépôt : `https://raw.githubusercontent.com/LokLakh-s/jellyfin-plugins/main/manifest.json`.
+- **Version publiée** : releases auto, dernière **`v0.6.0`**. Branche `main`, CI **verte**.
+- **Fait (code, M0→M6)** : catalogue TMDB enrichi (filtres double-sliders genres/années/notes, tri, survol, fiche complète avec affiche + liens TMDB/IMDb, clic dispo → fiche Jellyfin, **scroll infini + rangées de catégories/plateformes**) ; requêtes en file admin **par saison**, **annulables tant que Pending**, avec **date souhaitée** optionnelle (`DesiredAt`) ; quotas disque par user (overrides, barre d'usage dégradée vert→rouge, refus 403/bouton grisé) ; **limite de requêtes par période** ; disponibilité **temps réel** (`IRequestReconciler` sur `ItemAdded`/`ItemRemoved` + tâche planifiée de secours) ; **« Mes médias » + suppression disque** après rétention, **multi-user aware** (tâche) ; **notifications Discord (embeds) + e-mail SMTP (MailKit, 465/587)** avec boutons de test ; **réglage de langue admin** (auto/en/fr) ; **logo** ; **page admin à onglets** (Demandes/Quotas/Réglages/Notifs/**Téléchargement**) ; **manifest de dépôt** (MAJ auto).
+- **Fait (code, M7)** : **téléchargement auto des requêtes** — onglet « Téléchargement » avec sélecteur de
+  backend piloté par menu déroulant : **Webhook** (POST JSON + tooltip d'exemple), **Radarr/Sonarr**
+  (URL + clé API, dropdowns dossier/profil via « Connect », résolution TMDB→TVDB, recherche déclenchée).
+  Déclenchement à l'approbation + tâche de secours, idempotent (`DispatchedAt`). **Auto-planification**
+  des sorties futures à leur date (`RequestScheduling`) + badge « Planifié pour le … ».
+- **Fait (code, M8)** : onglet **« Calendar »** (sorties à venir, films+séries, groupées par date).
+- **UI auto-hébergée** : Jelly Crowd injecte son shell (`header.js`) via **File Transformation** (seule dépendance plugin) et **héberge ses propres pages** dans un overlay à onglets — **Plugin Pages retiré**. Liens header (Catalog/Calendar/My requests) rendus comme les onglets natifs Jellyfin.
+- **En cours / prochaine action** : essentiellement les **vérifs en conditions réelles** (voir ci-dessous).
+  Côté code, pas de milestone ouvert ; pistes futures dans « Hors périmètre ».
+- **Bloqué côté agent (à faire par l'utilisateur — vérifs live)** : shell/onglets + thème ; suppression
+  (destructif, rétention courte) ; notifications (Discord/e-mail) ; séries par saison ; **chaîne *arr**
+  (Radarr/Sonarr : Connect → ajout + recherche) ; **webhook** (avec un récepteur) ; **Calendar** (liste
+  des sorties + requête auto-planifiée).
 
 ### Ce qui tourne déjà (vérifié en CI)
 - Pipeline complet : **CI** (`build.yml` : restore → build Release → `dotnet test` → tests JS `node --test` → package `.zip`) + **Release** (`release.yml` : versionning auto par mot-clé de commit `[major]`/`[minor]`/patch → tag + GitHub Release).
@@ -22,8 +35,11 @@ Légende : ☐ à faire · ☑ fait · ◐ en cours
 - Injection web : `WebInjectionService` (réflexion) enregistre le callback File Transformation sur `index.html` ; `header.js` héberge le shell + les pages (overlay à onglets).
 
 ### Faits à se rappeler en reprenant (IMPORTANT)
-- **Pas de SDK .NET sur la machine de dev** → on ne build/teste PAS en local. On valide en **poussant sur GitHub et en lisant Actions** (gh CLI absent → API REST ; le token est dans l'URL du remote, ne pas l'afficher).
-- **Toujours `git pull --ff-only` après un push** : la Release pousse un commit `chore(release): vX.Y.Z [skip ci]`.
+- **SDK .NET disponible en local** (dotnet 10.x build le `net9.0`) → **builder/tester en local AVANT de pousser** :
+  `cd JellyCrowd && dotnet build -c Release` puis `DOTNET_ROLL_FORWARD=Major dotnet test -c Release --no-build`
+  (le roll-forward sert car seul le runtime ASP.NET 10 est installé, pas le 9) + `node --test tests/js/*.test.js`.
+  `gh` CLI absent (suivi CI via l'API REST si besoin ; le token est dans l'URL du remote, ne pas l'afficher).
+- **Toujours `git fetch` + rebase après un push** : la Release pousse un commit `chore(release): vX.Y.Z [skip ci]` sur `main`.
 - **Analyseurs très stricts** (`TreatWarningsAsErrors`, `AllEnabledByDefault`, StyleCop, Nullable) → écrire défensivement du premier coup (chaque itération = un aller-retour CI).
 - **Dépendances plugin** : **File Transformation uniquement** (intégré **par réflexion**, sans NuGet). **Plugin Pages a été retiré** (on héberge nos pages nous-mêmes). **Ne PAS internaliser File Transformation** : il patche `Startup.Configure` de Jellyfin via HarmonyLib avec du code spécifique par version → fragile + risque de conflit. Garder son API stable `RegisterTransformation`.
 - ⚠️ Un **token GitHub** (`ghp_…`) est exposé dans la config git du remote — à révoquer si besoin.
