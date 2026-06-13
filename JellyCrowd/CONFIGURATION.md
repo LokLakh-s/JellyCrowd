@@ -110,8 +110,9 @@ requête échue, le dispatch.
 
 - **Catalog** : catalogue TMDB (films/séries), filtres, recherche, fiche détaillée ; bouton **Requête**
   ouvrant la fiche d'où l'on envoie la demande.
-- **Calendar** : calendrier des **sorties à venir** (films et séries confondus, via TMDB), groupé par
-  date ; clic sur une affiche → fiche → requête (auto-planifiée à la date de sortie).
+- **Calendar** : **grille mensuelle** des sorties (films et séries confondus, via TMDB) avec navigation
+  mois précédent/suivant + « Aujourd'hui » ; les affiches/titres apparaissent dans la case de leur jour de
+  sortie, clic → fiche → requête (auto-planifiée à la date de sortie).
 - **My requests** : requêtes de l'utilisateur et leur statut, annulation tant qu'en attente, demande de
   suppression d'un média disponible, badge de planification.
 - **Barre de quota** (entre la recherche et l'avatar) : usage/quota, dégradé vert→jaune→rouge ; clic →

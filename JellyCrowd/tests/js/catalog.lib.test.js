@@ -124,6 +124,23 @@ test('quotaColor grades green -> yellow -> red and clamps', () => {
   assert.strictEqual(lib.quotaColor(-10), 'hsl(120, 70%, 45%)'); // clamps below 0
 });
 
+test('buildMonthMatrix lays out a Monday-first month grid', () => {
+  // June 2026: June 1 is a Monday, 30 days.
+  const weeks = lib.buildMonthMatrix(2026, 5);
+  assert.strictEqual(weeks[0][0].day, 1);
+  assert.strictEqual(weeks[0][0].iso, '2026-06-01');
+  const days = weeks.flat().filter(Boolean).map((d) => d.day);
+  assert.deepStrictEqual(days, Array.from({ length: 30 }, (_, i) => i + 1));
+  weeks.forEach((w) => assert.strictEqual(w.length, 7));
+});
+
+test('buildMonthMatrix pads the first week for a mid-week start', () => {
+  // May 2026: May 1 is a Friday -> Mon..Thu padded (4 nulls) before day 1.
+  const weeks = lib.buildMonthMatrix(2026, 4);
+  assert.deepStrictEqual(weeks[0].slice(0, 4), [null, null, null, null]);
+  assert.strictEqual(weeks[0][4].iso, '2026-05-01');
+});
+
 test('groupByReleaseDate groups by date ascending and drops undated', () => {
   const groups = lib.groupByReleaseDate([
     { Title: 'B', ReleaseDate: '2030-02-01' },

@@ -147,6 +147,27 @@
     return dates.map(function (date) { return { date: date, items: byDate[date] }; });
   }
 
+  // Build a Monday-first month grid as an array of weeks; each week has 7 entries that are either
+  // null (padding) or { day: 1..31, iso: 'YYYY-MM-DD' }. `month` is 0-based (0 = January).
+  function buildMonthMatrix(year, month) {
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    var startDow = (new Date(Date.UTC(year, month, 1)).getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+    var daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    var weeks = [];
+    var week = [];
+    var i;
+    for (i = 0; i < startDow; i++) { week.push(null); }
+    for (var day = 1; day <= daysInMonth; day++) {
+      week.push({ day: day, iso: year + '-' + pad(month + 1) + '-' + pad(day) });
+      if (week.length === 7) { weeks.push(week); week = []; }
+    }
+    if (week.length > 0) {
+      while (week.length < 7) { week.push(null); }
+      weeks.push(week);
+    }
+    return weeks;
+  }
+
   // Quota fill colour, grading from green (empty) through yellow (half) to red (full).
   // Interpolates the HSL hue 120 -> 0 across 0..100%.
   function quotaColor(percent) {
@@ -171,6 +192,7 @@
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,
     quotaColor: quotaColor,
-    groupByReleaseDate: groupByReleaseDate
+    groupByReleaseDate: groupByReleaseDate,
+    buildMonthMatrix: buildMonthMatrix
   };
 });

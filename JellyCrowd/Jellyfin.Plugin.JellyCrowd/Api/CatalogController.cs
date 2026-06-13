@@ -311,33 +311,62 @@ public class CatalogController : ControllerBase
   }
 
   /// <summary>
-  /// Lists upcoming movie and show releases (combined), soonest first, for the releases calendar.
+  /// Lists movie and show releases for the releases calendar. With <paramref name="from"/> and
+  /// <paramref name="to"/> set, returns every release in that date range (monthly view); otherwise
+  /// returns upcoming releases.
   /// </summary>
   /// <param name="language">Optional TMDB language code (defaults to <c>en-US</c>).</param>
   /// <param name="region">ISO 3166-1 region for movie releases (defaults to <c>US</c>).</param>
+  /// <param name="from">Optional range start (<c>yyyy-MM-dd</c>).</param>
+  /// <param name="to">Optional range end (<c>yyyy-MM-dd</c>).</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <response code="200">Upcoming items returned.</response>
+  /// <response code="200">Releases returned.</response>
   /// <response code="503">TMDB is not configured or unreachable.</response>
-  /// <returns>The upcoming catalog items, ordered by release date.</returns>
+  /// <returns>The catalog items, ordered by release date.</returns>
   [HttpGet("Calendar")]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
   public async Task<ActionResult<IReadOnlyList<CatalogItem>>> Calendar(
     [FromQuery] string? language,
     [FromQuery] string? region,
+    [FromQuery] string? from,
+    [FromQuery] string? to,
     CancellationToken cancellationToken)
   {
     var lang = Normalize(language);
     var watchRegion = string.IsNullOrWhiteSpace(region) ? "US" : region;
+    var useRange = !string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to);
 
     try
     {
-      var movies = await _tmdbClient.GetUpcomingAsync("movie", watchRegion, lang, cancellationToken).ConfigureAwait(false);
-      var shows = await _tmdbClient.GetUpcomingAsync("tv", watchRegion, lang, cancellationToken).ConfigureAwait(false);
-      var merged = new List<CatalogItem>(movies);
-      merged.AddRange(shows);
+      IReadOnlyList<CatalogItem> ordered;
+      if (useRange)
+      {
+        var items = new List<CatalogItem>();
+        foreach (var type in new[] { "movie", "tv" })
+        {
+          for (var page = 1; page <= 2; page++)
+          {
+            var batch = await _tmdbClient.GetReleasesAsync(type, from!, to!, watchRegion, lang, page, cancellationToken).ConfigureAwait(false);
+            items.AddRange(batch);
+            if (batch.Count < 20)
+            {
+              break;
+            }
+          }
+        }
 
-      var ordered = CalendarPlanner.OrderUpcoming(merged, DateTime.UtcNow);
+        ordered = CalendarPlanner.OrderByDate(items);
+      }
+      else
+      {
+        var movies = await _tmdbClient.GetUpcomingAsync("movie", watchRegion, lang, cancellationToken).ConfigureAwait(false);
+        var shows = await _tmdbClient.GetUpcomingAsync("tv", watchRegion, lang, cancellationToken).ConfigureAwait(false);
+        var merged = new List<CatalogItem>(movies);
+        merged.AddRange(shows);
+        ordered = CalendarPlanner.OrderUpcoming(merged, DateTime.UtcNow);
+      }
+
       foreach (var item in ordered)
       {
         item.JellyfinItemId = _libraryMatcher.FindItemId(item.MediaType, item.TmdbId);

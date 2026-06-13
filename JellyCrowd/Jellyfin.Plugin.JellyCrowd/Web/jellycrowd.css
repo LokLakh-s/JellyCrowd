@@ -647,3 +647,95 @@
   border-radius: 0.3em;
   background: rgba(255, 255, 255, 0.06);
 }
+
+/* Monthly calendar */
+.jellycrowd-cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.jellycrowd-cal-month {
+  min-width: 11em;
+  text-align: center;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.jellycrowd-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.jellycrowd-cal-weekday {
+  text-align: center;
+  font-size: 0.78em;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.3em 0;
+}
+
+.jellycrowd-cal-cell {
+  min-height: 7em;
+  max-height: 15em;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  padding: 0.3em;
+  border-radius: 0.3em;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.jellycrowd-cal-cell-empty {
+  background: transparent;
+}
+
+.jellycrowd-cal-today {
+  outline: 2px solid #00a4dc;
+}
+
+.jellycrowd-cal-daynum {
+  font-size: 0.78em;
+  opacity: 0.6;
+}
+
+.jellycrowd-cal-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  width: 100%;
+  padding: 0.15em;
+  border: none;
+  border-radius: 0.25em;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.jellycrowd-cal-item:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.jellycrowd-cal-item img {
+  width: 1.6em;
+  height: 2.4em;
+  object-fit: cover;
+  border-radius: 0.15em;
+  flex: 0 0 auto;
+}
+
+.jellycrowd-cal-item span {
+  font-size: 0.72em;
+  line-height: 1.15;
+  max-height: 2.3em;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .jellycrowd-cal-item span { display: none; }
+  .jellycrowd-cal-cell { min-height: 4.5em; }
+}

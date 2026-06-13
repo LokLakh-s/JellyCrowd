@@ -1,19 +1,24 @@
 /*
- * Jelly Crowd — releases calendar.
- * Lists upcoming movie & show releases (combined) grouped by date, newest releases last. Each card
+ * Jelly Crowd — releases calendar (monthly grid).
+ * Shows a month grid (Monday-first) with movie & show releases in each day's cell; clicking a title
  * opens the same details modal as the catalog (overview, seasons, per-title request, quota-aware).
- * Pure grouping lives in catalog.lib.js (groupByReleaseDate); strings follow the active language.
+ * Pure layout helpers live in catalog.lib.js (buildMonthMatrix); strings follow the active language.
  */
 (function () {
   'use strict';
 
   var SUPPORTED_LANGS = ['en', 'fr'];
   var POSTER_BASE = 'https://image.tmdb.org/t/p/w342';
+  var THUMB_BASE = 'https://image.tmdb.org/t/p/w92';
   var BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
   var lib = window.JellyCrowdLib;
   var strings = {};
   var quotaExceeded = false;
   var cfgLang = 'auto';
+
+  var now = new Date();
+  var viewYear = now.getFullYear();
+  var viewMonth = now.getMonth();
 
   function fullLocale() { return lib.contentLocale(cfgLang, navigator.language || 'en-US'); }
   function shortLang() { return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US'); }
@@ -252,108 +257,134 @@
     document.addEventListener('keydown', onKey);
   }
 
-  function renderCard(item) {
-    var card = document.createElement('div');
-    card.className = 'jellycrowd-card jellycrowd-card-clickable';
-    card.addEventListener('click', function () {
-      if (item.Available && item.JellyfinItemId) { navigateToItem(item.JellyfinItemId); } else { openModal(item); }
-    });
-
-    var posterWrap = document.createElement('div');
-    posterWrap.className = 'jellycrowd-poster-wrap';
-    if (item.PosterPath) {
-      var img = document.createElement('img');
-      img.className = 'jellycrowd-poster';
-      img.loading = 'lazy';
-      img.alt = item.Title || '';
-      img.src = POSTER_BASE + item.PosterPath;
-      posterWrap.appendChild(img);
-    } else {
-      var placeholder = document.createElement('div');
-      placeholder.className = 'jellycrowd-poster jellycrowd-poster-empty';
-      posterWrap.appendChild(placeholder);
-    }
-
-    if (item.Available) {
-      var badge = document.createElement('span');
-      badge.className = 'jellycrowd-badge';
-      badge.textContent = t('available_badge');
-      posterWrap.appendChild(badge);
-    }
-
-    var hover = document.createElement('div');
-    hover.className = 'jellycrowd-hover';
-    var hoverTitle = document.createElement('div');
-    hoverTitle.className = 'jellycrowd-hover-title';
-    hoverTitle.textContent = item.Title || '';
-    var hoverMeta = document.createElement('div');
-    hoverMeta.className = 'jellycrowd-hover-meta';
-    hoverMeta.textContent = item.MediaType === 'tv' ? t('type_shows') : t('type_movies');
-    hover.appendChild(hoverTitle);
-    hover.appendChild(hoverMeta);
-    posterWrap.appendChild(hover);
-
-    card.appendChild(posterWrap);
-
-    if (!item.Available) {
-      var button = document.createElement('button');
-      button.className = 'jellycrowd-request';
-      button.type = 'button';
-      button.textContent = t('details_button');
-      button.addEventListener('click', function (e) { e.stopPropagation(); openModal(item); });
-      card.appendChild(button);
-    }
-
-    return card;
-  }
+  // ---------- month grid ----------
 
   function setMessage(text) {
     var el = document.getElementById('jcCalMessage');
     if (text) { el.textContent = text; el.hidden = false; } else { el.hidden = true; }
   }
 
-  function formatDate(isoDate) {
-    var d = new Date(isoDate + 'T00:00:00');
-    return isNaN(d.getTime()) ? isoDate : d.toLocaleDateString();
+  function localeMonth() {
+    try {
+      return new Intl.DateTimeFormat(fullLocale(), { month: 'long', year: 'numeric' }).format(new Date(viewYear, viewMonth, 1));
+    } catch (e) {
+      return viewYear + '-' + (viewMonth + 1);
+    }
   }
 
-  function render(groups) {
-    var feed = document.getElementById('jcCalFeed');
-    feed.innerHTML = '';
-    if (!groups || groups.length === 0) {
-      setMessage(t('no_results'));
-      return;
+  function weekdayLabels() {
+    var labels = [];
+    // 2024-01-01 is a Monday; format the next seven days as short weekday names.
+    for (var i = 0; i < 7; i++) {
+      try {
+        labels.push(new Intl.DateTimeFormat(fullLocale(), { weekday: 'short' }).format(new Date(2024, 0, 1 + i)));
+      } catch (e) {
+        labels.push(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]);
+      }
     }
-    setMessage('');
-    groups.forEach(function (group) {
-      var section = document.createElement('div');
-      section.className = 'jellycrowd-row';
-      var title = document.createElement('h3');
-      title.className = 'jellycrowd-row-title';
-      title.textContent = formatDate(group.date);
-      section.appendChild(title);
-      var grid = document.createElement('div');
-      grid.className = 'jellycrowd-grid';
-      group.items.forEach(function (item) { grid.appendChild(renderCard(item)); });
-      section.appendChild(grid);
-      feed.appendChild(section);
+    return labels;
+  }
+
+  function dayItem(item) {
+    var el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'jellycrowd-cal-item';
+    el.title = item.Title || '';
+    if (item.PosterPath) {
+      var img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = '';
+      img.src = THUMB_BASE + item.PosterPath;
+      el.appendChild(img);
+    }
+    var label = document.createElement('span');
+    label.textContent = item.Title || '';
+    el.appendChild(label);
+    el.addEventListener('click', function () {
+      if (item.Available && item.JellyfinItemId) { navigateToItem(item.JellyfinItemId); } else { openModal(item); }
+    });
+    return el;
+  }
+
+  function renderGrid(byDate) {
+    var grid = document.getElementById('jcCalGrid');
+    grid.innerHTML = '';
+
+    weekdayLabels().forEach(function (label) {
+      var head = document.createElement('div');
+      head.className = 'jellycrowd-cal-weekday';
+      head.textContent = label;
+      grid.appendChild(head);
+    });
+
+    var todayIso = lib.isoDate(new Date());
+    lib.buildMonthMatrix(viewYear, viewMonth).forEach(function (week) {
+      week.forEach(function (cellDay) {
+        var cell = document.createElement('div');
+        if (!cellDay) {
+          cell.className = 'jellycrowd-cal-cell jellycrowd-cal-cell-empty';
+          grid.appendChild(cell);
+          return;
+        }
+        cell.className = 'jellycrowd-cal-cell' + (cellDay.iso === todayIso ? ' jellycrowd-cal-today' : '');
+        var num = document.createElement('div');
+        num.className = 'jellycrowd-cal-daynum';
+        num.textContent = String(cellDay.day);
+        cell.appendChild(num);
+        (byDate[cellDay.iso] || []).forEach(function (item) { cell.appendChild(dayItem(item)); });
+        grid.appendChild(cell);
+      });
     });
   }
 
+  function monthRange() {
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    var lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+    var mm = pad(viewMonth + 1);
+    return { from: viewYear + '-' + mm + '-01', to: viewYear + '-' + mm + '-' + pad(lastDay) };
+  }
+
   function load() {
+    document.getElementById('jcCalMonth').textContent = localeMonth();
     setMessage(t('loading'));
+    var range = monthRange();
     apiGet('JellyCrowd/Quota/Me')
       .then(function (q) { quotaExceeded = !!(q && !q.Unlimited && q.QuotaBytes > 0 && q.UsedBytes >= q.QuotaBytes); })
       .catch(function () { /* best-effort */ })
-      .then(function () { return apiGet('JellyCrowd/Catalog/Calendar?language=' + encodeURIComponent(fullLocale()) + '&region=' + encodeURIComponent(REGION)); })
-      .then(function (items) { render(lib.groupByReleaseDate(items)); })
+      .then(function () {
+        return apiGet('JellyCrowd/Catalog/Calendar?language=' + encodeURIComponent(fullLocale())
+          + '&region=' + encodeURIComponent(REGION)
+          + '&from=' + range.from + '&to=' + range.to);
+      })
+      .then(function (items) {
+        var byDate = {};
+        lib.groupByReleaseDate(items).forEach(function (group) { byDate[group.date] = group.items; });
+        setMessage('');
+        renderGrid(byDate);
+      })
       .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  }
+
+  function step(delta) {
+    viewMonth += delta;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    else if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    load();
   }
 
   function init() {
     loadConfigLang().then(loadStrings).then(function () {
       document.getElementById('jcCalLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcCalTitle').textContent = t('calendar_title');
+      document.getElementById('jcCalToday').textContent = t('calendar_today');
+      document.getElementById('jcCalPrev').addEventListener('click', function () { step(-1); });
+      document.getElementById('jcCalNext').addEventListener('click', function () { step(1); });
+      document.getElementById('jcCalToday').addEventListener('click', function () {
+        var d = new Date();
+        viewYear = d.getFullYear();
+        viewMonth = d.getMonth();
+        load();
+      });
       if (typeof window.jellyCrowdRegisterRefresh === 'function') {
         window.jellyCrowdRegisterRefresh('calendar', load);
       }

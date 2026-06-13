@@ -161,6 +161,32 @@ public class TmdbClient : ITmdbClient
     return TmdbResponseParser.ParseResults(json, mediaType);
   }
 
+  /// <inheritdoc />
+  public async Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, int page, CancellationToken cancellationToken)
+  {
+    EnsureMediaType(mediaType);
+
+    var isMovie = string.Equals(mediaType, "movie", StringComparison.Ordinal);
+    var dateField = isMovie ? "primary_release_date" : "first_air_date";
+    var resultPage = page > 0 ? page : 1;
+
+    var builder = new StringBuilder();
+    builder.Append("/discover/").Append(mediaType)
+      .Append("?language=").Append(Escape(language))
+      .Append("&include_adult=false&sort_by=").Append(dateField).Append(".asc")
+      .Append('&').Append(dateField).Append(".gte=").Append(Escape(fromDate))
+      .Append('&').Append(dateField).Append(".lte=").Append(Escape(toDate))
+      .Append("&page=").Append(resultPage.ToString(CultureInfo.InvariantCulture));
+
+    if (isMovie && !string.IsNullOrWhiteSpace(region))
+    {
+      builder.Append("&region=").Append(Escape(region));
+    }
+
+    var json = await GetAsync(builder.ToString(), cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseResults(json, mediaType);
+  }
+
   private static void EnsureMediaType(string mediaType)
   {
     if (!string.Equals(mediaType, "movie", StringComparison.Ordinal)
