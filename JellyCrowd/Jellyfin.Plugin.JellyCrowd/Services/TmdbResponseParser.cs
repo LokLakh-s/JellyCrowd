@@ -58,6 +58,27 @@ public static class TmdbResponseParser
     return ParseElement(doc.RootElement, mediaType);
   }
 
+  /// <summary>
+  /// Extracts the TVDB id from a TMDB <c>external_ids</c> payload (used to add shows to Sonarr).
+  /// </summary>
+  /// <param name="json">The raw <c>/tv/{id}/external_ids</c> JSON payload.</param>
+  /// <returns>The TVDB id, or <c>null</c> when absent/zero.</returns>
+  public static int? ParseTvdbId(string json)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    using var doc = JsonDocument.Parse(json);
+    if (doc.RootElement.TryGetProperty("tvdb_id", out var tvdb)
+        && tvdb.ValueKind == JsonValueKind.Number
+        && tvdb.TryGetInt32(out var id)
+        && id > 0)
+    {
+      return id;
+    }
+
+    return null;
+  }
+
   private static CatalogItem? ParseElement(JsonElement element, string? defaultMediaType)
   {
     var mediaType = GetString(element, "media_type") ?? defaultMediaType;

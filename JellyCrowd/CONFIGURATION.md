@@ -78,8 +78,16 @@ Le **menu déroulant « Download backend »** pilote les réglages affichés :
   - **Webhook headers** : en-têtes HTTP optionnels, un par ligne au format `Nom: Valeur` (ex. un en-tête
     d'autorisation).
   - **Test backend** : envoie un POST d'exemple à l'URL (enregistrez d'abord).
-- **Servarr (Radarr / Sonarr)** : *à venir (M7 phase 2)* — connexion directe par URL + clé API, avec
-  choix du dossier racine et du profil de qualité, et déclenchement de la recherche.
+- **Radarr / Sonarr (Servarr)** : connexion directe par **URL + clé API**. Jelly Crowd ajoute le film
+  (Radarr) / la série (Sonarr) et **déclenche la recherche** ; Radarr/Sonarr cherchent et téléchargent.
+  - Pour chaque service : saisir **URL** (ex. `http://localhost:7878` Radarr, `http://localhost:8989`
+    Sonarr) et **clé API** (dans *Settings → General* de Radarr/Sonarr), puis cliquer **Connect** :
+    Jelly Crowd liste les **dossiers racine** et **profils de qualité** (et **profils de langue** pour
+    Sonarr v3) à choisir dans les menus déroulants. **Enregistrer**.
+  - Les **films** passent par Radarr, les **séries** par Sonarr. Comme Sonarr fonctionne en TVDB,
+    l'identifiant TVDB est résolu automatiquement depuis TMDB. Pour une demande de **saison précise**,
+    seule cette saison est surveillée ; sinon toute la série.
+  - Bouton **Test backend** : vérifie la connexion aux instances configurées (`system/status`).
 
 Idempotence : une requête n'est dispatchée qu'une seule fois (horodatage `DispatchedAt`). Une tâche
 planifiée **« Jelly Crowd: dispatch downloads »** (toutes les 15 min) rattrape les requêtes dont la date

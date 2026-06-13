@@ -192,6 +192,7 @@
               <select is="emby-select" id="DownloadBackend" class="emby-select-withcolor emby-select">
                 <option value="none">None (manual admin queue)</option>
                 <option value="webhook">Webhook (POST request to a URL)</option>
+                <option value="servarr">Radarr / Sonarr (Servarr)</option>
               </select>
               <div class="fieldDescription">How approved requests are fulfilled. Jelly Crowd only emits the request; the backend searches and downloads.</div>
             </div>
@@ -224,6 +225,58 @@ Content-Type: application/json
                 <label class="inputLabel inputLabelUnfocused" for="DownloadWebhookHeaders">Webhook headers</label>
                 <textarea id="DownloadWebhookHeaders" rows="3" style="width:100%"></textarea>
                 <div class="fieldDescription">Optional. One per line as "Name: Value" (e.g. an authorization header).</div>
+              </div>
+            </div>
+
+            <div id="jcServarrFields">
+              <div class="fieldDescription">Jelly Crowd adds approved requests to Radarr (movies) / Sonarr (shows) and triggers a search. Enter the URL and API key, click Connect, then pick a root folder and quality profile.</div>
+
+              <h3 class="sectionTitle">Radarr (movies)</h3>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="RadarrUrl">Radarr URL</label>
+                <input id="RadarrUrl" type="text" is="emby-input" placeholder="http://localhost:7878" />
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="RadarrApiKey">Radarr API key</label>
+                <input id="RadarrApiKey" type="password" is="emby-input" />
+              </div>
+              <div class="jcTestRow">
+                <button is="emby-button" type="button" id="jcConnectRadarr" class="raised emby-button"><span>Connect</span></button>
+                <span id="jcRadarrConnectResult" class="jcTestResult"></span>
+              </div>
+              <div class="selectContainer">
+                <label class="selectLabel" for="RadarrRootFolder">Radarr root folder</label>
+                <select is="emby-select" id="RadarrRootFolder" class="emby-select-withcolor emby-select"></select>
+              </div>
+              <div class="selectContainer">
+                <label class="selectLabel" for="RadarrQualityProfile">Radarr quality profile</label>
+                <select is="emby-select" id="RadarrQualityProfile" class="emby-select-withcolor emby-select"></select>
+              </div>
+
+              <h3 class="sectionTitle">Sonarr (shows)</h3>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="SonarrUrl">Sonarr URL</label>
+                <input id="SonarrUrl" type="text" is="emby-input" placeholder="http://localhost:8989" />
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="SonarrApiKey">Sonarr API key</label>
+                <input id="SonarrApiKey" type="password" is="emby-input" />
+              </div>
+              <div class="jcTestRow">
+                <button is="emby-button" type="button" id="jcConnectSonarr" class="raised emby-button"><span>Connect</span></button>
+                <span id="jcSonarrConnectResult" class="jcTestResult"></span>
+              </div>
+              <div class="selectContainer">
+                <label class="selectLabel" for="SonarrRootFolder">Sonarr root folder</label>
+                <select is="emby-select" id="SonarrRootFolder" class="emby-select-withcolor emby-select"></select>
+              </div>
+              <div class="selectContainer">
+                <label class="selectLabel" for="SonarrQualityProfile">Sonarr quality profile</label>
+                <select is="emby-select" id="SonarrQualityProfile" class="emby-select-withcolor emby-select"></select>
+              </div>
+              <div class="selectContainer">
+                <label class="selectLabel" for="SonarrLanguageProfile">Sonarr language profile (Sonarr v3 only)</label>
+                <select is="emby-select" id="SonarrLanguageProfile" class="emby-select-withcolor emby-select"></select>
               </div>
             </div>
 
@@ -278,7 +331,60 @@ Content-Type: application/json
         // The backend dropdown drives which settings show: webhook -> webhook fields, none -> nothing.
         var backend = document.querySelector('#DownloadBackend').value;
         document.querySelector('#jcWebhookFields').style.display = backend === 'webhook' ? '' : 'none';
+        document.querySelector('#jcServarrFields').style.display = backend === 'servarr' ? '' : 'none';
         document.querySelector('#jcDownloadTestRow').style.display = backend === 'none' ? 'none' : '';
+      }
+
+      // Fill a <select> with {Id,Name} options and keep the saved value selected even before "Connect"
+      // loads the names. Root folders use the path (Name) as the value (Radarr/Sonarr add by path);
+      // profiles use the numeric id.
+      function jcFillSelect(selectId, items, saved, useName) {
+        var select = document.querySelector('#' + selectId);
+        select.innerHTML = '';
+        var found = false;
+        (items || []).forEach(function (item) {
+          var opt = document.createElement('option');
+          opt.value = useName ? item.Name : String(item.Id);
+          opt.textContent = item.Name;
+          if (opt.value === String(saved)) { opt.selected = true; found = true; }
+          select.appendChild(opt);
+        });
+        if (!found && saved) {
+          var opt = document.createElement('option');
+          opt.value = String(saved);
+          opt.textContent = useName ? saved : ('(saved id ' + saved + ')');
+          opt.selected = true;
+          select.appendChild(opt);
+        }
+      }
+
+      function jcConnectServarr(service) {
+        var prefix = service === 'sonarr' ? 'Sonarr' : 'Radarr';
+        var result = document.querySelector('#jc' + prefix + 'ConnectResult');
+        result.textContent = '…';
+        fetch(ApiClient.getUrl('JellyCrowd/Download/Servarr/Resources'), {
+          method: 'POST',
+          headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ Service: service, Url: document.querySelector('#' + prefix + 'Url').value, ApiKey: document.querySelector('#' + prefix + 'ApiKey').value })
+        }).then(function (r) {
+          if (!r.ok) {
+            return r.text().then(function (body) {
+              var msg = body;
+              try { msg = JSON.parse(body).detail || body; } catch (e) { /* not JSON */ }
+              result.textContent = '❌ ' + (msg || ('HTTP ' + r.status));
+            });
+          }
+          return r.json().then(function (res) {
+            jcFillSelect(prefix + 'RootFolder', res.RootFolders, document.querySelector('#' + prefix + 'RootFolder').getAttribute('data-saved'), true);
+            jcFillSelect(prefix + 'QualityProfile', res.QualityProfiles, document.querySelector('#' + prefix + 'QualityProfile').getAttribute('data-saved'), false);
+            if (service === 'sonarr') {
+              jcFillSelect('SonarrLanguageProfile', res.LanguageProfiles, document.querySelector('#SonarrLanguageProfile').getAttribute('data-saved'), false);
+            }
+            result.textContent = '✅ connected';
+          });
+        }).catch(function (e) {
+          result.textContent = '❌ ' + (e && e.message ? e.message : 'request failed');
+        });
       }
 
       function buildQuotaOverrides(config) {
@@ -386,6 +492,8 @@ Content-Type: application/json
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
       document.querySelector('#jcTestDownload').addEventListener('click', function () { jcPostTest('JellyCrowd/Download/Test', document.querySelector('#jcTestDownloadResult'), 'OK'); });
       document.querySelector('#DownloadBackend').addEventListener('change', jcUpdateDownloadVisibility);
+      document.querySelector('#jcConnectRadarr').addEventListener('click', function () { jcConnectServarr('radarr'); });
+      document.querySelector('#jcConnectSonarr').addEventListener('click', function () { jcConnectServarr('sonarr'); });
 
       document.querySelector('#JellyCrowdConfigPage')
         .addEventListener('pageshow', function () {
@@ -414,6 +522,19 @@ Content-Type: application/json
             document.querySelector('#DownloadBackend').value = config.DownloadBackend || 'none';
             document.querySelector('#DownloadWebhookUrl').value = config.DownloadWebhookUrl || '';
             document.querySelector('#DownloadWebhookHeaders').value = config.DownloadWebhookHeaders || '';
+            document.querySelector('#RadarrUrl').value = config.RadarrUrl || '';
+            document.querySelector('#RadarrApiKey').value = config.RadarrApiKey || '';
+            document.querySelector('#SonarrUrl').value = config.SonarrUrl || '';
+            document.querySelector('#SonarrApiKey').value = config.SonarrApiKey || '';
+            // Seed each folder/profile select with the saved value (kept across reload until "Connect"
+            // loads the names). Root folders are saved as a path (useName), profiles as a numeric id.
+            [['RadarrRootFolder', config.RadarrRootFolderPath, true], ['RadarrQualityProfile', config.RadarrQualityProfileId, false],
+             ['SonarrRootFolder', config.SonarrRootFolderPath, true], ['SonarrQualityProfile', config.SonarrQualityProfileId, false],
+             ['SonarrLanguageProfile', config.SonarrLanguageProfileId, false]].forEach(function (entry) {
+              var saved = entry[1] != null ? String(entry[1]) : '';
+              document.querySelector('#' + entry[0]).setAttribute('data-saved', saved);
+              jcFillSelect(entry[0], [], saved, entry[2]);
+            });
             jcUpdateDownloadVisibility();
             buildQuotaOverrides(config);
             Dashboard.hideLoadingMsg();
@@ -446,6 +567,15 @@ Content-Type: application/json
             config.DownloadBackend = document.querySelector('#DownloadBackend').value;
             config.DownloadWebhookUrl = document.querySelector('#DownloadWebhookUrl').value;
             config.DownloadWebhookHeaders = document.querySelector('#DownloadWebhookHeaders').value;
+            config.RadarrUrl = document.querySelector('#RadarrUrl').value;
+            config.RadarrApiKey = document.querySelector('#RadarrApiKey').value;
+            config.RadarrRootFolderPath = document.querySelector('#RadarrRootFolder').value;
+            config.RadarrQualityProfileId = parseInt(document.querySelector('#RadarrQualityProfile').value || '0', 10);
+            config.SonarrUrl = document.querySelector('#SonarrUrl').value;
+            config.SonarrApiKey = document.querySelector('#SonarrApiKey').value;
+            config.SonarrRootFolderPath = document.querySelector('#SonarrRootFolder').value;
+            config.SonarrQualityProfileId = parseInt(document.querySelector('#SonarrQualityProfile').value || '0', 10);
+            config.SonarrLanguageProfileId = parseInt(document.querySelector('#SonarrLanguageProfile').value || '0', 10);
             config.QuotaOverrides = collectQuotaOverrides();
             ApiClient.updatePluginConfiguration(JellyCrowdConfig.pluginUniqueId, config).then(function (result) {
               Dashboard.processPluginConfigurationUpdateResult(result);
