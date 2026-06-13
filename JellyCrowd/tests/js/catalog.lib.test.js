@@ -123,3 +123,18 @@ test('quotaColor grades green -> yellow -> red and clamps', () => {
   assert.strictEqual(lib.quotaColor(150), 'hsl(0, 70%, 45%)');   // clamps above 100
   assert.strictEqual(lib.quotaColor(-10), 'hsl(120, 70%, 45%)'); // clamps below 0
 });
+
+test('groupByReleaseDate groups by date ascending and drops undated', () => {
+  const groups = lib.groupByReleaseDate([
+    { Title: 'B', ReleaseDate: '2030-02-01' },
+    { Title: 'A', ReleaseDate: '2030-01-15' },
+    { Title: 'A2', ReleaseDate: '2030-01-15T00:00:00Z' },
+    { Title: 'None', ReleaseDate: '' },
+    { Title: 'Null' }
+  ]);
+
+  assert.strictEqual(groups.length, 2);
+  assert.strictEqual(groups[0].date, '2030-01-15');
+  assert.deepStrictEqual(groups[0].items.map((i) => i.Title), ['A', 'A2']);
+  assert.strictEqual(groups[1].date, '2030-02-01');
+});

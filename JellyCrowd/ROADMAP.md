@@ -131,17 +131,18 @@ Socle déjà en place : champ **`DesiredAt`** sur les requêtes (date souhaitée
 - ☑ **Auto-planification à la sortie** : `RequestScheduling.ResolveDesiredAt` cale `DesiredAt` sur la date de sortie quand le média n'est pas encore sorti ; indicateur « Planifié pour le … » sur « Mes demandes ».
 - ◐ **Phase 2 — Radarr + Sonarr** : client `ServarrDownloadClient` (lookup + add + search, résolution TMDB→TVDB pour Sonarr) + menus déroulants dossiers/profils auto-remplis. **PROCHAINE ÉTAPE**.
 
-## M8 — Calendrier des sorties  ☐
+## M8 — Calendrier des sorties  ◐ (code fait, reste la vérif live)
 
 Objectif : un onglet **« Calendar »** (entre Catalog et My requests) affichant un **calendrier des sorties**
 à venir, films et séries confondus, depuis TMDB.
 
-- ☐ Backend : endpoint(s) catalogue agrégeant les sorties à venir (TMDB `movie/upcoming` + `tv/on_the_air`
-  / `discover` filtré par dates), normalisés en `CatalogItem` avec date de sortie. Croisement biblio `Available`.
-- ☐ UI : page `calendar.html`/`calendar.js` (entrée de nav dans `header.js` entre Catalog et My requests),
-  vue par jour/semaine/mois ou liste chronologique groupée par date ; clic → fiche (modal) avec requête.
-- ☐ i18n (en/fr) + logique pure testée (groupement par date, libellés) ; vérif live.
-- Lien avec M7 : une sortie future demandée est déjà **auto-planifiée** à sa date (voir `RequestScheduling`).
+- ☑ Backend : `CatalogController.Calendar` agrège `movie/upcoming` + `tv/on_the_air` (TMDB), filtre/
+  ordonne les sorties futures (`CalendarPlanner.OrderUpcoming`, pur + testé), croise la biblio (`Available`).
+- ☑ UI : `calendar.html`/`calendar.js` (entrée de nav dans `header.js` entre Catalog et My requests),
+  liste chronologique groupée par date ; clic → fiche (modal) avec requête, saisons et quota.
+- ☑ i18n (en/fr) + logique pure testée (`groupByReleaseDate` JS + `CalendarPlanner` C#).
+- ☐ **Vérif (instance live)** : l'onglet Calendar liste les sorties à venir, groupées par date ;
+  clic → fiche → requête (auto-planifiée à la date de sortie via `RequestScheduling`).
 
 ---
 

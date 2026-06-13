@@ -45,6 +45,26 @@ public class CatalogControllerTests
   }
 
   [Fact]
+  public async Task Calendar_ReturnsUpcomingOrderedByDate()
+  {
+    var items = new List<CatalogItem>
+    {
+      new() { TmdbId = 1, MediaType = "movie", Title = "Later", ReleaseDate = "2030-06-01" },
+      new() { TmdbId = 2, MediaType = "tv", Title = "Soon", ReleaseDate = "2030-01-01" },
+      new() { TmdbId = 3, MediaType = "movie", Title = "Past", ReleaseDate = "1999-01-01" }
+    };
+    var controller = CreateController(new FakeTmdbClient { Results = items });
+
+    var result = await controller.Calendar(null, null, CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(ok.Value);
+    // Past dropped; each media type fetch returns the same list, so both upcoming appear twice.
+    Assert.All(payload, item => Assert.NotEqual(3, item.TmdbId));
+    Assert.Equal("Soon", payload[0].Title);
+  }
+
+  [Fact]
   public async Task Search_WithEmptyQuery_ReturnsBadRequest()
   {
     var controller = CreateController(new FakeTmdbClient());
@@ -202,6 +222,16 @@ public class CatalogControllerTests
       }
 
       return Task.FromResult<int?>(null);
+    }
+
+    public Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken)
+    {
+      if (Throw is not null)
+      {
+        throw Throw;
+      }
+
+      return Task.FromResult(Results);
     }
   }
 }

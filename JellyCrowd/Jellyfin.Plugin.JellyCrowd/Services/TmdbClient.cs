@@ -149,6 +149,18 @@ public class TmdbClient : ITmdbClient
     return TmdbResponseParser.ParseTvdbId(json);
   }
 
+  /// <inheritdoc />
+  public async Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken)
+  {
+    EnsureMediaType(mediaType);
+
+    var path = string.Equals(mediaType, "movie", StringComparison.Ordinal)
+      ? $"/movie/upcoming?language={Escape(language)}&region={Escape(region)}&page=1"
+      : $"/tv/on_the_air?language={Escape(language)}&page=1";
+    var json = await GetAsync(path, cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseResults(json, mediaType);
+  }
+
   private static void EnsureMediaType(string mediaType)
   {
     if (!string.Equals(mediaType, "movie", StringComparison.Ordinal)
