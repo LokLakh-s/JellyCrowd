@@ -181,11 +181,14 @@
   function navButton(labelKey, viewId) {
     var a = document.createElement('button');
     a.type = 'button';
+    // Reuse Jellyfin's own tab class so Catalog / My requests render identically to Home / Favorites
+    // (font, weight, padding, sizing). We only force white (the inactive-tab colour is muted) and add
+    // our own click handler. White-space:nowrap keeps multi-word labels on one line.
+    a.className = 'emby-tab-button jcHeaderTab';
     a.textContent = t(labelKey);
-    // Match Jellyfin's own header tabs (Home / Favorites, the .emby-tab-button class): a <button>
-    // does NOT inherit font-family, so force `font: inherit` to pick up the Jellyfin font, plus the
-    // tabs' semi-bold weight (600) and line-height. White text is forced as the header theme varies.
-    a.style.cssText = 'margin:0;padding:.3em .7em;color:#fff;background:none;border:none;font-family:inherit;font-size:inherit;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
+    a.style.color = '#fff';
+    a.style.cursor = 'pointer';
+    a.style.whiteSpace = 'nowrap';
     a.addEventListener('mouseenter', function () { a.style.opacity = '.7'; });
     a.addEventListener('mouseleave', function () { a.style.opacity = '1'; });
     a.addEventListener('click', function () { showView(viewId); });
@@ -233,26 +236,26 @@
     return box;
   }
 
-  // Catalog / My requests: centered in the top header row, like Jellyfin's own Home / Favorites tabs
-  // (which sit centered in the second .headerTabs row). We absolute-center inside the top row, whose
-  // middle is otherwise empty (title is left-aligned, action buttons right-aligned).
+  // Catalog / My requests render as extra tabs right next to Jellyfin's own Home / Favorites, inside
+  // the centered .headerTabs row. That row is page-specific (shown on Home / library pages, hidden on
+  // detail / search / settings), so these links follow the same visibility — by design. Jellyfin
+  // rebuilds the tab bar on navigation, so the MutationObserver re-inserts us whenever it's wiped.
   function insertNav() {
     if (document.querySelector('.jcHeaderNav')) {
       return;
     }
-    var row = document.querySelector('.headerTop') || document.querySelector('.skinHeader');
-    if (!row) {
+    var tabs = document.querySelector('.headerTabs.sectionTabs') || document.querySelector('.headerTabs');
+    if (!tabs) {
       return;
-    }
-    if (window.getComputedStyle(row).position === 'static') {
-      row.style.position = 'relative';
     }
     var nav = document.createElement('div');
     nav.className = 'jcHeaderNav';
-    nav.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:.5em;z-index:1;';
+    nav.style.cssText = 'display:inline-flex;align-items:center;';
     nav.appendChild(navButton('nav_catalog', 'catalog'));
     nav.appendChild(navButton('nav_requests', 'requests'));
-    row.appendChild(nav);
+    // Sit on the same line as the real tabs when the slider exists, else in the centered row itself.
+    var slider = tabs.querySelector('.emby-tabs-slider');
+    (slider || tabs).appendChild(nav);
   }
 
   // Quota bar lives in .headerRight, placed between the search icon and the user avatar
