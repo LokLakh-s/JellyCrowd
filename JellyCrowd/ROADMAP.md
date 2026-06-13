@@ -152,18 +152,61 @@ Socle déjà en place : champ **`DesiredAt`** sur les requêtes (date souhaitée
 Objectif : un onglet **« Calendar »** (entre Catalog et My requests) affichant un **calendrier des sorties**
 à venir, films et séries confondus, depuis TMDB.
 
-- ☑ Backend : `CatalogController.Calendar` agrège `movie/upcoming` + `tv/on_the_air` (TMDB), filtre/
-  ordonne les sorties futures (`CalendarPlanner.OrderUpcoming`, pur + testé), croise la biblio (`Available`).
-- ☑ UI : `calendar.html`/`calendar.js` (entrée de nav dans `header.js` entre Catalog et My requests),
-  liste chronologique groupée par date ; clic → fiche (modal) avec requête, saisons et quota.
-- ☑ i18n (en/fr) + logique pure testée (`groupByReleaseDate` JS + `CalendarPlanner` C#).
-- ☐ **Vérif (instance live)** : l'onglet Calendar liste les sorties à venir, groupées par date ;
-  clic → fiche → requête (auto-planifiée à la date de sortie via `RequestScheduling`).
+- ☑ Backend : `CatalogController.Calendar` — sorties à venir (`movie/upcoming` + `tv/on_the_air`) **ou**,
+  avec `from`/`to`, toutes les sorties d'une plage via `discover` par date (`GetReleasesAsync`, films+séries,
+  2 pages/type) ; filtre/ordonne (`CalendarPlanner.OrderUpcoming`/`OrderByDate`, purs + testés), croise la biblio.
+- ☑ UI : `calendar.html`/`calendar.js` — **grille mensuelle** (lundi→dimanche) avec navigation mois
+  précédent/suivant + « Aujourd'hui », affiches/titres dans la case du jour de sortie, clic → fiche (modal)
+  avec requête/saisons/quota. Entrée de nav dans `header.js` entre Catalog et My requests.
+- ☑ i18n (en/fr) + logique pure testée (`groupByReleaseDate` + `buildMonthMatrix` JS ; `CalendarPlanner` C#).
+- ☐ **Vérif (instance live)** : la grille mensuelle se peuple, navigation entre mois OK, clic → fiche →
+  requête (auto-planifiée à la date de sortie via `RequestScheduling`).
+
+## M9 — Watchlists  ☐
+
+Objectif : permettre à un utilisateur de **suivre des titres** (liste d'envies) sans forcément les demander.
+
+- ☐ Modèle + store (par user, tmdbId/type) ; endpoints add/remove/list ; bouton « ★ » sur cartes/fiche.
+- ☐ Page/onglet « Ma liste » (ou section) ; option « demander » depuis la watchlist.
+- ☐ (Option) notif quand un titre suivi devient disponible / sort. Tests (store/endpoints/JS).
+
+## M10 — Recommandations personnalisées  ☐
+
+Objectif : suggérer des titres à partir de l'historique de visionnage Jellyfin et/ou des requêtes.
+
+- ☐ Source : TMDB `recommendations`/`similar` à partir des derniers visionnages (Jellyfin) ou des requêtes
+  de l'utilisateur ; agrégation/dédup ; croisement biblio.
+- ☐ Rangée « Pour vous » dans le catalogue (ou onglet) ; logique pure testée.
+
+## M11 — Backends de téléchargement additionnels  ☐
+
+Objectif : couvrir les outils les plus répandus via la même abstraction `IDownloadClient`.
+
+- ☐ Clients directs : **qBittorrent**, **Transmission**, **Deluge** (torrents) ; **SABnzbd**, **NZBGet** (usenet) ;
+  via leurs API (URL + identifiants). Sélection dans l'onglet « Téléchargement » + bouton Test + builders testés.
+- ☐ (Option) script custom (stdin JSON) déjà esquissé dans M7.
+- Note : reste dans le cadre — Jelly Crowd émet vers le client de téléchargement, ne gère pas l'indexation.
+
+## M12 — Canaux de notification additionnels  ☐
+
+Objectif : élargir au-delà de Discord/SMTP, via une abstraction de notification.
+
+- ☐ Canaux : **Telegram**, **ntfy**, **Gotify**, **Pushover**, **Slack**, **webhook générique**.
+- ☐ Onglet Notifications : activer/configurer chaque canal + bouton Test ; builders de payload purs et testés.
+
+## M13 — Gestion admin des demandes  ☐
+
+Objectif : donner à l'admin la main sur les demandes (au-delà d'approuver/refuser).
+
+- ☐ **Supprimer** une demande (n'importe laquelle) ; **éditer** (statut/saison/date souhaitée).
+- ☐ **Créer une demande pour un autre utilisateur** (sélecteur d'utilisateur dans la file admin) — bypass
+  quota/limite optionnel.
+- ☐ Endpoints admin (`RequiresElevation`) + UI dans l'onglet Demandes ; tests (nominal + autorisation).
 
 ---
 
 ## Hors périmètre / idées futures
 
 - Mapping d'identifiants avancé TMDB↔TVDB côté Sonarr si les lookups natifs ne suffisent pas.
-- Recommandations personnalisées, watchlists.
-- Intégration d'autres downloaders (qBittorrent direct, etc.) via le même `IDownloadClient`.
+- Vue calendrier par semaine/agenda ; calendrier des **épisodes** (pas seulement premières de séries).
+- Intégration directe d'un lecteur de téléchargement supplémentaire non couvert par M11.

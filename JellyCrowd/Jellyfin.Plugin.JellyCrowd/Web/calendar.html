@@ -8,10 +8,16 @@
       <img id="jcCalLogo" class="jellycrowd-logo" alt="" />
       <h1 id="jcCalTitle" class="jellycrowd-title">Calendar</h1>
     </div>
+    <div class="jellycrowd-cal-nav">
+      <button type="button" id="jcCalPrev" class="jellycrowd-chip" aria-label="Previous month">‹</button>
+      <span id="jcCalMonth" class="jellycrowd-cal-month"></span>
+      <button type="button" id="jcCalNext" class="jellycrowd-chip" aria-label="Next month">›</button>
+      <button type="button" id="jcCalToday" class="jellycrowd-chip"></button>
+    </div>
   </header>
 
   <p id="jcCalMessage" class="jellycrowd-message" hidden></p>
-  <div id="jcCalFeed" class="jellycrowd-feed" aria-live="polite"></div>
+  <div id="jcCalGrid" class="jellycrowd-cal-grid" aria-live="polite"></div>
 </div>
 
 <script>

@@ -30,4 +30,33 @@ public static class CalendarPlanner
       .Select(pair => pair.Item)
       .ToList();
   }
+
+  /// <summary>
+  /// Orders items by release date ascending, dropping those without a parseable date and de-duplicating
+  /// by media type + TMDB id. Used by the monthly calendar (keeps the whole range, past and future).
+  /// </summary>
+  /// <param name="items">The candidate items.</param>
+  /// <returns>The dated items, soonest first, de-duplicated.</returns>
+  public static IReadOnlyList<CatalogItem> OrderByDate(IEnumerable<CatalogItem> items)
+  {
+    ArgumentNullException.ThrowIfNull(items);
+
+    var seen = new HashSet<string>(StringComparer.Ordinal);
+    var dated = new List<(CatalogItem Item, DateTime Date)>();
+    foreach (var item in items)
+    {
+      var date = RequestScheduling.ParseReleaseDate(item.ReleaseDate);
+      if (date is null)
+      {
+        continue;
+      }
+
+      if (seen.Add(item.MediaType + ":" + item.TmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+      {
+        dated.Add((item, date.Value));
+      }
+    }
+
+    return dated.OrderBy(pair => pair.Date).Select(pair => pair.Item).ToList();
+  }
 }

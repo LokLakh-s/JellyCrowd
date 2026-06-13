@@ -94,4 +94,18 @@ public interface ITmdbClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The upcoming catalog items.</returns>
   Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Lists releases of a media type within a date range (movies by primary release date, shows by
+  /// first-air date), ordered ascending — used by the monthly releases calendar.
+  /// </summary>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="fromDate">Range start (inclusive, <c>yyyy-MM-dd</c>).</param>
+  /// <param name="toDate">Range end (inclusive, <c>yyyy-MM-dd</c>).</param>
+  /// <param name="region">The ISO 3166-1 region (movies).</param>
+  /// <param name="language">The TMDB language code.</param>
+  /// <param name="page">Result page (1-based).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The releases in the range.</returns>
+  Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, int page, CancellationToken cancellationToken);
 }

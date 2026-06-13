@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Api;
@@ -55,13 +56,31 @@ public class CatalogControllerTests
     };
     var controller = CreateController(new FakeTmdbClient { Results = items });
 
-    var result = await controller.Calendar(null, null, CancellationToken.None);
+    var result = await controller.Calendar(null, null, null, null, CancellationToken.None);
 
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(ok.Value);
     // Past dropped; each media type fetch returns the same list, so both upcoming appear twice.
     Assert.All(payload, item => Assert.NotEqual(3, item.TmdbId));
     Assert.Equal("Soon", payload[0].Title);
+  }
+
+  [Fact]
+  public async Task Calendar_WithRange_ReturnsDatedDedupedOrdered()
+  {
+    var items = new List<CatalogItem>
+    {
+      new() { TmdbId = 10, MediaType = "movie", Title = "Mid", ReleaseDate = "2026-06-15" },
+      new() { TmdbId = 11, MediaType = "movie", Title = "Early", ReleaseDate = "2026-06-02" },
+      new() { TmdbId = 12, MediaType = "movie", Title = "Undated", ReleaseDate = null }
+    };
+    var controller = CreateController(new FakeTmdbClient { Results = items });
+
+    var result = await controller.Calendar(null, null, "2026-06-01", "2026-06-30", CancellationToken.None);
+
+    var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    // Undated dropped, deduped across movie+tv fetches, ordered ascending.
+    Assert.Equal(new[] { "Early", "Mid" }, payload.Select(i => i.Title).ToArray());
   }
 
   [Fact]
@@ -232,6 +251,17 @@ public class CatalogControllerTests
       }
 
       return Task.FromResult(Results);
+    }
+
+    public Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, int page, CancellationToken cancellationToken)
+    {
+      if (Throw is not null)
+      {
+        throw Throw;
+      }
+
+      // Page 1 returns the seeded results; later pages are empty (stops the controller's paging loop).
+      return Task.FromResult(page <= 1 ? Results : (IReadOnlyList<CatalogItem>)new List<CatalogItem>());
     }
   }
 }
