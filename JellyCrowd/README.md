@@ -72,6 +72,11 @@ l'URL de l'archive et son empreinte MD5). Jellyfin détecte la nouvelle version 
 > télécharge le `manifest.json` (URL *raw*) et l'archive de release **sans authentification**. Si le dépôt
 > est privé, l'install/MAJ par dépôt échoue (il faudrait alors héberger le manifest ailleurs).
 
+### Configuration
+
+Une fois installé, ouvrir **Dashboard → Plugins → Jelly Crowd** (onglets Demandes / Quotas / Réglages /
+Notifications / Téléchargement). Le détail de chaque réglage est documenté dans **[CONFIGURATION.md](CONFIGURATION.md)**.
+
 ### En développement (build local)
 
 ```powershell

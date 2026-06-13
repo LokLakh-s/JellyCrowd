@@ -109,6 +109,16 @@
     }
     row.appendChild(status);
 
+    // Show a "scheduled for <date>" hint when fulfillment is deferred to a future (release) date.
+    var desired = request.DesiredAt ? new Date(request.DesiredAt) : null;
+    if (desired && desired.getTime() > Date.now() && !request.DeletionRequestedAt
+        && (request.Status === 0 || request.Status === 'Pending' || request.Status === 1 || request.Status === 'Approved')) {
+      var scheduled = document.createElement('span');
+      scheduled.className = 'jellycrowd-status jellycrowd-status-scheduled';
+      scheduled.textContent = t('scheduled_for') + ' ' + desired.toLocaleDateString();
+      row.appendChild(scheduled);
+    }
+
     var isPending = (request.Status === 0 || request.Status === 'Pending');
     if (isPending && !request.DeletionRequestedAt) {
       var cancel = document.createElement('button');

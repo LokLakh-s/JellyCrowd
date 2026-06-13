@@ -125,6 +125,24 @@ Socle déjà en place : champ **`DesiredAt`** sur les requêtes (date souhaitée
 - ☐ **Tests** : builders de payload (Radarr/Sonarr/JSON script/webhook), mapping TMDB→cible, logique d'éligibilité (`DesiredAt`/`DispatchedAt`), contrôleur/tâche avec fakes. Côté JS : réglages d'onglet si UI testable.
 - ☐ **Vérif (instance live)** : configurer Radarr/Sonarr (ou un script), approuver une requête (date du jour) → l'item est ajouté côté Servarr/script ; à l'import en biblio, la requête passe `Available`. Tester aussi une **date future** (dispatch différé par la tâche).
 
+**Avancement** :
+
+- ☑ **Phase 1 — socle + Webhook** : champ `DispatchedAt`, abstraction `IDownloadClient`, `DownloadDispatcher` (résolution du backend actif + éligibilité `DesiredAt`/`DispatchedAt`), `WebhookDownloadClient` (POST JSON + en-têtes), déclenchement à l'approbation + `DownloadDispatchTask` (15 min), onglet admin « Téléchargement » (sélecteur de backend piloté par menu déroulant + bouton Test), `DownloadController`. Tests purs (builder/éligibilité/headers) + dispatcher + contrôleur + store.
+- ☑ **Auto-planification à la sortie** : `RequestScheduling.ResolveDesiredAt` cale `DesiredAt` sur la date de sortie quand le média n'est pas encore sorti ; indicateur « Planifié pour le … » sur « Mes demandes ».
+- ◐ **Phase 2 — Radarr + Sonarr** : client `ServarrDownloadClient` (lookup + add + search, résolution TMDB→TVDB pour Sonarr) + menus déroulants dossiers/profils auto-remplis. **PROCHAINE ÉTAPE**.
+
+## M8 — Calendrier des sorties  ☐
+
+Objectif : un onglet **« Calendar »** (entre Catalog et My requests) affichant un **calendrier des sorties**
+à venir, films et séries confondus, depuis TMDB.
+
+- ☐ Backend : endpoint(s) catalogue agrégeant les sorties à venir (TMDB `movie/upcoming` + `tv/on_the_air`
+  / `discover` filtré par dates), normalisés en `CatalogItem` avec date de sortie. Croisement biblio `Available`.
+- ☐ UI : page `calendar.html`/`calendar.js` (entrée de nav dans `header.js` entre Catalog et My requests),
+  vue par jour/semaine/mois ou liste chronologique groupée par date ; clic → fiche (modal) avec requête.
+- ☐ i18n (en/fr) + logique pure testée (groupement par date, libellés) ; vérif live.
+- Lien avec M7 : une sortie future demandée est déjà **auto-planifiée** à sa date (voir `RequestScheduling`).
+
 ---
 
 ## Hors périmètre / idées futures
