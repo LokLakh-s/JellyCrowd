@@ -21,6 +21,12 @@
   var adminUsers = [];
   var actAsUserId = null;
 
+  // Watchlist: the user's followed titles. watchlistKeys is a quick membership set ("type:tmdbId"),
+  // watchlistEntries the full list (rendered when the "My list" toggle is on).
+  var watchlistKeys = {};
+  var watchlistEntries = [];
+  var showWatchlist = false;
+
   var MIN_YEAR = 1900;
   var MAX_YEAR = new Date().getFullYear();
 
@@ -200,6 +206,8 @@
     hover.appendChild(hoverMeta);
     posterWrap.appendChild(hover);
 
+    posterWrap.appendChild(watchlistStar(item, false));
+
     card.appendChild(posterWrap);
 
     if (!item.Available) {
@@ -231,6 +239,63 @@
       }
       return null;
     }).catch(function () { /* ignore */ });
+  }
+
+  // POST without expecting a JSON body back (watchlist add/remove return 200/204).
+  function apiPostNoResult(path, body) {
+    if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+      return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path), data: JSON.stringify(body), contentType: 'application/json' });
+    }
+    return fetch(pluginUrl(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } });
+  }
+
+  function loadWatchlist() {
+    return apiGet('JellyCrowd/Watchlist').then(function (list) {
+      watchlistEntries = list || [];
+      watchlistKeys = {};
+      watchlistEntries.forEach(function (e) { watchlistKeys[e.MediaType + ':' + e.TmdbId] = true; });
+    }).catch(function () { /* best-effort */ });
+  }
+
+  function watchlistKey(item) { return item.MediaType + ':' + item.TmdbId; }
+
+  function toggleWatchlist(item, refresh) {
+    var key = watchlistKey(item);
+    var on = !!watchlistKeys[key];
+    var body = { TmdbId: item.TmdbId, MediaType: item.MediaType, Title: item.Title, PosterPath: item.PosterPath, ReleaseDate: item.ReleaseDate };
+    return apiPostNoResult(on ? 'JellyCrowd/Watchlist/Remove' : 'JellyCrowd/Watchlist', body).then(function () {
+      if (on) {
+        delete watchlistKeys[key];
+        watchlistEntries = watchlistEntries.filter(function (e) { return (e.MediaType + ':' + e.TmdbId) !== key; });
+      } else {
+        watchlistKeys[key] = true;
+        watchlistEntries.unshift(body);
+      }
+      if (refresh) { refresh(); }
+      if (showWatchlist) { resetFeed(); }
+    }).catch(function () { /* ignore */ });
+  }
+
+  // Star toggle button. inline=true for the modal (text), else a corner icon for cards.
+  function watchlistStar(item, inline) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = inline ? 'jellycrowd-star-inline' : 'jellycrowd-star';
+    function refresh() {
+      var on = !!watchlistKeys[watchlistKey(item)];
+      btn.classList.toggle('jellycrowd-star-on', on);
+      var label = on ? t('watchlist_remove') : t('watchlist_add');
+      btn.textContent = inline ? ((on ? '★ ' : '☆ ') + label) : (on ? '★' : '☆');
+      btn.title = label;
+    }
+    refresh();
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      btn.disabled = true;
+      toggleWatchlist(item, refresh).then(function () { btn.disabled = false; });
+    });
+    return btn;
   }
 
   // Route a request payload: to ForUser (admin acting as someone), else the normal endpoint.
@@ -457,6 +522,7 @@
       meta.appendChild(availSpan);
     }
     content.appendChild(meta);
+    meta.appendChild(watchlistStar(item, true));
 
     var genresEl = document.createElement('div');
     genresEl.className = 'jellycrowd-modal-genres';
@@ -758,6 +824,24 @@
     feedExhausted = false;
     gridPage = 0;
     feedEl().innerHTML = '';
+
+    // "My list" mode: render the user's watchlist entries (no TMDB query / infinite scroll).
+    if (showWatchlist) {
+      feedExhausted = true;
+      document.getElementById('jcSectionTitle').textContent = t('watchlist_title');
+      var listGrid = document.createElement('div');
+      listGrid.className = 'jellycrowd-grid';
+      listGrid.id = 'jcGridMain';
+      feedEl().appendChild(listGrid);
+      if (!watchlistEntries.length) {
+        setMessage(t('watchlist_empty'));
+      } else {
+        setMessage('');
+        watchlistEntries.forEach(function (entry) { listGrid.appendChild(renderCard(entry)); });
+      }
+      return;
+    }
+
     var rows;
     if (searchQuery) {
       document.getElementById('jcSectionTitle').textContent = t('results_title');
@@ -935,6 +1019,8 @@
     filters.originalLanguage = '';
     filters.originCountry = '';
     searchQuery = '';
+    showWatchlist = false;
+    document.getElementById('jcMyList').classList.remove('jellycrowd-chip-active');
     document.getElementById('jcSort').value = 'popularity';
     document.getElementById('jcLang').value = '';
     document.getElementById('jcCountry').value = '';
@@ -959,6 +1045,7 @@
     document.getElementById('jcLabelSort').textContent = t('filters_sort');
     document.getElementById('jcLabelLang').textContent = t('filters_language');
     document.getElementById('jcLabelCountry').textContent = t('filters_country');
+    document.getElementById('jcMyList').textContent = t('watchlist_title');
     document.getElementById('jcReset').textContent = t('filters_reset');
   }
 
@@ -973,6 +1060,11 @@
       document.getElementById('jcTypeMovie').addEventListener('click', function () { setMediaType('movie'); });
       document.getElementById('jcTypeTv').addEventListener('click', function () { setMediaType('tv'); });
       document.getElementById('jcReset').addEventListener('click', resetFilters);
+      document.getElementById('jcMyList').addEventListener('click', function () {
+        showWatchlist = !showWatchlist;
+        document.getElementById('jcMyList').classList.toggle('jellycrowd-chip-active', showWatchlist);
+        resetFeed();
+      });
 
       document.getElementById('jcSearchForm').addEventListener('submit', function (e) {
         e.preventDefault();
@@ -984,6 +1076,7 @@
           quotaExceeded = !!(q && !q.Unlimited && q.QuotaBytes > 0 && q.UsedBytes >= q.QuotaBytes);
         })
         .catch(function () { /* quota check is best-effort */ })
+        .then(loadWatchlist)
         .then(loadProviders)
         .then(function () {
           loadGenres();

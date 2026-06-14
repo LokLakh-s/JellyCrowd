@@ -15,6 +15,7 @@ namespace Jellyfin.Plugin.JellyCrowd;
 public class PluginServiceRegistrator : IPluginServiceRegistrator
 {
   private const string RequestsFileName = "requests.json";
+  private const string WatchlistFileName = "watchlist.json";
 
   /// <inheritdoc />
   public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
@@ -26,6 +27,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<INotificationService, NotificationService>();
     serviceCollection.AddSingleton<IRequestStore>(
       _ => new JsonRequestStore(Path.Combine(Plugin.Instance!.DataFolderPath, RequestsFileName)));
+    serviceCollection.AddSingleton<IWatchlistStore>(
+      _ => new JsonWatchlistStore(Path.Combine(Plugin.Instance!.DataFolderPath, WatchlistFileName)));
     serviceCollection.AddSingleton<Func<PluginConfiguration>>(_ => () => Plugin.Instance!.Configuration);
     serviceCollection.AddSingleton<IQuotaService>(sp => new QuotaService(
       sp.GetRequiredService<IRequestStore>(),

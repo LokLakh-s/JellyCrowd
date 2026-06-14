@@ -210,6 +210,41 @@
   display: block;
 }
 
+.jellycrowd-star {
+  position: absolute;
+  top: 0.4em;
+  right: 0.4em;
+  z-index: 2;
+  width: 1.9em;
+  height: 1.9em;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.jellycrowd-star:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.jellycrowd-star-inline {
+  border: none;
+  border-radius: 0.3em;
+  padding: 0.25em 0.6em;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font-size: 0.85em;
+}
+
+.jellycrowd-star-on {
+  color: #f5c518;
+}
+
 .jellycrowd-badge {
   position: absolute;
   top: 0.5em;

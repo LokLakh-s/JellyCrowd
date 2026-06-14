@@ -21,6 +21,9 @@
   var adminUsers = [];
   var actAsUserId = null;
 
+  // Watchlist membership set ("type:tmdbId") for the modal star (see catalog.js).
+  var watchlistKeys = {};
+
   // Language / production-country filters (see catalog.js).
   var FILTER_LANGUAGES = ['en', 'fr', 'es', 'it', 'de', 'pt', 'ja', 'ko', 'zh', 'hi'];
   var FILTER_COUNTRIES = ['US', 'FR', 'ES', 'IT', 'GB', 'DE', 'JP', 'KR', 'CA', 'IN'];
@@ -135,6 +138,47 @@
       return apiPost('JellyCrowd/Requests/ForUser', forUser);
     }
     return apiPost('JellyCrowd/Requests', payload);
+  }
+
+  function apiPostNoResult(path, body) {
+    if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+      return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path), data: JSON.stringify(body), contentType: 'application/json' });
+    }
+    return fetch(pluginUrl(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } });
+  }
+
+  function loadWatchlist() {
+    return apiGet('JellyCrowd/Watchlist').then(function (list) {
+      watchlistKeys = {};
+      (list || []).forEach(function (e) { watchlistKeys[e.MediaType + ':' + e.TmdbId] = true; });
+    }).catch(function () { /* best-effort */ });
+  }
+
+  function watchlistStar(item) {
+    var key = item.MediaType + ':' + item.TmdbId;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jellycrowd-star-inline';
+    function refresh() {
+      var on = !!watchlistKeys[key];
+      btn.classList.toggle('jellycrowd-star-on', on);
+      var label = on ? t('watchlist_remove') : t('watchlist_add');
+      btn.textContent = (on ? '★ ' : '☆ ') + label;
+      btn.title = label;
+    }
+    refresh();
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      btn.disabled = true;
+      var on = !!watchlistKeys[key];
+      var body = { TmdbId: item.TmdbId, MediaType: item.MediaType, Title: item.Title, PosterPath: item.PosterPath, ReleaseDate: item.ReleaseDate };
+      apiPostNoResult(on ? 'JellyCrowd/Watchlist/Remove' : 'JellyCrowd/Watchlist', body)
+        .then(function () { if (on) { delete watchlistKeys[key]; } else { watchlistKeys[key] = true; } refresh(); })
+        .catch(function () { /* ignore */ })
+        .then(function () { btn.disabled = false; });
+    });
+    return btn;
   }
 
   function requestItem(item, button, season, dateInput, episode, releaseDate) {
@@ -324,6 +368,7 @@
     if (rating) { var rs = document.createElement('span'); rs.textContent = '★ ' + rating; meta.appendChild(rs); }
     if (item.Available) { var av = document.createElement('span'); av.textContent = t('available_badge'); meta.appendChild(av); }
     content.appendChild(meta);
+    meta.appendChild(watchlistStar(item));
 
     var genresEl = document.createElement('div');
     genresEl.className = 'jellycrowd-modal-genres';
@@ -536,7 +581,7 @@
   }
 
   function init() {
-    loadConfigLang().then(loadStrings).then(loadAdmin).then(function () {
+    loadConfigLang().then(loadStrings).then(loadAdmin).then(loadWatchlist).then(function () {
       document.getElementById('jcCalLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcCalTitle').textContent = t('calendar_title');
       document.getElementById('jcCalToday').textContent = t('calendar_today');
