@@ -220,6 +220,111 @@ public class RequestsController : ControllerBase
     return cancelled ? NoContent() : NotFound();
   }
 
+  /// <summary>
+  /// Deletes any request (administrators only).
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="204">The request was deleted.</response>
+  /// <response code="404">No such request.</response>
+  /// <returns>No content on success; 404 otherwise.</returns>
+  [HttpPost("{id}/Delete")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+  {
+    var existing = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+    if (existing is null)
+    {
+      return NotFound();
+    }
+
+    await _store.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
+    return NoContent();
+  }
+
+  /// <summary>
+  /// Edits a request's status, season/episode and desired date (administrators only).
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="dto">The edited values.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The updated request.</response>
+  /// <response code="400">The payload was invalid.</response>
+  /// <response code="404">No such request.</response>
+  /// <returns>The request with its edited values, or 404.</returns>
+  [HttpPost("{id}/Edit")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  public async Task<ActionResult<RequestRecord>> Edit(Guid id, [FromBody] AdminEditRequestDto dto, CancellationToken cancellationToken)
+  {
+    if (dto is null)
+    {
+      return BadRequest("A payload is required.");
+    }
+
+    var updated = await _store.AdminUpdateAsync(id, dto.Status, dto.Season, dto.Episode, dto.DesiredAt, cancellationToken).ConfigureAwait(false);
+    return updated is null ? NotFound() : Ok(updated);
+  }
+
+  /// <summary>
+  /// Creates a request on behalf of another user (administrators only; bypasses quota/rate limits).
+  /// </summary>
+  /// <param name="dto">The request payload, including the target user.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The created request.</response>
+  /// <response code="400">The payload was invalid.</response>
+  /// <returns>The persisted request.</returns>
+  [HttpPost("ForUser")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<ActionResult<RequestRecord>> CreateForUser([FromBody] AdminCreateRequestDto dto, CancellationToken cancellationToken)
+  {
+    if (dto is null || string.IsNullOrWhiteSpace(dto.Title))
+    {
+      return BadRequest("A title is required.");
+    }
+
+    if (!IsValidMediaType(dto.MediaType))
+    {
+      return BadRequest("The 'mediaType' must be 'movie' or 'tv'.");
+    }
+
+    if (dto.UserId == Guid.Empty)
+    {
+      return BadRequest("A target user is required.");
+    }
+
+    var status = dto.Status ?? RequestStatus.Approved;
+    var created = await _store.CreateAsync(
+      new RequestRecord
+      {
+        UserId = dto.UserId,
+        TmdbId = dto.TmdbId,
+        MediaType = dto.MediaType,
+        Title = dto.Title,
+        PosterPath = dto.PosterPath,
+        ReleaseDate = dto.ReleaseDate,
+        Season = dto.Season,
+        Episode = dto.Episode,
+        DesiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, null, DateTime.UtcNow),
+        Status = status
+      },
+      cancellationToken).ConfigureAwait(false);
+
+    _ = _notificationService.NotifyRequestEventAsync(created, NotificationEvent.Created, CancellationToken.None);
+    if (status == RequestStatus.Approved)
+    {
+      _ = _downloadDispatcher.DispatchAsync(created, CancellationToken.None);
+    }
+
+    return Ok(created);
+  }
+
   private static bool IsValidMediaType(string mediaType)
     => string.Equals(mediaType, "movie", StringComparison.Ordinal)
        || string.Equals(mediaType, "tv", StringComparison.Ordinal);
