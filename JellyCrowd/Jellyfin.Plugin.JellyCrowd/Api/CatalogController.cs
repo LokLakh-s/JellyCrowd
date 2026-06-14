@@ -27,6 +27,9 @@ public class CatalogController : ControllerBase
 
   private const int MaxFollowedShows = 40;
 
+  // Regions whose release dates feed the calendar, in addition to the caller's own region.
+  private static readonly string[] ExtraCalendarRegions = { "FR", "ES", "IT", "GB", "US" };
+
   private readonly ITmdbClient _tmdbClient;
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly IRequestStore _requestStore;
@@ -390,16 +393,13 @@ public class CatalogController : ControllerBase
       IReadOnlyList<CatalogItem> ordered;
       if (useRange)
       {
-        // Movie releases in range...
+        // Movie releases in range, across several regions (release dates are region-specific), so the
+        // calendar isn't limited to one country. Deduplicated downstream by CalendarPlanner.OrderByDate.
         var items = new List<CatalogItem>();
-        for (var page = 1; page <= 2; page++)
+        foreach (var regionCode in CalendarRegions(watchRegion))
         {
-          var batch = await _tmdbClient.GetReleasesAsync("movie", from!, to!, watchRegion, lang, page, cancellationToken).ConfigureAwait(false);
+          var batch = await _tmdbClient.GetReleasesAsync("movie", from!, to!, regionCode, lang, 1, cancellationToken).ConfigureAwait(false);
           items.AddRange(batch);
-          if (batch.Count < 20)
-          {
-            break;
-          }
         }
 
         // ...plus episodes of the user's followed shows airing in the range.
@@ -495,6 +495,24 @@ public class CatalogController : ControllerBase
     }
 
     return result;
+  }
+
+  // The caller's region first, then the extra calendar regions, de-duplicated.
+  private static IEnumerable<string> CalendarRegions(string primaryRegion)
+  {
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    if (!string.IsNullOrWhiteSpace(primaryRegion) && seen.Add(primaryRegion))
+    {
+      yield return primaryRegion;
+    }
+
+    foreach (var region in ExtraCalendarRegions)
+    {
+      if (seen.Add(region))
+      {
+        yield return region;
+      }
+    }
   }
 
   private static string Normalize(string? language)

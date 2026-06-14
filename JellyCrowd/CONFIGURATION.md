@@ -118,7 +118,8 @@ utiliser les boutons habituels (film / saison / épisode) : la demande est cré�
   ouvrant la fiche d'où l'on envoie la demande.
 - **Calendar** : **grille mensuelle** des sorties (films et séries confondus, via TMDB) avec navigation
   mois précédent/suivant + « Aujourd'hui » ; les affiches/titres apparaissent dans la case de leur jour de
-  sortie, clic → fiche → requête (auto-planifiée à la date de sortie).
+  sortie, clic → fiche → requête (auto-planifiée à la date de sortie). Les **sorties films** couvrent
+  plusieurs régions (ta région + FR, ES, IT, GB, US) ; les **épisodes** sont ceux de tes séries suivies.
 - **My requests** : requêtes de l'utilisateur et leur statut, annulation tant qu'en attente, demande de
   suppression d'un média disponible, badge de planification.
 - **Barre de quota** (entre la recherche et l'avatar) : usage/quota, dégradé vert→jaune→rouge ; clic →
