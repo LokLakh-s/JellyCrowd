@@ -84,6 +84,12 @@ Le **menu déroulant « Download backend »** pilote les réglages affichés :
   - **Webhook headers** : en-têtes HTTP optionnels, un par ligne au format `Nom: Valeur` (ex. un en-tête
     d'autorisation).
   - **Test backend** : envoie un POST d'exemple à l'URL (enregistrez d'abord).
+- **Script local** : Jelly Crowd exécute un **script/exécutable** que tu configures (chemin + arguments
+  optionnels) pour chaque requête approuvée, en lui passant la requête en **JSON sur stdin** + des
+  variables d'environnement `JELLYCROWD_*` (`TMDBID`, `MEDIATYPE`, `TITLE`, `YEAR`, `SEASON`, `EPISODE`,
+  `USER`). À toi d'y brancher ta logique (qBittorrent, SABnzbd, etc.). Bouton **Test backend** = lance le
+  script avec un échantillon (titre « Jelly Crowd test »). Sur Windows, pointe vers l'interpréteur
+  (ex. chemin `python.exe`, arguments = ton script).
 - **Radarr / Sonarr (Servarr)** : connexion directe par **URL + clé API**. Jelly Crowd ajoute le film
   (Radarr) / la série (Sonarr) et **déclenche la recherche** ; Radarr/Sonarr cherchent et téléchargent.
   - Pour chaque service : saisir **URL** (ex. `http://localhost:7878` Radarr, `http://localhost:8989`

@@ -60,6 +60,8 @@ public class PluginConfiguration : BasePluginConfiguration
     SonarrRootFolderPath = string.Empty;
     SonarrQualityProfileId = 0;
     SonarrLanguageProfileId = 1;
+    ScriptPath = string.Empty;
+    ScriptArguments = string.Empty;
   }
 
   /// <summary>
@@ -275,4 +277,15 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the Sonarr language profile id (Sonarr v3 requires one; ignored by v4). Defaults to 1.
   /// </summary>
   public int SonarrLanguageProfileId { get; set; }
+
+  /// <summary>
+  /// Gets or sets the executable/script run by the <c>"script"</c> download backend. The request is
+  /// passed as JSON on stdin (plus <c>JELLYCROWD_*</c> environment variables). Empty disables it.
+  /// </summary>
+  public string ScriptPath { get; set; }
+
+  /// <summary>
+  /// Gets or sets optional command-line arguments passed to <see cref="ScriptPath"/>.
+  /// </summary>
+  public string ScriptArguments { get; set; }
 }
