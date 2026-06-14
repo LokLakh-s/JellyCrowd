@@ -218,6 +218,16 @@ public class TmdbClient : ITmdbClient
     return TmdbResponseParser.ParseEpisodes(json);
   }
 
+  /// <inheritdoc />
+  public async Task<IReadOnlyList<CatalogItem>> GetRecommendationsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken)
+  {
+    EnsureMediaType(mediaType);
+
+    var id = tmdbId.ToString(CultureInfo.InvariantCulture);
+    var json = await GetAsync($"/{mediaType}/{id}/recommendations?language={Escape(language)}&page=1", cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseResults(json, mediaType);
+  }
+
   private static void EnsureMediaType(string mediaType)
   {
     if (!string.Equals(mediaType, "movie", StringComparison.Ordinal)

@@ -26,6 +26,8 @@ public class CatalogController : ControllerBase
   private const string DefaultLanguage = "en-US";
 
   private const int MaxFollowedShows = 40;
+  private const int MaxRecommendationSeeds = 8;
+  private const int MaxRecommendations = 20;
 
   // Regions whose release dates feed the calendar, in addition to the caller's own region.
   private static readonly string[] ExtraCalendarRegions = { "FR", "ES", "IT", "GB", "US" };
@@ -33,6 +35,7 @@ public class CatalogController : ControllerBase
   private readonly ITmdbClient _tmdbClient;
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly IRequestStore _requestStore;
+  private readonly IWatchlistStore _watchlistStore;
   private readonly ICurrentUserAccessor _userAccessor;
   private readonly ILogger<CatalogController> _logger;
 
@@ -41,19 +44,22 @@ public class CatalogController : ControllerBase
   /// </summary>
   /// <param name="tmdbClient">The TMDB client.</param>
   /// <param name="libraryMatcher">The library matcher used to flag already-available titles.</param>
-  /// <param name="requestStore">The request store, used to resolve the user's followed shows for the calendar.</param>
+  /// <param name="requestStore">The request store, used to resolve the user's followed shows / recommendation seeds.</param>
+  /// <param name="watchlistStore">The watchlist store, used as recommendation seeds.</param>
   /// <param name="userAccessor">The current-user accessor.</param>
   /// <param name="logger">The logger.</param>
   public CatalogController(
     ITmdbClient tmdbClient,
     ILibraryMatcher libraryMatcher,
     IRequestStore requestStore,
+    IWatchlistStore watchlistStore,
     ICurrentUserAccessor userAccessor,
     ILogger<CatalogController> logger)
   {
     _tmdbClient = tmdbClient;
     _libraryMatcher = libraryMatcher;
     _requestStore = requestStore;
+    _watchlistStore = watchlistStore;
     _userAccessor = userAccessor;
     _logger = logger;
   }
@@ -448,6 +454,76 @@ public class CatalogController : ControllerBase
       return Upstream(ex);
     }
   }
+
+  /// <summary>
+  /// Personalized "For you" recommendations, seeded from the user's requests and watchlist (TMDB
+  /// recommendations), excluding titles they already requested or follow.
+  /// </summary>
+  /// <param name="language">Optional TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The recommended items (possibly empty when there are no seeds).</response>
+  /// <response code="503">TMDB is not configured or unreachable.</response>
+  /// <returns>The recommended catalog items.</returns>
+  [HttpGet("Recommendations")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+  public async Task<ActionResult<IReadOnlyList<CatalogItem>>> Recommendations(
+    [FromQuery] string? language,
+    CancellationToken cancellationToken)
+  {
+    var lang = Normalize(language);
+
+    try
+    {
+      var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+      var requests = await _requestStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+      var watchlist = await _watchlistStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+
+      // Seeds (newest first): watchlist then requests, de-duplicated. Everything the user already has
+      // or follows goes into the exclude set so it isn't recommended back.
+      var exclude = new HashSet<string>(StringComparer.Ordinal);
+      var seeds = new List<(string MediaType, int TmdbId)>();
+      foreach (var key in watchlist.Select(w => (w.MediaType, w.TmdbId)).Concat(requests.Select(r => (r.MediaType, r.TmdbId))))
+      {
+        if (!IsSeedType(key.MediaType))
+        {
+          continue;
+        }
+
+        if (exclude.Add(RecommendationAggregator.Key(key.MediaType, key.TmdbId)))
+        {
+          seeds.Add(key);
+        }
+      }
+
+      var candidates = new List<CatalogItem>();
+      foreach (var seed in seeds.Take(MaxRecommendationSeeds))
+      {
+        candidates.AddRange(await _tmdbClient.GetRecommendationsAsync(seed.MediaType, seed.TmdbId, lang, cancellationToken).ConfigureAwait(false));
+      }
+
+      var recommendations = RecommendationAggregator.Aggregate(candidates, exclude, MaxRecommendations);
+      foreach (var item in recommendations)
+      {
+        item.JellyfinItemId = _libraryMatcher.FindItemId(item.MediaType, item.TmdbId);
+        item.Available = item.JellyfinItemId is not null;
+      }
+
+      return Ok(recommendations);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return NotConfigured(ex);
+    }
+    catch (HttpRequestException ex)
+    {
+      return Upstream(ex);
+    }
+  }
+
+  private static bool IsSeedType(string mediaType)
+    => string.Equals(mediaType, "movie", StringComparison.Ordinal)
+       || string.Equals(mediaType, "tv", StringComparison.Ordinal);
 
   // Episodes of the user's followed shows (shows they have requested) airing in the date range.
   // TMDB has no global episode calendar, so we fetch per show; bounded to MaxFollowedShows and to each

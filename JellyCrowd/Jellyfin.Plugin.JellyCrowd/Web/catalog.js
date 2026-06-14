@@ -773,13 +773,18 @@
     }
 
     apiGet(def.path)
-      .then(function (items) { (items || []).slice(0, 20).forEach(function (item) { strip.appendChild(renderCard(item)); }); })
+      .then(function (items) {
+        if (!items || items.length === 0) { section.remove(); return; }
+        items.slice(0, 20).forEach(function (item) { strip.appendChild(renderCard(item)); });
+      })
       .catch(function () { section.remove(); });
   }
 
   function buildRowQueue() {
     var sciFi = filters.mediaType === 'tv' ? '10765' : '878';
-    var queue = [{ kind: 'platforms', title: t('streaming_platforms') }];
+    // "For you" first (auto-removed when there are no recommendations / seeds).
+    var queue = [{ kind: 'path', title: t('row_foryou'), path: 'JellyCrowd/Catalog/Recommendations?language=' + encodeURIComponent(fullLocale()) }];
+    queue.push({ kind: 'platforms', title: t('streaming_platforms') });
     platformList().slice(0, 4).forEach(function (platform) {
       queue.push({ kind: 'path', title: platform.Name, path: providerRowPath(platform.Id) });
     });
