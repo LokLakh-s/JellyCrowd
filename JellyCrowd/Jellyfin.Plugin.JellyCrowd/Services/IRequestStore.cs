@@ -128,6 +128,18 @@ public interface IRequestStore
   Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Admin edit of a request's status, season/episode and desired date.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="status">The new status.</param>
+  /// <param name="season">The season number (null = movie/whole show).</param>
+  /// <param name="episode">The episode number (null = whole season/movie).</param>
+  /// <param name="desiredAt">The desired (UTC) fulfillment time.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found.</returns>
+  Task<RequestRecord?> AdminUpdateAsync(Guid id, RequestStatus status, int? season, int? episode, DateTime? desiredAt, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Stamps the time a request was dispatched to the download backend (idempotency marker).
   /// </summary>
   /// <param name="id">The request identifier.</param>

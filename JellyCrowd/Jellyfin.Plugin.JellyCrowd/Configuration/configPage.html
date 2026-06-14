@@ -28,6 +28,11 @@
       .jcTable input[type="number"] { width: 7em; }
       .jcTestRow { display: flex; align-items: center; gap: 0.8em; margin-top: 0.5em; flex-wrap: wrap; }
       .jcTestResult { font-size: 0.85em; }
+      .jcCreateRow { display: flex; flex-wrap: wrap; gap: 0.5em; align-items: center; margin: 0.5em 0; }
+      .jcCreateRow input[type="number"] { width: 7em; }
+      .jcCreateRow input[type="text"] { min-width: 12em; }
+      .jcColActions select, .jcColActions input[type="date"] { margin-right: 0.4em; }
+      .jcDangerButton { background: #c0392b; color: #fff; }
       .jcHelp { position: relative; display: inline-flex; align-items: center; justify-content: center;
                 width: 1.3em; height: 1.3em; margin-left: 0.4em; border-radius: 50%; cursor: help;
                 background: rgba(127, 127, 127, 0.45); color: #fff; font-size: 0.8em; font-weight: 600; vertical-align: middle; }
@@ -297,6 +302,23 @@ Content-Type: application/json
         </form>
 
         <div id="jcPaneRequests" class="jcTabPane" style="display:none">
+          <div class="verticalSection">
+            <h3 id="jcAdminCreateTitle" class="sectionTitle">Create a request for a user</h3>
+            <div class="jcCreateRow">
+              <select is="emby-select" id="jcCreateUser" class="emby-select-withcolor emby-select"></select>
+              <select is="emby-select" id="jcCreateType" class="emby-select-withcolor emby-select">
+                <option value="movie">Movie</option>
+                <option value="tv">Show</option>
+              </select>
+              <input id="jcCreateTmdb" type="number" is="emby-input" min="1" step="1" placeholder="TMDB id" />
+              <input id="jcCreateTitle" type="text" is="emby-input" placeholder="Title" />
+              <input id="jcCreateSeason" type="number" is="emby-input" min="0" step="1" placeholder="Season" />
+              <input id="jcCreateEpisode" type="number" is="emby-input" min="1" step="1" placeholder="Episode" />
+              <button is="emby-button" type="button" id="jcCreateBtn" class="raised emby-button"><span>Create</span></button>
+              <span id="jcCreateResult" class="jcTestResult"></span>
+            </div>
+            <div class="fieldDescription" id="jcAdminCreateHint">Creates an approved request for the chosen user (bypasses quota/limits). Find the TMDB id on themoviedb.org.</div>
+          </div>
           <div class="verticalSection">
             <h2 id="jcAdminPendingTitle" class="sectionTitle">Pending requests</h2>
             <p id="jcAdminPendingEmpty" class="fieldDescription" hidden></p>
@@ -598,7 +620,10 @@ Content-Type: application/json
 
         function loadUsers() {
           return ApiClient.getUsers()
-            .then(function (users) { (users || []).forEach(function (u) { usersById[u.Id] = u.Name; }); })
+            .then(function (users) {
+              (users || []).forEach(function (u) { usersById[u.Id] = u.Name; });
+              populateCreateUsers(users);
+            })
             .catch(function () { /* names are best-effort */ });
         }
 
@@ -639,12 +664,76 @@ Content-Type: application/json
           document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
           document.querySelector('#jcAdminPendingTitle').textContent = t('tab_requests');
+          document.querySelector('#jcAdminCreateTitle').textContent = t('admin_create_title');
+          document.querySelector('#jcAdminCreateHint').textContent = t('admin_create_hint');
+          document.querySelector('#jcCreateBtn').querySelector('span').textContent = t('admin_create_button');
         }
 
         function decide(id, action) {
           ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + id + '/' + action) })
             .then(load)
             .catch(function () { /* ignore */ });
+        }
+
+        function statusToInt(s) {
+          if (typeof s === 'number') { return s; }
+          var map = { Pending: 0, Approved: 1, Denied: 2, Available: 3 };
+          return map[s] != null ? map[s] : 0;
+        }
+
+        // Admin edit: merge the changed field(s) with the request's current values, then POST.
+        function adminEdit(request, partial) {
+          var body = {
+            Status: partial.Status != null ? partial.Status : statusToInt(request.Status),
+            Season: request.Season != null ? request.Season : null,
+            Episode: request.Episode != null ? request.Episode : null,
+            DesiredAt: Object.prototype.hasOwnProperty.call(partial, 'DesiredAt') ? partial.DesiredAt : (request.DesiredAt || null)
+          };
+          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + request.Id + '/Edit'), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' })
+            .then(load)
+            .catch(function () { /* ignore */ });
+        }
+
+        function adminDelete(id) {
+          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + id + '/Delete') })
+            .then(load)
+            .catch(function () { /* ignore */ });
+        }
+
+        function populateCreateUsers(users) {
+          var sel = document.querySelector('#jcCreateUser');
+          sel.innerHTML = '';
+          (users || []).forEach(function (u) {
+            var opt = document.createElement('option');
+            opt.value = u.Id;
+            opt.textContent = u.Name;
+            sel.appendChild(opt);
+          });
+        }
+
+        function createForUser() {
+          var result = document.querySelector('#jcCreateResult');
+          result.textContent = '…';
+          var season = document.querySelector('#jcCreateSeason').value;
+          var episode = document.querySelector('#jcCreateEpisode').value;
+          var body = {
+            UserId: document.querySelector('#jcCreateUser').value,
+            TmdbId: parseInt(document.querySelector('#jcCreateTmdb').value || '0', 10),
+            MediaType: document.querySelector('#jcCreateType').value,
+            Title: document.querySelector('#jcCreateTitle').value,
+            Season: season !== '' ? parseInt(season, 10) : null,
+            Episode: episode !== '' ? parseInt(episode, 10) : null
+          };
+          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/ForUser'), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' })
+            .then(function () {
+              result.textContent = '✅';
+              document.querySelector('#jcCreateTitle').value = '';
+              document.querySelector('#jcCreateTmdb').value = '';
+              document.querySelector('#jcCreateSeason').value = '';
+              document.querySelector('#jcCreateEpisode').value = '';
+              load();
+            })
+            .catch(function () { result.textContent = '❌'; });
         }
 
         function render(requests) {
@@ -730,6 +819,35 @@ Content-Type: application/json
               deny.addEventListener('click', function () { decide(request.Id, 'Deny'); });
               tdActions.appendChild(deny);
             }
+
+            // Force-set status.
+            var statusSelect = document.createElement('select');
+            statusSelect.setAttribute('is', 'emby-select');
+            statusSelect.className = 'emby-select';
+            [['0', 'status_pending'], ['1', 'status_approved'], ['2', 'status_denied'], ['3', 'status_available']].forEach(function (pair) {
+              var opt = document.createElement('option');
+              opt.value = pair[0];
+              opt.textContent = t(pair[1]);
+              statusSelect.appendChild(opt);
+            });
+            statusSelect.value = String(statusToInt(request.Status));
+            statusSelect.addEventListener('change', function () { adminEdit(request, { Status: parseInt(statusSelect.value, 10) }); });
+            tdActions.appendChild(statusSelect);
+
+            // Reschedule (desired date).
+            var dateInput = document.createElement('input');
+            dateInput.type = 'date';
+            if (request.DesiredAt) { dateInput.value = String(request.DesiredAt).slice(0, 10); }
+            dateInput.addEventListener('change', function () { adminEdit(request, { DesiredAt: dateInput.value || null }); });
+            tdActions.appendChild(dateInput);
+
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'raised emby-button jcDangerButton';
+            del.textContent = t('admin_delete');
+            del.addEventListener('click', function () { adminDelete(request.Id); });
+            tdActions.appendChild(del);
+
             tr.appendChild(tdActions);
 
             tbody.appendChild(tr);
@@ -744,6 +862,8 @@ Content-Type: application/json
             .then(render)
             .catch(function () { /* ignore */ });
         }
+
+        document.querySelector('#jcCreateBtn').addEventListener('click', createForUser);
 
         document.querySelector('#JellyCrowdConfigPage').addEventListener('pageshow', function () {
           loadStrings().then(ensureLib).then(loadUsers).then(function () {

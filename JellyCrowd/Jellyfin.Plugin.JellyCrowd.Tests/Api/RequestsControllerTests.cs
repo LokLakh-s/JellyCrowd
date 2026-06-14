@@ -226,6 +226,75 @@ public class RequestsControllerTests
     Assert.IsType<NotFoundResult>(result.Result);
   }
 
+  [Fact]
+  public async Task Delete_Existing_ReturnsNoContent_AndRemoves()
+  {
+    var store = new FakeRequestStore();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+
+    var result = await CreateController(store).Delete(created.Id, CancellationToken.None);
+
+    Assert.IsType<NoContentResult>(result);
+    Assert.Empty(await store.GetAllAsync(CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Delete_Missing_ReturnsNotFound()
+  {
+    Assert.IsType<NotFoundResult>(await CreateController(new FakeRequestStore()).Delete(Guid.NewGuid(), CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Edit_Existing_UpdatesStatusSeasonAndDesired()
+  {
+    var store = new FakeRequestStore();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+    var desired = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    var result = await CreateController(store).Edit(
+      created.Id,
+      new AdminEditRequestDto { Status = RequestStatus.Available, Season = 3, Episode = 5, DesiredAt = desired },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(RequestStatus.Available, record.Status);
+    Assert.Equal(3, record.Season);
+    Assert.Equal(5, record.Episode);
+    Assert.Equal(desired, record.DesiredAt);
+  }
+
+  [Fact]
+  public async Task Edit_Missing_ReturnsNotFound()
+  {
+    var result = await CreateController(new FakeRequestStore()).Edit(Guid.NewGuid(), new AdminEditRequestDto(), CancellationToken.None);
+    Assert.IsType<NotFoundResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task CreateForUser_CreatesForTargetUser()
+  {
+    var store = new FakeRequestStore();
+    var target = Guid.NewGuid();
+
+    var result = await CreateController(store).CreateForUser(
+      new AdminCreateRequestDto { UserId = target, TmdbId = 5, MediaType = "movie", Title = "Dune" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(target, record.UserId);
+    Assert.Equal(RequestStatus.Approved, record.Status);
+  }
+
+  [Fact]
+  public async Task CreateForUser_MissingUser_ReturnsBadRequest()
+  {
+    var result = await CreateController(new FakeRequestStore()).CreateForUser(
+      new AdminCreateRequestDto { UserId = Guid.Empty, TmdbId = 5, MediaType = "movie", Title = "Dune" },
+      CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result.Result);
+  }
+
   private sealed class FakeUserAccessor : ICurrentUserAccessor
   {
     private readonly Guid _userId;
@@ -377,5 +446,19 @@ public class RequestsControllerTests
       => Task.FromResult<IReadOnlyList<RequestRecord>>(_items.Where(r =>
         r.Status == RequestStatus.Approved && r.DispatchedAt is null
         && (r.DesiredAt is null || r.DesiredAt <= nowUtc)).ToList());
+
+    public Task<RequestRecord?> AdminUpdateAsync(Guid id, RequestStatus status, int? season, int? episode, DateTime? desiredAt, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is not null)
+      {
+        record.Status = status;
+        record.Season = season;
+        record.Episode = episode;
+        record.DesiredAt = desiredAt;
+      }
+
+      return Task.FromResult(record);
+    }
   }
 }
