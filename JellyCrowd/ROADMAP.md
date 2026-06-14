@@ -191,12 +191,15 @@ Objectif : couvrir les outils les plus répandus via la même abstraction `IDown
 - ☐ (Option) script custom (stdin JSON) déjà esquissé dans M7.
 - Note : reste dans le cadre — Jelly Crowd émet vers le client de téléchargement, ne gère pas l'indexation.
 
-## M12 — Canaux de notification additionnels  ☐
+## M12 — Canaux de notification additionnels  ◐ (code fait, reste la vérif live)
 
 Objectif : élargir au-delà de Discord/SMTP, via une abstraction de notification.
 
-- ☐ Canaux : **Telegram**, **ntfy**, **Gotify**, **Pushover**, **Slack**, **webhook générique**.
-- ☐ Onglet Notifications : activer/configurer chaque canal + bouton Test ; builders de payload purs et testés.
+- ☑ Abstraction `ITextNotifier` (titre+corps) + canaux : **Telegram**, **ntfy**, **Gotify**,
+  **Pushover**, **Slack**, **webhook générique** ; branchés dans `NotificationService` (événements +
+  bouton Test via `NotificationsController.Test/{channel}`). Tests (handler stub par canal + IsConfigured).
+- ☑ Onglet Notifications : champs par canal + bouton Test par canal.
+- ☐ **Vérif (instance live)** : configurer un canal, bouton Test, puis recevoir une notif d'événement.
 
 ## M13 — Gestion admin des demandes  ◐ (code fait, reste la vérif live)
 

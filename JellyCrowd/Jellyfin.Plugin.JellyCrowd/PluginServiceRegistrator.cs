@@ -24,6 +24,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<ILibraryMatcher, LibraryMatcher>();
     serviceCollection.AddSingleton<IMediaDeleter, MediaDeleter>();
     serviceCollection.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
+    serviceCollection.AddSingleton<ITextNotifier, TelegramNotifier>();
+    serviceCollection.AddSingleton<ITextNotifier, NtfyNotifier>();
+    serviceCollection.AddSingleton<ITextNotifier, GotifyNotifier>();
+    serviceCollection.AddSingleton<ITextNotifier, PushoverNotifier>();
+    serviceCollection.AddSingleton<ITextNotifier, SlackNotifier>();
+    serviceCollection.AddSingleton<ITextNotifier, WebhookNotifier>();
     serviceCollection.AddSingleton<INotificationService, NotificationService>();
     serviceCollection.AddSingleton<IRequestStore>(
       _ => new JsonRequestStore(Path.Combine(Plugin.Instance!.DataFolderPath, RequestsFileName)));

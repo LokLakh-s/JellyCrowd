@@ -40,8 +40,14 @@ Chaque canal est optionnel (activé dès qu'il est configuré). Événements not
 - **E-mail (SMTP)** : *hôte*, *port* (587 STARTTLS ou 465 SSL), *SSL/TLS*, *identifiants*, *adresse
   d'expéditeur*, *destinataire*. *Accepter un certificat invalide* : uniquement pour un serveur
   auto-hébergé de confiance.
-- Boutons **Test Discord / Test e-mail** : envoient une notification de test (enregistrez d'abord vos
-  réglages).
+- **Autres canaux** (chacun optionnel, activé dès qu'il est rempli) :
+  - **Telegram** : *bot token* (@BotFather) + *chat id*.
+  - **ntfy** : *URL serveur* (défaut `https://ntfy.sh`) + *topic* + *token* optionnel.
+  - **Gotify** : *URL serveur* + *application token*.
+  - **Pushover** : *API token* + *user/group key*.
+  - **Slack** : *incoming webhook URL*.
+  - **Webhook** : URL recevant un POST JSON `{title, body}`.
+- Bouton **Test** par canal : envoie une notification de test (enregistrez d'abord vos réglages).
 
 ## Onglet Téléchargement
 

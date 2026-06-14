@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -32,6 +34,7 @@ public sealed class NotificationService : INotificationService
   private readonly IHttpClientFactory _httpClientFactory;
   private readonly ITmdbClient _tmdbClient;
   private readonly IUserManager _userManager;
+  private readonly IReadOnlyList<ITextNotifier> _textNotifiers;
   private readonly ILogger<NotificationService> _logger;
 
   /// <summary>
@@ -40,16 +43,19 @@ public sealed class NotificationService : INotificationService
   /// <param name="httpClientFactory">The HTTP client factory (for Discord).</param>
   /// <param name="tmdbClient">The TMDB client, used to enrich notifications with synopsis/poster.</param>
   /// <param name="userManager">The user manager, used to resolve the requesting user's name.</param>
+  /// <param name="textNotifiers">The additional text notification channels (Telegram, ntfy, …).</param>
   /// <param name="logger">The logger.</param>
   public NotificationService(
     IHttpClientFactory httpClientFactory,
     ITmdbClient tmdbClient,
     IUserManager userManager,
+    IEnumerable<ITextNotifier> textNotifiers,
     ILogger<NotificationService> logger)
   {
     _httpClientFactory = httpClientFactory;
     _tmdbClient = tmdbClient;
     _userManager = userManager;
+    _textNotifiers = new List<ITextNotifier>(textNotifiers);
     _logger = logger;
   }
 
@@ -81,6 +87,26 @@ public sealed class NotificationService : INotificationService
 
     var emailBody = BuildEmailBody(request, body, details, username);
     await SendEmailAsync(config, "[Jelly Crowd] " + subject, emailBody, cancellationToken).ConfigureAwait(false);
+
+    var textBody = body + "\nRequested by: " + username;
+    foreach (var notifier in _textNotifiers)
+    {
+      if (!notifier.IsConfigured(config))
+      {
+        continue;
+      }
+
+      try
+      {
+        await notifier.SendAsync(config, subject, textBody, cancellationToken).ConfigureAwait(false);
+      }
+#pragma warning disable CA1031 // A notification failure must never affect the request flow.
+      catch (Exception ex)
+#pragma warning restore CA1031
+      {
+        _logger.LogWarning(ex, "Failed to send {Channel} notification.", notifier.Channel);
+      }
+    }
   }
 
   /// <inheritdoc />
@@ -112,7 +138,14 @@ public sealed class NotificationService : INotificationService
     }
     else
     {
-      throw new ArgumentException("Unknown notification channel.", nameof(channel));
+      var notifier = _textNotifiers.FirstOrDefault(n => string.Equals(n.Channel, channel, StringComparison.OrdinalIgnoreCase))
+        ?? throw new ArgumentException("Unknown notification channel.", nameof(channel));
+      if (!notifier.IsConfigured(config))
+      {
+        throw new InvalidOperationException("The " + notifier.Channel + " channel is not configured.");
+      }
+
+      await notifier.SendAsync(config, Subject, Body, cancellationToken).ConfigureAwait(false);
     }
   }
 
