@@ -170,10 +170,12 @@ public class TmdbClient : ITmdbClient
     var dateField = isMovie ? "primary_release_date" : "first_air_date";
     var resultPage = page > 0 ? page : 1;
 
+    // Sort by popularity (not date) so the capped result set spans the whole range with the most
+    // notable releases, instead of clustering on the earliest days; the caller re-groups by date.
     var builder = new StringBuilder();
     builder.Append("/discover/").Append(mediaType)
       .Append("?language=").Append(Escape(language))
-      .Append("&include_adult=false&sort_by=").Append(dateField).Append(".asc")
+      .Append("&include_adult=false&sort_by=popularity.desc")
       .Append('&').Append(dateField).Append(".gte=").Append(Escape(fromDate))
       .Append('&').Append(dateField).Append(".lte=").Append(Escape(toDate))
       .Append("&page=").Append(resultPage.ToString(CultureInfo.InvariantCulture));

@@ -107,7 +107,7 @@ public interface ITmdbClient
 
   /// <summary>
   /// Lists releases of a media type within a date range (movies by primary release date, shows by
-  /// first-air date), ordered ascending — used by the monthly releases calendar.
+  /// first-air date), most popular first — used by the monthly releases calendar.
   /// </summary>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
   /// <param name="fromDate">Range start (inclusive, <c>yyyy-MM-dd</c>).</param>
