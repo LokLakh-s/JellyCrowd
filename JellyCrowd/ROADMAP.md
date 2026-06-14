@@ -185,14 +185,18 @@ Objectif : suggérer des titres à partir de l'historique de visionnage Jellyfin
 - ☐ (Plus tard) inclure aussi l'historique de visionnage Jellyfin comme graines.
 - ☐ **Vérif (instance live)** : après quelques requêtes/★, la rangée « Pour vous » se peuple.
 
-## M11 — Backends de téléchargement additionnels  ☐
+## M11 — Backend « script local »  ◐ (code fait, reste la vérif live)
 
-Objectif : couvrir les outils les plus répandus via la même abstraction `IDownloadClient`.
+Réévalué : les **clients de téléchargement directs** (qBittorrent, Transmission, Deluge, SABnzbd, NZBGet)
+attendent un **magnet/torrent ou un NZB** que Jelly Crowd **ne peut pas produire** (pas d'indexeur) — c'est
+le rôle de **Radarr/Sonarr** (M7), déjà couvert. Les implémenter directement sortirait du cadre. À la place :
 
-- ☐ Clients directs : **qBittorrent**, **Transmission**, **Deluge** (torrents) ; **SABnzbd**, **NZBGet** (usenet) ;
-  via leurs API (URL + identifiants). Sélection dans l'onglet « Téléchargement » + bouton Test + builders testés.
-- ☐ (Option) script custom (stdin JSON) déjà esquissé dans M7.
-- Note : reste dans le cadre — Jelly Crowd émet vers le client de téléchargement, ne gère pas l'indexation.
+- ☑ Backend **« script local »** (`ScriptDownloadClient`) : exécute un exécutable/script configuré pour
+  chaque requête approuvée, requête en **JSON sur stdin** + variables `JELLYCROWD_*`. L'admin y branche sa
+  propre logique (qBittorrent, SABnzbd…). Abstraction `IProcessRunner` (testable) + `ProcessRunner`.
+  Option dans l'onglet « Téléchargement » + bouton Test. Tests (runner simulé + IsConfigured).
+- ☐ **Vérif (instance live)** : configurer un script, approuver une requête → le script reçoit le JSON.
+- **Hors périmètre** : clients de téléchargement directs sans indexeur (utiliser Servarr ou le script).
 
 ## M12 — Canaux de notification additionnels  ◐ (code fait, reste la vérif live)
 

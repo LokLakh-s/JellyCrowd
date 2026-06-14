@@ -56,6 +56,11 @@ public sealed class DownloadDispatch
   public int? Season { get; set; }
 
   /// <summary>
+  /// Gets or sets the requested episode number within the season (null = whole season/movie).
+  /// </summary>
+  public int? Episode { get; set; }
+
+  /// <summary>
   /// Gets or sets the TMDB relative poster path, when known.
   /// </summary>
   public string? PosterPath { get; set; }

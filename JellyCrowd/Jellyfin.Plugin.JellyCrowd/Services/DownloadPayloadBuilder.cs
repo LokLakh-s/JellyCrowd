@@ -31,6 +31,7 @@ public static class DownloadPayloadBuilder
       Year = ParseYear(request.ReleaseDate),
       ReleaseDate = request.ReleaseDate,
       Season = request.Season,
+      Episode = request.Episode,
       PosterPath = request.PosterPath,
       RequestedAt = request.RequestedAt,
       DesiredAt = request.DesiredAt,

@@ -267,6 +267,7 @@
                 <option value="none">None (manual admin queue)</option>
                 <option value="webhook">Webhook (POST request to a URL)</option>
                 <option value="servarr">Radarr / Sonarr (Servarr)</option>
+                <option value="script">Local script</option>
               </select>
               <div class="fieldDescription">How approved requests are fulfilled. Jelly Crowd only emits the request; the backend searches and downloads.</div>
             </div>
@@ -354,6 +355,18 @@ Content-Type: application/json
               </div>
             </div>
 
+            <div id="jcScriptFields">
+              <div class="fieldDescription">Jelly Crowd runs this script for each approved request, passing the request as JSON on stdin plus JELLYCROWD_* environment variables (TMDBID, MEDIATYPE, TITLE, YEAR, SEASON, EPISODE, USER). It only emits the request; your script does the rest.</div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="ScriptPath">Script / executable path</label>
+                <input id="ScriptPath" type="text" is="emby-input" placeholder="/usr/bin/python3" />
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="ScriptArguments">Arguments (optional)</label>
+                <input id="ScriptArguments" type="text" is="emby-input" placeholder="/config/scripts/grab.py" />
+              </div>
+            </div>
+
             <div id="jcDownloadTestRow">
               <div class="fieldDescription">Send a test dispatch to the selected backend (save your settings first).</div>
               <div class="jcTestRow">
@@ -407,6 +420,7 @@ Content-Type: application/json
         var backend = document.querySelector('#DownloadBackend').value;
         document.querySelector('#jcWebhookFields').style.display = backend === 'webhook' ? '' : 'none';
         document.querySelector('#jcServarrFields').style.display = backend === 'servarr' ? '' : 'none';
+        document.querySelector('#jcScriptFields').style.display = backend === 'script' ? '' : 'none';
         document.querySelector('#jcDownloadTestRow').style.display = backend === 'none' ? 'none' : '';
       }
 
@@ -618,6 +632,8 @@ Content-Type: application/json
             document.querySelector('#RadarrApiKey').value = config.RadarrApiKey || '';
             document.querySelector('#SonarrUrl').value = config.SonarrUrl || '';
             document.querySelector('#SonarrApiKey').value = config.SonarrApiKey || '';
+            document.querySelector('#ScriptPath').value = config.ScriptPath || '';
+            document.querySelector('#ScriptArguments').value = config.ScriptArguments || '';
             // Seed each folder/profile select with the saved value (kept across reload until "Connect"
             // loads the names). Root folders are saved as a path (useName), profiles as a numeric id.
             [['RadarrRootFolder', config.RadarrRootFolderPath, true], ['RadarrQualityProfile', config.RadarrQualityProfileId, false],
@@ -679,6 +695,8 @@ Content-Type: application/json
             config.SonarrRootFolderPath = document.querySelector('#SonarrRootFolder').value;
             config.SonarrQualityProfileId = parseInt(document.querySelector('#SonarrQualityProfile').value || '0', 10);
             config.SonarrLanguageProfileId = parseInt(document.querySelector('#SonarrLanguageProfile').value || '0', 10);
+            config.ScriptPath = document.querySelector('#ScriptPath').value;
+            config.ScriptArguments = document.querySelector('#ScriptArguments').value;
             config.QuotaOverrides = collectQuotaOverrides();
             ApiClient.updatePluginConfiguration(JellyCrowdConfig.pluginUniqueId, config).then(function (result) {
               Dashboard.processPluginConfigurationUpdateResult(result);
