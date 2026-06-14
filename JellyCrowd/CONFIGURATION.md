@@ -102,9 +102,15 @@ Sonarr gère ensuite l'arrivée des nouveaux épisodes.)
 
 ## Onglet Demandes (file admin)
 
-Liste toutes les requêtes (triées : en attente, approuvées, disponibles, refusées) avec **Approuver /
-Refuser**. L'approbation déclenche la notification et, si un backend de téléchargement est configuré et la
-requête échue, le dispatch.
+Liste toutes les requêtes (triées : en attente, approuvées, disponibles, refusées). Par ligne :
+**Approuver / Refuser** (pour les demandes en attente), **forcer le statut**, **replanifier** (date
+souhaitée) et **Supprimer**. L'approbation déclenche la notification et, si un backend de téléchargement
+est configuré et la requête échue, le dispatch.
+
+**Demander au nom d'un utilisateur** : ouvrir un titre dans le **Catalog** (ou le **Calendar**) ; en tant
+qu'admin, un sélecteur **« Demander au nom de »** apparaît dans la fiche. Choisir l'utilisateur, puis
+utiliser les boutons habituels (film / saison / épisode) : la demande est créée pour cet utilisateur
+(approuvée, sans quota/limite).
 
 ## Pages utilisateur (bandeau Jellyfin)
 

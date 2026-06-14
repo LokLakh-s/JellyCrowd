@@ -248,6 +248,25 @@
   background: rgba(127, 127, 127, 0.4);
 }
 
+.jellycrowd-admin-actas {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0.75em 0;
+  padding: 0.4em 0.6em;
+  border-radius: 0.3em;
+  background: rgba(108, 74, 182, 0.25);
+  font-size: 0.9em;
+}
+
+.jellycrowd-admin-actas select {
+  padding: 0.3em 0.4em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+}
+
 .jellycrowd-desired-date {
   margin-top: 0.75em;
   font-size: 0.85em;
