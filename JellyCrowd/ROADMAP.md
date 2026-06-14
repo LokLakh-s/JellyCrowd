@@ -199,11 +199,12 @@ Objectif : élargir au-delà de Discord/SMTP, via une abstraction de notificatio
 Objectif : donner à l'admin la main sur les demandes (au-delà d'approuver/refuser).
 
 - ☑ **Supprimer** une demande (n'importe laquelle) ; **éditer** statut + saison/épisode + date souhaitée.
-- ☑ **Créer une demande pour un autre utilisateur** (sélecteur d'utilisateur dans la file admin) —
-  bypass quota/limite, statut Approuvé par défaut (déclenche le dispatch).
+- ☑ **Créer une demande pour un autre utilisateur** : sélecteur admin **« Demander au nom de »**
+  directement sur la fiche du catalogue/calendrier (s'applique aux boutons film/saison/épisode) —
+  bypass quota/limite, statut Approuvé (déclenche le dispatch).
 - ☑ Endpoints admin (`RequiresElevation`) : `Requests/{id}/Delete`, `Requests/{id}/Edit`,
-  `Requests/ForUser` ; store `AdminUpdateAsync` ; UI dans l'onglet Demandes (suppr/statut/date + formulaire
-  de création) ; tests.
+  `Requests/ForUser` ; store `AdminUpdateAsync` ; UI : suppr/statut/date dans l'onglet Demandes +
+  sélecteur « au nom de » dans le modal (admin uniquement) ; tests.
 - ☐ **Vérif (instance live)** : supprimer/éditer une demande ; créer une demande pour un autre user.
 
 ## M14 — Granularité épisode  ◐ (code fait, reste la vérif live)

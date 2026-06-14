@@ -15,6 +15,12 @@
   var quotaExceeded = false;
   var cfgLang = 'auto';
 
+  // Admin-only "request on behalf of" support. When an admin picks a user in a modal, requests made
+  // from that modal are created for that user (via Requests/ForUser); empty = the admin themselves.
+  var isAdmin = false;
+  var adminUsers = [];
+  var actAsUserId = null;
+
   var MIN_YEAR = 1900;
   var MAX_YEAR = new Date().getFullYear();
 
@@ -188,10 +194,35 @@
     return card;
   }
 
+  // Load whether the current user is an admin (and, if so, the user list) for "request on behalf of".
+  function loadAdmin() {
+    if (!(window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function')) {
+      return Promise.resolve();
+    }
+    return window.ApiClient.getCurrentUser().then(function (user) {
+      isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator);
+      if (isAdmin && typeof window.ApiClient.getUsers === 'function') {
+        return window.ApiClient.getUsers().then(function (users) { adminUsers = users || []; }).catch(function () { /* ignore */ });
+      }
+      return null;
+    }).catch(function () { /* ignore */ });
+  }
+
+  // Route a request payload: to ForUser (admin acting as someone), else the normal endpoint.
+  function submitRequest(payload) {
+    if (actAsUserId) {
+      var forUser = {};
+      Object.keys(payload).forEach(function (k) { forUser[k] = payload[k]; });
+      forUser.UserId = actAsUserId;
+      return apiPost('JellyCrowd/Requests/ForUser', forUser);
+    }
+    return apiPost('JellyCrowd/Requests', payload);
+  }
+
   function requestItem(item, button, season, dateInput, episode, releaseDate) {
     button.disabled = true;
     button.textContent = t('requesting');
-    apiPost('JellyCrowd/Requests', {
+    submitRequest({
       TmdbId: item.TmdbId,
       MediaType: item.MediaType,
       Title: item.Title,
@@ -216,7 +247,7 @@
 
   // POST a single-episode request (fire-and-forget), scheduled at the episode's air date.
   function postEpisode(item, seasonNumber, ep) {
-    return apiPost('JellyCrowd/Requests', {
+    return submitRequest({
       TmdbId: item.TmdbId,
       MediaType: item.MediaType,
       Title: item.Title,
@@ -415,6 +446,30 @@
     links.className = 'jellycrowd-modal-links';
     links.appendChild(externalLink('https://www.themoviedb.org/' + item.MediaType + '/' + item.TmdbId, t('view_tmdb')));
     content.appendChild(links);
+
+    // Admin-only "request on behalf of" selector. Applies to every request control in this modal.
+    actAsUserId = null;
+    if (isAdmin) {
+      var adminRow = document.createElement('div');
+      adminRow.className = 'jellycrowd-admin-actas';
+      var adminLabel = document.createElement('span');
+      adminLabel.textContent = t('act_as');
+      var adminSelect = document.createElement('select');
+      var selfOption = document.createElement('option');
+      selfOption.value = '';
+      selfOption.textContent = t('act_as_self');
+      adminSelect.appendChild(selfOption);
+      adminUsers.forEach(function (u) {
+        var opt = document.createElement('option');
+        opt.value = u.Id;
+        opt.textContent = u.Name;
+        adminSelect.appendChild(opt);
+      });
+      adminSelect.addEventListener('change', function () { actAsUserId = adminSelect.value || null; });
+      adminRow.appendChild(adminLabel);
+      adminRow.appendChild(adminSelect);
+      content.appendChild(adminRow);
+    }
 
     if (!item.Available) {
       var dateInput = null;
@@ -865,7 +920,7 @@
   }
 
   function init() {
-    loadConfigLang().then(loadStrings).then(function () {
+    loadConfigLang().then(loadStrings).then(loadAdmin).then(function () {
       applyStaticText();
       buildSort();
       setupYearSlider();

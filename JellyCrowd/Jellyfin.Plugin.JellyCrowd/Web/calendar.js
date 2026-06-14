@@ -16,6 +16,11 @@
   var quotaExceeded = false;
   var cfgLang = 'auto';
 
+  // Admin-only "request on behalf of" (see catalog.js).
+  var isAdmin = false;
+  var adminUsers = [];
+  var actAsUserId = null;
+
   var now = new Date();
   var viewYear = now.getFullYear();
   var viewMonth = now.getMonth();
@@ -84,10 +89,33 @@
     return button;
   }
 
+  function loadAdmin() {
+    if (!(window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function')) {
+      return Promise.resolve();
+    }
+    return window.ApiClient.getCurrentUser().then(function (user) {
+      isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator);
+      if (isAdmin && typeof window.ApiClient.getUsers === 'function') {
+        return window.ApiClient.getUsers().then(function (users) { adminUsers = users || []; }).catch(function () { /* ignore */ });
+      }
+      return null;
+    }).catch(function () { /* ignore */ });
+  }
+
+  function submitRequest(payload) {
+    if (actAsUserId) {
+      var forUser = {};
+      Object.keys(payload).forEach(function (k) { forUser[k] = payload[k]; });
+      forUser.UserId = actAsUserId;
+      return apiPost('JellyCrowd/Requests/ForUser', forUser);
+    }
+    return apiPost('JellyCrowd/Requests', payload);
+  }
+
   function requestItem(item, button, season, dateInput, episode, releaseDate) {
     button.disabled = true;
     button.textContent = t('requesting');
-    apiPost('JellyCrowd/Requests', {
+    submitRequest({
       TmdbId: item.TmdbId,
       MediaType: item.MediaType,
       Title: item.Title,
@@ -107,7 +135,7 @@
 
   // POST a single-episode request (fire-and-forget), scheduled at the episode's air date.
   function postEpisode(item, seasonNumber, ep) {
-    return apiPost('JellyCrowd/Requests', {
+    return submitRequest({
       TmdbId: item.TmdbId,
       MediaType: item.MediaType,
       Title: item.Title,
@@ -286,6 +314,29 @@
     links.appendChild(externalLink('https://www.themoviedb.org/' + item.MediaType + '/' + item.TmdbId, t('view_tmdb')));
     content.appendChild(links);
 
+    actAsUserId = null;
+    if (isAdmin) {
+      var adminRow = document.createElement('div');
+      adminRow.className = 'jellycrowd-admin-actas';
+      var adminLabel = document.createElement('span');
+      adminLabel.textContent = t('act_as');
+      var adminSelect = document.createElement('select');
+      var selfOption = document.createElement('option');
+      selfOption.value = '';
+      selfOption.textContent = t('act_as_self');
+      adminSelect.appendChild(selfOption);
+      adminUsers.forEach(function (u) {
+        var opt = document.createElement('option');
+        opt.value = u.Id;
+        opt.textContent = u.Name;
+        adminSelect.appendChild(opt);
+      });
+      adminSelect.addEventListener('change', function () { actAsUserId = adminSelect.value || null; });
+      adminRow.appendChild(adminLabel);
+      adminRow.appendChild(adminSelect);
+      content.appendChild(adminRow);
+    }
+
     if (!item.Available) {
       var dateInput = null;
       if (!quotaExceeded) {
@@ -458,7 +509,7 @@
   }
 
   function init() {
-    loadConfigLang().then(loadStrings).then(function () {
+    loadConfigLang().then(loadStrings).then(loadAdmin).then(function () {
       document.getElementById('jcCalLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcCalTitle').textContent = t('calendar_title');
       document.getElementById('jcCalToday').textContent = t('calendar_today');

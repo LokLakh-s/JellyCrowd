@@ -303,24 +303,8 @@ Content-Type: application/json
 
         <div id="jcPaneRequests" class="jcTabPane" style="display:none">
           <div class="verticalSection">
-            <h3 id="jcAdminCreateTitle" class="sectionTitle">Create a request for a user</h3>
-            <div class="jcCreateRow">
-              <select is="emby-select" id="jcCreateUser" class="emby-select-withcolor emby-select"></select>
-              <select is="emby-select" id="jcCreateType" class="emby-select-withcolor emby-select">
-                <option value="movie">Movie</option>
-                <option value="tv">Show</option>
-              </select>
-              <input id="jcCreateTmdb" type="number" is="emby-input" min="1" step="1" placeholder="TMDB id" />
-              <input id="jcCreateTitle" type="text" is="emby-input" placeholder="Title" />
-              <input id="jcCreateSeason" type="number" is="emby-input" min="0" step="1" placeholder="Season" />
-              <input id="jcCreateEpisode" type="number" is="emby-input" min="1" step="1" placeholder="Episode" />
-              <button is="emby-button" type="button" id="jcCreateBtn" class="raised emby-button"><span>Create</span></button>
-              <span id="jcCreateResult" class="jcTestResult"></span>
-            </div>
-            <div class="fieldDescription" id="jcAdminCreateHint">Creates an approved request for the chosen user (bypasses quota/limits). Find the TMDB id on themoviedb.org.</div>
-          </div>
-          <div class="verticalSection">
             <h2 id="jcAdminPendingTitle" class="sectionTitle">Pending requests</h2>
+            <p id="jcAdminCreateHint" class="fieldDescription">To request on behalf of a user, open a title in the catalog and use the admin "Request on behalf of" selector.</p>
             <p id="jcAdminPendingEmpty" class="fieldDescription" hidden></p>
             <div id="jcAdminPending"></div>
           </div>
@@ -620,10 +604,7 @@ Content-Type: application/json
 
         function loadUsers() {
           return ApiClient.getUsers()
-            .then(function (users) {
-              (users || []).forEach(function (u) { usersById[u.Id] = u.Name; });
-              populateCreateUsers(users);
-            })
+            .then(function (users) { (users || []).forEach(function (u) { usersById[u.Id] = u.Name; }); })
             .catch(function () { /* names are best-effort */ });
         }
 
@@ -664,9 +645,7 @@ Content-Type: application/json
           document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
           document.querySelector('#jcAdminPendingTitle').textContent = t('tab_requests');
-          document.querySelector('#jcAdminCreateTitle').textContent = t('admin_create_title');
           document.querySelector('#jcAdminCreateHint').textContent = t('admin_create_hint');
-          document.querySelector('#jcCreateBtn').querySelector('span').textContent = t('admin_create_button');
         }
 
         function decide(id, action) {
@@ -698,42 +677,6 @@ Content-Type: application/json
           ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + id + '/Delete') })
             .then(load)
             .catch(function () { /* ignore */ });
-        }
-
-        function populateCreateUsers(users) {
-          var sel = document.querySelector('#jcCreateUser');
-          sel.innerHTML = '';
-          (users || []).forEach(function (u) {
-            var opt = document.createElement('option');
-            opt.value = u.Id;
-            opt.textContent = u.Name;
-            sel.appendChild(opt);
-          });
-        }
-
-        function createForUser() {
-          var result = document.querySelector('#jcCreateResult');
-          result.textContent = '…';
-          var season = document.querySelector('#jcCreateSeason').value;
-          var episode = document.querySelector('#jcCreateEpisode').value;
-          var body = {
-            UserId: document.querySelector('#jcCreateUser').value,
-            TmdbId: parseInt(document.querySelector('#jcCreateTmdb').value || '0', 10),
-            MediaType: document.querySelector('#jcCreateType').value,
-            Title: document.querySelector('#jcCreateTitle').value,
-            Season: season !== '' ? parseInt(season, 10) : null,
-            Episode: episode !== '' ? parseInt(episode, 10) : null
-          };
-          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/ForUser'), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' })
-            .then(function () {
-              result.textContent = '✅';
-              document.querySelector('#jcCreateTitle').value = '';
-              document.querySelector('#jcCreateTmdb').value = '';
-              document.querySelector('#jcCreateSeason').value = '';
-              document.querySelector('#jcCreateEpisode').value = '';
-              load();
-            })
-            .catch(function () { result.textContent = '❌'; });
         }
 
         function render(requests) {
@@ -862,8 +805,6 @@ Content-Type: application/json
             .then(render)
             .catch(function () { /* ignore */ });
         }
-
-        document.querySelector('#jcCreateBtn').addEventListener('click', createForUser);
 
         document.querySelector('#JellyCrowdConfigPage').addEventListener('pageshow', function () {
           loadStrings().then(ensureLib).then(loadUsers).then(function () {
