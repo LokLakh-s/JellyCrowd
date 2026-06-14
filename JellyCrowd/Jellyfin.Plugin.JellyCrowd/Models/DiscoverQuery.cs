@@ -49,4 +49,14 @@ public class DiscoverQuery
   /// Gets or sets the ISO 3166-1 region for watch-provider filtering (e.g. <c>FR</c>, <c>US</c>).
   /// </summary>
   public string? WatchRegion { get; set; }
+
+  /// <summary>
+  /// Gets or sets the original-language filter (ISO 639-1, e.g. <c>fr</c>, <c>es</c>).
+  /// </summary>
+  public string? OriginalLanguage { get; set; }
+
+  /// <summary>
+  /// Gets or sets the production/origin-country filter (ISO 3166-1, e.g. <c>FR</c>, <c>JP</c>).
+  /// </summary>
+  public string? OriginCountry { get; set; }
 }

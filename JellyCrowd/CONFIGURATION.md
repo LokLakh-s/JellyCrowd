@@ -114,8 +114,9 @@ utiliser les boutons habituels (film / saison / épisode) : la demande est cré�
 
 ## Pages utilisateur (bandeau Jellyfin)
 
-- **Catalog** : catalogue TMDB (films/séries), filtres, recherche, fiche détaillée ; bouton **Requête**
-  ouvrant la fiche d'où l'on envoie la demande.
+- **Catalog** : catalogue TMDB (films/séries), filtres (genres, années, note, tri, **langue d'origine**,
+  **pays de production**), recherche, fiche détaillée ; bouton **Requête** ouvrant la fiche d'où l'on
+  envoie la demande.
 - **Calendar** : **grille mensuelle** des sorties (films et séries confondus, via TMDB) avec navigation
   mois précédent/suivant + « Aujourd'hui » ; les affiches/titres apparaissent dans la case de leur jour de
   sortie, clic → fiche → requête (auto-planifiée à la date de sortie). Les **sorties films** couvrent

@@ -720,6 +720,14 @@
   text-transform: capitalize;
 }
 
+.jellycrowd-cal-filter {
+  padding: 0.3em 0.4em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
 .jellycrowd-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

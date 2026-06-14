@@ -21,6 +21,12 @@
   var adminUsers = [];
   var actAsUserId = null;
 
+  // Language / production-country filters (see catalog.js).
+  var FILTER_LANGUAGES = ['en', 'fr', 'es', 'it', 'de', 'pt', 'ja', 'ko', 'zh', 'hi'];
+  var FILTER_COUNTRIES = ['US', 'FR', 'ES', 'IT', 'GB', 'DE', 'JP', 'KR', 'CA', 'IN'];
+  var filterLanguage = '';
+  var filterCountry = '';
+
   var now = new Date();
   var viewYear = now.getFullYear();
   var viewMonth = now.getMonth();
@@ -61,6 +67,25 @@
     return apiGet('JellyCrowd/Settings/Language')
       .then(function (d) { if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); } })
       .catch(function () { /* keep 'auto' */ });
+  }
+
+  function fillCodeSelect(select, codes, type, allLabel, current) {
+    select.innerHTML = '';
+    var allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = allLabel;
+    select.appendChild(allOpt);
+    var names = null;
+    try { names = new Intl.DisplayNames([fullLocale()], { type: type }); } catch (e) { names = null; }
+    codes.forEach(function (code) {
+      var opt = document.createElement('option');
+      opt.value = code;
+      var label = code;
+      try { if (names) { label = names.of(code) || code; } } catch (e) { label = code; }
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+    select.value = current || '';
   }
 
   function loadStrings() {
@@ -490,7 +515,9 @@
       .then(function () {
         return apiGet('JellyCrowd/Catalog/Calendar?language=' + encodeURIComponent(fullLocale())
           + '&region=' + encodeURIComponent(REGION)
-          + '&from=' + range.from + '&to=' + range.to);
+          + '&from=' + range.from + '&to=' + range.to
+          + (filterLanguage ? '&originalLanguage=' + encodeURIComponent(filterLanguage) : '')
+          + (filterCountry ? '&originCountry=' + encodeURIComponent(filterCountry) : ''));
       })
       .then(function (items) {
         var byDate = {};
@@ -521,6 +548,14 @@
         viewMonth = d.getMonth();
         load();
       });
+
+      var langSelect = document.getElementById('jcCalLang');
+      fillCodeSelect(langSelect, FILTER_LANGUAGES, 'language', t('filters_language'), filterLanguage);
+      langSelect.addEventListener('change', function () { filterLanguage = langSelect.value; load(); });
+      var countrySelect = document.getElementById('jcCalCountry');
+      fillCodeSelect(countrySelect, FILTER_COUNTRIES, 'region', t('filters_country'), filterCountry);
+      countrySelect.addEventListener('change', function () { filterCountry = countrySelect.value; load(); });
+
       if (typeof window.jellyCrowdRegisterRefresh === 'function') {
         window.jellyCrowdRegisterRefresh('calendar', load);
       }

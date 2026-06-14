@@ -171,6 +171,8 @@ public class CatalogController : ControllerBase
   /// <param name="page">Result page (1-based).</param>
   /// <param name="watchProviders">Comma-separated TMDB watch-provider ids (requires a region).</param>
   /// <param name="watchRegion">ISO 3166-1 region for watch-provider filtering (e.g. FR, US).</param>
+  /// <param name="originalLanguage">Optional original-language filter (ISO 639-1, e.g. fr, es).</param>
+  /// <param name="originCountry">Optional production/origin-country filter (ISO 3166-1, e.g. FR, JP).</param>
   /// <param name="language">Optional TMDB language code.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">Matching items returned.</response>
@@ -190,6 +192,8 @@ public class CatalogController : ControllerBase
     [FromQuery] int? page,
     [FromQuery] string? watchProviders,
     [FromQuery] string? watchRegion,
+    [FromQuery] string? originalLanguage,
+    [FromQuery] string? originCountry,
     [FromQuery] string? language,
     CancellationToken cancellationToken)
   {
@@ -204,7 +208,9 @@ public class CatalogController : ControllerBase
       SortBy = sortBy,
       Page = page,
       WatchProviders = watchProviders,
-      WatchRegion = watchRegion
+      WatchRegion = watchRegion,
+      OriginalLanguage = originalLanguage,
+      OriginCountry = originCountry
     };
 
     return await ExecuteAsync(
@@ -370,6 +376,8 @@ public class CatalogController : ControllerBase
   /// <param name="region">ISO 3166-1 region for movie releases (defaults to <c>US</c>).</param>
   /// <param name="from">Optional range start (<c>yyyy-MM-dd</c>).</param>
   /// <param name="to">Optional range end (<c>yyyy-MM-dd</c>).</param>
+  /// <param name="originalLanguage">Optional original-language filter (ISO 639-1).</param>
+  /// <param name="originCountry">Optional production/origin-country filter (ISO 3166-1).</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">Releases returned.</response>
   /// <response code="503">TMDB is not configured or unreachable.</response>
@@ -382,11 +390,14 @@ public class CatalogController : ControllerBase
     [FromQuery] string? region,
     [FromQuery] string? from,
     [FromQuery] string? to,
+    [FromQuery] string? originalLanguage,
+    [FromQuery] string? originCountry,
     CancellationToken cancellationToken)
   {
     var lang = Normalize(language);
     var watchRegion = string.IsNullOrWhiteSpace(region) ? "US" : region;
     var useRange = !string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to);
+    var hasFilter = !string.IsNullOrWhiteSpace(originalLanguage) || !string.IsNullOrWhiteSpace(originCountry);
 
     try
     {
@@ -398,12 +409,17 @@ public class CatalogController : ControllerBase
         var items = new List<CatalogItem>();
         foreach (var regionCode in CalendarRegions(watchRegion))
         {
-          var batch = await _tmdbClient.GetReleasesAsync("movie", from!, to!, regionCode, lang, 1, cancellationToken).ConfigureAwait(false);
+          var batch = await _tmdbClient.GetReleasesAsync("movie", from!, to!, regionCode, lang, originalLanguage, originCountry, 1, cancellationToken).ConfigureAwait(false);
           items.AddRange(batch);
         }
 
-        // ...plus episodes of the user's followed shows airing in the range.
-        items.AddRange(await BuildFollowedEpisodesAsync(from!, to!, lang, cancellationToken).ConfigureAwait(false));
+        // ...plus episodes of the user's followed shows airing in the range (unless a language/country
+        // filter is active — followed-show episodes don't carry that metadata).
+        if (!hasFilter)
+        {
+          items.AddRange(await BuildFollowedEpisodesAsync(from!, to!, lang, cancellationToken).ConfigureAwait(false));
+        }
+
         ordered = CalendarPlanner.OrderByDate(items);
       }
       else
