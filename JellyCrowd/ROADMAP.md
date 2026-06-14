@@ -174,13 +174,16 @@ Objectif : permettre à un utilisateur de **suivre des titres** (liste d'envies)
 - ☐ (Option, plus tard) notif quand un titre suivi devient disponible / sort.
 - ☐ **Vérif (instance live)** : ★ ajoute/retire ; « Ma liste » affiche les titres suivis.
 
-## M10 — Recommandations personnalisées  ☐
+## M10 — Recommandations personnalisées  ◐ (code fait, reste la vérif live)
 
 Objectif : suggérer des titres à partir de l'historique de visionnage Jellyfin et/ou des requêtes.
 
-- ☐ Source : TMDB `recommendations`/`similar` à partir des derniers visionnages (Jellyfin) ou des requêtes
-  de l'utilisateur ; agrégation/dédup ; croisement biblio.
-- ☐ Rangée « Pour vous » dans le catalogue (ou onglet) ; logique pure testée.
+- ☑ Source : TMDB `recommendations` à partir des **requêtes + watchlist** de l'utilisateur (graines),
+  agrégation par fréquence (`RecommendationAggregator`, pur + testé), exclusion de ce qui est déjà
+  demandé/suivi, croisement biblio. `CatalogController.Recommendations`.
+- ☑ Rangée **« Pour vous »** en tête du catalogue (auto-masquée sans graines/résultats) ; logique pure testée.
+- ☐ (Plus tard) inclure aussi l'historique de visionnage Jellyfin comme graines.
+- ☐ **Vérif (instance live)** : après quelques requêtes/★, la rangée « Pour vous » se peuple.
 
 ## M11 — Backends de téléchargement additionnels  ☐
 

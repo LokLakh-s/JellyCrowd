@@ -24,8 +24,11 @@ public class CatalogControllerTests
     var store = Mock.Of<IRequestStore>(s =>
       s.GetByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())
         == Task.FromResult(userRequests ?? new List<RequestRecord>()));
+    var watchlist = Mock.Of<IWatchlistStore>(w =>
+      w.GetByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())
+        == Task.FromResult<IReadOnlyList<WatchlistEntry>>(new List<WatchlistEntry>()));
     var accessor = Mock.Of<ICurrentUserAccessor>(a => a.GetUserIdAsync(It.IsAny<HttpRequest>()) == Task.FromResult(Guid.Empty));
-    return new CatalogController(client, new FakeLibraryMatcher(), store, accessor, NullLogger<CatalogController>.Instance);
+    return new CatalogController(client, new FakeLibraryMatcher(), store, watchlist, accessor, NullLogger<CatalogController>.Instance);
   }
 
   private sealed class FakeLibraryMatcher : ILibraryMatcher
@@ -74,6 +77,38 @@ public class CatalogControllerTests
     Assert.Equal("Show", episode.Title);
     Assert.Equal(2, episode.SeasonNumber);
     Assert.DoesNotContain(payload, i => i.EpisodeNumber == 2); // out-of-range episode excluded
+  }
+
+  [Fact]
+  public async Task Recommendations_FromSeeds_ExcludesSeedsAndReturnsRecs()
+  {
+    var tmdb = new FakeTmdbClient
+    {
+      Recommendations = new List<CatalogItem>
+      {
+        new() { TmdbId = 100, MediaType = "movie", Title = "Rec", VoteAverage = 8 },
+        new() { TmdbId = 7, MediaType = "tv", Title = "Seed", VoteAverage = 9 } // a seed -> excluded
+      }
+    };
+    var seeds = new List<RequestRecord> { new() { TmdbId = 7, MediaType = "tv", Title = "Seed" } };
+    var controller = CreateController(tmdb, seeds);
+
+    var result = await controller.Recommendations(null, CancellationToken.None);
+
+    var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Single(payload, i => i.TmdbId == 100);
+    Assert.DoesNotContain(payload, i => i.TmdbId == 7);
+  }
+
+  [Fact]
+  public async Task Recommendations_NoSeeds_ReturnsEmpty()
+  {
+    var controller = CreateController(new FakeTmdbClient { Recommendations = new List<CatalogItem> { new() { TmdbId = 1, MediaType = "movie", Title = "X" } } });
+
+    var result = await controller.Recommendations(null, CancellationToken.None);
+
+    var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Empty(payload);
   }
 
   [Fact]
@@ -317,6 +352,18 @@ public class CatalogControllerTests
 
       // Page 1 returns the seeded results; later pages are empty (stops the controller's paging loop).
       return Task.FromResult(page <= 1 ? Results : (IReadOnlyList<CatalogItem>)new List<CatalogItem>());
+    }
+
+    public IReadOnlyList<CatalogItem> Recommendations { get; set; } = new List<CatalogItem>();
+
+    public Task<IReadOnlyList<CatalogItem>> GetRecommendationsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken)
+    {
+      if (Throw is not null)
+      {
+        throw Throw;
+      }
+
+      return Task.FromResult(Recommendations);
     }
   }
 }

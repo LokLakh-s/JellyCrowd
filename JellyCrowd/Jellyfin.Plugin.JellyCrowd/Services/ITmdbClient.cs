@@ -120,4 +120,14 @@ public interface ITmdbClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The releases in the range.</returns>
   Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, string? originalLanguage, string? originCountry, int page, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets TMDB recommendations for a title (used to build the personalized "For you" row).
+  /// </summary>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="tmdbId">The seed title's TMDB id.</param>
+  /// <param name="language">The TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The recommended items.</returns>
+  Task<IReadOnlyList<CatalogItem>> GetRecommendationsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken);
 }

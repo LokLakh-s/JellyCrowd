@@ -123,7 +123,8 @@ utiliser les boutons habituels (film / saison / épisode) : la demande est cré�
 - **Catalog** : catalogue TMDB (films/séries), filtres (genres, années, note, tri, **langue d'origine**,
   **pays de production**), recherche, fiche détaillée ; bouton **Requête** ouvrant la fiche d'où l'on
   envoie la demande. **★** sur chaque carte/fiche pour suivre un titre ; la bascule **« Ma liste »**
-  affiche les titres suivis (watchlist).
+  affiche les titres suivis (watchlist). Une rangée **« Pour vous »** suggère des titres d'après tes
+  requêtes et ta watchlist (masquée tant qu'il n'y a pas assez d'historique).
 - **Calendar** : **grille mensuelle** des sorties (films et séries confondus, via TMDB) avec navigation
   mois précédent/suivant + « Aujourd'hui » ; les affiches/titres apparaissent dans la case de leur jour de
   sortie, clic → fiche → requête (auto-planifiée à la date de sortie). Les **sorties films** couvrent
