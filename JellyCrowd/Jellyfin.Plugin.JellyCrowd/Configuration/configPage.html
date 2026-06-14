@@ -189,6 +189,75 @@
               <button is="emby-button" type="button" id="jcTestEmail" class="raised emby-button"><span>Test email</span></button>
               <span id="jcTestResult" class="jcTestResult"></span>
             </div>
+
+            <h3 class="sectionTitle">More channels</h3>
+            <div class="fieldDescription">Each channel is optional; fill it in to enable it. Save your settings before testing.</div>
+
+            <h4 class="sectionTitle">Telegram</h4>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="TelegramBotToken">Bot token</label>
+              <input id="TelegramBotToken" type="password" is="emby-input" />
+            </div>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="TelegramChatId">Chat id</label>
+              <input id="TelegramChatId" type="text" is="emby-input" />
+            </div>
+
+            <h4 class="sectionTitle">ntfy</h4>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="NtfyServer">Server URL (optional)</label>
+              <input id="NtfyServer" type="text" is="emby-input" placeholder="https://ntfy.sh" />
+            </div>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="NtfyTopic">Topic</label>
+              <input id="NtfyTopic" type="text" is="emby-input" />
+            </div>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="NtfyToken">Access token (optional)</label>
+              <input id="NtfyToken" type="password" is="emby-input" />
+            </div>
+
+            <h4 class="sectionTitle">Gotify</h4>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="GotifyServer">Server URL</label>
+              <input id="GotifyServer" type="text" is="emby-input" placeholder="https://gotify.example" />
+            </div>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="GotifyToken">Application token</label>
+              <input id="GotifyToken" type="password" is="emby-input" />
+            </div>
+
+            <h4 class="sectionTitle">Pushover</h4>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="PushoverToken">API token</label>
+              <input id="PushoverToken" type="password" is="emby-input" />
+            </div>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="PushoverUser">User/group key</label>
+              <input id="PushoverUser" type="text" is="emby-input" />
+            </div>
+
+            <h4 class="sectionTitle">Slack</h4>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="SlackWebhookUrl">Incoming webhook URL</label>
+              <input id="SlackWebhookUrl" type="text" is="emby-input" />
+            </div>
+
+            <h4 class="sectionTitle">Webhook</h4>
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="NotifyWebhookUrl">Webhook URL (POST {title, body})</label>
+              <input id="NotifyWebhookUrl" type="text" is="emby-input" />
+            </div>
+
+            <div class="jcTestRow">
+              <button is="emby-button" type="button" id="jcTestTelegram" class="raised emby-button"><span>Test Telegram</span></button>
+              <button is="emby-button" type="button" id="jcTestNtfy" class="raised emby-button"><span>Test ntfy</span></button>
+              <button is="emby-button" type="button" id="jcTestGotify" class="raised emby-button"><span>Test Gotify</span></button>
+              <button is="emby-button" type="button" id="jcTestPushover" class="raised emby-button"><span>Test Pushover</span></button>
+              <button is="emby-button" type="button" id="jcTestSlack" class="raised emby-button"><span>Test Slack</span></button>
+              <button is="emby-button" type="button" id="jcTestNotifyWebhook" class="raised emby-button"><span>Test webhook</span></button>
+              <span id="jcNotifResult" class="jcTestResult"></span>
+            </div>
           </div>
 
           <div id="jcPaneDownload" class="jcTabPane" style="display:none">
@@ -496,6 +565,12 @@ Content-Type: application/json
 
       document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
+      [['jcTestTelegram', 'telegram'], ['jcTestNtfy', 'ntfy'], ['jcTestGotify', 'gotify'],
+       ['jcTestPushover', 'pushover'], ['jcTestSlack', 'slack'], ['jcTestNotifyWebhook', 'webhook']].forEach(function (pair) {
+        document.querySelector('#' + pair[0]).addEventListener('click', function () {
+          jcPostTest('JellyCrowd/Notifications/Test/' + pair[1], document.querySelector('#jcNotifResult'), pair[1] + ' OK');
+        });
+      });
       document.querySelector('#jcTestDownload').addEventListener('click', function () { jcPostTest('JellyCrowd/Download/Test', document.querySelector('#jcTestDownloadResult'), 'OK'); });
       document.querySelector('#DownloadBackend').addEventListener('change', jcUpdateDownloadVisibility);
       document.querySelector('#jcConnectRadarr').addEventListener('click', function () { jcConnectServarr('radarr'); });
@@ -525,6 +600,17 @@ Content-Type: application/json
             document.querySelector('#SmtpFromAddress').value = config.SmtpFromAddress || '';
             document.querySelector('#NotificationEmailTo').value = config.NotificationEmailTo || '';
             document.querySelector('#SmtpAllowInvalidCertificate').checked = !!config.SmtpAllowInvalidCertificate;
+            document.querySelector('#TelegramBotToken').value = config.TelegramBotToken || '';
+            document.querySelector('#TelegramChatId').value = config.TelegramChatId || '';
+            document.querySelector('#NtfyServer').value = config.NtfyServer || '';
+            document.querySelector('#NtfyTopic').value = config.NtfyTopic || '';
+            document.querySelector('#NtfyToken').value = config.NtfyToken || '';
+            document.querySelector('#GotifyServer').value = config.GotifyServer || '';
+            document.querySelector('#GotifyToken').value = config.GotifyToken || '';
+            document.querySelector('#PushoverToken').value = config.PushoverToken || '';
+            document.querySelector('#PushoverUser').value = config.PushoverUser || '';
+            document.querySelector('#SlackWebhookUrl').value = config.SlackWebhookUrl || '';
+            document.querySelector('#NotifyWebhookUrl').value = config.NotifyWebhookUrl || '';
             document.querySelector('#DownloadBackend').value = config.DownloadBackend || 'none';
             document.querySelector('#DownloadWebhookUrl').value = config.DownloadWebhookUrl || '';
             document.querySelector('#DownloadWebhookHeaders').value = config.DownloadWebhookHeaders || '';
@@ -570,6 +656,17 @@ Content-Type: application/json
             config.SmtpFromAddress = document.querySelector('#SmtpFromAddress').value;
             config.NotificationEmailTo = document.querySelector('#NotificationEmailTo').value;
             config.SmtpAllowInvalidCertificate = document.querySelector('#SmtpAllowInvalidCertificate').checked;
+            config.TelegramBotToken = document.querySelector('#TelegramBotToken').value;
+            config.TelegramChatId = document.querySelector('#TelegramChatId').value;
+            config.NtfyServer = document.querySelector('#NtfyServer').value;
+            config.NtfyTopic = document.querySelector('#NtfyTopic').value;
+            config.NtfyToken = document.querySelector('#NtfyToken').value;
+            config.GotifyServer = document.querySelector('#GotifyServer').value;
+            config.GotifyToken = document.querySelector('#GotifyToken').value;
+            config.PushoverToken = document.querySelector('#PushoverToken').value;
+            config.PushoverUser = document.querySelector('#PushoverUser').value;
+            config.SlackWebhookUrl = document.querySelector('#SlackWebhookUrl').value;
+            config.NotifyWebhookUrl = document.querySelector('#NotifyWebhookUrl').value;
             config.DownloadBackend = document.querySelector('#DownloadBackend').value;
             config.DownloadWebhookUrl = document.querySelector('#DownloadWebhookUrl').value;
             config.DownloadWebhookHeaders = document.querySelector('#DownloadWebhookHeaders').value;

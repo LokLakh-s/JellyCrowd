@@ -36,6 +36,17 @@ public class PluginConfiguration : BasePluginConfiguration
     SmtpFromAddress = string.Empty;
     NotificationEmailTo = string.Empty;
     SmtpAllowInvalidCertificate = false;
+    TelegramBotToken = string.Empty;
+    TelegramChatId = string.Empty;
+    NtfyServer = string.Empty;
+    NtfyTopic = string.Empty;
+    NtfyToken = string.Empty;
+    GotifyServer = string.Empty;
+    GotifyToken = string.Empty;
+    PushoverToken = string.Empty;
+    PushoverUser = string.Empty;
+    SlackWebhookUrl = string.Empty;
+    NotifyWebhookUrl = string.Empty;
     Language = "auto";
     DownloadBackend = "none";
     DownloadWebhookUrl = string.Empty;
@@ -141,6 +152,61 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets a value indicating whether to accept self-signed/invalid SMTP TLS certificates (insecure).
   /// </summary>
   public bool SmtpAllowInvalidCertificate { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Telegram bot token (from @BotFather). Empty disables Telegram.
+  /// </summary>
+  public string TelegramBotToken { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Telegram chat id messages are sent to.
+  /// </summary>
+  public string TelegramChatId { get; set; }
+
+  /// <summary>
+  /// Gets or sets the ntfy server base URL (defaults to <c>https://ntfy.sh</c> when empty).
+  /// </summary>
+  public string NtfyServer { get; set; }
+
+  /// <summary>
+  /// Gets or sets the ntfy topic. Empty disables ntfy.
+  /// </summary>
+  public string NtfyTopic { get; set; }
+
+  /// <summary>
+  /// Gets or sets an optional ntfy access token (Bearer) for protected topics.
+  /// </summary>
+  public string NtfyToken { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Gotify server base URL. Empty disables Gotify.
+  /// </summary>
+  public string GotifyServer { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Gotify application token.
+  /// </summary>
+  public string GotifyToken { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Pushover application API token. Empty disables Pushover.
+  /// </summary>
+  public string PushoverToken { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Pushover user/group key.
+  /// </summary>
+  public string PushoverUser { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Slack incoming-webhook URL. Empty disables Slack.
+  /// </summary>
+  public string SlackWebhookUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets a generic notification webhook URL (POSTed a <c>{title, body}</c> JSON). Empty disables it.
+  /// </summary>
+  public string NotifyWebhookUrl { get; set; }
 
   /// <summary>
   /// Gets or sets the UI/notification language. <c>"auto"</c> (default) follows each user's
