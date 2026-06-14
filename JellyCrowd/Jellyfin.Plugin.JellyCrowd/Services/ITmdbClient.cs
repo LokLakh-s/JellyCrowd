@@ -114,8 +114,10 @@ public interface ITmdbClient
   /// <param name="toDate">Range end (inclusive, <c>yyyy-MM-dd</c>).</param>
   /// <param name="region">The ISO 3166-1 region (movies).</param>
   /// <param name="language">The TMDB language code.</param>
+  /// <param name="originalLanguage">Optional original-language filter (ISO 639-1).</param>
+  /// <param name="originCountry">Optional origin-country filter (ISO 3166-1).</param>
   /// <param name="page">Result page (1-based).</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The releases in the range.</returns>
-  Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, int page, CancellationToken cancellationToken);
+  Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, string? originalLanguage, string? originCountry, int page, CancellationToken cancellationToken);
 }

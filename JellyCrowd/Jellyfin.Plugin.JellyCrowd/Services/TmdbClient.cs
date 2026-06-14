@@ -109,6 +109,16 @@ public class TmdbClient : ITmdbClient
         .Append("&watch_region=").Append(Escape(query.WatchRegion));
     }
 
+    if (!string.IsNullOrWhiteSpace(query.OriginalLanguage))
+    {
+      builder.Append("&with_original_language=").Append(Escape(query.OriginalLanguage));
+    }
+
+    if (!string.IsNullOrWhiteSpace(query.OriginCountry))
+    {
+      builder.Append("&with_origin_country=").Append(Escape(query.OriginCountry));
+    }
+
     var json = await GetAsync(builder.ToString(), cancellationToken).ConfigureAwait(false);
     return TmdbResponseParser.ParseResults(json, mediaType);
   }
@@ -162,7 +172,7 @@ public class TmdbClient : ITmdbClient
   }
 
   /// <inheritdoc />
-  public async Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, int page, CancellationToken cancellationToken)
+  public async Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, string? originalLanguage, string? originCountry, int page, CancellationToken cancellationToken)
   {
     EnsureMediaType(mediaType);
 
@@ -183,6 +193,16 @@ public class TmdbClient : ITmdbClient
     if (isMovie && !string.IsNullOrWhiteSpace(region))
     {
       builder.Append("&region=").Append(Escape(region));
+    }
+
+    if (!string.IsNullOrWhiteSpace(originalLanguage))
+    {
+      builder.Append("&with_original_language=").Append(Escape(originalLanguage));
+    }
+
+    if (!string.IsNullOrWhiteSpace(originCountry))
+    {
+      builder.Append("&with_origin_country=").Append(Escape(originCountry));
     }
 
     var json = await GetAsync(builder.ToString(), cancellationToken).ConfigureAwait(false);

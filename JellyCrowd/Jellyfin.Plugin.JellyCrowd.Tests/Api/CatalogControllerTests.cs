@@ -67,7 +67,7 @@ public class CatalogControllerTests
     var followed = new List<RequestRecord> { new() { TmdbId = 7, MediaType = "tv", Title = "Show" } };
     var controller = CreateController(tmdb, followed);
 
-    var result = await controller.Calendar(null, null, "2026-06-01", "2026-06-30", CancellationToken.None);
+    var result = await controller.Calendar(null, null, "2026-06-01", "2026-06-30", null, null, CancellationToken.None);
 
     var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
     var episode = Assert.Single(payload, i => i.EpisodeNumber == 1);
@@ -97,7 +97,7 @@ public class CatalogControllerTests
     };
     var controller = CreateController(new FakeTmdbClient { Results = items });
 
-    var result = await controller.Calendar(null, null, null, null, CancellationToken.None);
+    var result = await controller.Calendar(null, null, null, null, null, null, CancellationToken.None);
 
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(ok.Value);
@@ -117,7 +117,7 @@ public class CatalogControllerTests
     };
     var controller = CreateController(new FakeTmdbClient { Results = items });
 
-    var result = await controller.Calendar(null, null, "2026-06-01", "2026-06-30", CancellationToken.None);
+    var result = await controller.Calendar(null, null, "2026-06-01", "2026-06-30", null, null, CancellationToken.None);
 
     var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
     // Undated dropped, deduped across movie+tv fetches, ordered ascending.
@@ -160,7 +160,7 @@ public class CatalogControllerTests
     var items = new List<CatalogItem> { new() { TmdbId = 7, MediaType = "movie", Title = "D" } };
     var controller = CreateController(new FakeTmdbClient { Results = items });
 
-    var result = await controller.Discover("movie", "28", 2000, 2020, 6.0, 9.0, "rating", null, null, null, null, CancellationToken.None);
+    var result = await controller.Discover("movie", "28", 2000, 2020, 6.0, 9.0, "rating", null, null, null, null, null, null, CancellationToken.None);
 
     Assert.IsType<OkObjectResult>(result.Result);
   }
@@ -308,7 +308,7 @@ public class CatalogControllerTests
       return Task.FromResult(Results);
     }
 
-    public Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, int page, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<CatalogItem>> GetReleasesAsync(string mediaType, string fromDate, string toDate, string region, string language, string? originalLanguage, string? originCountry, int page, CancellationToken cancellationToken)
     {
       if (Throw is not null)
       {

@@ -32,8 +32,33 @@
     minRating: 0,
     maxRating: 10,
     sortBy: 'popularity',
-    watchProviders: ''
+    watchProviders: '',
+    originalLanguage: '',
+    originCountry: ''
   };
+
+  // Curated codes for the language / country filters (labels are localized via Intl.DisplayNames).
+  var FILTER_LANGUAGES = ['en', 'fr', 'es', 'it', 'de', 'pt', 'ja', 'ko', 'zh', 'hi'];
+  var FILTER_COUNTRIES = ['US', 'FR', 'ES', 'IT', 'GB', 'DE', 'JP', 'KR', 'CA', 'IN'];
+
+  function fillCodeSelect(select, codes, type, current) {
+    select.innerHTML = '';
+    var allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = t('filter_all');
+    select.appendChild(allOpt);
+    var names = null;
+    try { names = new Intl.DisplayNames([fullLocale()], { type: type }); } catch (e) { names = null; }
+    codes.forEach(function (code) {
+      var opt = document.createElement('option');
+      opt.value = code;
+      var label = code;
+      try { if (names) { label = names.of(code) || code; } } catch (e) { label = code; }
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+    select.value = current || '';
+  }
 
   function fullLocale() {
     return lib.contentLocale(cfgLang, navigator.language || 'en-US');
@@ -593,7 +618,7 @@
   function hasActiveFilters() {
     return filters.genres.length > 0 || filters.minYear > MIN_YEAR || filters.maxYear < MAX_YEAR
       || filters.minRating > 0 || filters.maxRating < 10 || filters.sortBy !== 'popularity'
-      || !!filters.watchProviders;
+      || !!filters.watchProviders || !!filters.originalLanguage || !!filters.originCountry;
   }
 
   function baseDiscover() {
@@ -615,6 +640,8 @@
     if (filters.watchProviders) {
       p += '&watchProviders=' + encodeURIComponent(filters.watchProviders) + '&watchRegion=' + encodeURIComponent(REGION);
     }
+    if (filters.originalLanguage) { p += '&originalLanguage=' + encodeURIComponent(filters.originalLanguage); }
+    if (filters.originCountry) { p += '&originCountry=' + encodeURIComponent(filters.originCountry); }
     return p;
   }
 
@@ -844,6 +871,16 @@
     select.addEventListener('change', function () { filters.sortBy = select.value; resetFeed(); });
   }
 
+  function buildLanguageCountryFilters() {
+    var langSelect = document.getElementById('jcLang');
+    fillCodeSelect(langSelect, FILTER_LANGUAGES, 'language', filters.originalLanguage);
+    langSelect.addEventListener('change', function () { filters.originalLanguage = langSelect.value; resetFeed(); });
+
+    var countrySelect = document.getElementById('jcCountry');
+    fillCodeSelect(countrySelect, FILTER_COUNTRIES, 'region', filters.originCountry);
+    countrySelect.addEventListener('change', function () { filters.originCountry = countrySelect.value; resetFeed(); });
+  }
+
   function renderGenres(genres) {
     var container = document.getElementById('jcGenres');
     container.innerHTML = '';
@@ -895,8 +932,12 @@
     filters.maxRating = 10;
     filters.sortBy = 'popularity';
     filters.watchProviders = '';
+    filters.originalLanguage = '';
+    filters.originCountry = '';
     searchQuery = '';
     document.getElementById('jcSort').value = 'popularity';
+    document.getElementById('jcLang').value = '';
+    document.getElementById('jcCountry').value = '';
     document.getElementById('jcSearchInput').value = '';
     setupYearSlider();
     setupRatingSlider();
@@ -916,6 +957,8 @@
     document.getElementById('jcLabelYear').textContent = t('filters_year');
     document.getElementById('jcLabelRating').textContent = t('filters_rating');
     document.getElementById('jcLabelSort').textContent = t('filters_sort');
+    document.getElementById('jcLabelLang').textContent = t('filters_language');
+    document.getElementById('jcLabelCountry').textContent = t('filters_country');
     document.getElementById('jcReset').textContent = t('filters_reset');
   }
 
@@ -923,6 +966,7 @@
     loadConfigLang().then(loadStrings).then(loadAdmin).then(function () {
       applyStaticText();
       buildSort();
+      buildLanguageCountryFilters();
       setupYearSlider();
       setupRatingSlider();
 
