@@ -162,13 +162,17 @@ Objectif : un onglet **« Calendar »** (entre Catalog et My requests) affichant
 - ☐ **Vérif (instance live)** : la grille mensuelle se peuple, navigation entre mois OK, clic → fiche →
   requête (auto-planifiée à la date de sortie via `RequestScheduling`).
 
-## M9 — Watchlists  ☐
+## M9 — Watchlists  ◐ (code fait, reste la vérif live)
 
 Objectif : permettre à un utilisateur de **suivre des titres** (liste d'envies) sans forcément les demander.
 
-- ☐ Modèle + store (par user, tmdbId/type) ; endpoints add/remove/list ; bouton « ★ » sur cartes/fiche.
-- ☐ Page/onglet « Ma liste » (ou section) ; option « demander » depuis la watchlist.
-- ☐ (Option) notif quand un titre suivi devient disponible / sort. Tests (store/endpoints/JS).
+- ☑ Modèle `WatchlistEntry` + `IWatchlistStore`/`JsonWatchlistStore` (par user) ; `WatchlistController`
+  (`GET` mine, `POST` add, `POST Remove`) ; DI ; tests (store + contrôleur).
+- ☑ Bouton **★** sur les cartes du catalogue et dans la fiche (catalogue + calendrier).
+- ☑ **« Ma liste »** : bascule dans le catalogue (section) qui affiche les titres suivis, d'où l'on
+  ouvre la fiche pour demander.
+- ☐ (Option, plus tard) notif quand un titre suivi devient disponible / sort.
+- ☐ **Vérif (instance live)** : ★ ajoute/retire ; « Ma liste » affiche les titres suivis.
 
 ## M10 — Recommandations personnalisées  ☐
 
