@@ -10,6 +10,8 @@
   var lib = window.JellyCrowdLib;
   var strings = {};
   var cfgLang = 'auto';
+  var statusTimer = null;        // live download-status polling interval
+  var STATUS_POLL_MS = 5000;
 
   function shortLang() {
     return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US');
@@ -79,6 +81,7 @@
   function renderRow(request) {
     var row = document.createElement('div');
     row.className = 'jellycrowd-request-row';
+    row.dataset.reqId = request.Id;
 
     if (request.PosterPath) {
       var poster = document.createElement('img');
@@ -179,6 +182,44 @@
     }
   }
 
+  // Apply live download statuses (from the Radarr/Sonarr queue) onto the matching rows. Stale
+  // badges are cleared first so a finished download stops showing progress.
+  function applyDownloadStatuses(statuses) {
+    var list = document.getElementById('jcReqList');
+    if (!list) {
+      return;
+    }
+
+    Array.prototype.forEach.call(list.querySelectorAll('.jellycrowd-dl'), function (el) { el.remove(); });
+    (statuses || []).forEach(function (s) {
+      var row = list.querySelector('.jellycrowd-request-row[data-req-id="' + s.RequestId + '"]');
+      if (!row) {
+        return;
+      }
+
+      var key = lib.downloadStateKey(s.State);
+      var badge = document.createElement('span');
+      badge.className = 'jellycrowd-status jellycrowd-dl jellycrowd-dl-' + s.State;
+      var label = key ? t(key) : s.State;
+      if (s.State === 'downloading' || s.State === 'importing') {
+        label += ' ' + Math.round(s.Percent || 0) + '%';
+        if (s.TimeLeft) {
+          label += ' · ' + s.TimeLeft;
+        }
+      }
+      badge.textContent = label;
+      // Insert before the Cancel button when present, otherwise at the end.
+      var cancelBtn = row.querySelector('button.jellycrowd-request');
+      row.insertBefore(badge, cancelBtn || null);
+    });
+  }
+
+  function pollDownloadStatus() {
+    apiGet('JellyCrowd/Requests/Mine/DownloadStatus')
+      .then(applyDownloadStatuses)
+      .catch(function () { /* best-effort */ });
+  }
+
   function render(requests) {
     var list = document.getElementById('jcReqList');
     list.innerHTML = '';
@@ -201,6 +242,7 @@
 
     apiGet('JellyCrowd/Requests/Mine')
       .then(render)
+      .then(pollDownloadStatus)
       .catch(function () { setMessage(t('error_generic')); });
   }
 
@@ -213,6 +255,12 @@
       if (typeof window.jellyCrowdRegisterRefresh === 'function') {
         window.jellyCrowdRegisterRefresh('requests', refresh);
       }
+
+      // Poll the live download status while this view is loaded (single interval).
+      if (statusTimer) {
+        clearInterval(statusTimer);
+      }
+      statusTimer = setInterval(pollDownloadStatus, STATUS_POLL_MS);
 
       refresh();
     });

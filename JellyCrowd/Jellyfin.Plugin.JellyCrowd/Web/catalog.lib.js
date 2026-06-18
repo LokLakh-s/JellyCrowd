@@ -168,6 +168,20 @@
     return weeks;
   }
 
+  // Map a live download state (from the Radarr/Sonarr queue) to its i18n key, or '' when unknown.
+  function downloadStateKey(state) {
+    var map = {
+      queued: 'dl_queued',
+      downloading: 'dl_downloading',
+      importing: 'dl_importing',
+      completed: 'dl_completed',
+      warning: 'dl_warning'
+    };
+    return Object.prototype.hasOwnProperty.call(map, String(state).toLowerCase())
+      ? map[String(state).toLowerCase()]
+      : '';
+  }
+
   // Quota fill colour, grading from green (empty) through yellow (half) to red (full).
   // Interpolates the HSL hue 120 -> 0 across 0..100%.
   function quotaColor(percent) {
@@ -188,6 +202,7 @@
     errorKey: errorKey,
     statusLabelKey: statusLabelKey,
     statusRank: statusRank,
+    downloadStateKey: downloadStateKey,
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,

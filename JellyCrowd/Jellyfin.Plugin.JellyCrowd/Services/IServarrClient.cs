@@ -70,4 +70,15 @@ public interface IServarrClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when the series is added.</returns>
   Task AddSeriesAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Fetches the current download queue (<c>GET /api/v3/queue</c>), including the linked movie
+  /// (Radarr) or series + episode (Sonarr) so records can be matched back to a request.
+  /// </summary>
+  /// <param name="baseUrl">The instance base URL.</param>
+  /// <param name="apiKey">The API key.</param>
+  /// <param name="forSonarr"><c>true</c> for Sonarr (include series/episode), <c>false</c> for Radarr (include movie).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The raw queue JSON payload.</returns>
+  Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken);
 }

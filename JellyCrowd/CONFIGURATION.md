@@ -100,6 +100,10 @@ Le **menu déroulant « Download backend »** pilote les réglages affichés :
     l'identifiant TVDB est résolu automatiquement depuis TMDB. Pour une demande de **saison précise**,
     seule cette saison est surveillée ; sinon toute la série.
   - Bouton **Test backend** : vérifie la connexion aux instances configurées (`system/status`).
+  - **Statut de téléchargement en direct** : quand le backend est **Servarr**, la page *Mes demandes*
+    interroge la file d'attente de Radarr/Sonarr (`/queue`) toutes les 5 s et affiche sur chaque demande
+    approuvée son état réel — *En file d'attente / Téléchargement %/ETA / Import en cours / Téléchargé /
+    Problème*. Les films sont rapprochés par identifiant TMDB, les épisodes par TVDB + saison/épisode.
 
 Idempotence : une requête n'est dispatchée qu'une seule fois (horodatage `DispatchedAt`). Une tâche
 planifiée **« Jelly Crowd: dispatch downloads »** (toutes les 15 min) rattrape les requêtes dont la date

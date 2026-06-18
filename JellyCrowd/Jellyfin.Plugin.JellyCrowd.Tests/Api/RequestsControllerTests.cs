@@ -21,7 +21,7 @@ public class RequestsControllerTests
 
   private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), new FakeDownloadDispatcher())
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), new FakeDownloadDispatcher(), new FakeServarrStatusService())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -334,6 +334,12 @@ public class RequestsControllerTests
     public Task DispatchDueAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task TestActiveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+  }
+
+  private sealed class FakeServarrStatusService : IServarrStatusService
+  {
+    public Task<IReadOnlyList<DownloadStatusDto>> GetStatusesAsync(IEnumerable<RequestRecord> requests, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyList<DownloadStatusDto>>(new List<DownloadStatusDto>());
   }
 
   private sealed class FakeRequestStore : IRequestStore

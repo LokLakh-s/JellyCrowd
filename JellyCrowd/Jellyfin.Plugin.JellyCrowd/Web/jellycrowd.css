@@ -352,6 +352,13 @@
 .jellycrowd-status-denied { background: #c0392b; color: #fff; }
 .jellycrowd-status-scheduled { background: #6c4ab6; color: #fff; }
 
+/* Live download status (Radarr/Sonarr queue) */
+.jellycrowd-dl-queued { background: #555; color: #fff; }
+.jellycrowd-dl-downloading { background: #00a4dc; color: #fff; }
+.jellycrowd-dl-importing { background: #6c4ab6; color: #fff; }
+.jellycrowd-dl-completed { background: #2e7d32; color: #fff; }
+.jellycrowd-dl-warning { background: #c0392b; color: #fff; }
+
 .jellycrowd-request-poster {
   width: 2.6em;
   height: 3.9em;

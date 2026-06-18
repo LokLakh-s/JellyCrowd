@@ -102,6 +102,15 @@ public sealed class ServarrClient : IServarrClient
   public Task AddSeriesAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken)
     => PostAsync(baseUrl, apiKey, "/series", body, cancellationToken);
 
+  /// <inheritdoc />
+  public Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken)
+  {
+    var path = forSonarr
+      ? "/queue?page=1&pageSize=200&includeSeries=true&includeEpisode=true"
+      : "/queue?page=1&pageSize=200&includeMovie=true";
+    return GetStringAsync(baseUrl, apiKey, path, cancellationToken);
+  }
+
   private static JsonObject? ParseObject(string json)
   {
     var node = JsonNode.Parse(json);
