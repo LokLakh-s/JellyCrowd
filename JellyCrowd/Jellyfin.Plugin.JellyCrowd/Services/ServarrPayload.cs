@@ -55,8 +55,9 @@ public static class ServarrPayload
     body["monitored"] = true;
     body["seasonFolder"] = true;
 
-    var monitorAll = season is null;
-    if (season is { } requested && body["seasons"] is JsonArray seasons)
+    // Set monitoring explicitly on the seasons array (Sonarr honors it across versions): a specific
+    // season monitors only that one, otherwise all real seasons (specials = season 0 stay off).
+    if (body["seasons"] is JsonArray seasons)
     {
       foreach (var node in seasons)
       {
@@ -64,15 +65,16 @@ public static class ServarrPayload
             && seasonObj["seasonNumber"] is JsonValue numberValue
             && numberValue.TryGetValue<int>(out var number))
         {
-          seasonObj["monitored"] = number == requested;
+          seasonObj["monitored"] = number > 0 && (season is null || number == season.Value);
         }
       }
     }
 
+    // No "monitor" in addOptions: it would re-derive monitoring and override the seasons array above
+    // (e.g. "none" would unmonitor the very season we want, so nothing gets searched).
     body["addOptions"] = new JsonObject
     {
-      ["searchForMissingEpisodes"] = true,
-      ["monitor"] = monitorAll ? "all" : "none"
+      ["searchForMissingEpisodes"] = true
     };
     return body;
   }
