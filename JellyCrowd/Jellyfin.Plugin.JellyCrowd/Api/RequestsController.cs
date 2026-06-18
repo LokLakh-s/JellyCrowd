@@ -24,6 +24,7 @@ public class RequestsController : ControllerBase
   private readonly IQuotaService _quotaService;
   private readonly INotificationService _notificationService;
   private readonly IDownloadDispatcher _downloadDispatcher;
+  private readonly IServarrStatusService _servarrStatus;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="RequestsController"/> class.
@@ -33,18 +34,21 @@ public class RequestsController : ControllerBase
   /// <param name="quotaService">The quota service used to enforce per-user limits.</param>
   /// <param name="notificationService">The notification service.</param>
   /// <param name="downloadDispatcher">The download dispatcher triggered on approval.</param>
+  /// <param name="servarrStatus">The live download-status service (Radarr/Sonarr queue).</param>
   public RequestsController(
     IRequestStore store,
     ICurrentUserAccessor userAccessor,
     IQuotaService quotaService,
     INotificationService notificationService,
-    IDownloadDispatcher downloadDispatcher)
+    IDownloadDispatcher downloadDispatcher,
+    IServarrStatusService servarrStatus)
   {
     _store = store;
     _userAccessor = userAccessor;
     _quotaService = quotaService;
     _notificationService = notificationService;
     _downloadDispatcher = downloadDispatcher;
+    _servarrStatus = servarrStatus;
   }
 
   /// <summary>
@@ -135,6 +139,25 @@ public class RequestsController : ControllerBase
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var items = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
     return Ok(items);
+  }
+
+  /// <summary>
+  /// Returns the live download status (Radarr/Sonarr queue) for the current user's approved requests.
+  /// Requests that are not currently downloading are omitted; the list is empty unless the Servarr
+  /// download backend is configured.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The download statuses, keyed by request id.</response>
+  /// <returns>The list of live download statuses.</returns>
+  [HttpGet("Mine/DownloadStatus")]
+  [Authorize]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<IReadOnlyList<DownloadStatusDto>>> MineDownloadStatus(CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var items = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+    var statuses = await _servarrStatus.GetStatusesAsync(items, cancellationToken).ConfigureAwait(false);
+    return Ok(statuses);
   }
 
   /// <summary>

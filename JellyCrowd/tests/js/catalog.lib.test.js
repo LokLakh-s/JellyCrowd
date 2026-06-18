@@ -155,3 +155,12 @@ test('groupByReleaseDate groups by date ascending and drops undated', () => {
   assert.deepStrictEqual(groups[0].items.map((i) => i.Title), ['A', 'A2']);
   assert.strictEqual(groups[1].date, '2030-02-01');
 });
+
+test('downloadStateKey maps known queue states and ignores unknowns', () => {
+  assert.strictEqual(lib.downloadStateKey('downloading'), 'dl_downloading');
+  assert.strictEqual(lib.downloadStateKey('IMPORTING'), 'dl_importing');
+  assert.strictEqual(lib.downloadStateKey('warning'), 'dl_warning');
+  assert.strictEqual(lib.downloadStateKey('queued'), 'dl_queued');
+  assert.strictEqual(lib.downloadStateKey('completed'), 'dl_completed');
+  assert.strictEqual(lib.downloadStateKey('bogus'), '');
+});
