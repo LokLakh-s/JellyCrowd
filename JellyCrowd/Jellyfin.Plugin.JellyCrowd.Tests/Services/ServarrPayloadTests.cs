@@ -35,7 +35,15 @@ public class ServarrPayloadTests
     Assert.Equal(1, body["languageProfileId"]!.GetValue<int>());
     Assert.Equal("/tv", body["rootFolderPath"]!.GetValue<string>());
     Assert.True(body["seasonFolder"]!.GetValue<bool>());
-    Assert.Equal("all", body["addOptions"]!["monitor"]!.GetValue<string>());
+
+    // Whole series: every real season monitored via the seasons array, no addOptions.monitor override.
+    var seasons = (JsonArray)body["seasons"]!;
+    foreach (var node in seasons)
+    {
+      Assert.True(((JsonObject)node!)["monitored"]!.GetValue<bool>());
+    }
+
+    Assert.Null(body["addOptions"]!["monitor"]);
     Assert.True(body["addOptions"]!["searchForMissingEpisodes"]!.GetValue<bool>());
   }
 
@@ -54,7 +62,8 @@ public class ServarrPayloadTests
       Assert.Equal(expected, obj["monitored"]!.GetValue<bool>());
     }
 
-    Assert.Equal("none", body["addOptions"]!["monitor"]!.GetValue<string>());
+    Assert.Null(body["addOptions"]!["monitor"]);
+    Assert.True(body["addOptions"]!["searchForMissingEpisodes"]!.GetValue<bool>());
     Assert.Null(body["languageProfileId"]); // not set when languageProfileId <= 0
   }
 
