@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/LokLakh-s/jellyfin-plugins/main/JellyCrowd/Jellyfin.Plugin.JellyCrowd/Web/logo.png",
     "versions": [
       {
+        "version": "0.17.0.0",
+        "changelog": "Release v0.17.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/LokLakh-s/jellyfin-plugins/releases/download/v0.17.0/jelly-crowd-v0.17.0.zip",
+        "checksum": "765dc8a878eee1c6d5c11285d8ed4963",
+        "timestamp": "2026-06-19T00:21:49.0000000Z"
+      },
+      {
         "version": "0.16.0.0",
         "changelog": "Release v0.16.0",
         "targetAbi": "10.11.0.0",
@@ -23,14 +31,6 @@
         "sourceUrl": "https://github.com/LokLakh-s/jellyfin-plugins/releases/download/v0.15.1/jelly-crowd-v0.15.1.zip",
         "checksum": "5e89b393ebcae01179b0c1316c0c1766",
         "timestamp": "2026-06-19T00:02:48.0000000Z"
-      },
-      {
-        "version": "0.15.0.0",
-        "changelog": "Release v0.15.0",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/LokLakh-s/jellyfin-plugins/releases/download/v0.15.0/jelly-crowd-v0.15.0.zip",
-        "checksum": "be01a78724f1700154191c74b08759ff",
-        "timestamp": "2026-06-18T23:05:17.0000000Z"
       }
     ]
   }
