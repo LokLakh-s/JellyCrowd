@@ -394,10 +394,16 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
 > Le passage à **`v2.0.0`** (commit `[major]`) marque l'ajout du pan statistiques.
 
+### M30 — Système de ticketting  ☐
+
+- ☐ **Ouverture de tickets** : les utilisateurs peuvent ouvrir des tickets pour signaler des bugs/problèmes avec des médias/sous titres/mauvaise langue audio, etc.)
+- ☐ **Onglet admin dédié** : l'admin a une interface adaptée pour gérer cela.
+- ☐ **Notifications et logs** : ce système génère des notifications pour les concernés (configurables par l'admin), ainsi que des logs.
+
 ---
 
 ## Encore plus loin  *(prévu : `v3.0.0`)*
 
-### M30 — Bot bidirectionnel  ☐
+### M31 — Bot bidirectionnel  ☐
 
 - ☐ **Approuver/refuser depuis Discord/Telegram** (notifications interactives à double sens).
