@@ -947,6 +947,14 @@ Content-Type: application/json
             status.className = 'jcStatus jcStatus-' + statusKey.replace('status_', '');
             status.textContent = t(statusKey);
             tdStatus.appendChild(status);
+            if (request.DispatchError) {
+              var dispatchErr = document.createElement('span');
+              dispatchErr.className = 'jcStatus jcStatus-denied jcDispatchError';
+              dispatchErr.textContent = '⚠ ' + t('dispatch_failed');
+              dispatchErr.title = request.DispatchError
+                + (request.DispatchAttemptedAt ? '\n(' + new Date(request.DispatchAttemptedAt).toLocaleString() + ')' : '');
+              tdStatus.appendChild(dispatchErr);
+            }
             tr.appendChild(tdStatus);
 
             var tdActions = document.createElement('td');

@@ -94,4 +94,16 @@ public class RequestRecord
   /// (Radarr/Sonarr, webhook, …), if any. Used to make dispatch idempotent (no double send).
   /// </summary>
   public DateTime? DispatchedAt { get; set; }
+
+  /// <summary>
+  /// Gets or sets the last dispatch failure message, if the most recent dispatch attempt failed
+  /// (e.g. "Sonarr is not configured", a TVDB resolution failure, or a backend HTTP error).
+  /// Cleared once the request dispatches successfully. Surfaced to the admin for diagnosis.
+  /// </summary>
+  public string? DispatchError { get; set; }
+
+  /// <summary>
+  /// Gets or sets the UTC time of the last dispatch attempt (success or failure), if any.
+  /// </summary>
+  public DateTime? DispatchAttemptedAt { get; set; }
 }

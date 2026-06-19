@@ -136,6 +136,11 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
         "Failed to dispatch request {RequestId} to the {Backend} download backend.",
         request.Id.ToString("N", CultureInfo.InvariantCulture),
         client.Backend);
+
+      // Persist the reason so the admin can see why nothing reached the backend (the exception
+      // otherwise only lands in the Jellyfin log). Truncated to keep the store small.
+      var message = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
+      await _store.SetDispatchErrorAsync(request.Id, message, nowUtc, cancellationToken).ConfigureAwait(false);
       return false;
     }
   }

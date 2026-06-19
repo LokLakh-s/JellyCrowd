@@ -149,6 +149,17 @@ public interface IRequestStore
   Task<RequestRecord?> MarkDispatchedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Records the outcome of a dispatch attempt: stamps the attempt time and sets (or clears, when
+  /// <paramref name="error"/> is <c>null</c>) the last dispatch error for admin diagnosis.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="error">The failure message, or <c>null</c> to clear it.</param>
+  /// <param name="whenUtc">The attempt time (UTC).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found.</returns>
+  Task<RequestRecord?> SetDispatchErrorAsync(Guid id, string? error, DateTime whenUtc, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Gets approved requests that are due for download dispatch: not yet dispatched and whose desired
   /// time (if any) is at or before the given instant.
   /// </summary>
