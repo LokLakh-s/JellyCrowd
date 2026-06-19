@@ -14,7 +14,9 @@ defaults:
 jobs:
   build-test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    # Self-hosted runner ("JellyCrowd") to save GitHub-hosted minutes. ~/.nuget and the tool cache
+    # persist between runs on the runner host, so no actions/cache round-trip is needed.
+    runs-on: [self-hosted]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,13 +30,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Cache NuGet
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
-          restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore
         run: dotnet restore
@@ -55,6 +50,7 @@ jobs:
           name: test-results
           path: '**/test-results.trx'
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Package plugin
         run: |
@@ -70,3 +66,14 @@ jobs:
         with:
           name: jelly-crowd-plugin
           path: JellyCrowd/artifacts/jelly-crowd.zip
+          retention-days: 7
+
+      # Keep the self-hosted runner's disk from growing: drop build outputs and the NuGet
+      # http/temp caches (the bounded global-packages cache is kept for fast restores).
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          rm -rf Jellyfin.Plugin.JellyCrowd/bin Jellyfin.Plugin.JellyCrowd/obj \
+                 Jellyfin.Plugin.JellyCrowd.Tests/bin Jellyfin.Plugin.JellyCrowd.Tests/obj \
+                 artifacts
+          dotnet nuget locals http-cache temp --clear || true
