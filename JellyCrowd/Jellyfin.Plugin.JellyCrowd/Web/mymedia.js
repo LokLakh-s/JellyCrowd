@@ -82,20 +82,23 @@
     }
   }
 
-  function isAvailable(request) {
-    return request.Status === 3 || request.Status === 'Available';
+  function flaggedBadge() {
+    var flagged = document.createElement('span');
+    flagged.className = 'jellycrowd-status jellycrowd-status-denied';
+    flagged.textContent = t('deletion_requested');
+    return flagged;
   }
 
-  function renderRow(request) {
+  function renderRow(item) {
     var row = document.createElement('div');
     row.className = 'jellycrowd-request-row';
 
-    if (request.PosterPath) {
+    if (item.PosterPath) {
       var poster = document.createElement('img');
       poster.className = 'jellycrowd-request-poster';
       poster.loading = 'lazy';
-      poster.alt = request.Title || '';
-      poster.src = POSTER_BASE + request.PosterPath;
+      poster.alt = item.Title || '';
+      poster.src = POSTER_BASE + item.PosterPath;
       row.appendChild(poster);
     } else {
       var empty = document.createElement('div');
@@ -105,19 +108,24 @@
 
     var main = document.createElement('div');
     main.className = 'jellycrowd-request-main';
-    main.textContent = lib.formatTitle(request) + (request.Season ? ' · S' + request.Season : '');
-    if (request.JellyfinItemId) {
-      main.classList.add('jellycrowd-link');
-      main.title = t('open_in_jellyfin');
-      main.addEventListener('click', function () { openInJellyfin(request.JellyfinItemId); });
+    var titleEl = document.createElement('div');
+    titleEl.className = 'jellycrowd-request-title';
+    titleEl.textContent = lib.formatTitle(item) + (item.Season ? ' · S' + item.Season : '');
+    if (item.JellyfinItemId) {
+      titleEl.classList.add('jellycrowd-link');
+      titleEl.title = t('open_in_jellyfin');
+      titleEl.addEventListener('click', function () { openInJellyfin(item.JellyfinItemId); });
     }
+    main.appendChild(titleEl);
     row.appendChild(main);
 
-    if (request.DeletionRequestedAt) {
-      var flagged = document.createElement('span');
-      flagged.className = 'jellycrowd-status jellycrowd-status-denied';
-      flagged.textContent = t('deletion_requested');
-      row.appendChild(flagged);
+    var size = document.createElement('span');
+    size.className = 'jellycrowd-status jellycrowd-size';
+    size.textContent = lib.formatBytes(item.SizeBytes || 0);
+    row.appendChild(size);
+
+    if (item.DeletionRequestedAt) {
+      row.appendChild(flaggedBadge());
     } else {
       var button = document.createElement('button');
       button.className = 'jellycrowd-request';
@@ -125,13 +133,10 @@
       button.textContent = t('request_deletion');
       button.addEventListener('click', function () {
         button.disabled = true;
-        apiPost('JellyCrowd/Requests/' + request.Id + '/RequestDeletion')
+        apiPost('JellyCrowd/Requests/' + item.RequestId + '/RequestDeletion')
           .then(function () {
             row.removeChild(button);
-            var flagged = document.createElement('span');
-            flagged.className = 'jellycrowd-status jellycrowd-status-denied';
-            flagged.textContent = t('deletion_requested');
-            row.appendChild(flagged);
+            row.appendChild(flaggedBadge());
           })
           .catch(function () { button.disabled = false; });
       });
@@ -141,18 +146,48 @@
     return row;
   }
 
-  function render(requests) {
-    var media = (requests || []).filter(isAvailable);
+  function renderQuota(info) {
+    var el = document.getElementById('jcMediaQuota');
+    if (!el) {
+      return;
+    }
+    el.innerHTML = '';
+    if (!info) {
+      return;
+    }
+
+    var unlimited = info.Unlimited || info.QuotaBytes <= 0;
+    var label = document.createElement('div');
+    label.className = 'jellycrowd-quota-label';
+    label.style.color = '#fff';
+    label.textContent = t('quota_storage') + ' : ' + lib.formatBytes(info.UsedBytes)
+      + ' / ' + (unlimited ? t('quota_unlimited') : lib.formatBytes(info.QuotaBytes));
+    el.appendChild(label);
+
+    if (!unlimited) {
+      var percent = lib.quotaPercent(info.UsedBytes, info.QuotaBytes);
+      var track = document.createElement('div');
+      track.className = 'jellycrowd-quota-track';
+      var fill = document.createElement('div');
+      fill.className = 'jellycrowd-quota-fill';
+      fill.style.width = percent + '%';
+      fill.style.background = lib.quotaColor(percent);
+      track.appendChild(fill);
+      el.appendChild(track);
+    }
+  }
+
+  function render(media) {
     var list = document.getElementById('jcMediaList');
     list.innerHTML = '';
 
-    if (media.length === 0) {
+    if (!media || media.length === 0) {
       setMessage(t('no_media'));
       return;
     }
 
     setMessage('');
-    media.forEach(function (request) { list.appendChild(renderRow(request)); });
+    media.forEach(function (item) { list.appendChild(renderRow(item)); });
   }
 
   function init() {
@@ -160,7 +195,12 @@
       document.getElementById('jcMediaLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcMediaTitle').textContent = t('my_media_title');
       setMessage(t('loading'));
-      apiGet('JellyCrowd/Requests/Mine')
+
+      apiGet('JellyCrowd/Quota/Me')
+        .then(renderQuota)
+        .catch(function () { /* quota bar is best-effort */ });
+
+      apiGet('JellyCrowd/Quota/MyMedia')
         .then(render)
         .catch(function () { setMessage(t('error_generic')); });
     });

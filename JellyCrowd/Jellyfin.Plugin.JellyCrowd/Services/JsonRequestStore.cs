@@ -173,6 +173,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
 
       record.Status = RequestStatus.Available;
       record.JellyfinItemId = jellyfinItemId;
+      record.AvailableAt = DateTime.UtcNow;
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }

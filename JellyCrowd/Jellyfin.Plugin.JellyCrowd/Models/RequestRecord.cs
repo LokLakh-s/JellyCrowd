@@ -84,6 +84,11 @@ public class RequestRecord
   public string? JellyfinItemId { get; set; }
 
   /// <summary>
+  /// Gets or sets the UTC time the requested media became available in the Jellyfin library, if any.
+  /// </summary>
+  public DateTime? AvailableAt { get; set; }
+
+  /// <summary>
   /// Gets or sets the UTC time the user asked for this media to be deleted, if any.
   /// The scheduled deletion task removes it once the retention period has elapsed.
   /// </summary>

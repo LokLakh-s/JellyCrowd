@@ -95,6 +95,19 @@ public sealed class JsonRequestStoreTests : IDisposable
   }
 
   [Fact]
+  public async Task MarkAvailableAsync_SetsStatusItemIdAndAvailableAt()
+  {
+    var created = await _store.CreateAsync(NewRecord(Guid.NewGuid()), CancellationToken.None);
+
+    var updated = await _store.MarkAvailableAsync(created.Id, "deadbeef", CancellationToken.None);
+
+    Assert.NotNull(updated);
+    Assert.Equal(RequestStatus.Available, updated!.Status);
+    Assert.Equal("deadbeef", updated.JellyfinItemId);
+    Assert.NotNull(updated.AvailableAt);
+  }
+
+  [Fact]
   public async Task UpdateStatusAsync_UnknownId_ReturnsNull()
   {
     Assert.Null(await _store.UpdateStatusAsync(Guid.NewGuid(), RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None));

@@ -61,6 +61,7 @@
   "request_deletion": "Request deletion",
   "deletion_requested": "Deletion requested",
   "requested_on": "Requested on",
+  "available_on": "Available on",
   "scheduled_for": "Scheduled for",
   "status_pending": "Pending",
   "status_approved": "Approved",

@@ -365,6 +365,11 @@
 .jellycrowd-link { cursor: pointer; }
 .jellycrowd-link:hover { color: #00a4dc; text-decoration: underline; }
 
+/* Request/media row title + secondary line (dates, etc.) */
+.jellycrowd-request-title { font-weight: 500; }
+.jellycrowd-request-sub { font-size: 0.8em; opacity: 0.7; margin-top: 0.15em; }
+.jellycrowd-size { background: rgba(255, 255, 255, 0.12); }
+
 .jellycrowd-request-poster {
   width: 2.6em;
   height: 3.9em;
