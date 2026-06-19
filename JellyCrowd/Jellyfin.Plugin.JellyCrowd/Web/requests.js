@@ -10,8 +10,9 @@
   var lib = window.JellyCrowdLib;
   var strings = {};
   var cfgLang = 'auto';
-  var statusTimer = null;        // live download-status polling interval
+  var statusTimer = null;        // live status polling interval
   var STATUS_POLL_MS = 5000;
+  var lastSignature = null;      // fingerprint of the rendered list, to re-render only on change
 
   function shortLang() {
     return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US');
@@ -235,16 +236,45 @@
     requests.forEach(function (request) { list.appendChild(renderRow(request)); });
   }
 
-  // Re-fetch quota + requests. Called on first load and again whenever the overlay re-shows this
-  // view, so a request just made from the catalog shows up without a full page reload.
-  function refresh() {
-    apiGet('JellyCrowd/Quota/Me')
+  // Compact fingerprint of the list so the live tick only re-renders when something actually changed
+  // (status flip, new/removed request, deletion flag) — avoids rebuilding rows every few seconds.
+  function signatureOf(requests) {
+    return (requests || []).map(function (r) {
+      return r.Id + ':' + r.Status + ':' + (r.DeletionRequestedAt ? 1 : 0);
+    }).join('|');
+  }
+
+  function refreshQuota() {
+    apiGet('JellyCrowd/Quota/Me?ts=' + Date.now())
       .then(renderQuota)
       .catch(function () { /* quota bar is best-effort */ });
+  }
 
-    apiGet('JellyCrowd/Requests/Mine')
-      .then(render)
-      .then(pollDownloadStatus)
+  // Live tick: pick up status transitions (e.g. Approved -> Available) without a page reload and
+  // refresh download progress. Re-renders only on a real change, to avoid flicker.
+  function tick() {
+    apiGet('JellyCrowd/Requests/Mine?ts=' + Date.now())
+      .then(function (requests) {
+        var sig = signatureOf(requests);
+        if (sig !== lastSignature) {
+          lastSignature = sig;
+          render(requests);
+          refreshQuota();
+        }
+        pollDownloadStatus();
+      })
+      .catch(function () { /* best-effort; keep the current view */ });
+  }
+
+  // Full refresh used on first load and whenever the overlay re-shows this view.
+  function refresh() {
+    refreshQuota();
+    apiGet('JellyCrowd/Requests/Mine?ts=' + Date.now())
+      .then(function (requests) {
+        lastSignature = signatureOf(requests);
+        render(requests);
+        pollDownloadStatus();
+      })
       .catch(function () { setMessage(t('error_generic')); });
   }
 
@@ -262,7 +292,7 @@
       if (statusTimer) {
         clearInterval(statusTimer);
       }
-      statusTimer = setInterval(pollDownloadStatus, STATUS_POLL_MS);
+      statusTimer = setInterval(tick, STATUS_POLL_MS);
 
       refresh();
     });

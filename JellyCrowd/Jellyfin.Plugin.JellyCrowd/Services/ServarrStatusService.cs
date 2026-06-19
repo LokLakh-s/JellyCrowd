@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
@@ -12,13 +14,18 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// <summary>
 /// Default <see cref="IServarrStatusService"/>: queries the Radarr and/or Sonarr queue once per call
 /// and matches entries back to approved requests (movies by TMDB id, episodes by TVDB id + season).
+/// Requests not in the queue are classified as missing/unreleased from the item itself, cached
+/// briefly so the fast UI poll does not hammer the *arr instances.
 /// </summary>
 public sealed class ServarrStatusService : IServarrStatusService
 {
+  private static readonly TimeSpan ItemStateTtl = TimeSpan.FromSeconds(60);
+
   private readonly IServarrClient _servarr;
   private readonly ITmdbClient _tmdb;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<ServarrStatusService> _logger;
+  private readonly ConcurrentDictionary<string, (DateTime At, string? State)> _itemStateCache = new(StringComparer.Ordinal);
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ServarrStatusService"/> class.
@@ -66,7 +73,68 @@ public sealed class ServarrStatusService : IServarrStatusService
       await AddSeriesStatusesAsync(config, shows, result, cancellationToken).ConfigureAwait(false);
     }
 
+    // Requests with no queue entry: report missing/unreleased/completed from the item itself.
+    var covered = new HashSet<Guid>(result.Select(r => r.RequestId));
+    foreach (var request in pending.Where(r => !covered.Contains(r.Id)))
+    {
+      var state = await GetItemStateAsync(config, request, cancellationToken).ConfigureAwait(false);
+      if (state is not null)
+      {
+        result.Add(new DownloadStatusDto { RequestId = request.Id, State = state, Percent = 0 });
+      }
+    }
+
     return result;
+  }
+
+  private async Task<string?> GetItemStateAsync(PluginConfiguration config, RequestRecord request, CancellationToken cancellationToken)
+  {
+    var key = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{request.MediaType}:{request.TmdbId}:{request.Season}:{request.Episode}");
+    if (_itemStateCache.TryGetValue(key, out var cached) && (DateTime.UtcNow - cached.At) < ItemStateTtl)
+    {
+      return cached.State;
+    }
+
+    string? state = null;
+    try
+    {
+      if (string.Equals(request.MediaType, "movie", StringComparison.Ordinal) && RadarrConfigured(config))
+      {
+        var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, request.TmdbId, cancellationToken).ConfigureAwait(false);
+        state = ServarrItemState.Movie(movie);
+      }
+      else if (string.Equals(request.MediaType, "tv", StringComparison.Ordinal) && SonarrConfigured(config))
+      {
+        state = await ResolveTvStateAsync(config, request, cancellationToken).ConfigureAwait(false);
+      }
+    }
+#pragma warning disable CA1031 // Best-effort: a failed lookup just yields no extra badge.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogDebug(ex, "Could not resolve the {Type} item state for TMDB {TmdbId}.", request.MediaType, request.TmdbId);
+    }
+
+    _itemStateCache[key] = (DateTime.UtcNow, state);
+    return state;
+  }
+
+  private async Task<string?> ResolveTvStateAsync(PluginConfiguration config, RequestRecord request, CancellationToken cancellationToken)
+  {
+    var tvdbId = await _tmdb.GetTvdbIdAsync(request.TmdbId, cancellationToken).ConfigureAwait(false);
+    if (tvdbId is not { } tvdb)
+    {
+      return null;
+    }
+
+    var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdb, cancellationToken).ConfigureAwait(false);
+    if (series?["id"] is not JsonValue idValue || !idValue.TryGetValue<int>(out var seriesId) || seriesId <= 0)
+    {
+      return null;
+    }
+
+    var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
+    return ServarrItemState.Episodes(episodesJson, request.Season, request.Episode, DateTime.UtcNow);
   }
 
   private async Task AddMovieStatusesAsync(PluginConfiguration config, List<RequestRecord> movies, List<DownloadStatusDto> result, CancellationToken cancellationToken)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
@@ -68,6 +69,36 @@ public class ServarrStatusServiceTests
 
     var dto = Assert.Single(result);
     Assert.Equal(10, dto.Percent); // least-advanced episode (sizeleft 90/100)
+  }
+
+  [Fact]
+  public async Task GetStatusesAsync_MovieNotInQueue_ReportsUnreleasedFromRadarr()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:7878", "rk", false, It.IsAny<CancellationToken>())).ReturnsAsync("[]");
+    servarr.Setup(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["hasFile"] = false, ["isAvailable"] = false });
+    var service = Create(servarr.Object, Mock.Of<ITmdbClient>(), ServarrConfig());
+
+    var requests = new[] { new RequestRecord { TmdbId = 603, MediaType = "movie", Status = RequestStatus.Approved } };
+    var dto = Assert.Single(await service.GetStatusesAsync(requests, CancellationToken.None));
+
+    Assert.Equal("unreleased", dto.State);
+  }
+
+  [Fact]
+  public async Task GetStatusesAsync_MovieNotInQueueButReleased_ReportsMissing()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:7878", "rk", false, It.IsAny<CancellationToken>())).ReturnsAsync("[]");
+    servarr.Setup(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["hasFile"] = false, ["isAvailable"] = true });
+    var service = Create(servarr.Object, Mock.Of<ITmdbClient>(), ServarrConfig());
+
+    var requests = new[] { new RequestRecord { TmdbId = 603, MediaType = "movie", Status = RequestStatus.Approved } };
+    var dto = Assert.Single(await service.GetStatusesAsync(requests, CancellationToken.None));
+
+    Assert.Equal("missing", dto.State);
   }
 
   [Fact]

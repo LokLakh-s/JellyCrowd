@@ -175,7 +175,9 @@
       downloading: 'dl_downloading',
       importing: 'dl_importing',
       completed: 'dl_completed',
-      warning: 'dl_warning'
+      warning: 'dl_warning',
+      missing: 'dl_missing',
+      unreleased: 'dl_unreleased'
     };
     return Object.prototype.hasOwnProperty.call(map, String(state).toLowerCase())
       ? map[String(state).toLowerCase()]

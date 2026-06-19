@@ -358,6 +358,8 @@
 .jellycrowd-dl-importing { background: #6c4ab6; color: #fff; }
 .jellycrowd-dl-completed { background: #2e7d32; color: #fff; }
 .jellycrowd-dl-warning { background: #c0392b; color: #fff; }
+.jellycrowd-dl-missing { background: #b58900; color: #fff; }
+.jellycrowd-dl-unreleased { background: #455a64; color: #fff; }
 
 .jellycrowd-request-poster {
   width: 2.6em;

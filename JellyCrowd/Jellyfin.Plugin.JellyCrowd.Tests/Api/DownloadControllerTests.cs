@@ -91,5 +91,11 @@ public class DownloadControllerTests
     public Task AddSeriesAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken) => Task.FromResult("[]");
+
+    public Task<JsonObject?> GetMovieByTmdbAsync(string baseUrl, string apiKey, int tmdbId, CancellationToken cancellationToken) => Task.FromResult<JsonObject?>(null);
+
+    public Task<JsonObject?> GetSeriesByTvdbAsync(string baseUrl, string apiKey, int tvdbId, CancellationToken cancellationToken) => Task.FromResult<JsonObject?>(null);
+
+    public Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken) => Task.FromResult("[]");
   }
 }

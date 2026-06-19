@@ -111,6 +111,24 @@ public sealed class ServarrClient : IServarrClient
     return GetStringAsync(baseUrl, apiKey, path, cancellationToken);
   }
 
+  /// <inheritdoc />
+  public async Task<JsonObject?> GetMovieByTmdbAsync(string baseUrl, string apiKey, int tmdbId, CancellationToken cancellationToken)
+  {
+    var json = await GetStringAsync(baseUrl, apiKey, "/movie?tmdbId=" + tmdbId.ToString(CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
+    return ParseObject(json);
+  }
+
+  /// <inheritdoc />
+  public async Task<JsonObject?> GetSeriesByTvdbAsync(string baseUrl, string apiKey, int tvdbId, CancellationToken cancellationToken)
+  {
+    var json = await GetStringAsync(baseUrl, apiKey, "/series?tvdbId=" + tvdbId.ToString(CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false);
+    return ParseObject(json);
+  }
+
+  /// <inheritdoc />
+  public Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken)
+    => GetStringAsync(baseUrl, apiKey, "/episode?seriesId=" + seriesId.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
   private static JsonObject? ParseObject(string json)
   {
     var node = JsonNode.Parse(json);

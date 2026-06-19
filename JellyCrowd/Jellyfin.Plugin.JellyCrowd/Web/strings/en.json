@@ -71,6 +71,8 @@
   "dl_importing": "Importing",
   "dl_completed": "Downloaded",
   "dl_warning": "Download issue",
+  "dl_missing": "Missing",
+  "dl_unreleased": "Unreleased",
   "admin_pending_title": "Pending requests",
   "admin_no_pending": "No pending requests.",
   "admin_no_requests": "No requests yet.",

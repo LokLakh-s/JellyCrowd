@@ -104,6 +104,10 @@ Le **menu déroulant « Download backend »** pilote les réglages affichés :
     interroge la file d'attente de Radarr/Sonarr (`/queue`) toutes les 5 s et affiche sur chaque demande
     approuvée son état réel — *En file d'attente / Téléchargement %/ETA / Import en cours / Téléchargé /
     Problème*. Les films sont rapprochés par identifiant TMDB, les épisodes par TVDB + saison/épisode.
+    Pour une demande approuvée **pas encore en téléchargement**, l'état est déduit de l'item lui-même :
+    **Pas encore sorti** (non disponible / non diffusé) ou **Manquant** (sorti/diffusé mais sans fichier).
+    Ces états-là sont mis en cache ~60 s côté serveur (ils changent lentement). La liste se met aussi à
+    jour seule quand une demande passe à *Disponible*, sans recharger la page.
 
 Idempotence : une requête n'est dispatchée qu'une seule fois (horodatage `DispatchedAt`). Une tâche
 planifiée **« Jelly Crowd: dispatch downloads »** (toutes les 15 min) rattrape les requêtes dont la date
