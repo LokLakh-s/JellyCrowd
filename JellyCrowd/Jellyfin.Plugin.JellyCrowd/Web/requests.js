@@ -215,7 +215,9 @@
   }
 
   function pollDownloadStatus() {
-    apiGet('JellyCrowd/Requests/Mine/DownloadStatus')
+    // Cache-buster: ApiClient/the browser would otherwise serve a cached GET, freezing the
+    // progress until a full page reload.
+    apiGet('JellyCrowd/Requests/Mine/DownloadStatus?ts=' + Date.now())
       .then(applyDownloadStatuses)
       .catch(function () { /* best-effort */ });
   }
