@@ -9,8 +9,11 @@ Jellyfin, l'équivalent d'Overseerr :
 
 1. **Catalogue de découverte TMDB** — parcourir/chercher films & séries, y compris ce qui n'est pas encore
    dans la bibliothèque, avec un marqueur « déjà disponible ».
-2. **Requêtes utilisateur** — un user demande un média ; la requête part dans une **file d'attente admin**
-   (l'admin approuve/refuse/satisfait). Pas d'intégration Radarr/Sonarr en v1.
+2. **Requêtes utilisateur** — un user demande un média ; la requête passe par un **mode d'approbation**
+   (manuel : file admin ; ou auto-approbation, avec mise en attente si quota dépassé). Le **fulfillment**
+   se fait via des **backends de téléchargement** configurables : **Webhook**, **Radarr/Sonarr**, ou
+   **script local** — avec auto-planification des sorties futures et **statut de DL en direct** (queue
+   Radarr/Sonarr) + états *Missing/Unreleased*. (Granularité épisode ; watchlists ; calendrier ; recos.)
 3. **Quotas disque par utilisateur** — chaque user a un quota (en octets) configurable ; ses requêtes
    satisfaites consomment son quota. Au-delà, nouvelles requêtes bloquées.
 
@@ -72,9 +75,14 @@ Racine : `CLAUDE.md`, `ROADMAP.md`, `README.md`, `LICENSE`, `build.yaml` (manife
 ## Build / test
 
 ```powershell
-dotnet build -c Release          # nécessite le .NET 9 SDK installé
-dotnet test  -c Release          # exécute la suite xUnit (même commande qu'en CI)
+dotnet build -c Release          # nécessite un SDK capable de cibler net9.0
+DOTNET_ROLL_FORWARD=Major dotnet test -c Release --no-build   # voir note ci-dessous
+node --test tests/js/*.test.js   # suite JS (logique pure des Web/*.lib.js)
 ```
+
+> ⚠️ **Local** : si seuls les runtimes ASP.NET **net8/net10** sont installés (pas net9), le testhost net9
+> ne démarre pas → préfixer par `DOTNET_ROLL_FORWARD=Major`. En CI (runner), `setup-dotnet` fournit le SDK
+> net9 complet, donc `dotnet test` direct suffit.
 
 Le `.dll` produit (`Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/`) se copie dans le data path Jellyfin :
 `<jellyfin-data>/plugins/JellyCrowd_<version>/`. Redémarrer Jellyfin → le plugin apparaît dans
@@ -145,9 +153,26 @@ suites (.NET + JS). Tout nouveau bouton/interaction expose sa logique dans un `*
   - `[skip release]` → pas de release
   Le workflow estampille la version dans `Directory.Build.props` + `build.yaml`, commit `chore(release): vX.Y.Z [skip ci]`,
   pose le tag `vX.Y.Z`, et publie une **Release GitHub** avec le `.zip` du plugin + son `.md5`.
-- Pas de CD vers un dépôt plugin installable pour l'instant (prévu M5 si besoin).
-- ⚠️ La Release pousse un commit sur `main` : si une **protection de branche** est activée, autoriser
-  `github-actions[bot]` à pousser (ou utiliser un PAT dédié).
+- Manifeste de dépôt installable **à la racine du monorepo** (`manifest.json`, 1 entrée/plugin par guid,
+  3 versions max), mis à jour automatiquement par la Release.
+- ⚠️ La Release pousse un commit sur `main` (`chore(release): … [skip ci]`) : **toujours `git fetch` +
+  rebase avant de re-pousser**. Si une **protection de branche** est active, autoriser `github-actions[bot]`.
+
+### Runner self-hosted (« JellyCrowd »)
+
+Les workflows tournent sur un **runner self-hosted** pour économiser les minutes GitHub : `runs-on: [self-hosted]`
+(le label `self-hosted` suffit ; le *nom* du runner n'est pas un label).
+
+- **SDK non-root** : `setup-dotnet` installe par défaut dans `/usr/share/dotnet` → **Permission denied** sur
+  un runner non-root. Fix en place : une étape `Configure .NET install dir` exporte
+  `DOTNET_INSTALL_DIR=$RUNNER_TOOL_CACHE/dotnet` dans `$GITHUB_ENV` (inscriptible + **persistant**). Ne pas
+  mettre ça en `env:` de job : le contexte `runner` y est interdit.
+- **Outils hôte requis** : `zip` (build + release) et `jq` (release) doivent être installés sur l'hôte
+  (`apt-get install -y zip jq`). `.NET`/Node sont fournis par `setup-dotnet`/`setup-node`.
+- **Hygiène disque** : pas d'`actions/cache` (le `~/.nuget` et le tool-cache du runner persistent) ; étape de
+  **cleanup `if: always()`** qui supprime `bin/obj/artifacts` et purge `dotnet nuget locals http-cache temp` ;
+  rétention des artefacts CI = 7 j. `actions/checkout` nettoie déjà le workspace à chaque run.
+- Si un job reste **`queued`** : le runner est probablement **offline** — le démarrer (`sudo ./svc.sh start`).
 
 ## Contraintes clés (à ne pas oublier)
 
@@ -167,7 +192,7 @@ suites (.NET + JS). Tout nouveau bouton/interaction expose sa logique dans un `*
 
 | Sujet | Choix |
 |-------|-------|
-| Fulfillment | File d'attente admin (pas de Radarr/Sonarr en v1) |
+| Fulfillment | Mode d'approbation (manuel/auto) + backends de DL : Webhook, Radarr/Sonarr, script local |
 | Catalogue | TMDB (découverte) + croisement biblio Jellyfin |
 | UI | Pages hébergées par Jelly Crowd (overlay à onglets via `header.js`), injectées par File Transformation. Plugin Pages retiré (1 seule dépendance). |
 | Version | Jellyfin 10.11.x / .NET 9 |
