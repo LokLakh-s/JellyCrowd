@@ -269,6 +269,7 @@ Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux adm
 
 - ☐ **Cloche** dans le bandeau, **juste à gauche du quota**, avec **pastille rouge + compteur** (style Facebook).
 - ☐ Menu déroulant = **journal de notifications** de l'utilisateur, **effaçable** (clear all / par item).
+  - **Borné** : plafond par utilisateur (ex. 100 dernières) + TTL (ex. 30 j) pour éviter une croissance illimitée du store.
 - ☐ Notifier le demandeur sur **Approved / Denied / Available / Échec**.
 - ☐ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
 
@@ -278,6 +279,7 @@ Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
 
 - ☐ Onglet **Diagnostic** : vérifie en un clic la **clé TMDB**, la présence de **File Transformation**, la **joignabilité du backend** (Radarr/Sonarr/webhook/script), l'**indexer**, et l'**accès en écriture** au dossier de données.
 - ☐ Surfacer chaque échec avec un message clair + piste de résolution.
+- ☐ **Empreinte disque du plugin** : afficher la taille de chaque store (`requests.json`, `watchlist.json`, logs, notifs, stats) + total, avec une **estimation de croissance** (par utilisateur / par mois).
 
 ### M19 — Robustesse données & sécurité  ☐ *(prévu : `v0.23.0`)*
 
@@ -335,6 +337,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 ### M26 — Observabilité & canaux de version  ☐ *(prévu : `v0.30.0`)*
 
 - ☐ **Logging global** : générer des logs pour tout (requêtes, users, admin, internals, infos).
+- ☐ **Rotation & rétention des logs** : taille max (ex. 10 Mo × N fichiers) + âge max + purge — c'est le **principal vecteur de croissance** ; jamais de log non borné.
 - ☐ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres**.
 - ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release).
 
@@ -344,7 +347,32 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
 - ☐ **Responsive / mobile + accessibilité** de l'overlay (Jellyfin très utilisé sur mobile/TV : tailles tactiles, nav clavier, ARIA).
 - ☐ **Doc utilisateur** (*Getting started* avec captures), en plus de `CONFIGURATION.md` (admin).
+- ☐ **Tests e2e & non-régression** (voir stratégie ci-dessous).
 - ☐ Passe de **polish** finale, puis **release `v1.0.0`** (commit `[major]`).
+
+#### Principe transversal — budget de stockage & rétention
+
+> Toute fonctionnalité qui **produit de la donnée** (logs, notifs, commentaires, stats) doit livrer
+> avec : un **plafond** (taille/nombre), une **rétention** (âge max) et un **nettoyage** automatique.
+> Aucun store non borné. L'empreinte est exposée dans le **Diagnostic** (M18).
+>
+> Ordres de grandeur (référence, ~50 utilisateurs actifs) :
+>
+> - `requests.json` / `watchlist.json` : ~0,5 Ko/entrée → **quelques Mo/an**, négligeable.
+> - **Notifications** : bornées (plafond + TTL) → quelques Mo, stable.
+> - **Logs** : **principal risque** (10 à 100+ Mo/mois si verbeux) → rotation + taille/âge max obligatoires.
+> - **Stats (2.0)** : stocker des **agrégats** (par user / bibliothèque / jour), **jamais** les ticks bruts → ~10 Mo/an borné.
+
+#### Stratégie de tests e2e & non-régression
+
+> En plus des **tests unitaires** existants (.NET logique pure + contrôleurs avec fakes ; JS pur via `node:test`) :
+>
+> - ☐ **Tests de contrat / parsers sur fixtures réelles** : figer des réponses TMDB/Radarr/Sonarr (JSON) et vérifier les parsers contre elles (garde-fou anti-dérive d'API).
+> - ☐ **Tests d'intégration HTTP** des contrôleurs avec un **serveur mock** (WireMock.Net) pour TMDB/Radarr/Sonarr → valide le flux requête→dispatch→statut sans Jellyfin live.
+> - ☐ **Tests DOM (jsdom)** pour la logique de rendu critique (`header.js`, badges de statut, application des statuts de DL).
+> - ☐ **Snapshot/golden** des payloads générés (embed Discord, ajout Servarr) pour détecter toute régression de format.
+> - ☐ *(Optionnel, nightly)* **smoke e2e Playwright** sur un `docker-compose` (Jellyfin + plugin + *arr mockés*).
+> - ☐ **Checklist de régression manuelle** documentée pour les vérifs live impossibles à automatiser (chaîne *arr réelle, RDT).
 
 ---
 
