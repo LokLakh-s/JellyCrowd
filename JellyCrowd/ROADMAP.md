@@ -239,8 +239,83 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 
 ---
 
-## Hors périmètre / idées futures
+## Feuille de route détaillée — vers la 1.0.0 puis la 2.0.0
 
-- Mapping d'identifiants avancé TMDB↔TVDB côté Sonarr si les lookups natifs ne suffisent pas.
-- Vue calendrier par semaine/agenda ; calendrier des **épisodes** (pas seulement premières de séries).
-- Intégration directe d'un lecteur de téléchargement supplémentaire non couvert par M11.
+> Issu des notes manuelles de Victor, mis en forme en étapes de dev.
+> Les tags de version sont des **estimations** : chaque milestone = un bump **mineur** (`[minor]`) ;
+> la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble M15→M21 livré.
+> Version publiée actuelle : **`v0.18.x`**.
+
+### M15 — Finition du shell & navigation  ☐ *(prévu : `v0.19.0`)*
+
+Objectif : que les écrans du plugin se fondent dans l'UI native de Jellyfin.
+
+- ☐ Logo JellyCrowd **plus grand** dans le titre de chaque onglet.
+- ☐ Liens d'onglets (Catalog / Calendar / My requests / My media) plus **ressemblants aux liens natifs** du bandeau Jellyfin, et **centrés**.
+- ☐ Remplacer la **croix** de fermeture par une **flèche de retour** cohérente avec Jellyfin, **du même côté**.
+- ☐ Afficher le **badge utilisateur** dans le bandeau des écrans du plugin (là où se trouve la croix aujourd'hui).
+
+### M16 — « Mes médias » enrichi & liens cliquables  ☐ *(prévu : `v0.20.0`)*
+
+Objectif : rendre *My media* informatif et navigable.
+
+- ☐ Afficher la **taille** de chaque média dans *My media* + y ajouter la **barre de quota**.
+- ☐ Afficher le **temps restant avant suppression** sur les médias en *Deletion requested*.
+- ☐ Rendre **cliquable** chaque média de *My media* et chaque requête *Available* → ouvre le média dans Jellyfin.
+
+### M17 — Cycle de vie des requêtes  ☐ *(prévu : `v0.21.0`)*
+
+Objectif : plus de contrôle et de lisibilité côté utilisateur.
+
+- ☐ Tant qu'une requête est **Approved**, l'utilisateur peut la **supprimer** — en s'assurant qu'elle n'est plus traitée par Prowlarr/Sonarr/Radarr + RDT (annulation propagée en amont).
+- ☐ Afficher sur chaque requête la **date/heure de la demande** et la **date/heure de mise à disposition** dans Jellyfin.
+- ☐ Quand une requête est **Approved + Downloaded** (téléchargée, en attente de scan Jellyfin), refléter un statut « disponible dans < 2 min » (affiner si la durée exacte est connue).
+
+### M18 — Propriété partagée des médias  ☐ *(prévu : `v0.22.0`)*
+
+Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec quota et suppression cohérents.
+
+- ☐ Un utilisateur peut **s'ajouter un média déjà disponible** (déjà demandé par un autre) à ses médias, avec **avertissement** qu'il compte dans son quota.
+- ☐ Modèle de **propriété multi-utilisateur** d'un même média.
+- ☐ Sur demande de suppression par un propriétaire : retirer **son** appartenance en fin de délai + **décrémenter son quota** ; le média n'est **réellement supprimé** que s'il n'appartient **plus à personne** à la fin du délai.
+- ☐ Pouvoir **annuler une demande de suppression** tant qu'on est à **plus d'une minute** de l'échéance ; le quota n'est pas décrémenté tant que le média « appartient » encore.
+
+### M19 — Intégration téléchargement avancée  ☐ *(prévu : `v0.23.0`)*
+
+- ☐ **Bug à investiguer** : une demande de **saison** arrive chez Prowlarr avec des champs **vides** (`Term: []`, `Season / Episode: []`) → la recherche ne cible rien. Vérifier le payload envoyé par Sonarr + le monitoring de saison.
+  - Log observé : `Searching indexer(s): [YggReborn (API)] for Term: [] for Season / Episode:[], Offset: 0, Limit: 100, Categories: [5000, 5010, …]`
+- ☐ Si possible, **poller la progression depuis rdt-client** (plutôt que Radarr/Sonarr) pour un suivi plus **précis et temps réel**.
+
+### M20 — Catalogue & Calendrier  ☐ *(prévu : `v0.24.0`)*
+
+- ☐ Bouton **« Voir plus → »** sur chaque sous-section de *Browse* (For you, Netflix, Apple TV, …) pour n'afficher que les médias de cette sous-section.
+- ☐ Le **calendrier** affiche aussi les **épisodes de séries** (au-delà des séries suivies déjà gérées).
+
+### M21 — Observabilité & canaux de version  ☐ *(prévu : `v0.25.0`)*
+
+- ☐ **Logging global** : générer des logs pour tout (requêtes, users, admin, internals, infos).
+- ☐ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres**.
+- ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release).
+
+### 🏁 v1.0.0 — Stabilisation
+
+- ☐ Une fois M15→M21 livrés : passe de **polish**, mise à jour doc (`CONFIGURATION.md` / `README.md`), puis **release `v1.0.0`** (commit `[major]`).
+
+---
+
+## Au-delà de la 1.0.0 — pan « JellyStats-like »  *(prévu : `v2.0.0`)*
+
+### M22 — Statistiques utilisateur  ☐
+
+- ☐ Recensement par utilisateur : nb de requêtes, médias vus **en entier**, films / épisodes / séries regardés, **watchtime** (7 / 30 / 90 jours + total), watchtime **par bibliothèque** accessible, etc.
+
+### M23 — Dashboard utilisateur  ☐
+
+- ☐ Dashboard avec ses stats et son **classement** (pour les métriques pertinentes).
+- ☐ Onglet **graphes** : évolution dans le temps (échelle réglable, plusieurs courbes — regroupées ou séparées selon la pertinence).
+
+### M24 — Vue admin enrichie  ☐
+
+- ☐ Afficher des **informations admin** sur chaque média de Jellyfin.
+
+> Le passage à **`v2.0.0`** (commit `[major]`) marque l'ajout du pan statistiques.
