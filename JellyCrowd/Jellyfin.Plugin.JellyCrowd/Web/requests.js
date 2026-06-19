@@ -11,7 +11,7 @@
   var strings = {};
   var cfgLang = 'auto';
   var statusTimer = null;        // live status polling interval
-  var STATUS_POLL_MS = 5000;
+  var STATUS_POLL_MS = 3000;
   var lastSignature = null;      // fingerprint of the rendered list, to re-render only on change
 
   function shortLang() {
