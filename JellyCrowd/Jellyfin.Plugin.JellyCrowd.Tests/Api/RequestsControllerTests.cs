@@ -449,6 +449,18 @@ public class RequestsControllerTests
       return Task.FromResult(record);
     }
 
+    public Task<RequestRecord?> SetDispatchErrorAsync(Guid id, string? error, DateTime whenUtc, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is not null)
+      {
+        record.DispatchError = error;
+        record.DispatchAttemptedAt = whenUtc;
+      }
+
+      return Task.FromResult(record);
+    }
+
     public Task<IReadOnlyList<RequestRecord>> GetDueForDispatchAsync(DateTime nowUtc, CancellationToken cancellationToken)
       => Task.FromResult<IReadOnlyList<RequestRecord>>(_items.Where(r =>
         r.Status == RequestStatus.Approved && r.DispatchedAt is null

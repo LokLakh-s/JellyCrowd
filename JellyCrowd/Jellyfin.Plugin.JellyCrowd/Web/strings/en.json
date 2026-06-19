@@ -75,6 +75,7 @@
   "dl_unreleased": "Unreleased",
   "admin_pending_title": "Pending requests",
   "admin_no_pending": "No pending requests.",
+  "dispatch_failed": "Dispatch failed",
   "admin_no_requests": "No requests yet.",
   "admin_no_requests_filtered": "No requests with this status.",
   "admin_filter_status": "Filter by status",

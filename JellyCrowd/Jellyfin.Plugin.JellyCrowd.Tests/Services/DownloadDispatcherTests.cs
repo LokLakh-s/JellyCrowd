@@ -82,7 +82,7 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   [Fact]
-  public async Task DispatchAsync_ClientThrows_NotStamped()
+  public async Task DispatchAsync_ClientThrows_NotStamped_RecordsError()
   {
     _client.Throw = true;
     var request = await SeedApprovedAsync();
@@ -92,6 +92,24 @@ public sealed class DownloadDispatcherTests : IDisposable
     Assert.False(dispatched);
     var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
     Assert.Null(stored!.DispatchedAt);
+    Assert.Equal("boom", stored.DispatchError);
+    Assert.NotNull(stored.DispatchAttemptedAt);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_SuccessAfterFailure_ClearsError()
+  {
+    _client.Throw = true;
+    var request = await SeedApprovedAsync();
+    await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+
+    _client.Throw = false;
+    var dispatched = await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+
+    Assert.True(dispatched);
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.NotNull(stored!.DispatchedAt);
+    Assert.Null(stored.DispatchError);
   }
 
   [Fact]

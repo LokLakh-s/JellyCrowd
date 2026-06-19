@@ -319,6 +319,32 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       }
 
       record.DispatchedAt = whenUtc;
+      record.DispatchAttemptedAt = whenUtc;
+      record.DispatchError = null; // success clears any previous failure
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
+  public async Task<RequestRecord?> SetDispatchErrorAsync(Guid id, string? error, DateTime whenUtc, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null)
+      {
+        return null;
+      }
+
+      record.DispatchError = error;
+      record.DispatchAttemptedAt = whenUtc;
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }
