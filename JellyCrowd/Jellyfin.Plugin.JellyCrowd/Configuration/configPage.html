@@ -135,6 +135,38 @@
               <div class="fieldDescription">Posts request events to this Discord channel. Leave empty to disable.</div>
             </div>
 
+            <details class="jcDiscordCustom">
+              <summary id="jcDiscordCustomSummary">Discord — events, colors &amp; content</summary>
+
+              <h3 class="fieldDescription" id="jcDiscordEventsTitle" style="margin-top:0.6em">Trigger on events</h3>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordNotifyCreated" type="checkbox" is="emby-checkbox" /><span id="lblDiscordCreated">Created</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordNotifyApproved" type="checkbox" is="emby-checkbox" /><span id="lblDiscordApproved">Approved</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordNotifyDenied" type="checkbox" is="emby-checkbox" /><span id="lblDiscordDenied">Denied</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordNotifyAvailable" type="checkbox" is="emby-checkbox" /><span id="lblDiscordAvailable">Available</span></label></div>
+
+              <h3 class="fieldDescription" id="jcDiscordColorsTitle">Embed color per event</h3>
+              <div class="jcColorRow">
+                <label><span id="lblColorCreated">Created</span><input id="DiscordColorCreated" type="color" /></label>
+                <label><span id="lblColorApproved">Approved</span><input id="DiscordColorApproved" type="color" /></label>
+                <label><span id="lblColorDenied">Denied</span><input id="DiscordColorDenied" type="color" /></label>
+                <label><span id="lblColorAvailable">Available</span><input id="DiscordColorAvailable" type="color" /></label>
+              </div>
+
+              <h3 class="fieldDescription" id="jcDiscordContentTitle">Embed content</h3>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordShowPoster" type="checkbox" is="emby-checkbox" /><span id="lblShowPoster">Poster thumbnail</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordShowSynopsis" type="checkbox" is="emby-checkbox" /><span id="lblShowSynopsis">Synopsis</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordShowRequestedBy" type="checkbox" is="emby-checkbox" /><span id="lblShowRequestedBy">"Requested by" field</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordShowStatus" type="checkbox" is="emby-checkbox" /><span id="lblShowStatus">"Status" field</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordShowSeason" type="checkbox" is="emby-checkbox" /><span id="lblShowSeason">"Season" field</span></label></div>
+              <div class="checkboxContainer"><label class="emby-checkbox-label"><input id="DiscordShowLink" type="checkbox" is="emby-checkbox" /><span id="lblShowLink">Link title to TMDB</span></label></div>
+
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="DiscordMention" id="lblDiscordMention">Mention / ping (optional)</label>
+                <input id="DiscordMention" type="text" is="emby-input" />
+                <div class="fieldDescription" id="descDiscordMention">Posted above the embed, e.g. <code>&lt;@&amp;ROLE_ID&gt;</code> to ping a role or <code>@everyone</code>.</div>
+              </div>
+            </details>
+
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="SmtpHost">SMTP host</label>
               <input id="SmtpHost" type="text" is="emby-input" />
@@ -616,6 +648,21 @@ Content-Type: application/json
             document.querySelector('#RequestPeriod').value = config.RequestPeriod || 'Week';
             document.querySelector('#DeletionRetentionHours').value = config.DeletionRetentionHours != null ? config.DeletionRetentionHours : 24;
             document.querySelector('#DiscordWebhookUrl').value = config.DiscordWebhookUrl || '';
+            document.querySelector('#DiscordNotifyCreated').checked = config.DiscordNotifyCreated !== false;
+            document.querySelector('#DiscordNotifyApproved').checked = config.DiscordNotifyApproved !== false;
+            document.querySelector('#DiscordNotifyDenied').checked = config.DiscordNotifyDenied !== false;
+            document.querySelector('#DiscordNotifyAvailable').checked = config.DiscordNotifyAvailable !== false;
+            document.querySelector('#DiscordColorCreated').value = config.DiscordColorCreated || '#3B82F6';
+            document.querySelector('#DiscordColorApproved').value = config.DiscordColorApproved || '#6366F1';
+            document.querySelector('#DiscordColorDenied').value = config.DiscordColorDenied || '#EF4444';
+            document.querySelector('#DiscordColorAvailable').value = config.DiscordColorAvailable || '#10B981';
+            document.querySelector('#DiscordShowPoster').checked = config.DiscordShowPoster !== false;
+            document.querySelector('#DiscordShowSynopsis').checked = config.DiscordShowSynopsis !== false;
+            document.querySelector('#DiscordShowRequestedBy').checked = config.DiscordShowRequestedBy !== false;
+            document.querySelector('#DiscordShowStatus').checked = config.DiscordShowStatus !== false;
+            document.querySelector('#DiscordShowSeason').checked = config.DiscordShowSeason !== false;
+            document.querySelector('#DiscordShowLink').checked = config.DiscordShowLink !== false;
+            document.querySelector('#DiscordMention').value = config.DiscordMention || '';
             document.querySelector('#SmtpHost').value = config.SmtpHost || '';
             document.querySelector('#SmtpPort').value = config.SmtpPort || 587;
             document.querySelector('#SmtpUseSsl').checked = !!config.SmtpUseSsl;
@@ -674,6 +721,21 @@ Content-Type: application/json
             config.RequestPeriod = document.querySelector('#RequestPeriod').value;
             config.DeletionRetentionHours = parseInt(document.querySelector('#DeletionRetentionHours').value || '0', 10);
             config.DiscordWebhookUrl = document.querySelector('#DiscordWebhookUrl').value;
+            config.DiscordNotifyCreated = document.querySelector('#DiscordNotifyCreated').checked;
+            config.DiscordNotifyApproved = document.querySelector('#DiscordNotifyApproved').checked;
+            config.DiscordNotifyDenied = document.querySelector('#DiscordNotifyDenied').checked;
+            config.DiscordNotifyAvailable = document.querySelector('#DiscordNotifyAvailable').checked;
+            config.DiscordColorCreated = document.querySelector('#DiscordColorCreated').value;
+            config.DiscordColorApproved = document.querySelector('#DiscordColorApproved').value;
+            config.DiscordColorDenied = document.querySelector('#DiscordColorDenied').value;
+            config.DiscordColorAvailable = document.querySelector('#DiscordColorAvailable').value;
+            config.DiscordShowPoster = document.querySelector('#DiscordShowPoster').checked;
+            config.DiscordShowSynopsis = document.querySelector('#DiscordShowSynopsis').checked;
+            config.DiscordShowRequestedBy = document.querySelector('#DiscordShowRequestedBy').checked;
+            config.DiscordShowStatus = document.querySelector('#DiscordShowStatus').checked;
+            config.DiscordShowSeason = document.querySelector('#DiscordShowSeason').checked;
+            config.DiscordShowLink = document.querySelector('#DiscordShowLink').checked;
+            config.DiscordMention = document.querySelector('#DiscordMention').value;
             config.SmtpHost = document.querySelector('#SmtpHost').value;
             config.SmtpPort = parseInt(document.querySelector('#SmtpPort').value || '587', 10);
             config.SmtpUseSsl = document.querySelector('#SmtpUseSsl').checked;
