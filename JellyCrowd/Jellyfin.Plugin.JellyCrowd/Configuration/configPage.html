@@ -385,8 +385,18 @@ Content-Type: application/json
 
         <div id="jcPaneRequests" class="jcTabPane" style="display:none">
           <div class="verticalSection">
-            <h2 id="jcAdminPendingTitle" class="sectionTitle">Pending requests</h2>
+            <h2 id="jcAdminPendingTitle" class="sectionTitle">Requests</h2>
             <p id="jcAdminCreateHint" class="fieldDescription">To request on behalf of a user, open a title in the catalog and use the admin "Request on behalf of" selector.</p>
+            <div class="selectContainer" style="max-width:18em">
+              <label class="selectLabel" for="jcAdminStatusFilter" id="jcAdminFilterLabel">Filter by status</label>
+              <select id="jcAdminStatusFilter" is="emby-select" class="emby-select">
+                <option value="all">All</option>
+                <option value="0">Pending</option>
+                <option value="1">Approved</option>
+                <option value="3">Available</option>
+                <option value="2">Denied</option>
+              </select>
+            </div>
             <p id="jcAdminPendingEmpty" class="fieldDescription" hidden></p>
             <div id="jcAdminPending"></div>
           </div>
@@ -761,6 +771,13 @@ Content-Type: application/json
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
           document.querySelector('#jcAdminPendingTitle').textContent = t('tab_requests');
           document.querySelector('#jcAdminCreateHint').textContent = t('admin_create_hint');
+          document.querySelector('#jcAdminFilterLabel').textContent = t('admin_filter_status');
+          var sf = document.querySelector('#jcAdminStatusFilter');
+          sf.options[0].textContent = t('admin_filter_all');
+          sf.options[1].textContent = t('status_pending');
+          sf.options[2].textContent = t('status_approved');
+          sf.options[3].textContent = t('status_available');
+          sf.options[4].textContent = t('status_denied');
         }
 
         function decide(id, action) {
@@ -794,8 +811,18 @@ Content-Type: application/json
             .catch(function () { /* ignore */ });
         }
 
+        var lastRequests = [];
+
         function render(requests) {
-          var all = (requests || []).slice();
+          if (requests) {
+            lastRequests = requests;
+          }
+
+          var filterEl = document.querySelector('#jcAdminStatusFilter');
+          var filter = filterEl ? filterEl.value : 'all';
+          var all = lastRequests.slice().filter(function (r) {
+            return filter === 'all' || statusToInt(r.Status) === parseInt(filter, 10);
+          });
           if (window.JellyCrowdLib) {
             all.sort(function (a, b) { return window.JellyCrowdLib.statusRank(a.Status) - window.JellyCrowdLib.statusRank(b.Status); });
           }
@@ -805,7 +832,7 @@ Content-Type: application/json
           container.innerHTML = '';
 
           if (all.length === 0) {
-            empty.textContent = t('admin_no_requests');
+            empty.textContent = lastRequests.length === 0 ? t('admin_no_requests') : t('admin_no_requests_filtered');
             empty.hidden = false;
             return;
           }
@@ -920,6 +947,8 @@ Content-Type: application/json
             .then(render)
             .catch(function () { /* ignore */ });
         }
+
+        document.querySelector('#jcAdminStatusFilter').addEventListener('change', function () { render(); });
 
         document.querySelector('#JellyCrowdConfigPage').addEventListener('pageshow', function () {
           loadStrings().then(ensureLib).then(loadUsers).then(function () {
