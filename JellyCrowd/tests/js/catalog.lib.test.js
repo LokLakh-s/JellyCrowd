@@ -166,3 +166,10 @@ test('downloadStateKey maps known queue states and ignores unknowns', () => {
   assert.strictEqual(lib.downloadStateKey('unreleased'), 'dl_unreleased');
   assert.strictEqual(lib.downloadStateKey('bogus'), '');
 });
+
+test('jellyfinDetailsHash builds the details hash, with optional serverId', () => {
+  assert.strictEqual(lib.jellyfinDetailsHash('ABC'), '#/details?id=ABC');
+  assert.strictEqual(lib.jellyfinDetailsHash('ABC', 'SRV'), '#/details?id=ABC&serverId=SRV');
+  assert.strictEqual(lib.jellyfinDetailsHash(''), '');
+  assert.strictEqual(lib.jellyfinDetailsHash(null), '');
+});

@@ -25,6 +25,15 @@
     return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key;
   }
 
+  // Navigate to a library item's Jellyfin details page (overlay auto-closes on hashchange).
+  function openInJellyfin(itemId) {
+    var serverId = (window.ApiClient && typeof window.ApiClient.serverId === 'function') ? window.ApiClient.serverId() : '';
+    var hash = lib.jellyfinDetailsHash(itemId, serverId);
+    if (hash) {
+      window.location.hash = hash;
+    }
+  }
+
   function pluginUrl(path) {
     if (window.ApiClient && typeof window.ApiClient.getUrl === 'function') {
       return window.ApiClient.getUrl(path);
@@ -97,6 +106,11 @@
     var main = document.createElement('div');
     main.className = 'jellycrowd-request-main';
     main.textContent = lib.formatTitle(request) + (request.Season ? ' · S' + request.Season : '');
+    if (request.JellyfinItemId) {
+      main.classList.add('jellycrowd-link');
+      main.title = t('open_in_jellyfin');
+      main.addEventListener('click', function () { openInJellyfin(request.JellyfinItemId); });
+    }
     row.appendChild(main);
 
     if (request.DeletionRequestedAt) {

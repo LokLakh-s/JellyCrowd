@@ -184,6 +184,19 @@
       : '';
   }
 
+  // Build the Jellyfin web details-page hash for a library item, e.g. "#/details?id=ABC&serverId=XYZ".
+  // Returns '' when no item id is given. serverId is optional.
+  function jellyfinDetailsHash(itemId, serverId) {
+    if (!itemId) {
+      return '';
+    }
+    var hash = '#/details?id=' + encodeURIComponent(itemId);
+    if (serverId) {
+      hash += '&serverId=' + encodeURIComponent(serverId);
+    }
+    return hash;
+  }
+
   // Quota fill colour, grading from green (empty) through yellow (half) to red (full).
   // Interpolates the HSL hue 120 -> 0 across 0..100%.
   function quotaColor(percent) {
@@ -205,6 +218,7 @@
     statusLabelKey: statusLabelKey,
     statusRank: statusRank,
     downloadStateKey: downloadStateKey,
+    jellyfinDetailsHash: jellyfinDetailsHash,
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,

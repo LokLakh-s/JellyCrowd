@@ -28,6 +28,15 @@
     return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key;
   }
 
+  // Navigate to a library item's Jellyfin details page (overlay auto-closes on hashchange).
+  function openInJellyfin(itemId) {
+    var serverId = (window.ApiClient && typeof window.ApiClient.serverId === 'function') ? window.ApiClient.serverId() : '';
+    var hash = lib.jellyfinDetailsHash(itemId, serverId);
+    if (hash) {
+      window.location.hash = hash;
+    }
+  }
+
   function pluginUrl(path) {
     if (window.ApiClient && typeof window.ApiClient.getUrl === 'function') {
       return window.ApiClient.getUrl(path);
@@ -102,6 +111,13 @@
     main.textContent = lib.formatTitle(request)
       + (request.Season ? ' · S' + request.Season : '')
       + (request.Episode ? 'E' + request.Episode : '');
+    // Available titles deep-link to their Jellyfin details page (the overlay closes on hashchange).
+    var available = (request.Status === 3 || request.Status === 'Available');
+    if (available && request.JellyfinItemId) {
+      main.classList.add('jellycrowd-link');
+      main.title = t('open_in_jellyfin');
+      main.addEventListener('click', function () { openInJellyfin(request.JellyfinItemId); });
+    }
     row.appendChild(main);
 
     var status = document.createElement('span');
