@@ -239,14 +239,57 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 
 ---
 
-## Feuille de route détaillée — vers la 1.0.0 puis la 2.0.0
+## Feuille de route détaillée — vers la 1.0.0, puis 2.0.0 / 3.0.0
 
-> Issu des notes manuelles de Victor, mis en forme en étapes de dev.
-> Les tags de version sont des **estimations** : chaque milestone = un bump **mineur** (`[minor]`) ;
-> la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble M15→M21 livré.
-> Version publiée actuelle : **`v0.18.x`**.
+> Issu des notes manuelles de Victor + brainstorm, mis en forme en étapes de dev.
+> Tags de version = **estimations** : chaque milestone = un bump **mineur** (`[minor]`) ;
+> la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M26** livré.
+> Version publiée actuelle : **`v0.18.x`**. Milestones ordonnés par **priorité** (valeur + déblocage).
 
-### M15 — Finition du shell & navigation  ☐ *(prévu : `v0.19.0`)*
+### M15 — Téléchargement : correctifs & échecs  ☐ *(prévu : `v0.19.0`)*
+
+Objectif : fiabiliser la chaîne de fulfillment (bug bloquant en tête).
+
+- ☐ **Bug bloquant** : une demande de **saison** arrive chez Prowlarr avec des champs **vides** (`Term: []`, `Season / Episode: []`) → la recherche ne cible rien. Vérifier le payload envoyé par Sonarr + le monitoring de saison.
+  - Log observé : `Searching indexer(s): [YggReborn (API)] for Term: [] for Season / Episode:[], Offset: 0, Limit: 100, Categories: [5000, 5010, …]`
+- ☐ État **« Échec / Bloqué »** distinct de *Manquant*, + action **« relancer la recherche »** (admin et/ou user), pour les requêtes introuvables.
+- ☐ Si possible, **poller la progression depuis rdt-client** (plutôt que Radarr/Sonarr) pour un suivi plus **précis et temps réel**.
+
+### M16 — Permissions, rôles & règles d'auto-approbation  ☐ *(prévu : `v0.20.0`)*
+
+Objectif : faire de JellyCrowd un vrai outil **multi-utilisateur**.
+
+- ☐ **Activer/désactiver les requêtes** par utilisateur ou par rôle ; catalogue réservable à certains.
+- ☐ **Plafonds par utilisateur/rôle** (quota disque, nombre de requêtes/période) en surcharge du global.
+- ☐ **Règles d'auto-approbation** : auto-approuver selon des critères (taille < X Go, genre, **utilisateurs de confiance**) → file admin allégée.
+
+### M17 — Notifications utilisateur & centre de notifications  ☐ *(prévu : `v0.21.0`)*
+
+Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux admin uniquement).
+
+- ☐ **Cloche** dans le bandeau, **juste à gauche du quota**, avec **pastille rouge + compteur** (style Facebook).
+- ☐ Menu déroulant = **journal de notifications** de l'utilisateur, **effaçable** (clear all / par item).
+- ☐ Notifier le demandeur sur **Approved / Denied / Available / Échec**.
+- ☐ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
+
+### M18 — Diagnostic & santé  ☐ *(prévu : `v0.22.0`)*
+
+Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
+
+- ☐ Onglet **Diagnostic** : vérifie en un clic la **clé TMDB**, la présence de **File Transformation**, la **joignabilité du backend** (Radarr/Sonarr/webhook/script), l'**indexer**, et l'**accès en écriture** au dossier de données.
+- ☐ Surfacer chaque échec avec un message clair + piste de résolution.
+
+### M19 — Robustesse données & sécurité  ☐ *(prévu : `v0.23.0`)*
+
+Objectif : le « non-fonctionnel » qui sépare une 0.x d'une 1.0.
+
+- ☐ **Verrouillage concurrent** des stores JSON + **versionnage de schéma** (migrations entre versions).
+- ☐ **Export / sauvegarde** des requêtes + config.
+- ☐ **Cache TMDB & affiches** (respecter les quotas d'API, réduire la latence).
+- ☐ **États vides & erreurs gracieuses** partout (backend down, réseau, 0 résultat).
+- ☐ **Passe sécurité** : auth/élévation sur **chaque** endpoint, aucune fuite de clé, revue anti-XSS, rate-limit.
+
+### M20 — Finition du shell & navigation  ☐ *(prévu : `v0.24.0`)*
 
 Objectif : que les écrans du plugin se fondent dans l'UI native de Jellyfin.
 
@@ -255,23 +298,19 @@ Objectif : que les écrans du plugin se fondent dans l'UI native de Jellyfin.
 - ☐ Remplacer la **croix** de fermeture par une **flèche de retour** cohérente avec Jellyfin, **du même côté**.
 - ☐ Afficher le **badge utilisateur** dans le bandeau des écrans du plugin (là où se trouve la croix aujourd'hui).
 
-### M16 — « Mes médias » enrichi & liens cliquables  ☐ *(prévu : `v0.20.0`)*
-
-Objectif : rendre *My media* informatif et navigable.
+### M21 — « Mes médias » enrichi & liens cliquables  ☐ *(prévu : `v0.25.0`)*
 
 - ☐ Afficher la **taille** de chaque média dans *My media* + y ajouter la **barre de quota**.
 - ☐ Afficher le **temps restant avant suppression** sur les médias en *Deletion requested*.
 - ☐ Rendre **cliquable** chaque média de *My media* et chaque requête *Available* → ouvre le média dans Jellyfin.
 
-### M17 — Cycle de vie des requêtes  ☐ *(prévu : `v0.21.0`)*
-
-Objectif : plus de contrôle et de lisibilité côté utilisateur.
+### M22 — Cycle de vie des requêtes  ☐ *(prévu : `v0.26.0`)*
 
 - ☐ Tant qu'une requête est **Approved**, l'utilisateur peut la **supprimer** — en s'assurant qu'elle n'est plus traitée par Prowlarr/Sonarr/Radarr + RDT (annulation propagée en amont).
 - ☐ Afficher sur chaque requête la **date/heure de la demande** et la **date/heure de mise à disposition** dans Jellyfin.
 - ☐ Quand une requête est **Approved + Downloaded** (téléchargée, en attente de scan Jellyfin), refléter un statut « disponible dans < 2 min » (affiner si la durée exacte est connue).
 
-### M18 — Propriété partagée des médias  ☐ *(prévu : `v0.22.0`)*
+### M23 — Propriété partagée des médias  ☐ *(prévu : `v0.27.0`)*
 
 Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec quota et suppression cohérents.
 
@@ -280,18 +319,20 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ Sur demande de suppression par un propriétaire : retirer **son** appartenance en fin de délai + **décrémenter son quota** ; le média n'est **réellement supprimé** que s'il n'appartient **plus à personne** à la fin du délai.
 - ☐ Pouvoir **annuler une demande de suppression** tant qu'on est à **plus d'une minute** de l'échéance ; le quota n'est pas décrémenté tant que le média « appartient » encore.
 
-### M19 — Intégration téléchargement avancée  ☐ *(prévu : `v0.23.0`)*
-
-- ☐ **Bug à investiguer** : une demande de **saison** arrive chez Prowlarr avec des champs **vides** (`Term: []`, `Season / Episode: []`) → la recherche ne cible rien. Vérifier le payload envoyé par Sonarr + le monitoring de saison.
-  - Log observé : `Searching indexer(s): [YggReborn (API)] for Term: [] for Season / Episode:[], Offset: 0, Limit: 100, Categories: [5000, 5010, …]`
-- ☐ Si possible, **poller la progression depuis rdt-client** (plutôt que Radarr/Sonarr) pour un suivi plus **précis et temps réel**.
-
-### M20 — Catalogue & Calendrier  ☐ *(prévu : `v0.24.0`)*
+### M24 — Catalogue & Calendrier  ☐ *(prévu : `v0.28.0`)*
 
 - ☐ Bouton **« Voir plus → »** sur chaque sous-section de *Browse* (For you, Netflix, Apple TV, …) pour n'afficher que les médias de cette sous-section.
+- ☐ **« Demander toute la saga »** via les **collections TMDB** (toute la franchise en un clic).
 - ☐ Le **calendrier** affiche aussi les **épisodes de séries** (au-delà des séries suivies déjà gérées).
 
-### M21 — Observabilité & canaux de version  ☐ *(prévu : `v0.25.0`)*
+### M25 — Communauté : commentaires & signalements  ☐ *(prévu : `v0.29.0`)*
+
+- ☐ **Commentaires** sur chaque film/série du catalogue, dans le **popup, sous le Synopsis**.
+- ☐ Mêmes commentaires visibles sur chaque **média disponible dans Jellyfin** : **2ᵉ colonne scrollable** ajoutée à côté des détails (synopsis, tags…) — via injection DOM (File Transformation).
+- ☐ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée.
+- ☐ Modération admin des commentaires/signalements (masquer/supprimer).
+
+### M26 — Observabilité & canaux de version  ☐ *(prévu : `v0.30.0`)*
 
 - ☐ **Logging global** : générer des logs pour tout (requêtes, users, admin, internals, infos).
 - ☐ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres**.
@@ -299,23 +340,36 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 
 ### 🏁 v1.0.0 — Stabilisation
 
-- ☐ Une fois M15→M21 livrés : passe de **polish**, mise à jour doc (`CONFIGURATION.md` / `README.md`), puis **release `v1.0.0`** (commit `[major]`).
+Objectif : passer le cap qualité avant de coller un « 1.0 ».
+
+- ☐ **Responsive / mobile + accessibilité** de l'overlay (Jellyfin très utilisé sur mobile/TV : tailles tactiles, nav clavier, ARIA).
+- ☐ **Doc utilisateur** (*Getting started* avec captures), en plus de `CONFIGURATION.md` (admin).
+- ☐ Passe de **polish** finale, puis **release `v1.0.0`** (commit `[major]`).
 
 ---
 
 ## Au-delà de la 1.0.0 — pan « JellyStats-like »  *(prévu : `v2.0.0`)*
 
-### M22 — Statistiques utilisateur  ☐
+### M27 — Statistiques utilisateur  ☐
 
 - ☐ Recensement par utilisateur : nb de requêtes, médias vus **en entier**, films / épisodes / séries regardés, **watchtime** (7 / 30 / 90 jours + total), watchtime **par bibliothèque** accessible, etc.
 
-### M23 — Dashboard utilisateur  ☐
+### M28 — Dashboard utilisateur  ☐
 
 - ☐ Dashboard avec ses stats et son **classement** (pour les métriques pertinentes).
 - ☐ Onglet **graphes** : évolution dans le temps (échelle réglable, plusieurs courbes — regroupées ou séparées selon la pertinence).
 
-### M24 — Vue admin enrichie  ☐
+### M29 — Popularité interne & vue admin enrichie  ☐
 
-- ☐ Afficher des **informations admin** sur chaque média de Jellyfin.
+- ☐ **Popularité interne** : « le plus demandé / le plus regardé chez vous » mis en avant dans le catalogue.
+- ☐ **Informations admin** sur chaque média de Jellyfin.
 
 > Le passage à **`v2.0.0`** (commit `[major]`) marque l'ajout du pan statistiques.
+
+---
+
+## Encore plus loin  *(prévu : `v3.0.0`)*
+
+### M30 — Bot bidirectionnel  ☐
+
+- ☐ **Approuver/refuser depuis Discord/Telegram** (notifications interactives à double sens).
