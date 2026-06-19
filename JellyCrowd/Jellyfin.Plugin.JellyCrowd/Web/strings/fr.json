@@ -61,6 +61,7 @@
   "request_deletion": "Demander la suppression",
   "deletion_requested": "Suppression demandée",
   "requested_on": "Demandé le",
+  "available_on": "Disponible le",
   "scheduled_for": "Planifié pour le",
   "status_pending": "En attente",
   "status_approved": "Approuvée",

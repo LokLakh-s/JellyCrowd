@@ -1,0 +1,36 @@
+using System;
+
+namespace Jellyfin.Plugin.JellyCrowd.Models;
+
+/// <summary>
+/// One of the current user's available titles, enriched with its on-disk size for the "My media" view.
+/// </summary>
+public class MediaUsageDto
+{
+  /// <summary>Gets or sets the originating request id (used for the deletion action).</summary>
+  public Guid RequestId { get; set; }
+
+  /// <summary>Gets or sets the media type (<c>movie</c> or <c>tv</c>).</summary>
+  public string MediaType { get; set; } = string.Empty;
+
+  /// <summary>Gets or sets the TMDB identifier.</summary>
+  public int TmdbId { get; set; }
+
+  /// <summary>Gets or sets the display title.</summary>
+  public string Title { get; set; } = string.Empty;
+
+  /// <summary>Gets or sets the TMDB relative poster path.</summary>
+  public string? PosterPath { get; set; }
+
+  /// <summary>Gets or sets the requested season number, if any.</summary>
+  public int? Season { get; set; }
+
+  /// <summary>Gets or sets the Jellyfin library item id (for the deep-link), if known.</summary>
+  public string? JellyfinItemId { get; set; }
+
+  /// <summary>Gets or sets the on-disk size in bytes (summed over episodes for shows).</summary>
+  public long SizeBytes { get; set; }
+
+  /// <summary>Gets or sets the UTC time deletion was requested, if any.</summary>
+  public DateTime? DeletionRequestedAt { get; set; }
+}

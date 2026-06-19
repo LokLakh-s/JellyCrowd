@@ -108,15 +108,33 @@
 
     var main = document.createElement('div');
     main.className = 'jellycrowd-request-main';
-    main.textContent = lib.formatTitle(request)
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'jellycrowd-request-title';
+    titleEl.textContent = lib.formatTitle(request)
       + (request.Season ? ' · S' + request.Season : '')
       + (request.Episode ? 'E' + request.Episode : '');
     // Available titles deep-link to their Jellyfin details page (the overlay closes on hashchange).
     var available = (request.Status === 3 || request.Status === 'Available');
     if (available && request.JellyfinItemId) {
-      main.classList.add('jellycrowd-link');
-      main.title = t('open_in_jellyfin');
-      main.addEventListener('click', function () { openInJellyfin(request.JellyfinItemId); });
+      titleEl.classList.add('jellycrowd-link');
+      titleEl.title = t('open_in_jellyfin');
+      titleEl.addEventListener('click', function () { openInJellyfin(request.JellyfinItemId); });
+    }
+    main.appendChild(titleEl);
+
+    var dateParts = [];
+    if (request.RequestedAt) {
+      dateParts.push(t('requested_on') + ' ' + new Date(request.RequestedAt).toLocaleDateString());
+    }
+    if (available && request.AvailableAt) {
+      dateParts.push(t('available_on') + ' ' + new Date(request.AvailableAt).toLocaleDateString());
+    }
+    if (dateParts.length) {
+      var sub = document.createElement('div');
+      sub.className = 'jellycrowd-request-sub';
+      sub.textContent = dateParts.join(' · ');
+      main.appendChild(sub);
     }
     row.appendChild(main);
 
