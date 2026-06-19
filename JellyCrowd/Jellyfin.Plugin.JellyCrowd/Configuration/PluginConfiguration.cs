@@ -28,6 +28,21 @@ public class PluginConfiguration : BasePluginConfiguration
     RequestPeriod = RequestPeriod.Week;
     DeletionRetentionHours = 24;
     DiscordWebhookUrl = string.Empty;
+    DiscordNotifyCreated = true;
+    DiscordNotifyApproved = true;
+    DiscordNotifyDenied = true;
+    DiscordNotifyAvailable = true;
+    DiscordColorCreated = "#3B82F6";
+    DiscordColorApproved = "#6366F1";
+    DiscordColorDenied = "#EF4444";
+    DiscordColorAvailable = "#10B981";
+    DiscordShowPoster = true;
+    DiscordShowSynopsis = true;
+    DiscordShowRequestedBy = true;
+    DiscordShowStatus = true;
+    DiscordShowSeason = true;
+    DiscordShowLink = true;
+    DiscordMention = string.Empty;
     SmtpHost = string.Empty;
     SmtpPort = 587;
     SmtpUseSsl = true;
@@ -114,6 +129,53 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the Discord webhook URL used for request notifications. Empty disables Discord.
   /// </summary>
   public string DiscordWebhookUrl { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether Discord notifies on the "created" event.</summary>
+  public bool DiscordNotifyCreated { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether Discord notifies on the "approved" event.</summary>
+  public bool DiscordNotifyApproved { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether Discord notifies on the "denied" event.</summary>
+  public bool DiscordNotifyDenied { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether Discord notifies on the "available" event.</summary>
+  public bool DiscordNotifyAvailable { get; set; }
+
+  /// <summary>Gets or sets the embed color (hex, e.g. <c>#3B82F6</c>) for the "created" event.</summary>
+  public string DiscordColorCreated { get; set; }
+
+  /// <summary>Gets or sets the embed color (hex) for the "approved" event.</summary>
+  public string DiscordColorApproved { get; set; }
+
+  /// <summary>Gets or sets the embed color (hex) for the "denied" event.</summary>
+  public string DiscordColorDenied { get; set; }
+
+  /// <summary>Gets or sets the embed color (hex) for the "available" event.</summary>
+  public string DiscordColorAvailable { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the embed shows the poster thumbnail.</summary>
+  public bool DiscordShowPoster { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the embed shows the synopsis as description.</summary>
+  public bool DiscordShowSynopsis { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the embed shows the "Requested by" field.</summary>
+  public bool DiscordShowRequestedBy { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the embed shows the "Status" field.</summary>
+  public bool DiscordShowStatus { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the embed shows the "Season" field.</summary>
+  public bool DiscordShowSeason { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the embed title links to the TMDB page.</summary>
+  public bool DiscordShowLink { get; set; }
+
+  /// <summary>
+  /// Gets or sets an optional message posted above the embed (e.g. <c>&lt;@&amp;roleId&gt;</c> to ping a role).
+  /// </summary>
+  public string DiscordMention { get; set; }
 
   /// <summary>
   /// Gets or sets the SMTP server host for email notifications. Empty disables email.

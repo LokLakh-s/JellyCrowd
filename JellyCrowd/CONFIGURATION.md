@@ -37,6 +37,11 @@ Chaque canal est optionnel (activé dès qu'il est configuré). Événements not
 **approuvée**, **disponible**.
 
 - **Discord** : *Webhook URL* du salon. Laisser vide pour désactiver.
+  - Bloc dépliable **« Discord — events, colors & content »** pour personnaliser :
+    - **Events déclencheurs** : cocher quels événements notifient sur Discord (*Created / Approved / Denied / Available*).
+    - **Couleur d'embed par event** (sélecteur de couleur).
+    - **Contenu de l'embed** : afficher ou non l'affiche, le synopsis, et les champs *Requested by / Status / Season*, et lier (ou non) le titre vers TMDB.
+    - **Mention / ping** optionnelle postée au-dessus de l'embed (ex. `<@&ROLE_ID>` pour notifier un rôle, ou `@everyone`).
 - **E-mail (SMTP)** : *hôte*, *port* (587 STARTTLS ou 465 SSL), *SSL/TLS*, *identifiants*, *adresse
   d'expéditeur*, *destinataire*. *Accepter un certificat invalide* : uniquement pour un serveur
   auto-hébergé de confiance.

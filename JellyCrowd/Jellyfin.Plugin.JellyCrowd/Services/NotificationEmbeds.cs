@@ -43,7 +43,8 @@ public static class NotificationEmbeds
   /// <param name="posterPath">The TMDB relative poster path, or <c>null</c>.</param>
   /// <param name="username">The requesting user's display name.</param>
   /// <param name="timestampUtc">The embed timestamp (UTC).</param>
-  /// <returns>A serializable payload object (<c>{ embeds: [ ... ] }</c>).</returns>
+  /// <param name="options">Presentation options (color, fields, poster, link, mention).</param>
+  /// <returns>A serializable payload object (<c>{ content?, embeds: [ ... ] }</c>).</returns>
   public static object BuildRequest(
     RequestRecord request,
     NotificationEvent notificationEvent,
@@ -52,17 +53,24 @@ public static class NotificationEmbeds
     string? overview,
     string? posterPath,
     string username,
-    DateTime timestampUtc)
+    DateTime timestampUtc,
+    DiscordEmbedOptions options)
   {
     ArgumentNullException.ThrowIfNull(request);
+    ArgumentNullException.ThrowIfNull(options);
 
-    var fields = new List<object>
+    var fields = new List<object>();
+    if (options.ShowRequestedBy)
     {
-      new { name = "Requested by", value = username, inline = true },
-      new { name = "Status", value = StatusText(notificationEvent), inline = true },
-    };
+      fields.Add(new { name = "Requested by", value = username, inline = true });
+    }
 
-    if (request.Season.HasValue)
+    if (options.ShowStatus)
+    {
+      fields.Add(new { name = "Status", value = StatusText(notificationEvent), inline = true });
+    }
+
+    if (options.ShowSeason && request.Season.HasValue)
     {
       fields.Add(new { name = "Season", value = request.Season.Value.ToString(CultureInfo.InvariantCulture), inline = true });
     }
@@ -70,19 +78,29 @@ public static class NotificationEmbeds
     var embed = new Dictionary<string, object?>
     {
       ["title"] = subject,
-      ["description"] = string.IsNullOrWhiteSpace(overview) ? body : overview,
-      ["color"] = ColorFor(notificationEvent),
+      ["description"] = options.ShowSynopsis && !string.IsNullOrWhiteSpace(overview) ? overview : body,
+      ["color"] = options.Color,
       ["timestamp"] = timestampUtc.ToString("o", CultureInfo.InvariantCulture),
-      ["url"] = TmdbUrl(request.MediaType, request.TmdbId),
       ["fields"] = fields,
     };
 
-    if (!string.IsNullOrWhiteSpace(posterPath))
+    if (options.ShowLink)
+    {
+      embed["url"] = TmdbUrl(request.MediaType, request.TmdbId);
+    }
+
+    if (options.ShowPoster && !string.IsNullOrWhiteSpace(posterPath))
     {
       embed["thumbnail"] = new { url = PosterBaseUrl + posterPath };
     }
 
-    return new { embeds = new[] { embed } };
+    var payload = new Dictionary<string, object?> { ["embeds"] = new[] { embed } };
+    if (!string.IsNullOrWhiteSpace(options.Mention))
+    {
+      payload["content"] = options.Mention;
+    }
+
+    return payload;
   }
 
   /// <summary>
@@ -106,7 +124,12 @@ public static class NotificationEmbeds
     return new { embeds = new[] { embed } };
   }
 
-  private static int ColorFor(NotificationEvent notificationEvent) => notificationEvent switch
+  /// <summary>
+  /// The built-in default embed color for an event (used as a fallback for an unset/invalid config color).
+  /// </summary>
+  /// <param name="notificationEvent">The lifecycle event.</param>
+  /// <returns>The default RGB color.</returns>
+  public static int DefaultColorFor(NotificationEvent notificationEvent) => notificationEvent switch
   {
     NotificationEvent.Created => CreatedColor,
     NotificationEvent.Approved => ApprovedColor,
@@ -114,6 +137,25 @@ public static class NotificationEmbeds
     NotificationEvent.Denied => DeniedColor,
     _ => CreatedColor
   };
+
+  /// <summary>
+  /// Parses a hex color (<c>#RRGGBB</c> or <c>RRGGBB</c>) into an RGB integer, falling back when invalid.
+  /// </summary>
+  /// <param name="hex">The hex string, possibly null/empty.</param>
+  /// <param name="fallback">The fallback color when parsing fails.</param>
+  /// <returns>The parsed RGB integer, or <paramref name="fallback"/>.</returns>
+  public static int ParseColor(string? hex, int fallback)
+  {
+    if (string.IsNullOrWhiteSpace(hex))
+    {
+      return fallback;
+    }
+
+    var trimmed = hex.Trim().TrimStart('#');
+    return int.TryParse(trimmed, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value)
+      ? value & 0xFFFFFF
+      : fallback;
+  }
 
   private static string StatusText(NotificationEvent notificationEvent) => notificationEvent switch
   {

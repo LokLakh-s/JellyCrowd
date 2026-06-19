@@ -74,16 +74,20 @@ public sealed class NotificationService : INotificationService
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
 
-    var embed = NotificationEmbeds.BuildRequest(
-      request,
-      notificationEvent,
-      subject,
-      body,
-      details?.Overview,
-      details?.PosterPath ?? request.PosterPath,
-      username,
-      DateTime.UtcNow);
-    await SendDiscordAsync(config, embed, cancellationToken).ConfigureAwait(false);
+    if (DiscordEnabledFor(config, notificationEvent))
+    {
+      var embed = NotificationEmbeds.BuildRequest(
+        request,
+        notificationEvent,
+        subject,
+        body,
+        details?.Overview,
+        details?.PosterPath ?? request.PosterPath,
+        username,
+        DateTime.UtcNow,
+        BuildDiscordOptions(config, notificationEvent));
+      await SendDiscordAsync(config, embed, cancellationToken).ConfigureAwait(false);
+    }
 
     var emailBody = BuildEmailBody(request, body, details, username);
     await SendEmailAsync(config, "[Jelly Crowd] " + subject, emailBody, cancellationToken).ConfigureAwait(false);
@@ -147,6 +151,39 @@ public sealed class NotificationService : INotificationService
 
       await notifier.SendAsync(config, Subject, Body, cancellationToken).ConfigureAwait(false);
     }
+  }
+
+  private static bool DiscordEnabledFor(PluginConfiguration config, NotificationEvent notificationEvent) => notificationEvent switch
+  {
+    NotificationEvent.Created => config.DiscordNotifyCreated,
+    NotificationEvent.Approved => config.DiscordNotifyApproved,
+    NotificationEvent.Denied => config.DiscordNotifyDenied,
+    NotificationEvent.Available => config.DiscordNotifyAvailable,
+    _ => true
+  };
+
+  private static DiscordEmbedOptions BuildDiscordOptions(PluginConfiguration config, NotificationEvent notificationEvent)
+  {
+    var hex = notificationEvent switch
+    {
+      NotificationEvent.Created => config.DiscordColorCreated,
+      NotificationEvent.Approved => config.DiscordColorApproved,
+      NotificationEvent.Denied => config.DiscordColorDenied,
+      NotificationEvent.Available => config.DiscordColorAvailable,
+      _ => config.DiscordColorCreated
+    };
+
+    return new DiscordEmbedOptions
+    {
+      Color = NotificationEmbeds.ParseColor(hex, NotificationEmbeds.DefaultColorFor(notificationEvent)),
+      ShowPoster = config.DiscordShowPoster,
+      ShowSynopsis = config.DiscordShowSynopsis,
+      ShowRequestedBy = config.DiscordShowRequestedBy,
+      ShowStatus = config.DiscordShowStatus,
+      ShowSeason = config.DiscordShowSeason,
+      ShowLink = config.DiscordShowLink,
+      Mention = string.IsNullOrWhiteSpace(config.DiscordMention) ? null : config.DiscordMention
+    };
   }
 
   private static string BuildEmailBody(RequestRecord request, string body, CatalogItem? details, string username)
