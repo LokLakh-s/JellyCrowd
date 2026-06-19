@@ -24,7 +24,8 @@ defaults:
 jobs:
   release:
     name: Version & Release
-    runs-on: ubuntu-latest
+    # Self-hosted runner ("JellyCrowd") to save GitHub-hosted minutes.
+    runs-on: [self-hosted]
     # Don't loop on the bot's own "chore(release):" bump commit, and honor [skip release].
     if: >-
       ${{ !startsWith(github.event.head_commit.message, 'chore(release):')
@@ -148,3 +149,12 @@ jobs:
           files: |
             JellyCrowd/artifacts/jelly-crowd-*.zip
             JellyCrowd/artifacts/jelly-crowd-*.zip.md5
+
+      # Keep the self-hosted runner's disk from growing.
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          rm -rf Jellyfin.Plugin.JellyCrowd/bin Jellyfin.Plugin.JellyCrowd/obj \
+                 Jellyfin.Plugin.JellyCrowd.Tests/bin Jellyfin.Plugin.JellyCrowd.Tests/obj \
+                 artifacts
+          dotnet nuget locals http-cache temp --clear || true
