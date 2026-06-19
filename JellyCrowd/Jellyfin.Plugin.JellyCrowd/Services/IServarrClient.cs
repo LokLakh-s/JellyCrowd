@@ -81,4 +81,36 @@ public interface IServarrClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The raw queue JSON payload.</returns>
   Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets the added Radarr movie for a TMDB id (<c>GET /api/v3/movie?tmdbId={id}</c>), or <c>null</c>
+  /// when it is not in Radarr.
+  /// </summary>
+  /// <param name="baseUrl">The Radarr base URL.</param>
+  /// <param name="apiKey">The Radarr API key.</param>
+  /// <param name="tmdbId">The TMDB id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The movie object, or <c>null</c>.</returns>
+  Task<JsonObject?> GetMovieByTmdbAsync(string baseUrl, string apiKey, int tmdbId, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets the added Sonarr series for a TVDB id (<c>GET /api/v3/series?tvdbId={id}</c>), or <c>null</c>
+  /// when it is not in Sonarr.
+  /// </summary>
+  /// <param name="baseUrl">The Sonarr base URL.</param>
+  /// <param name="apiKey">The Sonarr API key.</param>
+  /// <param name="tvdbId">The TVDB id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The series object, or <c>null</c>.</returns>
+  Task<JsonObject?> GetSeriesByTvdbAsync(string baseUrl, string apiKey, int tvdbId, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets all episodes of a Sonarr series (<c>GET /api/v3/episode?seriesId={id}</c>).
+  /// </summary>
+  /// <param name="baseUrl">The Sonarr base URL.</param>
+  /// <param name="apiKey">The Sonarr API key.</param>
+  /// <param name="seriesId">The Sonarr series id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The raw episodes JSON array.</returns>
+  Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken);
 }

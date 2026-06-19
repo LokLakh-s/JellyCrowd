@@ -162,5 +162,7 @@ test('downloadStateKey maps known queue states and ignores unknowns', () => {
   assert.strictEqual(lib.downloadStateKey('warning'), 'dl_warning');
   assert.strictEqual(lib.downloadStateKey('queued'), 'dl_queued');
   assert.strictEqual(lib.downloadStateKey('completed'), 'dl_completed');
+  assert.strictEqual(lib.downloadStateKey('missing'), 'dl_missing');
+  assert.strictEqual(lib.downloadStateKey('unreleased'), 'dl_unreleased');
   assert.strictEqual(lib.downloadStateKey('bogus'), '');
 });
