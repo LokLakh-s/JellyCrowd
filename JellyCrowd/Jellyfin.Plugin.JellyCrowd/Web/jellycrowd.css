@@ -361,6 +361,10 @@
 .jellycrowd-dl-missing { background: #b58900; color: #fff; }
 .jellycrowd-dl-unreleased { background: #455a64; color: #fff; }
 
+/* Clickable title that deep-links to the Jellyfin details page */
+.jellycrowd-link { cursor: pointer; }
+.jellycrowd-link:hover { color: #00a4dc; text-decoration: underline; }
+
 .jellycrowd-request-poster {
   width: 2.6em;
   height: 3.9em;

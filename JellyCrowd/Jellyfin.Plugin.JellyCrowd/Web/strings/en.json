@@ -73,6 +73,7 @@
   "dl_warning": "Download issue",
   "dl_missing": "Missing",
   "dl_unreleased": "Unreleased",
+  "open_in_jellyfin": "Open in Jellyfin",
   "admin_pending_title": "Pending requests",
   "admin_no_pending": "No pending requests.",
   "dispatch_failed": "Dispatch failed",
