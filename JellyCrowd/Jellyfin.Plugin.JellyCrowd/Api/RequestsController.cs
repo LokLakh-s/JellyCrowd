@@ -56,17 +56,15 @@ public class RequestsController : ControllerBase
   /// </summary>
   /// <param name="dto">The request payload.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <response code="200">The created request.</response>
+  /// <response code="200">The created request (auto-approved, or pending when approval is required or the quota is exceeded).</response>
   /// <response code="400">The payload was invalid.</response>
-  /// <response code="403">The request would exceed the user's disk quota.</response>
   /// <response code="409">The user already has an active request for this title.</response>
   /// <response code="429">The user reached their request limit for the period.</response>
-  /// <returns>The persisted request with its generated id and pending status.</returns>
+  /// <returns>The persisted request with its generated id and status.</returns>
   [HttpPost]
   [Authorize]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
-  [ProducesResponseType(StatusCodes.Status403Forbidden)]
   [ProducesResponseType(StatusCodes.Status409Conflict)]
   [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
   public async Task<ActionResult<RequestRecord>> Create([FromBody] CreateRequestDto dto, CancellationToken cancellationToken)
@@ -99,12 +97,13 @@ public class RequestsController : ControllerBase
       }
     }
 
-    if (!await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false))
-    {
-      return StatusCode(StatusCodes.Status403Forbidden, "This request would exceed your disk quota.");
-    }
-
+    // Approval mode: when admin approval is required, requests stay pending. When auto-approval is on,
+    // they are approved immediately — unless they would exceed the disk quota, in which case they are
+    // held as pending for the admin to arbitrate (rather than hard-rejected).
     var requireApproval = Plugin.Instance?.Configuration.RequireApproval ?? true;
+    var withinQuota = await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false);
+    var status = (requireApproval || !withinQuota) ? RequestStatus.Pending : RequestStatus.Approved;
+
     var created = await _store.CreateAsync(
       new RequestRecord
       {
@@ -117,11 +116,18 @@ public class RequestsController : ControllerBase
         Season = dto.Season,
         Episode = dto.Episode,
         DesiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, dto.DesiredAt, DateTime.UtcNow),
-        Status = requireApproval ? RequestStatus.Pending : RequestStatus.Approved
+        Status = status
       },
       cancellationToken).ConfigureAwait(false);
 
     _ = _notificationService.NotifyRequestEventAsync(created, NotificationEvent.Created, CancellationToken.None);
+
+    // Auto-approved requests are dispatched right away (no-op if not yet due / no backend configured).
+    if (status == RequestStatus.Approved)
+    {
+      _ = _downloadDispatcher.DispatchAsync(created, CancellationToken.None);
+    }
+
     return Ok(created);
   }
 

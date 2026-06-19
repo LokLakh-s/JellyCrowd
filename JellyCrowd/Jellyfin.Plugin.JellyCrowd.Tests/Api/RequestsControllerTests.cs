@@ -135,12 +135,13 @@ public class RequestsControllerTests
   }
 
   [Fact]
-  public async Task Create_OverQuota_ReturnsForbidden()
+  public async Task Create_OverQuota_IsHeldAsPendingNotRejected()
   {
     var result = await CreateController(new FakeRequestStore(), canRequest: false).Create(ValidDto(), CancellationToken.None);
 
-    var obj = Assert.IsType<ObjectResult>(result.Result);
-    Assert.Equal(StatusCodes.Status403Forbidden, obj.StatusCode);
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    var created = Assert.IsType<RequestRecord>(ok.Value);
+    Assert.Equal(RequestStatus.Pending, created.Status);
   }
 
   [Fact]
