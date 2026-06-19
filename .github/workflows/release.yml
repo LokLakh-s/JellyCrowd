@@ -36,6 +36,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The runner isn't root: install the .NET SDK into the writable, persistent tool cache
+      # instead of the default /usr/share/dotnet (which fails with "Permission denied").
+      - name: Configure .NET install dir
+        run: echo "DOTNET_INSTALL_DIR=$RUNNER_TOOL_CACHE/dotnet" >> "$GITHUB_ENV"
+
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
         with:
