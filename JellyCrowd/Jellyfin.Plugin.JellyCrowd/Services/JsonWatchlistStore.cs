@@ -14,6 +14,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </summary>
 public sealed class JsonWatchlistStore : IWatchlistStore, IDisposable
 {
+  private const int SchemaVersion = 1;
   private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
   private readonly string _filePath;
@@ -112,34 +113,10 @@ public sealed class JsonWatchlistStore : IWatchlistStore, IDisposable
       return _cache;
     }
 
-    if (File.Exists(_filePath))
-    {
-      using var stream = File.OpenRead(_filePath);
-      _cache = await JsonSerializer.DeserializeAsync<List<WatchlistEntry>>(stream, SerializerOptions, cancellationToken).ConfigureAwait(false)
-               ?? new List<WatchlistEntry>();
-    }
-    else
-    {
-      _cache = new List<WatchlistEntry>();
-    }
-
+    _cache = await VersionedJsonFile.ReadAsync<WatchlistEntry>(_filePath, SchemaVersion, migrate: null, SerializerOptions, cancellationToken).ConfigureAwait(false);
     return _cache;
   }
 
-  private async Task SaveAsync(CancellationToken cancellationToken)
-  {
-    var directory = Path.GetDirectoryName(_filePath);
-    if (!string.IsNullOrEmpty(directory))
-    {
-      Directory.CreateDirectory(directory);
-    }
-
-    var tempPath = _filePath + ".tmp";
-    using (var stream = File.Create(tempPath))
-    {
-      await JsonSerializer.SerializeAsync(stream, _cache, SerializerOptions, cancellationToken).ConfigureAwait(false);
-    }
-
-    File.Move(tempPath, _filePath, overwrite: true);
-  }
+  private Task SaveAsync(CancellationToken cancellationToken)
+    => VersionedJsonFile.WriteAsync(_filePath, SchemaVersion, _cache ?? new List<WatchlistEntry>(), SerializerOptions, cancellationToken);
 }
