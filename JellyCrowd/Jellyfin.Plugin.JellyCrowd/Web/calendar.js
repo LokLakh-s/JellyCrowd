@@ -72,11 +72,17 @@
       .catch(function () { /* keep 'auto' */ });
   }
 
+  // Ensure dropdown options are readable (default <option> rendering can be white-on-white on dark themes).
+  function styleOption(opt) { opt.style.backgroundColor = '#1c1c1c'; opt.style.color = '#fff'; }
+
   function fillCodeSelect(select, codes, type, allLabel, current) {
     select.innerHTML = '';
+    select.style.color = '#fff';
+    select.style.backgroundColor = 'rgba(0,0,0,.35)';
     var allOpt = document.createElement('option');
     allOpt.value = '';
     allOpt.textContent = allLabel;
+    styleOption(allOpt);
     select.appendChild(allOpt);
     var names = null;
     try { names = new Intl.DisplayNames([fullLocale()], { type: type }); } catch (e) { names = null; }
@@ -86,6 +92,7 @@
       var label = code;
       try { if (names) { label = names.of(code) || code; } } catch (e) { label = code; }
       opt.textContent = label;
+      styleOption(opt);
       select.appendChild(opt);
     });
     select.value = current || '';
