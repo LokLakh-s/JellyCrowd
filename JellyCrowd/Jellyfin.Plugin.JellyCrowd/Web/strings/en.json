@@ -112,5 +112,7 @@
   "tab_quotas": "User quotas",
   "tab_notifications": "Notifications",
   "tab_download": "Download",
+  "tab_diagnostics": "Diagnostics",
+  "diag_run": "Run checks",
   "tab_requests": "Requests"
 }

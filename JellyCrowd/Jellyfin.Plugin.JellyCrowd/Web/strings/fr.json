@@ -112,5 +112,7 @@
   "tab_quotas": "Quotas utilisateurs",
   "tab_notifications": "Notifications",
   "tab_download": "Téléchargement",
+  "tab_diagnostics": "Diagnostic",
+  "diag_run": "Lancer les tests",
   "tab_requests": "Demandes"
 }
