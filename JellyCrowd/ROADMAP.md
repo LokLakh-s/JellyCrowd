@@ -243,11 +243,11 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 
 > Issu des notes manuelles de Victor + brainstorm, mis en forme en étapes de dev.
 > Tags de version = **estimations** : chaque milestone = un bump **mineur** (`[minor]`) ;
-> la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M26 + M31→M33** livré.
+> la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M29** livré.
 > Version publiée actuelle : **`v0.37.0`**. Milestones ordonnés par **priorité** (valeur + déblocage).
 >
 > **État (2026-06-20)** : M16→M26 livrés. **Reste : M15** (états d'échec + relance), les
-> **ajouts périmètre 1.0** (M31 quotas adaptatifs & expiration, M32 réactivité UI, M33 avis & notes)
+> **ajouts périmètre 1.0** (M27 quotas adaptatifs & expiration, M28 réactivité UI, M29 avis & notes)
 > et la **stabilisation v1.0** (responsive/a11y, doc, tests e2e, polish). Sous-points reportés :
 > calendrier épisodes (M24), colonne commentaires page native (M25.2), canaux stable/nightly (M26.2).
 
@@ -346,7 +346,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres** (catégorie / niveau).
 - ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release). *(reporté — M26.2)*
 
-### M31 — Quotas adaptatifs & expiration des médias  ☐ *(périmètre 1.0)*
+### M27 — Quotas adaptatifs & expiration des médias  ☐ *(périmètre 1.0)*
 
 > Rien de tel n'existe aujourd'hui (vérifié) : le quota est **fixe** (`DefaultUserQuotaBytes` +
 > surcharges `QuotaOverrides`), aucune notion d'activité/temps de visionnage, aucune expiration par âge.
@@ -364,7 +364,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
   - **Régularité** : activité répartie sur **≥ N jours distincts** (déf. **3 jours** sur 14). *(Regarder un média 10 min ne suffit pas.)*
 - ☐ **Récompense historique** : si échec au test après 14 j, le quota cible redescend au quota de **base** (50 Go), **pas** au plancher (20 Go).
 - ☐ **Exemple** (utilisateur à 98 Go après 2 mois) : J1 → sursis + gel à 98 Go + message ; pendant 14 j : succès → redevient actif, quota adaptatif repart ; échec → J15 plafond = 50 Go → **en dépassement (98/50)**, ne peut plus rien **ajouter** (médias existants conservés jusqu'à action/expiration).
-- ⚠️ **Dépendance** : nécessite une **brique de suivi d'activité / temps de visionnage** (minutes + jours distincts par user) — **ABSENTE** aujourd'hui. Pistes : API sessions/lecture Jellyfin (`UserData`/`LastPlayedDate`), base du plugin **Playback Reporting** (présent sur le serveur), ou suivi minimal maison. À cadrer (lien avec le pan stats 2.0 / M27).
+- ⚠️ **Dépendance** : nécessite une **brique de suivi d'activité / temps de visionnage** (minutes + jours distincts par user) — **ABSENTE** aujourd'hui. Pistes : API sessions/lecture Jellyfin (`UserData`/`LastPlayedDate`), base du plugin **Playback Reporting** (présent sur le serveur), ou suivi minimal maison. À cadrer (lien avec le pan stats 2.0 / M30).
 - ☐ **Borné (budget stockage)** : ne stocker que des **agrégats** par user (minutes/jour, dernier vu, palier courant, état de sursis + échéance), **jamais** les ticks bruts.
 - ☐ **Visibilité** : palier courant + état « sursis » + compte à rebours dans la **barre de quota** et **Mes médias** ; surfacer côté **admin** (table des quotas) + **logs** (M26).
 
@@ -376,7 +376,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ **Avertissements** avant suppression (J-N) + bouton **« Garder »** (réinitialise le compteur) — réutilise le *Keep* de M23.
 - ☐ **Tâche planifiée** idempotente balayant les `Available` dont l'âge dépasse le délai (bornée, comme les autres tâches).
 
-### M32 — Réactivité de l'UI & exactitude temps réel du quota  ☐ *(périmètre 1.0)*
+### M28 — Réactivité de l'UI & exactitude temps réel du quota  ☐ *(périmètre 1.0)*
 
 > Investigation (2026-06-20) : l'enforcement est **déjà** raisonnablement sûr — `CanRequestAsync`
 > compte les requêtes **en vol** (Pending/Approved) via des **estimations** (`EstimateBytes`), donc
@@ -393,7 +393,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ **Anti-exploit** : recompute atomique du *committed* à chaque création (déjà via mutex du store) + cap requêtes/période (M16) comme garde-fou ; documenter le modèle (estimation en vol → taille réelle à l'import).
 - ☐ **Objectif transversal** : **UI optimiste** + invalidation ciblée pour que tout changement (requête, quota, statut) se reflète **sans force-refresh**.
 
-### M33 — Avis & notes (style IMDb) — évolution des commentaires  ☐ *(périmètre 1.0)*
+### M29 — Avis & notes (style IMDb) — évolution des commentaires  ☐ *(périmètre 1.0)*
 
 > Transforme le **système de commentaires existant** (M25 : `MediaComment` / `JsonMediaCommentStore` /
 > `CommentsController` / `buildCommentsSection`) en **système d'avis noté**, interne. Principe directeur :
@@ -445,23 +445,23 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
 ## Au-delà de la 1.0.0 — pan « JellyStats-like »  *(prévu : `v2.0.0`)*
 
-### M27 — Statistiques utilisateur  ☐
+### M30 — Statistiques utilisateur  ☐
 
 - ☐ Recensement par utilisateur : nb de requêtes, médias vus **en entier**, films / épisodes / séries regardés, **watchtime** (7 / 30 / 90 jours + total), watchtime **par bibliothèque** accessible, etc.
 
-### M28 — Dashboard utilisateur  ☐
+### M31 — Dashboard utilisateur  ☐
 
 - ☐ Dashboard avec ses stats et son **classement** (pour les métriques pertinentes).
 - ☐ Onglet **graphes** : évolution dans le temps (échelle réglable, plusieurs courbes — regroupées ou séparées selon la pertinence).
 
-### M29 — Popularité interne & vue admin enrichie  ☐
+### M32 — Popularité interne & vue admin enrichie  ☐
 
 - ☐ **Popularité interne** : « le plus demandé / le plus regardé chez vous » mis en avant dans le catalogue.
 - ☐ **Informations admin** sur chaque média de Jellyfin.
 
 > Le passage à **`v2.0.0`** (commit `[major]`) marque l'ajout du pan statistiques.
 
-### M30 — Système de ticketting  ☐
+### M33 — Système de ticketting  ☐
 
 - ☐ **Ouverture de tickets** : les utilisateurs peuvent ouvrir des tickets pour signaler des bugs/problèmes avec des médias/sous titres/mauvaise langue audio, etc.)
 - ☐ **Onglet admin dédié** : l'admin a une interface adaptée pour gérer cela.
@@ -471,6 +471,6 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
 ## Encore plus loin  *(prévu : `v3.0.0`)*
 
-### M31 — Bot bidirectionnel  ☐
+### M34 — Bot bidirectionnel  ☐
 
 - ☐ **Approuver/refuser depuis Discord/Telegram** (notifications interactives à double sens).
