@@ -18,21 +18,33 @@ public sealed class UserNotificationsControllerTests : IDisposable
 {
   private static readonly Guid User = Guid.NewGuid();
   private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _prefsPath = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
   private readonly JsonUserNotificationStore _store;
+  private readonly JsonUserPrefsStore _prefs;
 
-  public UserNotificationsControllerTests() => _store = new JsonUserNotificationStore(_path);
+  public UserNotificationsControllerTests()
+  {
+    _store = new JsonUserNotificationStore(_path);
+    _prefs = new JsonUserPrefsStore(_prefsPath);
+  }
 
   public void Dispose()
   {
     _store.Dispose();
+    _prefs.Dispose();
     if (File.Exists(_path))
     {
       File.Delete(_path);
     }
+
+    if (File.Exists(_prefsPath))
+    {
+      File.Delete(_prefsPath);
+    }
   }
 
   private UserNotificationsController CreateController()
-    => new(_store, new FakeUserAccessor())
+    => new(_store, _prefs, new FakeUserAccessor())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -81,6 +93,29 @@ public sealed class UserNotificationsControllerTests : IDisposable
 
     var dto = Assert.IsType<UserNotificationsDto>(Assert.IsType<OkObjectResult>((await CreateController().Mine(CancellationToken.None)).Result).Value);
     Assert.Empty(dto.Items);
+  }
+
+  [Fact]
+  public async Task GetPrefs_DefaultsEnabled()
+  {
+    var result = await CreateController().GetPrefs(CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    var prefs = Assert.IsType<UserNotificationPrefs>(ok.Value);
+    Assert.True(prefs.Enabled);
+  }
+
+  [Fact]
+  public async Task SetPrefs_PersistsAndForcesCurrentUser()
+  {
+    await CreateController().SetPrefs(
+      new UserNotificationPrefs { UserId = Guid.NewGuid(), Enabled = false, Email = "u@example", NtfyTopic = "t" },
+      CancellationToken.None);
+
+    var prefs = await _prefs.GetAsync(User, CancellationToken.None);
+    Assert.False(prefs.Enabled);
+    Assert.Equal("u@example", prefs.Email);
+    Assert.Equal("t", prefs.NtfyTopic);
   }
 
   private sealed class FakeUserAccessor : ICurrentUserAccessor

@@ -50,9 +50,16 @@
     return (window.ApiClient && window.ApiClient.getUrl) ? window.ApiClient.getUrl(p) : '/' + p;
   }
 
-  function apiAjax(method, path) {
+  function apiAjax(method, path, data) {
     if (window.ApiClient && window.ApiClient.ajax) {
-      return window.ApiClient.ajax({ type: method, url: getUrl(path), dataType: method === 'GET' ? 'json' : undefined });
+      var opts = { type: method, url: getUrl(path) };
+      if (method === 'GET') { opts.dataType = 'json'; }
+      if (data !== undefined) {
+        opts.data = JSON.stringify(data);
+        opts.contentType = 'application/json';
+        opts.dataType = 'json';
+      }
+      return window.ApiClient.ajax(opts);
     }
     return Promise.reject(new Error('no ApiClient'));
   }
@@ -351,6 +358,9 @@
     title.textContent = t('notifications');
     title.style.fontWeight = '600';
     head.appendChild(title);
+
+    var actions = document.createElement('span');
+    actions.style.cssText = 'display:inline-flex;gap:.6em;align-items:center;';
     if (items && items.length) {
       var clear = document.createElement('button');
       clear.type = 'button';
@@ -361,8 +371,16 @@
           .then(function () { renderBellList(panel, []); setBellBadge(0); })
           .catch(function () { /* ignore */ });
       });
-      head.appendChild(clear);
+      actions.appendChild(clear);
     }
+    var gear = document.createElement('button');
+    gear.type = 'button';
+    gear.title = t('notif_settings');
+    gear.textContent = '⚙';
+    gear.style.cssText = 'background:none;border:0;color:#fff;cursor:pointer;font-size:1em;opacity:.8;';
+    gear.addEventListener('click', function () { renderPrefsForm(panel); });
+    actions.appendChild(gear);
+    head.appendChild(actions);
     panel.appendChild(head);
 
     if (!items || !items.length) {
@@ -390,6 +408,81 @@
       row.appendChild(line3);
       panel.appendChild(row);
     });
+  }
+
+  function renderPrefsForm(panel) {
+    panel.innerHTML = '<div style="padding:.8em;opacity:.7;">' + t('loading') + '</div>';
+    apiAjax('GET', 'JellyCrowd/Notifications/Mine/Prefs')
+      .then(function (p) {
+        p = p || {};
+        panel.innerHTML = '';
+        var head = document.createElement('div');
+        head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:.5em .7em;border-bottom:1px solid rgba(255,255,255,.12);';
+        var back = document.createElement('button');
+        back.type = 'button';
+        back.textContent = '←';
+        back.style.cssText = 'background:none;border:0;color:#fff;cursor:pointer;font-size:1em;';
+        back.addEventListener('click', function () { openBellPanel(panel); });
+        var title = document.createElement('span');
+        title.textContent = t('notif_settings');
+        title.style.fontWeight = '600';
+        head.appendChild(back);
+        head.appendChild(title);
+        head.appendChild(document.createElement('span'));
+        panel.appendChild(head);
+
+        var form = document.createElement('div');
+        form.style.cssText = 'padding:.7em;display:flex;flex-direction:column;gap:.6em;';
+
+        var enaLabel = document.createElement('label');
+        enaLabel.style.cssText = 'display:flex;align-items:center;gap:.5em;cursor:pointer;';
+        var ena = document.createElement('input');
+        ena.type = 'checkbox';
+        ena.checked = p.Enabled !== false;
+        enaLabel.appendChild(ena);
+        var enaText = document.createElement('span');
+        enaText.textContent = t('notif_enabled');
+        enaLabel.appendChild(enaText);
+        form.appendChild(enaLabel);
+
+        function field(labelKey, value, placeholder) {
+          var wrap = document.createElement('label');
+          wrap.style.cssText = 'display:flex;flex-direction:column;gap:.2em;font-size:.85em;';
+          var lab = document.createElement('span');
+          lab.textContent = t(labelKey);
+          var inp = document.createElement('input');
+          inp.type = 'text';
+          inp.value = value || '';
+          inp.placeholder = placeholder || '';
+          inp.style.cssText = 'padding:.35em .5em;border-radius:.25em;border:1px solid rgba(255,255,255,.25);background:#000;color:#fff;';
+          wrap.appendChild(lab);
+          wrap.appendChild(inp);
+          form.appendChild(wrap);
+          return inp;
+        }
+
+        var emailInp = field('notif_email', p.Email, 'you@example.com');
+        var ntfyInp = field('notif_ntfy_topic', p.NtfyTopic, 'my-topic');
+
+        var save = document.createElement('button');
+        save.type = 'button';
+        save.textContent = t('save');
+        save.style.cssText = 'align-self:flex-start;background:#00a4dc;border:0;color:#fff;padding:.4em .9em;border-radius:.25em;cursor:pointer;';
+        save.addEventListener('click', function () {
+          save.disabled = true;
+          save.textContent = '…';
+          apiAjax('POST', 'JellyCrowd/Notifications/Mine/Prefs', {
+            Enabled: ena.checked,
+            Email: emailInp.value.trim(),
+            NtfyTopic: ntfyInp.value.trim()
+          })
+            .then(function () { save.textContent = t('saved'); setTimeout(function () { openBellPanel(panel); }, 700); })
+            .catch(function () { save.disabled = false; save.textContent = t('save'); });
+        });
+        form.appendChild(save);
+        panel.appendChild(form);
+      })
+      .catch(function () { panel.innerHTML = '<div style="padding:.8em;">' + t('error_generic') + '</div>'; });
   }
 
   function openBellPanel(panel) {

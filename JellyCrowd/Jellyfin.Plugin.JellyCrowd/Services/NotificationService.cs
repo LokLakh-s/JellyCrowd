@@ -36,6 +36,7 @@ public sealed class NotificationService : INotificationService
   private readonly IUserManager _userManager;
   private readonly IReadOnlyList<ITextNotifier> _textNotifiers;
   private readonly IUserNotificationStore _userNotifications;
+  private readonly IUserPrefsStore _userPrefs;
   private readonly ILogger<NotificationService> _logger;
 
   /// <summary>
@@ -46,6 +47,7 @@ public sealed class NotificationService : INotificationService
   /// <param name="userManager">The user manager, used to resolve the requesting user's name.</param>
   /// <param name="textNotifiers">The additional text notification channels (Telegram, ntfy, …).</param>
   /// <param name="userNotifications">The per-user in-app notification store (header bell).</param>
+  /// <param name="userPrefs">The per-user delivery preferences (personal email / ntfy).</param>
   /// <param name="logger">The logger.</param>
   public NotificationService(
     IHttpClientFactory httpClientFactory,
@@ -53,6 +55,7 @@ public sealed class NotificationService : INotificationService
     IUserManager userManager,
     IEnumerable<ITextNotifier> textNotifiers,
     IUserNotificationStore userNotifications,
+    IUserPrefsStore userPrefs,
     ILogger<NotificationService> logger)
   {
     _httpClientFactory = httpClientFactory;
@@ -60,6 +63,7 @@ public sealed class NotificationService : INotificationService
     _userManager = userManager;
     _textNotifiers = new List<ITextNotifier>(textNotifiers);
     _userNotifications = userNotifications;
+    _userPrefs = userPrefs;
     _logger = logger;
   }
 
@@ -78,7 +82,7 @@ public sealed class NotificationService : INotificationService
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
 
-    await CreateUserNotificationAsync(request, notificationEvent, body, cancellationToken).ConfigureAwait(false);
+    await NotifyUserAsync(request, notificationEvent, subject, body, cancellationToken).ConfigureAwait(false);
 
     if (DiscordEnabledFor(config, notificationEvent))
     {
@@ -144,7 +148,7 @@ public sealed class NotificationService : INotificationService
         throw new InvalidOperationException("SMTP is not fully configured (host, from address and recipient are required).");
       }
 
-      await SendEmailCoreAsync(config, "[Jelly Crowd] " + Subject, Body, cancellationToken).ConfigureAwait(false);
+      await SendEmailCoreAsync(config, config.NotificationEmailTo, "[Jelly Crowd] " + Subject, Body, cancellationToken).ConfigureAwait(false);
     }
     else
     {
@@ -159,8 +163,9 @@ public sealed class NotificationService : INotificationService
     }
   }
 
-  // Record an in-app notification for the requester on the state changes they care about.
-  private async Task CreateUserNotificationAsync(RequestRecord request, NotificationEvent notificationEvent, string body, CancellationToken cancellationToken)
+  // Notify the requester directly on the state changes they care about: in-app bell + their personal
+  // channels (email / ntfy), when configured.
+  private async Task NotifyUserAsync(RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CancellationToken cancellationToken)
   {
     if (notificationEvent is not (NotificationEvent.Approved or NotificationEvent.Denied or NotificationEvent.Available))
     {
@@ -185,6 +190,63 @@ public sealed class NotificationService : INotificationService
 #pragma warning restore CA1031
     {
       _logger.LogDebug(ex, "Could not store the in-app notification for user {UserId}.", request.UserId);
+    }
+
+    await DeliverPersonalAsync(request.UserId, subject, body, cancellationToken).ConfigureAwait(false);
+  }
+
+  // Deliver to the user's own channels (email / ntfy), each best-effort.
+  private async Task DeliverPersonalAsync(Guid userId, string subject, string body, CancellationToken cancellationToken)
+  {
+    var config = Plugin.Instance?.Configuration;
+    if (config is null)
+    {
+      return;
+    }
+
+    var prefs = await _userPrefs.GetAsync(userId, cancellationToken).ConfigureAwait(false);
+    if (!prefs.Enabled)
+    {
+      return;
+    }
+
+    if (PersonalDelivery.ShouldEmail(prefs, config))
+    {
+      try
+      {
+        await SendEmailCoreAsync(config, prefs.Email!, "[Jelly Crowd] " + subject, body, cancellationToken).ConfigureAwait(false);
+      }
+#pragma warning disable CA1031 // Personal delivery is best-effort.
+      catch (Exception ex)
+#pragma warning restore CA1031
+      {
+        _logger.LogWarning(ex, "Failed to send the personal email notification for user {UserId}.", userId);
+      }
+    }
+
+    var ntfyUrl = PersonalDelivery.NtfyUrl(prefs, config);
+    if (ntfyUrl is not null)
+    {
+      try
+      {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(ntfyUrl))
+        {
+          Content = new StringContent(body, Encoding.UTF8, "text/plain")
+        };
+        request.Headers.TryAddWithoutValidation("Title", subject);
+        if (!string.IsNullOrWhiteSpace(config.NtfyToken))
+        {
+          request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + config.NtfyToken);
+        }
+
+        await NotifierHttp.SendAsync(_httpClientFactory, request, cancellationToken).ConfigureAwait(false);
+      }
+#pragma warning disable CA1031 // Personal delivery is best-effort.
+      catch (Exception ex)
+#pragma warning restore CA1031
+      {
+        _logger.LogWarning(ex, "Failed to send the personal ntfy notification for user {UserId}.", userId);
+      }
     }
   }
 
@@ -303,7 +365,7 @@ public sealed class NotificationService : INotificationService
 
     try
     {
-      await SendEmailCoreAsync(config, subject, body, cancellationToken).ConfigureAwait(false);
+      await SendEmailCoreAsync(config, config.NotificationEmailTo, subject, body, cancellationToken).ConfigureAwait(false);
     }
 #pragma warning disable CA1031 // A notification failure must never affect the request flow.
     catch (Exception ex)
@@ -322,11 +384,11 @@ public sealed class NotificationService : INotificationService
     response.EnsureSuccessStatusCode();
   }
 
-  private static async Task SendEmailCoreAsync(PluginConfiguration config, string subject, string body, CancellationToken cancellationToken)
+  private static async Task SendEmailCoreAsync(PluginConfiguration config, string to, string subject, string body, CancellationToken cancellationToken)
   {
     using var message = new MimeMessage();
     message.From.Add(MailboxAddress.Parse(config.SmtpFromAddress));
-    message.To.Add(MailboxAddress.Parse(config.NotificationEmailTo));
+    message.To.Add(MailboxAddress.Parse(to));
     message.Subject = subject;
     message.Body = new TextPart("plain") { Text = body };
 

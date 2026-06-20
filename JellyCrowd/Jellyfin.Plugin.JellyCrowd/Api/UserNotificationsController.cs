@@ -21,16 +21,19 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 public class UserNotificationsController : ControllerBase
 {
   private readonly IUserNotificationStore _store;
+  private readonly IUserPrefsStore _prefs;
   private readonly ICurrentUserAccessor _userAccessor;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="UserNotificationsController"/> class.
   /// </summary>
   /// <param name="store">The per-user notification store.</param>
+  /// <param name="prefs">The per-user delivery preferences store.</param>
   /// <param name="userAccessor">The current-user accessor.</param>
-  public UserNotificationsController(IUserNotificationStore store, ICurrentUserAccessor userAccessor)
+  public UserNotificationsController(IUserNotificationStore store, IUserPrefsStore prefs, ICurrentUserAccessor userAccessor)
   {
     _store = store;
+    _prefs = prefs;
     _userAccessor = userAccessor;
   }
 
@@ -77,6 +80,44 @@ public class UserNotificationsController : ControllerBase
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     await _store.ClearAsync(userId, null, cancellationToken).ConfigureAwait(false);
     return NoContent();
+  }
+
+  /// <summary>
+  /// Gets the current user's personal delivery preferences (email / ntfy).
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The preferences.</response>
+  /// <returns>The caller's notification preferences.</returns>
+  [HttpGet("Mine/Prefs")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<UserNotificationPrefs>> GetPrefs(CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    return Ok(await _prefs.GetAsync(userId, cancellationToken).ConfigureAwait(false));
+  }
+
+  /// <summary>
+  /// Saves the current user's personal delivery preferences.
+  /// </summary>
+  /// <param name="dto">The preferences (the user id is taken from the caller, not the body).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The saved preferences.</response>
+  /// <returns>The persisted notification preferences.</returns>
+  [HttpPost("Mine/Prefs")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<UserNotificationPrefs>> SetPrefs([FromBody] UserNotificationPrefs dto, CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var saved = await _prefs.SetAsync(
+      new UserNotificationPrefs
+      {
+        UserId = userId,
+        Enabled = dto?.Enabled ?? true,
+        Email = dto?.Email,
+        NtfyTopic = dto?.NtfyTopic
+      },
+      cancellationToken).ConfigureAwait(false);
+    return Ok(saved);
   }
 
   /// <summary>
