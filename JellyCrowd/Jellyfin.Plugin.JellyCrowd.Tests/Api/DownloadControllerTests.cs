@@ -73,6 +73,8 @@ public class DownloadControllerTests
       => _error is null ? Task.CompletedTask : throw _error;
 
     public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
   }
 
   private sealed class FakeServarrClient : IServarrClient
@@ -99,6 +101,8 @@ public class DownloadControllerTests
     public Task<JsonObject?> GetSeriesByTvdbAsync(string baseUrl, string apiKey, int tvdbId, CancellationToken cancellationToken) => Task.FromResult<JsonObject?>(null);
 
     public Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken) => Task.FromResult("[]");
+
+    public Task CommandAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken) => Task.CompletedTask;
   }

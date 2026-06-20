@@ -47,4 +47,15 @@ public interface IDownloadClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when cancellation has been attempted.</returns>
   Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Re-triggers fulfillment for a request that was dispatched but never found a release ("blocked").
+  /// For Radarr/Sonarr this runs a fresh search command on the already-added item (or adds it if it is
+  /// missing); for fire-and-forget backends (webhook/script) it simply re-sends the dispatch. Throws on
+  /// failure so the caller can surface the error.
+  /// </summary>
+  /// <param name="dispatch">The original request payload.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the retry has been attempted.</returns>
+  Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
 }

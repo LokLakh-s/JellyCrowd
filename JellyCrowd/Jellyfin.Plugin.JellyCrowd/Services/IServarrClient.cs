@@ -115,6 +115,17 @@ public interface IServarrClient
   Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Triggers a command (<c>POST /api/v3/command</c>), e.g. <c>MoviesSearch</c>, <c>SeriesSearch</c>
+  /// or <c>SeasonSearch</c>, to re-run a release search for an already-added item.
+  /// </summary>
+  /// <param name="baseUrl">The instance base URL.</param>
+  /// <param name="apiKey">The API key.</param>
+  /// <param name="body">The command body (must include a <c>name</c>).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the command is accepted.</returns>
+  Task CommandAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Removes a movie from Radarr (<c>DELETE /api/v3/movie/{id}</c>), stopping its search/download.
   /// </summary>
   /// <param name="baseUrl">The Radarr base URL.</param>

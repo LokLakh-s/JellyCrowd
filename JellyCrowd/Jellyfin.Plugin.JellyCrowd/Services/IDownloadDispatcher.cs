@@ -42,4 +42,14 @@ public interface IDownloadDispatcher
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when cancellation has been attempted.</returns>
   Task CancelAsync(RequestRecord request, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Re-triggers a release search for an approved-but-blocked request (one that dispatched but never
+  /// became available). Clears the stored dispatch error on success, records it again on failure.
+  /// Never throws.
+  /// </summary>
+  /// <param name="request">The request to retry.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns><c>true</c> when the retry was attempted successfully.</returns>
+  Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken);
 }

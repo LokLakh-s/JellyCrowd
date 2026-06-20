@@ -68,6 +68,13 @@ public sealed class WebhookDownloadClient : IDownloadClient
   /// <inheritdoc />
   public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
 
+  /// <inheritdoc />
+  public Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(dispatch);
+    return PostAsync(dispatch, cancellationToken);
+  }
+
   private async Task PostAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
   {
     var config = _config();

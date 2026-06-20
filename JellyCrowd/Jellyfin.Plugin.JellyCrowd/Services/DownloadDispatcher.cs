@@ -130,6 +130,43 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     }
   }
 
+  /// <inheritdoc />
+  public async Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    var client = ActiveClient(_config());
+    if (client is null)
+    {
+      return false;
+    }
+
+    var nowUtc = DateTime.UtcNow;
+    try
+    {
+      var name = _resolveUserName(request.UserId);
+      var payload = DownloadPayloadBuilder.Build(request, name);
+      await client.RetryAsync(payload, cancellationToken).ConfigureAwait(false);
+      await _store.SetDispatchErrorAsync(request.Id, null, nowUtc, cancellationToken).ConfigureAwait(false);
+      _logger.LogInformation(
+        "Retried the search for request {RequestId} ({Title}) on the {Backend} backend.",
+        request.Id.ToString("N", CultureInfo.InvariantCulture),
+        request.Title,
+        client.Backend);
+      _ = _activityLog.LogAsync("info", "download", "Retry search for " + request.Title, CancellationToken.None);
+      return true;
+    }
+#pragma warning disable CA1031 // A retry failure is surfaced via the persisted dispatch error, not thrown.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      var message = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
+      await _store.SetDispatchErrorAsync(request.Id, message, nowUtc, cancellationToken).ConfigureAwait(false);
+      _logger.LogWarning(ex, "Retry failed for request {RequestId}.", request.Id.ToString("N", CultureInfo.InvariantCulture));
+      _ = _activityLog.LogAsync("error", "download", "Retry failed for " + request.Title + ": " + message, CancellationToken.None);
+      return false;
+    }
+  }
+
   private static bool IsNoneBackend(string? backend)
     => string.IsNullOrWhiteSpace(backend) || string.Equals(backend, "none", StringComparison.OrdinalIgnoreCase);
 

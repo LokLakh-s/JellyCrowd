@@ -19,9 +19,9 @@ public class RequestsControllerTests
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true)
+  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher())
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -234,6 +234,43 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Retry_OwnApproved_ReturnsOk_AndCallsDispatcher()
+  {
+    var store = new FakeRequestStore();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+    await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+    var dispatcher = new FakeDownloadDispatcher();
+
+    var result = await CreateController(store, User, dispatcher: dispatcher).Retry(created.Id, CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+    Assert.Contains(created.Id, dispatcher.Retried);
+  }
+
+  [Fact]
+  public async Task Retry_NotOwner_ReturnsNotFound()
+  {
+    var store = new FakeRequestStore();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store, User).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+    await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+
+    var result = await CreateController(store, Guid.NewGuid()).Retry(created.Id, CancellationToken.None);
+
+    Assert.IsType<NotFoundResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Retry_NotApproved_ReturnsConflict()
+  {
+    var store = new FakeRequestStore();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+
+    var result = await CreateController(store).Retry(created.Id, CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+  }
+
+  [Fact]
   public async Task RequestDeletion_OwnAvailable_ReturnsOk()
   {
     var store = new FakeRequestStore();
@@ -360,6 +397,8 @@ public class RequestsControllerTests
 
   private sealed class FakeDownloadDispatcher : IDownloadDispatcher
   {
+    public List<Guid> Retried { get; } = new();
+
     public Task<bool> DispatchAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(false);
 
     public Task DispatchDueAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -367,6 +406,12 @@ public class RequestsControllerTests
     public Task TestActiveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken)
+    {
+      Retried.Add(request.Id);
+      return Task.FromResult(true);
+    }
   }
 
   private sealed class FakeServarrStatusService : IServarrStatusService

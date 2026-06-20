@@ -135,6 +135,34 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   [Fact]
+  public async Task RetryAsync_DelegatesToClient_AndClearsError()
+  {
+    var request = await SeedApprovedAsync();
+    await _store.SetDispatchErrorAsync(request.Id, "not found", DateTime.UtcNow, CancellationToken.None);
+
+    var ok = await CreateDispatcher().RetryAsync(request, CancellationToken.None);
+
+    Assert.True(ok);
+    Assert.Single(_client.Retried);
+    Assert.Equal(603, _client.Retried[0].TmdbId);
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.Null(stored!.DispatchError);
+  }
+
+  [Fact]
+  public async Task RetryAsync_OnFailure_RecordsError()
+  {
+    var request = await SeedApprovedAsync();
+    _client.Throw = true;
+
+    var ok = await CreateDispatcher().RetryAsync(request, CancellationToken.None);
+
+    Assert.False(ok);
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.NotNull(stored!.DispatchError);
+  }
+
+  [Fact]
   public async Task TestActiveAsync_NoneBackend_Throws()
   {
     _config.DownloadBackend = "none";
@@ -147,6 +175,8 @@ public sealed class DownloadDispatcherTests : IDisposable
     public List<DownloadDispatch> Dispatched { get; } = new();
 
     public List<DownloadDispatch> Cancelled { get; } = new();
+
+    public List<DownloadDispatch> Retried { get; } = new();
 
     public bool Throw { get; set; }
 
@@ -170,6 +200,17 @@ public sealed class DownloadDispatcherTests : IDisposable
     public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
     {
       Cancelled.Add(dispatch);
+      return Task.CompletedTask;
+    }
+
+    public Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+    {
+      if (Throw)
+      {
+        throw new InvalidOperationException("boom");
+      }
+
+      Retried.Add(dispatch);
       return Task.CompletedTask;
     }
   }

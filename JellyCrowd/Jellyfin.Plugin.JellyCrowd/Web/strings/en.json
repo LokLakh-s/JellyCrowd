@@ -96,6 +96,8 @@
   "status_approved": "Approved",
   "status_denied": "Denied",
   "status_available": "Available",
+  "status_blocked": "Blocked",
+  "retry_search": "Retry search",
   "dl_queued": "Queued",
   "dl_downloading": "Downloading",
   "dl_importing": "Importing",

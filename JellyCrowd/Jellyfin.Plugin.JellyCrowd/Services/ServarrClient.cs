@@ -130,6 +130,10 @@ public sealed class ServarrClient : IServarrClient
     => GetStringAsync(baseUrl, apiKey, "/episode?seriesId=" + seriesId.ToString(CultureInfo.InvariantCulture), cancellationToken);
 
   /// <inheritdoc />
+  public Task CommandAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken)
+    => PostAsync(baseUrl, apiKey, "/command", body, cancellationToken);
+
+  /// <inheritdoc />
   public async Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken)
   {
     var path = string.Format(
