@@ -289,7 +289,7 @@ Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
 
 Objectif : le « non-fonctionnel » qui sépare une 0.x d'une 1.0.
 
-- ◑ **Verrouillage concurrent** des stores JSON fait (SemaphoreSlim) ; **versionnage de schéma / migrations** manquant.
+- ☑ **Verrouillage concurrent** des stores JSON (SemaphoreSlim) + **versionnage de schéma + migrations** (`VersionedJsonFile` : enveloppe `{ schemaVersion, items }`, lecture rétro-compatible du format legacy, hook de migration).
 - ◑ **Export / sauvegarde** des **requêtes** fait ; **config exclue volontairement** du bundle (pas de secrets).
 - ☑ **Cache TMDB & affiches** (respecter les quotas d'API, réduire la latence).
 - ☑ **États vides & erreurs gracieuses** partout (backend down, réseau, 0 résultat).
