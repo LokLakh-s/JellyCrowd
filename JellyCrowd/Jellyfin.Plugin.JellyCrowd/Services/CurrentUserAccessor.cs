@@ -27,4 +27,15 @@ public sealed class CurrentUserAccessor : ICurrentUserAccessor
     var info = await _authorizationContext.GetAuthorizationInfo(request).ConfigureAwait(false);
     return info.UserId;
   }
+
+  /// <inheritdoc />
+  public Task<bool> IsAdministratorAsync(HttpRequest request)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+
+    // Jellyfin populates the "Administrator" role on the principal for admins (and API keys); this is
+    // what the "RequiresElevation" policy checks under the hood.
+    var isAdmin = request.HttpContext?.User?.IsInRole("Administrator") ?? false;
+    return Task.FromResult(isAdmin);
+  }
 }

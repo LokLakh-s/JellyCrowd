@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
-using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Api;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
+using Jellyfin.Plugin.JellyCrowd.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -17,21 +19,15 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
 /// </summary>
 public class PluginVisibilityFilterTests
 {
-  private static ActionExecutingContext Context(bool admin)
+  private static ActionExecutingContext Context()
   {
-    var http = new DefaultHttpContext();
-    if (admin)
-    {
-      http.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, "Administrator") }, "test"));
-    }
-
-    var actionContext = new ActionContext(http, new RouteData(), new ActionDescriptor());
+    var actionContext = new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor());
     return new ActionExecutingContext(actionContext, new List<IFilterMetadata>(), new Dictionary<string, object?>(), controller: new object());
   }
 
   private static async Task<bool> RunAsync(PluginConfiguration config, bool admin, ActionExecutingContext context)
   {
-    var filter = new PluginVisibilityFilter(() => config);
+    var filter = new PluginVisibilityFilter(() => config, new FakeAccessor(admin));
     var proceeded = false;
     await filter.OnActionExecutionAsync(context, () =>
     {
@@ -44,7 +40,7 @@ public class PluginVisibilityFilterTests
   [Fact]
   public async Task NotHidden_Proceeds()
   {
-    var ctx = Context(admin: false);
+    var ctx = Context();
     var proceeded = await RunAsync(new PluginConfiguration { HiddenFromUsers = false }, admin: false, ctx);
 
     Assert.True(proceeded);
@@ -54,7 +50,7 @@ public class PluginVisibilityFilterTests
   [Fact]
   public async Task HiddenNonAdmin_Returns403()
   {
-    var ctx = Context(admin: false);
+    var ctx = Context();
     var proceeded = await RunAsync(new PluginConfiguration { HiddenFromUsers = true }, admin: false, ctx);
 
     Assert.False(proceeded);
@@ -64,10 +60,21 @@ public class PluginVisibilityFilterTests
   [Fact]
   public async Task HiddenAdmin_Proceeds()
   {
-    var ctx = Context(admin: true);
+    var ctx = Context();
     var proceeded = await RunAsync(new PluginConfiguration { HiddenFromUsers = true }, admin: true, ctx);
 
     Assert.True(proceeded);
     Assert.Null(ctx.Result);
+  }
+
+  private sealed class FakeAccessor : ICurrentUserAccessor
+  {
+    private readonly bool _admin;
+
+    public FakeAccessor(bool admin) => _admin = admin;
+
+    public Task<Guid> GetUserIdAsync(HttpRequest request) => Task.FromResult(Guid.NewGuid());
+
+    public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(_admin);
   }
 }

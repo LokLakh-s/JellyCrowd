@@ -78,24 +78,44 @@
     return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key;
   }
 
+  var configMode = false;     // raw "config mode" flag (hidden from non-admins)
+
   function loadConfigLang() {
+    // Token-free request (works before ApiClient is ready): gives us the language and the raw
+    // config-mode flag. If config mode is on we hide by default (fail closed) until an authenticated
+    // admin check confirms the current user is exempt.
     return fetch(getUrl('JellyCrowd/Settings/Language'))
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); } })
-      .catch(function () { /* keep 'auto' on failure */ });
+      .then(function (d) {
+        if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); }
+        configMode = !!(d && d.Hidden === true);
+        pluginHidden = configMode; // fail closed while config mode is on
+      })
+      .catch(function () { /* keep defaults on failure */ });
   }
 
-  // Ask the server (authenticated, so it knows our role) whether the plugin is visible to us. In
-  // "config mode" it is hidden for everyone except administrators. We trust the server rather than
-  // guessing admin status client-side. On failure we default to visible (the server-side filter still
-  // blocks data access for non-admins, so nothing leaks).
-  function loadVisibility() {
-    return apiAjax('GET', 'JellyCrowd/Settings/Visibility')
-      .then(function (d) { pluginHidden = !!(d && d.Visible === false); })
-      .catch(function () { pluginHidden = false; });
+  // When config mode is on, confirm via the authenticated endpoint whether THIS user is an admin
+  // (and therefore exempt). Retried a few times because ApiClient may not be ready at first paint.
+  function resolveAdminVisibility(attempt) {
+    if (!configMode) {
+      return; // not hidden — nothing to resolve
+    }
+    attempt = attempt || 0;
+    apiAjax('GET', 'JellyCrowd/Settings/Visibility')
+      .then(function (d) {
+        if (d && d.Visible === true) {
+          pluginHidden = false;
+          tryInsert();
+        }
+      })
+      .catch(function () {
+        if (attempt < 5) {
+          setTimeout(function () { resolveAdminVisibility(attempt + 1); }, 1000);
+        }
+      });
   }
 
-  // Config mode hides the plugin from everyone except administrators (decided server-side).
+  // Config mode hides the plugin from everyone except administrators.
   function pluginVisible() {
     return !pluginHidden;
   }
@@ -174,6 +194,18 @@
     viewHost = document.createElement('div');
     viewHost.className = 'jellycrowd-overlay-views';
     overlay.appendChild(viewHost);
+
+    // A visible close button on the panel itself (the native header sits above; the panel is below it).
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', t('back'));
+    close.textContent = '×';
+    close.style.cssText = 'position:absolute;top:.5em;right:.7em;z-index:5;width:2.1em;height:2.1em;border:0;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:1.4em;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+    close.addEventListener('mouseenter', function () { close.style.background = 'rgba(0,0,0,.8)'; });
+    close.addEventListener('mouseleave', function () { close.style.background = 'rgba(0,0,0,.55)'; });
+    close.addEventListener('click', hideOverlay);
+    overlay.appendChild(close);
+
     document.body.appendChild(overlay);
 
     window.addEventListener('resize', positionOverlay);
@@ -582,20 +614,29 @@
     badge.style.cssText = 'position:absolute;top:.1em;right:.1em;min-width:1.15em;height:1.15em;padding:0 .25em;border-radius:.6em;background:#e53935;color:#fff;font-size:.62em;line-height:1.15em;text-align:center;display:none;box-sizing:border-box;';
     btn.appendChild(badge);
 
+    // The panel is fixed-position and lives on <body> (not inside the header) so it is never clipped
+    // by the header's overflow/stacking context; we anchor it under the bell button on open.
     var panel = document.createElement('div');
     panel.className = 'jcBellPanel';
-    panel.style.cssText = 'position:absolute;top:100%;right:0;margin-top:.3em;width:22em;max-width:90vw;max-height:24em;overflow-y:auto;background:#1c1c1c;border:1px solid rgba(255,255,255,.15);border-radius:.4em;box-shadow:0 6px 22px rgba(0,0,0,.55);z-index:10000;display:none;';
+    panel.style.cssText = 'position:fixed;width:22em;max-width:90vw;max-height:70vh;overflow-y:auto;background:#1c1c1c;border:1px solid rgba(255,255,255,.15);border-radius:.4em;box-shadow:0 6px 22px rgba(0,0,0,.55);z-index:100000;display:none;';
+
+    function positionPanel() {
+      var r = btn.getBoundingClientRect();
+      panel.style.top = Math.round(r.bottom + 4) + 'px';
+      panel.style.right = Math.round(window.innerWidth - r.right) + 'px';
+    }
 
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
       if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+      positionPanel();
       openBellPanel(panel);
     });
     panel.addEventListener('click', function (e) { e.stopPropagation(); });
     document.addEventListener('click', function () { panel.style.display = 'none'; });
 
     wrap.appendChild(btn);
-    wrap.appendChild(panel);
+    document.body.appendChild(panel);
 
     var quota = host.querySelector('.jcHeaderQuota');
     var userBtn = host.querySelector('.headerUserButton');
@@ -626,5 +667,5 @@
     window.addEventListener('hashchange', hideOverlay);
   }
 
-  loadConfigLang().then(loadVisibility).then(loadStrings).then(start);
+  loadConfigLang().then(loadStrings).then(start).then(resolveAdminVisibility);
 })();

@@ -16,4 +16,11 @@ public interface ICurrentUserAccessor
   /// <param name="request">The incoming HTTP request.</param>
   /// <returns>The user identifier, or <see cref="Guid.Empty"/> when unauthenticated.</returns>
   Task<Guid> GetUserIdAsync(HttpRequest request);
+
+  /// <summary>
+  /// Determines whether the request is made by an administrator (or an API key, which is elevated).
+  /// </summary>
+  /// <param name="request">The incoming HTTP request.</param>
+  /// <returns><c>true</c> when the caller is an administrator or an API key.</returns>
+  Task<bool> IsAdministratorAsync(HttpRequest request);
 }

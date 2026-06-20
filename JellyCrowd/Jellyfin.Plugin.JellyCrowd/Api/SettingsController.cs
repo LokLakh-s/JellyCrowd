@@ -1,7 +1,9 @@
 using System;
 using System.Net.Mime;
+using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
+using Jellyfin.Plugin.JellyCrowd.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,14 +20,17 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 public class SettingsController : ControllerBase
 {
   private readonly Func<PluginConfiguration> _config;
+  private readonly ICurrentUserAccessor _userAccessor;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="SettingsController"/> class.
   /// </summary>
   /// <param name="config">Accessor for the current plugin configuration.</param>
-  public SettingsController(Func<PluginConfiguration> config)
+  /// <param name="userAccessor">The current-user accessor (to resolve administrator status).</param>
+  public SettingsController(Func<PluginConfiguration> config, ICurrentUserAccessor userAccessor)
   {
     _config = config;
+    _userAccessor = userAccessor;
   }
 
   /// <summary>
@@ -38,8 +43,12 @@ public class SettingsController : ControllerBase
   [ProducesResponseType(StatusCodes.Status200OK)]
   public ActionResult<LanguageSettingDto> GetLanguage()
   {
-    var language = _config().Language;
-    return Ok(new LanguageSettingDto { Language = string.IsNullOrWhiteSpace(language) ? "auto" : language });
+    var config = _config();
+    return Ok(new LanguageSettingDto
+    {
+      Language = string.IsNullOrWhiteSpace(config.Language) ? "auto" : config.Language,
+      Hidden = config.HiddenFromUsers
+    });
   }
 
   /// <summary>
@@ -51,9 +60,9 @@ public class SettingsController : ControllerBase
   [HttpGet("Visibility")]
   [Authorize]
   [ProducesResponseType(StatusCodes.Status200OK)]
-  public ActionResult<VisibilitySettingDto> GetVisibility()
+  public async Task<ActionResult<VisibilitySettingDto>> GetVisibility()
   {
-    var isAdmin = User?.IsInRole("Administrator") ?? false;
+    var isAdmin = await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false);
     var visible = !_config().HiddenFromUsers || isAdmin;
     return Ok(new VisibilitySettingDto { Visible = visible });
   }

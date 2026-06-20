@@ -72,5 +72,7 @@ public sealed class ReportsControllerTests : IDisposable
   private sealed class FakeUserAccessor : ICurrentUserAccessor
   {
     public Task<Guid> GetUserIdAsync(HttpRequest request) => Task.FromResult(User);
+
+    public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(false);
   }
 }

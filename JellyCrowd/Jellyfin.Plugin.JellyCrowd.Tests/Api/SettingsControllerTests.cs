@@ -1,7 +1,9 @@
 using Jellyfin.Plugin.JellyCrowd.Api;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
+using Jellyfin.Plugin.JellyCrowd.Services;
 using Microsoft.AspNetCore.Mvc;
+using Moq;
 using Xunit;
 
 namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
@@ -13,7 +15,7 @@ public class SettingsControllerTests
 {
   private static LanguageSettingDto GetLanguage(string? configured)
   {
-    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! });
+    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! }, Mock.Of<ICurrentUserAccessor>());
     var result = controller.GetLanguage();
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     return Assert.IsType<LanguageSettingDto>(ok.Value);
