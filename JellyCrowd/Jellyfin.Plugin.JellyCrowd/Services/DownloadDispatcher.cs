@@ -22,6 +22,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   private readonly Func<Guid, string> _resolveUserName;
   private readonly Func<PluginConfiguration> _config;
   private readonly IActivityLog _activityLog;
+  private readonly INotificationService _notificationService;
   private readonly ILogger<DownloadDispatcher> _logger;
 
   /// <summary>
@@ -32,6 +33,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   /// <param name="resolveUserName">Resolves a user id to a display name.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="activityLog">The plugin activity log.</param>
+  /// <param name="notificationService">The notification service (used to alert the requester on failure).</param>
   /// <param name="logger">The logger.</param>
   public DownloadDispatcher(
     IEnumerable<IDownloadClient> clients,
@@ -39,6 +41,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     Func<Guid, string> resolveUserName,
     Func<PluginConfiguration> config,
     IActivityLog activityLog,
+    INotificationService notificationService,
     ILogger<DownloadDispatcher> logger)
   {
     ArgumentNullException.ThrowIfNull(clients);
@@ -47,6 +50,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     _resolveUserName = resolveUserName;
     _config = config;
     _activityLog = activityLog;
+    _notificationService = notificationService;
     _logger = logger;
   }
 
@@ -210,8 +214,16 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       // Persist the reason so the admin can see why nothing reached the backend (the exception
       // otherwise only lands in the Jellyfin log). Truncated to keep the store small.
       var message = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
+
+      // Notify the requester only on the first failure (transition into error), not on every retry.
+      var firstFailure = string.IsNullOrEmpty(request.DispatchError);
       await _store.SetDispatchErrorAsync(request.Id, message, nowUtc, cancellationToken).ConfigureAwait(false);
       _ = _activityLog.LogAsync("error", "download", "Dispatch failed for " + request.Title + ": " + message, CancellationToken.None);
+      if (firstFailure)
+      {
+        _ = _notificationService.NotifyRequestEventAsync(request, NotificationEvent.Failed, CancellationToken.None);
+      }
+
       return false;
     }
   }

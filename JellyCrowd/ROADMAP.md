@@ -267,14 +267,14 @@ Objectif : faire de JellyCrowd un vrai outil **multi-utilisateur**.
 - ☑ **Plafonds par utilisateur/rôle** (quota disque, nombre de requêtes/période) en surcharge du global.
 - ☑ **Règles d'auto-approbation** : **taille < X Go** + **utilisateurs de confiance** + **critère genre** (liste de genres TMDB qui restreint l'auto-approbation par taille ; les utilisateurs de confiance la contournent).
 
-### M17 — Notifications utilisateur & centre de notifications  ◑ *(livré, restes mineurs)*
+### M17 — Notifications utilisateur & centre de notifications  ☑ *(livré)*
 
 Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux admin uniquement).
 
 - ☑ **Cloche** dans le bandeau, **juste à gauche du quota**, avec **pastille rouge + compteur** (style Facebook).
-- ◑ Menu déroulant = **journal de notifications** de l'utilisateur, **effaçable** : *clear all* OK + API par-item, mais **bouton « effacer par item » (UI) manquant**.
+- ☑ Menu déroulant = **journal de notifications** de l'utilisateur, **effaçable** : *clear all* + **bouton « × » par item** (UI).
   - ☑ **Borné** : plafond par utilisateur (50) + TTL (30 j).
-- ◑ Notifier le demandeur sur **Approved / Denied / Available** faits ; **event « Échec » manquant** *(couvert par M15)*.
+- ☑ Notifier le demandeur sur **Approved / Denied / Available / Échec** (`NotificationEvent.Failed` émis au **premier** échec de dispatch, in-app + canaux perso).
 - ☑ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
 
 ### M18 — Diagnostic & santé  ◑ *(livré, restes mineurs)*

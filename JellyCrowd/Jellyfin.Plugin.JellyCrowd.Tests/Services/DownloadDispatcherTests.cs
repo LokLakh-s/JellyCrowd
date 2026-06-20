@@ -19,6 +19,7 @@ public sealed class DownloadDispatcherTests : IDisposable
   private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
   private readonly JsonRequestStore _store;
   private readonly FakeDownloadClient _client = new();
+  private readonly RecordingNotificationService _notifier = new();
   private readonly PluginConfiguration _config = new() { DownloadBackend = "webhook", DownloadWebhookUrl = "http://example/hook" };
 
   public DownloadDispatcherTests()
@@ -36,7 +37,7 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   private DownloadDispatcher CreateDispatcher()
-    => new(new IDownloadClient[] { _client }, _store, _ => "tester", () => _config, new NoOpActivityLog(), NullLogger<DownloadDispatcher>.Instance);
+    => new(new IDownloadClient[] { _client }, _store, _ => "tester", () => _config, new NoOpActivityLog(), _notifier, NullLogger<DownloadDispatcher>.Instance);
 
   private async Task<RequestRecord> SeedApprovedAsync()
   {
@@ -110,6 +111,21 @@ public sealed class DownloadDispatcherTests : IDisposable
     var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
     Assert.NotNull(stored!.DispatchedAt);
     Assert.Null(stored.DispatchError);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_FirstFailure_NotifiesRequesterOnce()
+  {
+    _client.Throw = true;
+    var request = await SeedApprovedAsync();
+
+    await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+    // Second attempt: the request now already carries a DispatchError, so no duplicate notification.
+    var reloaded = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    await CreateDispatcher().DispatchAsync(reloaded!, CancellationToken.None);
+
+    Assert.Single(_notifier.Events);
+    Assert.Equal(NotificationEvent.Failed, _notifier.Events[0]);
   }
 
   [Fact]

@@ -23,5 +23,10 @@ public enum NotificationEvent
   /// <summary>
   /// A requested title became available in the library.
   /// </summary>
-  Available
+  Available,
+
+  /// <summary>
+  /// Fulfillment failed (the backend could not be reached or no release was found).
+  /// </summary>
+  Failed
 }
