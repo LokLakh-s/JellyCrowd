@@ -75,6 +75,22 @@
 
 - [ ] Ouvrir l'overlay sur **téléphone** : bandeau, onglets, modale, barre de quota lisibles et utilisables.
 
+## 9. Bandeau natif & intégration (custom CSS)
+
+- [ ] Ouvrir un volet du plugin (Catalog/Calendar/My requests/My media) → le **bandeau natif Jellyfin reste affiché en haut** (avec ton custom CSS : couleur `.headerRight`, tailles d'onglets, image de fond…), **pas** de bandeau custom qui le recouvre.
+- [ ] Le contenu du plugin s'affiche **sous** le bandeau (pas par-dessus).
+- [ ] Les liens **Catalog / Calendar / My requests** s'intègrent à la rangée d'onglets native ; **quota** + **cloche** dans `.headerRight`.
+- [ ] Re-cliquer le lien **actif** referme le volet (le bandeau natif seul reste).
+- [ ] Les menus déroulants natifs (compte, recherche…) s'ouvrent **au-dessus** du volet.
+- [ ] Vérifier sur **mobile** que le décalage sous le bandeau est correct (pas de chevauchement).
+
+## 10. Mode config (cacher le plugin)
+
+- [ ] Config admin → cocher **« Config mode — hide the plugin from regular users »**, sauvegarder.
+- [ ] Avec un compte **non-admin** : aucun lien/quota/cloche Jelly Crowd dans le bandeau ; appel direct API (ex. `GET /JellyCrowd/Catalog/Trending`) → **403**.
+- [ ] Avec le compte **admin** : le plugin reste **visible et utilisable** (pour configurer/tester).
+- [ ] Décocher l'option → les utilisateurs revoient le plugin (après rechargement de page).
+
 ---
 
 ### Notes

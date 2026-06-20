@@ -18,6 +18,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 [Authorize]
 [Route("JellyCrowd/Reports")]
 [Produces(MediaTypeNames.Application.Json)]
+[ServiceFilter(typeof(PluginVisibilityFilter))]
 public class ReportsController : ControllerBase
 {
   private const int MaxMessageLength = 2000;

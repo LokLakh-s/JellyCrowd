@@ -5,10 +5,16 @@
 }
 
 /* Full-screen overlay that hosts the user pages (Jelly Crowd's own tabbed shell). */
+/* Content panel for the plugin views. Positioned BELOW the native Jellyfin header (its `top` is set
+   at runtime to the header's height) so the real header — with the user's custom CSS — stays visible
+   and interactive on top. z-index sits under the header (and its dropdowns), over the page content. */
 .jellycrowd-overlay {
   position: fixed;
-  inset: 0;
-  z-index: 1000;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 998;
   display: flex;
   flex-direction: column;
   overflow: hidden;

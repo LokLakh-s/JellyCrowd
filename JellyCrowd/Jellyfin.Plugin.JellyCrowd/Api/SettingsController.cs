@@ -38,7 +38,11 @@ public class SettingsController : ControllerBase
   [ProducesResponseType(StatusCodes.Status200OK)]
   public ActionResult<LanguageSettingDto> GetLanguage()
   {
-    var language = _config().Language;
-    return Ok(new LanguageSettingDto { Language = string.IsNullOrWhiteSpace(language) ? "auto" : language });
+    var config = _config();
+    return Ok(new LanguageSettingDto
+    {
+      Language = string.IsNullOrWhiteSpace(config.Language) ? "auto" : config.Language,
+      Hidden = config.HiddenFromUsers
+    });
   }
 }

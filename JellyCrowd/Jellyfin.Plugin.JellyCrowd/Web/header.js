@@ -13,6 +13,8 @@
   var SUPPORTED = ['en', 'fr'];
   var strings = {};
   var cfgLang = 'auto';
+  var pluginHidden = false;   // "config mode": hide the plugin from non-admins
+  var isAdmin = false;        // current Jellyfin user is an administrator
 
   // The user pages we host. Order defines the overlay tab order.
   var VIEWS = [
@@ -80,8 +82,26 @@
   function loadConfigLang() {
     return fetch(getUrl('JellyCrowd/Settings/Language'))
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); } })
+      .then(function (d) {
+        if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); }
+        if (d) { pluginHidden = d.Hidden === true; }
+      })
       .catch(function () { /* keep 'auto' on failure */ });
+  }
+
+  // Resolve whether the current user is an administrator (so "config mode" still shows for admins).
+  function loadIsAdmin() {
+    if (!(window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function')) {
+      return Promise.resolve();
+    }
+    return window.ApiClient.getCurrentUser()
+      .then(function (user) { isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator); })
+      .catch(function () { /* assume non-admin on failure */ });
+  }
+
+  // Config mode hides the plugin from everyone except administrators.
+  function pluginVisible() {
+    return !pluginHidden || isAdmin;
   }
 
   function loadStrings() {
@@ -135,6 +155,18 @@
     }).catch(function () { /* badge is best-effort */ });
   }
 
+  // Position the overlay just below the native Jellyfin header so the real (custom-CSS) header stays
+  // visible and usable. We no longer draw our own header bar — navigation lives in the native header
+  // (the injected Catalog / Calendar / My requests links + the quota bar + the bell).
+  function positionOverlay() {
+    if (!overlay) {
+      return;
+    }
+    var header = document.querySelector('.skinHeader');
+    var top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+    overlay.style.top = (top > 0 ? top : 0) + 'px';
+  }
+
   function ensureOverlay() {
     if (overlay) {
       return;
@@ -143,49 +175,12 @@
     overlay.className = 'jellycrowd-overlay';
     overlay.style.display = 'none';
 
-    var bar = document.createElement('div');
-    bar.className = 'jellycrowd-overlay-bar';
-
-    var tabs = document.createElement('div');
-    tabs.className = 'jellycrowd-overlay-tabs';
-    VIEWS.forEach(function (v) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'jellycrowd-overlay-tab';
-      b.textContent = t(v.labelKey);
-      b.addEventListener('click', function () { showView(v.id); });
-      v.tab = b;
-      tabs.appendChild(b);
-    });
-
-    // Back arrow (left, like Jellyfin's own back button) replaces the old close cross.
-    var back = document.createElement('button');
-    back.type = 'button';
-    back.className = 'jellycrowd-overlay-back';
-    back.setAttribute('aria-label', t('back'));
-    var backIcon = document.createElement('span');
-    backIcon.className = 'material-icons';
-    backIcon.setAttribute('aria-hidden', 'true');
-    backIcon.textContent = 'arrow_back';
-    back.appendChild(backIcon);
-    back.addEventListener('click', hideOverlay);
-
-    // User badge on the right (where the close cross used to be).
-    var userBadge = document.createElement('span');
-    userBadge.className = 'jellycrowd-overlay-userbadge';
-    populateUserBadge(userBadge);
-
-    bar.appendChild(back);
-    bar.appendChild(tabs);
-    bar.appendChild(userBadge);
-
     viewHost = document.createElement('div');
     viewHost.className = 'jellycrowd-overlay-views';
-
-    overlay.appendChild(bar);
     overlay.appendChild(viewHost);
     document.body.appendChild(overlay);
 
+    window.addEventListener('resize', positionOverlay);
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && overlay.style.display !== 'none') {
         hideOverlay();
@@ -202,13 +197,11 @@
     }
 
     overlay.style.display = '';
+    positionOverlay();
     setActiveNav(id);
     VIEWS.forEach(function (v) {
       if (v.container) {
         v.container.style.display = (v.id === id) ? '' : 'none';
-      }
-      if (v.tab) {
-        v.tab.classList.toggle('jellycrowd-overlay-tab-active', v.id === id);
       }
     });
 
@@ -241,6 +234,18 @@
     setActiveNav(null);
   }
 
+  // Clicking the already-active header link again closes the panel (so the native header alone remains).
+  function toggleView(id) {
+    if (!pluginVisible()) {
+      return;
+    }
+    if (overlay && overlay.style.display !== 'none' && activeNavId === id) {
+      hideOverlay();
+    } else {
+      showView(id);
+    }
+  }
+
   // Let our pages (e.g. the requests quota bar) switch views without touching the URL hash.
   window.jellyCrowdShowView = showView;
 
@@ -266,7 +271,7 @@
     a.addEventListener('mouseenter', function () { a.style.color = NAV_BLUE; });
     a.addEventListener('mouseleave', function () { a.style.color = (viewId === activeNavId) ? NAV_WHITE : NAV_GREY; });
     // stopPropagation: keep the click from reaching Jellyfin's tab-bar click handler.
-    a.addEventListener('click', function (e) { e.stopPropagation(); showView(viewId); });
+    a.addEventListener('click', function (e) { e.stopPropagation(); toggleView(viewId); });
     return a;
   }
 
@@ -291,7 +296,7 @@
     var box = document.createElement('span');
     box.style.cssText = 'display:inline-flex;flex-direction:column;justify-content:center;min-width:8em;margin:0 .6em;font-size:.7em;cursor:pointer;';
     box.title = t('my_media_title');
-    box.addEventListener('click', function () { showView('mymedia'); });
+    box.addEventListener('click', function () { toggleView('mymedia'); });
     var label = document.createElement('span');
     label.style.color = '#fff';
     var track = document.createElement('span');
@@ -605,13 +610,19 @@
   }
 
   function tryInsert() {
+    if (!pluginVisible()) {
+      return;
+    }
     insertNav();
     insertQuota();
     insertBell();
   }
 
   function start() {
-    var observer = new MutationObserver(function () { tryInsert(); });
+    var observer = new MutationObserver(function () {
+      tryInsert();
+      if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
+    });
     observer.observe(document.body, { childList: true, subtree: true });
     tryInsert();
     setInterval(refreshBellBadge, 30000);
@@ -619,5 +630,5 @@
     window.addEventListener('hashchange', hideOverlay);
   }
 
-  loadConfigLang().then(loadStrings).then(start);
+  loadConfigLang().then(loadIsAdmin).then(loadStrings).then(start);
 })();
