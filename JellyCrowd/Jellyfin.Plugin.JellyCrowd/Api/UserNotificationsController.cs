@@ -1,0 +1,97 @@
+using System;
+using System.Linq;
+using System.Net.Mime;
+using System.Threading;
+using System.Threading.Tasks;
+using Jellyfin.Plugin.JellyCrowd.Models;
+using Jellyfin.Plugin.JellyCrowd.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Jellyfin.Plugin.JellyCrowd.Api;
+
+/// <summary>
+/// The current user's in-app notification feed (header bell): list, mark read, and clear.
+/// </summary>
+[ApiController]
+[Authorize]
+[Route("JellyCrowd/Notifications")]
+[Produces(MediaTypeNames.Application.Json)]
+public class UserNotificationsController : ControllerBase
+{
+  private readonly IUserNotificationStore _store;
+  private readonly ICurrentUserAccessor _userAccessor;
+
+  /// <summary>
+  /// Initializes a new instance of the <see cref="UserNotificationsController"/> class.
+  /// </summary>
+  /// <param name="store">The per-user notification store.</param>
+  /// <param name="userAccessor">The current-user accessor.</param>
+  public UserNotificationsController(IUserNotificationStore store, ICurrentUserAccessor userAccessor)
+  {
+    _store = store;
+    _userAccessor = userAccessor;
+  }
+
+  /// <summary>
+  /// Gets the current user's notifications and unread count.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The notifications and unread count.</response>
+  /// <returns>The notification feed.</returns>
+  [HttpGet("Mine")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<UserNotificationsDto>> Mine(CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var items = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+    return Ok(new UserNotificationsDto { Items = items, Unread = items.Count(n => !n.Read) });
+  }
+
+  /// <summary>
+  /// Marks the current user's notifications as read (all of them).
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="204">The notifications were marked read.</response>
+  /// <returns>No content.</returns>
+  [HttpPost("Mine/Read")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  public async Task<IActionResult> MarkAllRead(CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    await _store.MarkReadAsync(userId, null, cancellationToken).ConfigureAwait(false);
+    return NoContent();
+  }
+
+  /// <summary>
+  /// Clears all of the current user's notifications.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="204">The notifications were cleared.</response>
+  /// <returns>No content.</returns>
+  [HttpPost("Mine/Clear")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  public async Task<IActionResult> ClearAll(CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    await _store.ClearAsync(userId, null, cancellationToken).ConfigureAwait(false);
+    return NoContent();
+  }
+
+  /// <summary>
+  /// Clears one of the current user's notifications.
+  /// </summary>
+  /// <param name="id">The notification id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="204">The notification was cleared (or did not exist).</response>
+  /// <returns>No content.</returns>
+  [HttpPost("Mine/Clear/{id}")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  public async Task<IActionResult> ClearOne(Guid id, CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    await _store.ClearAsync(userId, id, cancellationToken).ConfigureAwait(false);
+    return NoContent();
+  }
+}

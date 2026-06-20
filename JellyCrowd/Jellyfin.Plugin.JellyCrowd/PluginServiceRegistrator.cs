@@ -16,6 +16,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
 {
   private const string RequestsFileName = "requests.json";
   private const string WatchlistFileName = "watchlist.json";
+  private const string NotificationsFileName = "notifications.json";
 
   /// <inheritdoc />
   public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
@@ -35,6 +36,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       _ => new JsonRequestStore(Path.Combine(Plugin.Instance!.DataFolderPath, RequestsFileName)));
     serviceCollection.AddSingleton<IWatchlistStore>(
       _ => new JsonWatchlistStore(Path.Combine(Plugin.Instance!.DataFolderPath, WatchlistFileName)));
+    serviceCollection.AddSingleton<IUserNotificationStore>(
+      _ => new JsonUserNotificationStore(Path.Combine(Plugin.Instance!.DataFolderPath, NotificationsFileName)));
     serviceCollection.AddSingleton<Func<PluginConfiguration>>(_ => () => Plugin.Instance!.Configuration);
     serviceCollection.AddSingleton<IQuotaService>(sp => new QuotaService(
       sp.GetRequiredService<IRequestStore>(),

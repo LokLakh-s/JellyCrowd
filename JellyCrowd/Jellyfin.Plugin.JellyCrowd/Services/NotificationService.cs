@@ -35,6 +35,7 @@ public sealed class NotificationService : INotificationService
   private readonly ITmdbClient _tmdbClient;
   private readonly IUserManager _userManager;
   private readonly IReadOnlyList<ITextNotifier> _textNotifiers;
+  private readonly IUserNotificationStore _userNotifications;
   private readonly ILogger<NotificationService> _logger;
 
   /// <summary>
@@ -44,18 +45,21 @@ public sealed class NotificationService : INotificationService
   /// <param name="tmdbClient">The TMDB client, used to enrich notifications with synopsis/poster.</param>
   /// <param name="userManager">The user manager, used to resolve the requesting user's name.</param>
   /// <param name="textNotifiers">The additional text notification channels (Telegram, ntfy, …).</param>
+  /// <param name="userNotifications">The per-user in-app notification store (header bell).</param>
   /// <param name="logger">The logger.</param>
   public NotificationService(
     IHttpClientFactory httpClientFactory,
     ITmdbClient tmdbClient,
     IUserManager userManager,
     IEnumerable<ITextNotifier> textNotifiers,
+    IUserNotificationStore userNotifications,
     ILogger<NotificationService> logger)
   {
     _httpClientFactory = httpClientFactory;
     _tmdbClient = tmdbClient;
     _userManager = userManager;
     _textNotifiers = new List<ITextNotifier>(textNotifiers);
+    _userNotifications = userNotifications;
     _logger = logger;
   }
 
@@ -73,6 +77,8 @@ public sealed class NotificationService : INotificationService
     var (subject, body) = NotificationMessages.Build(request, notificationEvent);
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
+
+    await CreateUserNotificationAsync(request, notificationEvent, body, cancellationToken).ConfigureAwait(false);
 
     if (DiscordEnabledFor(config, notificationEvent))
     {
@@ -150,6 +156,35 @@ public sealed class NotificationService : INotificationService
       }
 
       await notifier.SendAsync(config, Subject, Body, cancellationToken).ConfigureAwait(false);
+    }
+  }
+
+  // Record an in-app notification for the requester on the state changes they care about.
+  private async Task CreateUserNotificationAsync(RequestRecord request, NotificationEvent notificationEvent, string body, CancellationToken cancellationToken)
+  {
+    if (notificationEvent is not (NotificationEvent.Approved or NotificationEvent.Denied or NotificationEvent.Available))
+    {
+      return;
+    }
+
+    try
+    {
+      await _userNotifications.AddAsync(
+        new UserNotification
+        {
+          UserId = request.UserId,
+          Event = notificationEvent.ToString(),
+          Title = request.Title,
+          Message = body,
+          PosterPath = request.PosterPath
+        },
+        cancellationToken).ConfigureAwait(false);
+    }
+#pragma warning disable CA1031 // In-app notification is best-effort; never break the request flow.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogDebug(ex, "Could not store the in-app notification for user {UserId}.", request.UserId);
     }
   }
 

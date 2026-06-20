@@ -34,6 +34,7 @@
   // closes, activeNavId is null so all are grey.
   var headerNavButtons = {};
   var activeNavId = null;
+  var bellBadgeEl = null;          // the red unread-count badge on the header bell
   var NAV_GREY = 'rgba(255,255,255,0.6)';
   var NAV_WHITE = '#fff';
   var NAV_BLUE = '#00a4dc';
@@ -47,6 +48,13 @@
 
   function getUrl(p) {
     return (window.ApiClient && window.ApiClient.getUrl) ? window.ApiClient.getUrl(p) : '/' + p;
+  }
+
+  function apiAjax(method, path) {
+    if (window.ApiClient && window.ApiClient.ajax) {
+      return window.ApiClient.ajax({ type: method, url: getUrl(path), dataType: method === 'GET' ? 'json' : undefined });
+    }
+    return Promise.reject(new Error('no ApiClient'));
   }
 
   function lang() {
@@ -312,15 +320,150 @@
     }
   }
 
+  // ---------- notification bell ----------
+
+  function setBellBadge(count) {
+    if (!bellBadgeEl) {
+      return;
+    }
+    if (count > 0) {
+      bellBadgeEl.textContent = count > 99 ? '99+' : String(count);
+      bellBadgeEl.style.display = '';
+    } else {
+      bellBadgeEl.style.display = 'none';
+    }
+  }
+
+  function refreshBellBadge() {
+    if (!bellBadgeEl) {
+      return;
+    }
+    apiAjax('GET', 'JellyCrowd/Notifications/Mine')
+      .then(function (d) { setBellBadge(d ? d.Unread : 0); })
+      .catch(function () { /* best-effort */ });
+  }
+
+  function renderBellList(panel, items) {
+    panel.innerHTML = '';
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:.5em .7em;border-bottom:1px solid rgba(255,255,255,.12);position:sticky;top:0;background:#1c1c1c;';
+    var title = document.createElement('span');
+    title.textContent = t('notifications');
+    title.style.fontWeight = '600';
+    head.appendChild(title);
+    if (items && items.length) {
+      var clear = document.createElement('button');
+      clear.type = 'button';
+      clear.textContent = t('notif_clear_all');
+      clear.style.cssText = 'background:none;border:0;color:#00a4dc;cursor:pointer;font-size:.85em;';
+      clear.addEventListener('click', function () {
+        apiAjax('POST', 'JellyCrowd/Notifications/Mine/Clear')
+          .then(function () { renderBellList(panel, []); setBellBadge(0); })
+          .catch(function () { /* ignore */ });
+      });
+      head.appendChild(clear);
+    }
+    panel.appendChild(head);
+
+    if (!items || !items.length) {
+      var empty = document.createElement('div');
+      empty.style.cssText = 'padding:1em .7em;opacity:.7;';
+      empty.textContent = t('notif_empty');
+      panel.appendChild(empty);
+      return;
+    }
+
+    items.forEach(function (n) {
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:.55em .7em;border-bottom:1px solid rgba(255,255,255,.07);' + (n.Read ? '' : 'background:rgba(0,164,220,.08);');
+      var line1 = document.createElement('div');
+      line1.textContent = n.Title;
+      line1.style.cssText = 'font-weight:600;font-size:.9em;';
+      var line2 = document.createElement('div');
+      line2.textContent = n.Message;
+      line2.style.cssText = 'font-size:.82em;opacity:.85;margin-top:.1em;';
+      var line3 = document.createElement('div');
+      line3.textContent = n.CreatedAt ? new Date(n.CreatedAt).toLocaleString() : '';
+      line3.style.cssText = 'font-size:.72em;opacity:.55;margin-top:.15em;';
+      row.appendChild(line1);
+      row.appendChild(line2);
+      row.appendChild(line3);
+      panel.appendChild(row);
+    });
+  }
+
+  function openBellPanel(panel) {
+    panel.style.display = 'block';
+    panel.innerHTML = '<div style="padding:.8em;opacity:.7;">' + t('loading') + '</div>';
+    apiAjax('GET', 'JellyCrowd/Notifications/Mine')
+      .then(function (d) {
+        renderBellList(panel, d ? d.Items : []);
+        // Opening the panel counts as seeing them.
+        apiAjax('POST', 'JellyCrowd/Notifications/Mine/Read').then(function () { setBellBadge(0); }).catch(function () { /* ignore */ });
+      })
+      .catch(function () { panel.innerHTML = '<div style="padding:.8em;">' + t('error_generic') + '</div>'; });
+  }
+
+  // Bell sits in .headerRight, just left of the quota bar.
+  function insertBell() {
+    var host = document.querySelector('.headerRight');
+    if (!host || document.querySelector('.jcHeaderBell')) {
+      return;
+    }
+    var wrap = document.createElement('span');
+    wrap.className = 'jcHeaderBell';
+    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'paper-icon-button-light headerButton';
+    btn.title = t('notifications');
+    btn.style.cssText = 'position:relative;';
+    var icon = document.createElement('span');
+    icon.className = 'material-icons';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = 'notifications';
+    btn.appendChild(icon);
+
+    var badge = document.createElement('span');
+    badge.className = 'jcBellBadge';
+    badge.style.cssText = 'position:absolute;top:.1em;right:.1em;min-width:1.15em;height:1.15em;padding:0 .25em;border-radius:.6em;background:#e53935;color:#fff;font-size:.62em;line-height:1.15em;text-align:center;display:none;box-sizing:border-box;';
+    btn.appendChild(badge);
+
+    var panel = document.createElement('div');
+    panel.className = 'jcBellPanel';
+    panel.style.cssText = 'position:absolute;top:100%;right:0;margin-top:.3em;width:22em;max-width:90vw;max-height:24em;overflow-y:auto;background:#1c1c1c;border:1px solid rgba(255,255,255,.15);border-radius:.4em;box-shadow:0 6px 22px rgba(0,0,0,.55);z-index:10000;display:none;';
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+      openBellPanel(panel);
+    });
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { panel.style.display = 'none'; });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(panel);
+
+    var quota = host.querySelector('.jcHeaderQuota');
+    var userBtn = host.querySelector('.headerUserButton');
+    host.insertBefore(wrap, quota || userBtn || null);
+
+    bellBadgeEl = badge;
+    refreshBellBadge();
+  }
+
   function tryInsert() {
     insertNav();
     insertQuota();
+    insertBell();
   }
 
   function start() {
     var observer = new MutationObserver(function () { tryInsert(); });
     observer.observe(document.body, { childList: true, subtree: true });
     tryInsert();
+    setInterval(refreshBellBadge, 30000);
     // Any real navigation (Jellyfin menu, opening a library item) closes our overlay.
     window.addEventListener('hashchange', hideOverlay);
   }
