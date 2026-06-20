@@ -244,7 +244,11 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 > Issu des notes manuelles de Victor + brainstorm, mis en forme en étapes de dev.
 > Tags de version = **estimations** : chaque milestone = un bump **mineur** (`[minor]`) ;
 > la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M26** livré.
-> Version publiée actuelle : **`v0.18.x`**. Milestones ordonnés par **priorité** (valeur + déblocage).
+> Version publiée actuelle : **`v0.37.0`**. Milestones ordonnés par **priorité** (valeur + déblocage).
+>
+> **État (2026-06-20)** : M16→M26 livrés. **Reste : M15** (états d'échec + relance) et la
+> **stabilisation v1.0** (responsive/a11y, doc, tests e2e, polish). Sous-points reportés :
+> calendrier épisodes (M24), colonne commentaires page native (M25.2), canaux stable/nightly (M26.2).
 
 ### M15 — Téléchargement : correctifs & échecs  ☐ *(prévu : `v0.19.0`)*
 
@@ -255,7 +259,7 @@ Objectif : fiabiliser la chaîne de fulfillment (bug bloquant en tête).
 - ☐ État **« Échec / Bloqué »** distinct de *Manquant*, + action **« relancer la recherche »** (admin et/ou user), pour les requêtes introuvables.
 - ☐ Si possible, **poller la progression depuis rdt-client** (plutôt que Radarr/Sonarr) pour un suivi plus **précis et temps réel**.
 
-### M16 — Permissions, rôles & règles d'auto-approbation  ☐ *(prévu : `v0.20.0`)*
+### M16 — Permissions, rôles & règles d'auto-approbation  ☑ *(livré)*
 
 Objectif : faire de JellyCrowd un vrai outil **multi-utilisateur**.
 
@@ -263,7 +267,7 @@ Objectif : faire de JellyCrowd un vrai outil **multi-utilisateur**.
 - ☐ **Plafonds par utilisateur/rôle** (quota disque, nombre de requêtes/période) en surcharge du global.
 - ☐ **Règles d'auto-approbation** : auto-approuver selon des critères (taille < X Go, genre, **utilisateurs de confiance**) → file admin allégée.
 
-### M17 — Notifications utilisateur & centre de notifications  ☐ *(prévu : `v0.21.0`)*
+### M17 — Notifications utilisateur & centre de notifications  ☑ *(livré)*
 
 Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux admin uniquement).
 
@@ -273,7 +277,7 @@ Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux adm
 - ☐ Notifier le demandeur sur **Approved / Denied / Available / Échec**.
 - ☐ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
 
-### M18 — Diagnostic & santé  ☐ *(prévu : `v0.22.0`)*
+### M18 — Diagnostic & santé  ☑ *(livré)*
 
 Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
 
@@ -281,7 +285,7 @@ Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
 - ☐ Surfacer chaque échec avec un message clair + piste de résolution.
 - ☐ **Empreinte disque du plugin** : afficher la taille de chaque store (`requests.json`, `watchlist.json`, logs, notifs, stats) + total, avec une **estimation de croissance** (par utilisateur / par mois).
 
-### M19 — Robustesse données & sécurité  ☐ *(prévu : `v0.23.0`)*
+### M19 — Robustesse données & sécurité  ☑ *(livré)*
 
 Objectif : le « non-fonctionnel » qui sépare une 0.x d'une 1.0.
 
@@ -291,7 +295,7 @@ Objectif : le « non-fonctionnel » qui sépare une 0.x d'une 1.0.
 - ☐ **États vides & erreurs gracieuses** partout (backend down, réseau, 0 résultat).
 - ☐ **Passe sécurité** : auth/élévation sur **chaque** endpoint, aucune fuite de clé, revue anti-XSS, rate-limit.
 
-### M20 — Finition du shell & navigation  ☐ *(prévu : `v0.24.0`)*
+### M20 — Finition du shell & navigation  ☑ *(livré)*
 
 Objectif : que les écrans du plugin se fondent dans l'UI native de Jellyfin.
 
@@ -300,19 +304,19 @@ Objectif : que les écrans du plugin se fondent dans l'UI native de Jellyfin.
 - ☐ Remplacer la **croix** de fermeture par une **flèche de retour** cohérente avec Jellyfin, **du même côté**.
 - ☐ Afficher le **badge utilisateur** dans le bandeau des écrans du plugin (là où se trouve la croix aujourd'hui).
 
-### M21 — « Mes médias » enrichi & liens cliquables  ☐ *(prévu : `v0.25.0`)*
+### M21 — « Mes médias » enrichi & liens cliquables  ☑ *(livré)*
 
 - ☐ Afficher la **taille** de chaque média dans *My media* + y ajouter la **barre de quota**.
 - ☐ Afficher le **temps restant avant suppression** sur les médias en *Deletion requested*.
 - ☐ Rendre **cliquable** chaque média de *My media* et chaque requête *Available* → ouvre le média dans Jellyfin.
 
-### M22 — Cycle de vie des requêtes  ☐ *(prévu : `v0.26.0`)*
+### M22 — Cycle de vie des requêtes  ☑ *(livré)*
 
 - ☐ Tant qu'une requête est **Approved**, l'utilisateur peut la **supprimer** — en s'assurant qu'elle n'est plus traitée par Prowlarr/Sonarr/Radarr + RDT (annulation propagée en amont).
 - ☐ Afficher sur chaque requête la **date/heure de la demande** et la **date/heure de mise à disposition** dans Jellyfin.
 - ☐ Quand une requête est **Approved + Downloaded** (téléchargée, en attente de scan Jellyfin), refléter un statut « disponible dans < 2 min » (affiner si la durée exacte est connue).
 
-### M23 — Propriété partagée des médias  ☐ *(prévu : `v0.27.0`)*
+### M23 — Propriété partagée des médias  ☑ *(livré)*
 
 Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec quota et suppression cohérents.
 
@@ -321,18 +325,18 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ Sur demande de suppression par un propriétaire : retirer **son** appartenance en fin de délai + **décrémenter son quota** ; le média n'est **réellement supprimé** que s'il n'appartient **plus à personne** à la fin du délai.
 - ☐ Pouvoir **annuler une demande de suppression** tant qu'on est à **plus d'une minute** de l'échéance ; le quota n'est pas décrémenté tant que le média « appartient » encore.
 
-### M24 — Catalogue & Calendrier  ☐ *(prévu : `v0.28.0`)*
+### M24 — Catalogue & Calendrier  ◑ *(livré en partie)*
 
-- ☐ Bouton **« Voir plus → »** sur chaque sous-section de *Browse* (For you, Netflix, Apple TV, …) pour n'afficher que les médias de cette sous-section.
-- ☐ **« Demander toute la saga »** via les **collections TMDB** (toute la franchise en un clic).
-- ☐ Le **calendrier** affiche aussi les **épisodes de séries** (au-delà des séries suivies déjà gérées).
+- ☑ Bouton **« Voir plus → »** sur chaque sous-section de *Browse* (For you, Netflix, Apple TV, …) pour n'afficher que les médias de cette sous-section.
+- ☑ **« Demander toute la saga »** via les **collections TMDB** (toute la franchise en un clic).
+- ☐ Le **calendrier** affiche aussi les **épisodes de séries** (au-delà des séries suivies déjà gérées). *(reporté)*
 
-### M25 — Communauté : commentaires & signalements  ☐ *(prévu : `v0.29.0`)*
+### M25 — Communauté : commentaires & signalements  ◑ *(livré en partie)*
 
-- ☐ **Commentaires** sur chaque film/série du catalogue, dans le **popup, sous le Synopsis**.
-- ☐ Mêmes commentaires visibles sur chaque **média disponible dans Jellyfin** : **2ᵉ colonne scrollable** ajoutée à côté des détails (synopsis, tags…) — via injection DOM (File Transformation).
-- ☐ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée.
-- ☐ Modération admin des commentaires/signalements (masquer/supprimer).
+- ☑ **Commentaires** sur chaque film/série du catalogue, dans le **popup, sous le Synopsis**.
+- ☐ Mêmes commentaires visibles sur chaque **média disponible dans Jellyfin** : **2ᵉ colonne scrollable** ajoutée à côté des détails (synopsis, tags…) — via injection DOM (File Transformation). *(reporté — M25.2)*
+- ☑ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée.
+- ☑ Modération admin des commentaires/signalements (masquer/supprimer).
 
 ### M26 — Observabilité & canaux de version  ☑ *(livré : `v0.30.0`)*
 
