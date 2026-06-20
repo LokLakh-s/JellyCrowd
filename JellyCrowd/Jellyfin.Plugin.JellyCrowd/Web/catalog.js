@@ -664,6 +664,37 @@
         if (details.ImdbId) {
           links.appendChild(externalLink('https://www.imdb.com/title/' + details.ImdbId, t('view_imdb')));
         }
+
+        // "Request whole saga": for a movie that belongs to a TMDB collection, request every part.
+        if (item.MediaType === 'movie' && details.CollectionId && !item.Available && !quotaExceeded) {
+          var sagaBtn = document.createElement('button');
+          sagaBtn.className = 'jellycrowd-request';
+          sagaBtn.type = 'button';
+          sagaBtn.textContent = t('request_saga');
+          sagaBtn.addEventListener('click', function () {
+            sagaBtn.disabled = true;
+            sagaBtn.textContent = t('requesting');
+            apiGet('JellyCrowd/Catalog/Collection/' + details.CollectionId + '?language=' + encodeURIComponent(fullLocale()))
+              .then(function (parts) {
+                var pending = (parts || []).filter(function (p) { return !p.Available; });
+                return Promise.all(pending.map(function (p) {
+                  return submitRequest({
+                    TmdbId: p.TmdbId,
+                    MediaType: 'movie',
+                    Title: p.Title,
+                    PosterPath: p.PosterPath,
+                    ReleaseDate: p.ReleaseDate,
+                    Season: null,
+                    Episode: null,
+                    DesiredAt: null
+                  }).catch(function () { /* skip dups / errors */ });
+                }));
+              })
+              .then(function () { sagaBtn.textContent = t('requested'); })
+              .catch(function () { sagaBtn.disabled = false; sagaBtn.textContent = t('request_saga'); });
+          });
+          content.appendChild(sagaBtn);
+        }
       })
       .catch(function () { /* details are best-effort */ });
 
@@ -791,10 +822,22 @@
   function appendRowBlock(def) {
     var section = document.createElement('div');
     section.className = 'jellycrowd-row';
+    var header = document.createElement('div');
+    header.className = 'jellycrowd-row-header';
     var title = document.createElement('h3');
     title.className = 'jellycrowd-row-title';
     title.textContent = def.title;
-    section.appendChild(title);
+    header.appendChild(title);
+    // "See more →" jumps to the full grid filtered to this row (rows that map to a discover filter).
+    if (def.apply) {
+      var more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'jellycrowd-row-more';
+      more.textContent = t('see_more');
+      more.addEventListener('click', function () { def.apply(); resetFeed(); });
+      header.appendChild(more);
+    }
+    section.appendChild(header);
     var strip = document.createElement('div');
     strip.className = 'jellycrowd-row-strip';
     section.appendChild(strip);
@@ -835,14 +878,30 @@
 
   function buildRowQueue() {
     var sciFi = filters.mediaType === 'tv' ? '10765' : '878';
-    // "For you" first (auto-removed when there are no recommendations / seeds).
+    // "For you" first (auto-removed when there are no recommendations / seeds). No "see more": the
+    // recommendations endpoint isn't a discover filter we can paginate as a grid.
     var queue = [{ kind: 'path', title: t('row_foryou'), path: 'JellyCrowd/Catalog/Recommendations?language=' + encodeURIComponent(fullLocale()) }];
     queue.push({ kind: 'platforms', title: t('streaming_platforms') });
     platformList().slice(0, 4).forEach(function (platform) {
-      queue.push({ kind: 'path', title: platform.Name, path: providerRowPath(platform.Id) });
+      queue.push({
+        kind: 'path',
+        title: platform.Name,
+        path: providerRowPath(platform.Id),
+        apply: function () { filters.watchProviders = String(platform.Id); }
+      });
     });
-    queue.push({ kind: 'path', title: t('row_toprated'), path: baseDiscover() + '&sortBy=rating&page=1' });
-    queue.push({ kind: 'path', title: t('row_scifi'), path: baseDiscover() + '&sortBy=popularity&page=1&genres=' + sciFi });
+    queue.push({
+      kind: 'path',
+      title: t('row_toprated'),
+      path: baseDiscover() + '&sortBy=rating&page=1',
+      apply: function () { filters.sortBy = 'rating'; }
+    });
+    queue.push({
+      kind: 'path',
+      title: t('row_scifi'),
+      path: baseDiscover() + '&sortBy=popularity&page=1&genres=' + sciFi,
+      apply: function () { filters.genres = [sciFi]; }
+    });
     return queue;
   }
 

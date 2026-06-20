@@ -76,6 +76,12 @@ public class CatalogItem
   public string? ImdbId { get; set; }
 
   /// <summary>
+  /// Gets or sets the TMDB collection (saga/franchise) id when a movie belongs to one, else <c>null</c>.
+  /// Populated on movie detail lookups; lets the UI offer "request the whole saga".
+  /// </summary>
+  public int? CollectionId { get; set; }
+
+  /// <summary>
   /// Gets or sets the season number when this entry represents a specific episode (calendar), else <c>null</c>.
   /// </summary>
   public int? SeasonNumber { get; set; }

@@ -181,9 +181,29 @@
   height: 1px;
 }
 
+.jellycrowd-row-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1em;
+}
+
 .jellycrowd-row-title {
   margin: 0 0 0.6em;
   font-size: 1.1em;
+}
+
+.jellycrowd-row-more {
+  flex: 0 0 auto;
+  background: none;
+  border: 0;
+  color: #00a4dc;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.jellycrowd-row-more:hover {
+  text-decoration: underline;
 }
 
 .jellycrowd-row-strip {

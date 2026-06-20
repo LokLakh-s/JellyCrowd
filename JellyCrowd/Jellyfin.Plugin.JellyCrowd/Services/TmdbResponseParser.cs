@@ -105,8 +105,50 @@ public static class TmdbResponseParser
       VoteAverage = GetDouble(element, "vote_average"),
       Genres = GetGenreNames(element),
       Runtime = GetRuntime(element, isMovie),
-      ImdbId = GetImdbId(element)
+      ImdbId = GetImdbId(element),
+      CollectionId = GetCollectionId(element)
     };
+  }
+
+  /// <summary>
+  /// Parses the movies of a TMDB collection (<c>/collection/{id}</c>, the <c>parts</c> array).
+  /// </summary>
+  /// <param name="json">The raw collection JSON payload.</param>
+  /// <returns>The collection's movies.</returns>
+  public static IReadOnlyList<CatalogItem> ParseCollectionParts(string json)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    var items = new List<CatalogItem>();
+    using var doc = JsonDocument.Parse(json);
+    if (!doc.RootElement.TryGetProperty("parts", out var parts) || parts.ValueKind != JsonValueKind.Array)
+    {
+      return items;
+    }
+
+    foreach (var element in parts.EnumerateArray())
+    {
+      var item = ParseElement(element, MovieType);
+      if (item is not null)
+      {
+        items.Add(item);
+      }
+    }
+
+    return items;
+  }
+
+  // belongs_to_collection is an object (or null) on movie details.
+  private static int? GetCollectionId(JsonElement element)
+  {
+    if (element.TryGetProperty("belongs_to_collection", out var collection)
+        && collection.ValueKind == JsonValueKind.Object)
+    {
+      var id = GetInt(collection, "id");
+      return id > 0 ? id : null;
+    }
+
+    return null;
   }
 
   /// <summary>
