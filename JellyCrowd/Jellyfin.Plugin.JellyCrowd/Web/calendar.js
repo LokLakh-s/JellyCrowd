@@ -234,7 +234,25 @@
       .catch(function () { requestItem(item, button, season.SeasonNumber, dateInput); });
   }
 
-  function loadEpisodes(item, season, container) {
+  // A disabled "already requested" button, for seasons/episodes the user has an active request for.
+  function alreadyRequestedButton() {
+    var b = document.createElement('button');
+    b.className = 'jellycrowd-request';
+    b.type = 'button';
+    b.textContent = t('already_requested');
+    b.disabled = true;
+    return b;
+  }
+
+  // Fetch the user's already-requested seasons/episodes for a title (best-effort).
+  function loadRequestedKeys(tmdbId) {
+    return apiGet('JellyCrowd/Requests/Mine')
+      .then(function (reqs) { return lib.requestedKeys(reqs, tmdbId); })
+      .catch(function () { return { seasons: {}, episodes: {} }; });
+  }
+
+  function loadEpisodes(item, season, container, requested) {
+    var req = requested || { seasons: {}, episodes: {} };
     container.textContent = t('loading');
     apiGet('JellyCrowd/Catalog/Episodes/' + item.TmdbId + '/' + season.SeasonNumber + '?language=' + encodeURIComponent(fullLocale()))
       .then(function (episodes) {
@@ -249,7 +267,9 @@
           var label = document.createElement('span');
           label.textContent = 'E' + ep.EpisodeNumber + ' · ' + (ep.Name || '') + (ep.AirDate ? ' (' + ep.AirDate + ')' : '');
           row.appendChild(label);
-          if (quotaExceeded) {
+          if (req.seasons[season.SeasonNumber] || req.episodes[season.SeasonNumber + ':' + ep.EpisodeNumber]) {
+            row.appendChild(alreadyRequestedButton());
+          } else if (quotaExceeded) {
             row.appendChild(blockedRequestButton());
           } else {
             var btn = document.createElement('button');
@@ -288,7 +308,8 @@
     return a;
   }
 
-  function renderSeasonRequests(container, item, seasons, dateInput) {
+  function renderSeasonRequests(container, item, seasons, dateInput, requested) {
+    var req = requested || { seasons: {}, episodes: {} };
     container.innerHTML = '';
     (seasons || []).forEach(function (season) {
       var row = document.createElement('div');
@@ -309,11 +330,13 @@
       toggle.textContent = t('episodes');
       toggle.addEventListener('click', function () {
         episodesBox.style.display = episodesBox.style.display === 'none' ? '' : 'none';
-        if (!loaded) { loaded = true; loadEpisodes(item, season, episodesBox); }
+        if (!loaded) { loaded = true; loadEpisodes(item, season, episodesBox, req); }
       });
       actions.appendChild(toggle);
 
-      if (quotaExceeded) {
+      if (req.seasons[season.SeasonNumber]) {
+        actions.appendChild(alreadyRequestedButton());
+      } else if (quotaExceeded) {
         actions.appendChild(blockedRequestButton());
       } else {
         var btn = document.createElement('button');
@@ -419,8 +442,11 @@
         var seasonsEl = document.createElement('div');
         seasonsEl.className = 'jellycrowd-seasons';
         content.appendChild(seasonsEl);
-        apiGet('JellyCrowd/Catalog/Seasons/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale()))
-          .then(function (seasons) { renderSeasonRequests(seasonsEl, item, seasons, dateInput); })
+        Promise.all([
+          apiGet('JellyCrowd/Catalog/Seasons/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale())),
+          loadRequestedKeys(item.TmdbId)
+        ])
+          .then(function (res) { renderSeasonRequests(seasonsEl, item, res[0], dateInput, res[1]); })
           .catch(function () { /* best-effort */ });
       } else if (quotaExceeded) {
         content.appendChild(blockedRequestButton());
