@@ -594,6 +594,42 @@
     return section;
   }
 
+  // "Report a problem": a link that reveals a small reason form and submits a report.
+  function buildReportSection(item) {
+    var wrap = document.createElement('div');
+    wrap.className = 'jellycrowd-report';
+    var link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'jellycrowd-report-link';
+    link.textContent = t('report_problem');
+    wrap.appendChild(link);
+    link.addEventListener('click', function () {
+      link.style.display = 'none';
+      var form = document.createElement('div');
+      form.className = 'jellycrowd-comment-form';
+      var input = document.createElement('textarea');
+      input.className = 'jellycrowd-comment-input';
+      input.rows = 2;
+      input.placeholder = t('report_placeholder');
+      var send = document.createElement('button');
+      send.type = 'button';
+      send.className = 'jellycrowd-request';
+      send.textContent = t('report_send');
+      send.addEventListener('click', function () {
+        var msg = input.value.trim();
+        if (!msg) { return; }
+        send.disabled = true;
+        apiPost('JellyCrowd/Reports', { MediaType: item.MediaType, TmdbId: item.TmdbId, Title: item.Title, Message: msg })
+          .then(function () { wrap.textContent = t('report_thanks'); })
+          .catch(function () { send.disabled = false; });
+      });
+      form.appendChild(input);
+      form.appendChild(send);
+      wrap.appendChild(form);
+    });
+    return wrap;
+  }
+
   function openModal(item) {
     var overlay = document.createElement('div');
     overlay.className = 'jellycrowd-modal-overlay';
@@ -662,6 +698,8 @@
     links.className = 'jellycrowd-modal-links';
     links.appendChild(externalLink('https://www.themoviedb.org/' + item.MediaType + '/' + item.TmdbId, t('view_tmdb')));
     content.appendChild(links);
+
+    content.appendChild(buildReportSection(item));
 
     // Admin-only "request on behalf of" selector. Applies to every request control in this modal.
     actAsUserId = null;
