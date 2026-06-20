@@ -232,6 +232,29 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<RequestRecord?> CancelDeletionAsync(Guid id, Guid userId, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.UserId != userId || record.DeletionRequestedAt is null)
+      {
+        return null;
+      }
+
+      record.DeletionRequestedAt = null;
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<bool> AnyActiveReferenceAsync(Guid excludeId, int tmdbId, string mediaType, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

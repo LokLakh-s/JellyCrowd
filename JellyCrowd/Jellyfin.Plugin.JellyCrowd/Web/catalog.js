@@ -613,6 +613,33 @@
         requestButton.addEventListener('click', function () { requestItem(item, requestButton, null, dateInput); });
         content.appendChild(requestButton);
       }
+    } else {
+      // Already in the library: let the user claim it into their own media (shared ownership).
+      var claimBtn = document.createElement('button');
+      claimBtn.className = 'jellycrowd-request';
+      claimBtn.type = 'button';
+      claimBtn.textContent = t('add_to_my_media');
+      claimBtn.title = t('claim_quota_warning');
+      claimBtn.addEventListener('click', function () {
+        claimBtn.disabled = true;
+        apiPost('JellyCrowd/Requests/Claim', {
+          TmdbId: item.TmdbId,
+          MediaType: item.MediaType,
+          Title: item.Title,
+          PosterPath: item.PosterPath,
+          ReleaseDate: item.ReleaseDate
+        }).then(function () {
+          claimBtn.textContent = t('added');
+        }).catch(function (error) {
+          if (error && error.status === 409) { claimBtn.textContent = t('already_yours'); }
+          else { claimBtn.disabled = false; }
+        });
+      });
+      content.appendChild(claimBtn);
+      var claimNote = document.createElement('div');
+      claimNote.className = 'jellycrowd-request-sub';
+      claimNote.textContent = t('claim_quota_warning');
+      content.appendChild(claimNote);
     }
 
     body.appendChild(content);
