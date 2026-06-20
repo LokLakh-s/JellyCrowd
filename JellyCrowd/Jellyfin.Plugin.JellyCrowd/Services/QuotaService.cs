@@ -39,7 +39,7 @@ public sealed class QuotaService : IQuotaService
     {
       if (over.UserId == userId)
       {
-        return over.QuotaBytes;
+        return over.QuotaBytes ?? config.DefaultUserQuotaBytes;
       }
     }
 

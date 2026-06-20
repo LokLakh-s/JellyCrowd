@@ -58,6 +58,7 @@ public class RequestsController : ControllerBase
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">The created request (auto-approved, or pending when approval is required or the quota is exceeded).</response>
   /// <response code="400">The payload was invalid.</response>
+  /// <response code="403">Requests are disabled for this user.</response>
   /// <response code="409">The user already has an active request for this title.</response>
   /// <response code="429">The user reached their request limit for the period.</response>
   /// <returns>The persisted request with its generated id and status.</returns>
@@ -65,6 +66,7 @@ public class RequestsController : ControllerBase
   [Authorize]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status403Forbidden)]
   [ProducesResponseType(StatusCodes.Status409Conflict)]
   [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
   public async Task<ActionResult<RequestRecord>> Create([FromBody] CreateRequestDto dto, CancellationToken cancellationToken)
@@ -80,27 +82,38 @@ public class RequestsController : ControllerBase
     }
 
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var config = Plugin.Instance?.Configuration;
+
+    // Access control: an admin can disable requests for a given user.
+    if (config is not null && !RequestPolicy.CanRequest(config, userId))
+    {
+      return StatusCode(StatusCodes.Status403Forbidden, "Requests are disabled for your account.");
+    }
 
     if (await _store.ExistsActiveAsync(userId, dto.TmdbId, dto.MediaType, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false))
     {
       return Conflict("You already have an active request for this title.");
     }
 
-    var config = Plugin.Instance?.Configuration;
-    if (config is not null && config.MaxRequestsPerPeriod > 0)
+    if (config is not null)
     {
-      var since = DateTime.UtcNow - PeriodToSpan(config.RequestPeriod);
-      var recent = await _store.CountUserRequestsSinceAsync(userId, since, cancellationToken).ConfigureAwait(false);
-      if (recent >= config.MaxRequestsPerPeriod)
+      var cap = RequestPolicy.MaxRequestsPerPeriod(config, userId);
+      if (cap > 0)
       {
-        return StatusCode(StatusCodes.Status429TooManyRequests, "You have reached your request limit for this period.");
+        var since = DateTime.UtcNow - PeriodToSpan(config.RequestPeriod);
+        var recent = await _store.CountUserRequestsSinceAsync(userId, since, cancellationToken).ConfigureAwait(false);
+        if (recent >= cap)
+        {
+          return StatusCode(StatusCodes.Status429TooManyRequests, "You have reached your request limit for this period.");
+        }
       }
     }
 
-    // Approval mode: when admin approval is required, requests stay pending. When auto-approval is on,
-    // they are approved immediately — unless they would exceed the disk quota, in which case they are
-    // held as pending for the admin to arbitrate (rather than hard-rejected).
-    var requireApproval = Plugin.Instance?.Configuration.RequireApproval ?? true;
+    // Approval mode: requests stay pending when admin approval is required, unless the user is trusted
+    // or the request matches the auto-approval size rule. Even auto-approved requests are held as
+    // pending (not rejected) when they would exceed the disk quota, for the admin to arbitrate.
+    var requireApproval = (config?.RequireApproval ?? true)
+      && !(config is not null && RequestPolicy.ShouldAutoApprove(config, userId, dto.MediaType));
     var withinQuota = await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false);
     var status = (requireApproval || !withinQuota) ? RequestStatus.Pending : RequestStatus.Approved;
 

@@ -118,6 +118,12 @@
               <input id="DeletionRetentionHours" type="number" is="emby-input" min="0" step="1" />
               <div class="fieldDescription">Grace period before media a user flagged for deletion is removed from disk.</div>
             </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="AutoApproveMaxSizeGiB">Auto-approve if estimated size ≤ (GiB)</label>
+              <input id="AutoApproveMaxSizeGiB" type="number" is="emby-input" min="0" step="0.5" />
+              <div class="fieldDescription">When &gt; 0, requests whose estimated size is at or below this are auto-approved even if approval is required. 0 = off. (Uses the estimated movie/episode sizes above.)</div>
+            </div>
           </div>
 
           <div id="jcPaneQuotas" class="jcTabPane" style="display:none">
@@ -527,7 +533,7 @@ Content-Type: application/json
           table.className = 'jcTable';
           var thead = document.createElement('thead');
           var htr = document.createElement('tr');
-          ['', 'User', 'Quota (GiB)'].forEach(function (h) {
+          ['', 'User', 'Quota (GiB)', 'Can request', 'Auto-approve', 'Req/period'].forEach(function (h) {
             var th = document.createElement('th');
             th.textContent = h;
             htr.appendChild(th);
@@ -537,7 +543,7 @@ Content-Type: application/json
 
           var tbody = document.createElement('tbody');
           users.forEach(function (user) {
-            var existing = overrides.filter(function (o) { return o.UserId === user.Id; })[0];
+            var existing = overrides.filter(function (o) { return o.UserId === user.Id; })[0] || {};
             var tr = document.createElement('tr');
 
             var tdAvatar = document.createElement('td');
@@ -561,11 +567,46 @@ Content-Type: application/json
             input.setAttribute('is', 'emby-input');
             input.className = 'jc-quota-override';
             input.setAttribute('data-userid', user.Id);
-            if (existing) {
-              input.value = (existing.QuotaBytes || 0) / JellyCrowdConfig.bytesPerGiB;
+            if (existing.QuotaBytes != null) {
+              input.value = existing.QuotaBytes / JellyCrowdConfig.bytesPerGiB;
             }
             tdQuota.appendChild(input);
             tr.appendChild(tdQuota);
+
+            var tdCan = document.createElement('td');
+            var canCb = document.createElement('input');
+            canCb.type = 'checkbox';
+            canCb.setAttribute('is', 'emby-checkbox');
+            canCb.className = 'jc-can-request';
+            canCb.setAttribute('data-userid', user.Id);
+            canCb.checked = existing.CanRequest !== false;
+            tdCan.appendChild(canCb);
+            tr.appendChild(tdCan);
+
+            var tdAuto = document.createElement('td');
+            var autoCb = document.createElement('input');
+            autoCb.type = 'checkbox';
+            autoCb.setAttribute('is', 'emby-checkbox');
+            autoCb.className = 'jc-auto-approve';
+            autoCb.setAttribute('data-userid', user.Id);
+            autoCb.checked = existing.AutoApprove === true;
+            tdAuto.appendChild(autoCb);
+            tr.appendChild(tdAuto);
+
+            var tdCap = document.createElement('td');
+            var capInput = document.createElement('input');
+            capInput.type = 'number';
+            capInput.min = '0';
+            capInput.step = '1';
+            capInput.placeholder = 'default';
+            capInput.setAttribute('is', 'emby-input');
+            capInput.className = 'jc-req-cap';
+            capInput.setAttribute('data-userid', user.Id);
+            if (existing.MaxRequestsPerPeriod != null) {
+              capInput.value = existing.MaxRequestsPerPeriod;
+            }
+            tdCap.appendChild(capInput);
+            tr.appendChild(tdCap);
 
             tbody.appendChild(tr);
           });
@@ -602,13 +643,25 @@ Content-Type: application/json
       function collectQuotaOverrides() {
         var gib = JellyCrowdConfig.bytesPerGiB;
         var result = [];
-        document.querySelectorAll('.jc-quota-override').forEach(function (input) {
-          if (input.value !== '' && input.value !== null) {
-            result.push({
-              UserId: input.getAttribute('data-userid'),
-              QuotaBytes: Math.round(parseFloat(input.value) * gib)
-            });
+        document.querySelectorAll('.jc-can-request').forEach(function (canCb) {
+          var uid = canCb.getAttribute('data-userid');
+          var quotaEl = document.querySelector('.jc-quota-override[data-userid="' + uid + '"]');
+          var autoEl = document.querySelector('.jc-auto-approve[data-userid="' + uid + '"]');
+          var capEl = document.querySelector('.jc-req-cap[data-userid="' + uid + '"]');
+          var quotaSet = quotaEl && quotaEl.value !== '' && quotaEl.value !== null;
+          var capSet = capEl && capEl.value !== '' && capEl.value !== null;
+          var canRequest = canCb.checked;
+          var autoApprove = autoEl && autoEl.checked;
+          // Only persist an entry when it deviates from the defaults.
+          if (!quotaSet && !capSet && canRequest && !autoApprove) {
+            return;
           }
+          var o = { UserId: uid };
+          if (quotaSet) { o.QuotaBytes = Math.round(parseFloat(quotaEl.value) * gib); }
+          if (!canRequest) { o.CanRequest = false; }
+          if (autoApprove) { o.AutoApprove = true; }
+          if (capSet) { o.MaxRequestsPerPeriod = parseInt(capEl.value, 10); }
+          result.push(o);
         });
         return result;
       }
@@ -647,6 +700,7 @@ Content-Type: application/json
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
             document.querySelector('#RequestPeriod').value = config.RequestPeriod || 'Week';
             document.querySelector('#DeletionRetentionHours').value = config.DeletionRetentionHours != null ? config.DeletionRetentionHours : 24;
+            document.querySelector('#AutoApproveMaxSizeGiB').value = (config.AutoApproveMaxSizeBytes || 0) / gib;
             document.querySelector('#DiscordWebhookUrl').value = config.DiscordWebhookUrl || '';
             document.querySelector('#DiscordNotifyCreated').checked = config.DiscordNotifyCreated !== false;
             document.querySelector('#DiscordNotifyApproved').checked = config.DiscordNotifyApproved !== false;
@@ -720,6 +774,7 @@ Content-Type: application/json
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);
             config.RequestPeriod = document.querySelector('#RequestPeriod').value;
             config.DeletionRetentionHours = parseInt(document.querySelector('#DeletionRetentionHours').value || '0', 10);
+            config.AutoApproveMaxSizeBytes = Math.round(parseFloat(document.querySelector('#AutoApproveMaxSizeGiB').value || '0') * gib);
             config.DiscordWebhookUrl = document.querySelector('#DiscordWebhookUrl').value;
             config.DiscordNotifyCreated = document.querySelector('#DiscordNotifyCreated').checked;
             config.DiscordNotifyApproved = document.querySelector('#DiscordNotifyApproved').checked;
