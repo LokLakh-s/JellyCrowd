@@ -243,11 +243,12 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 
 > Issu des notes manuelles de Victor + brainstorm, mis en forme en étapes de dev.
 > Tags de version = **estimations** : chaque milestone = un bump **mineur** (`[minor]`) ;
-> la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M26** livré.
+> la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M26 + M31→M33** livré.
 > Version publiée actuelle : **`v0.37.0`**. Milestones ordonnés par **priorité** (valeur + déblocage).
 >
-> **État (2026-06-20)** : M16→M26 livrés. **Reste : M15** (états d'échec + relance) et la
-> **stabilisation v1.0** (responsive/a11y, doc, tests e2e, polish). Sous-points reportés :
+> **État (2026-06-20)** : M16→M26 livrés. **Reste : M15** (états d'échec + relance), les
+> **ajouts périmètre 1.0** (M31 quotas adaptatifs & expiration, M32 réactivité UI, M33 avis & notes)
+> et la **stabilisation v1.0** (responsive/a11y, doc, tests e2e, polish). Sous-points reportés :
 > calendrier épisodes (M24), colonne commentaires page native (M25.2), canaux stable/nightly (M26.2).
 
 ### M15 — Téléchargement : correctifs & échecs  ☐ *(prévu : `v0.19.0`)*
@@ -344,6 +345,68 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ **Rotation & rétention des logs** : borne par cap récent (2000 entrées) + fenêtre de rétention (30 j) avec purge à chaque écriture — jamais de log non borné.
 - ☑ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres** (catégorie / niveau).
 - ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release). *(reporté — M26.2)*
+
+### M31 — Quotas adaptatifs & expiration des médias  ☐ *(périmètre 1.0)*
+
+> Rien de tel n'existe aujourd'hui (vérifié) : le quota est **fixe** (`DefaultUserQuotaBytes` +
+> surcharges `QuotaOverrides`), aucune notion d'activité/temps de visionnage, aucune expiration par âge.
+
+#### A. Quotas adaptatifs (hystérésis) — **option globale désactivable**
+
+- ☐ **Interrupteur global** on/off. Désactivé = comportement actuel (quota fixe).
+- ☐ **Trois paliers configurables** : quota de **base** (déf. 50 Go), **plafond actif** (déf. 100 Go), **plancher inactif** (déf. 20 Go).
+- ☐ **Hystérésis** : montée **rapide** vers le plafond selon l'activité, descente **lente et conditionnelle**.
+- ☐ **Inactivité = pas de sanction immédiate** mais état de **« sursis »** (probation). Le quota cible théorique baisse, mais **n'est appliqué qu'à la reconnexion**.
+- ☐ **Workflow au retour** : à la 1ʳᵉ connexion après longue inactivité → détection du dépassement théorique → **compte à rebours** (déf. 14 j) en **gelant** le quota courant pendant le sursis.
+- ☐ **Notification** au retour : « Ravi de te revoir ! En raison d'une longue période d'inactivité, ton quota va être ajusté. Reprends ton activité pour le conserver. »
+- ☐ **Validation du retour = 2 critères CUMULATIFS** sur la fenêtre de sursis :
+  - **Volume** : minutes cumulées min (déf. **3 h** de visionnage total).
+  - **Régularité** : activité répartie sur **≥ N jours distincts** (déf. **3 jours** sur 14). *(Regarder un média 10 min ne suffit pas.)*
+- ☐ **Récompense historique** : si échec au test après 14 j, le quota cible redescend au quota de **base** (50 Go), **pas** au plancher (20 Go).
+- ☐ **Exemple** (utilisateur à 98 Go après 2 mois) : J1 → sursis + gel à 98 Go + message ; pendant 14 j : succès → redevient actif, quota adaptatif repart ; échec → J15 plafond = 50 Go → **en dépassement (98/50)**, ne peut plus rien **ajouter** (médias existants conservés jusqu'à action/expiration).
+- ⚠️ **Dépendance** : nécessite une **brique de suivi d'activité / temps de visionnage** (minutes + jours distincts par user) — **ABSENTE** aujourd'hui. Pistes : API sessions/lecture Jellyfin (`UserData`/`LastPlayedDate`), base du plugin **Playback Reporting** (présent sur le serveur), ou suivi minimal maison. À cadrer (lien avec le pan stats 2.0 / M27).
+- ☐ **Borné (budget stockage)** : ne stocker que des **agrégats** par user (minutes/jour, dernier vu, palier courant, état de sursis + échéance), **jamais** les ticks bruts.
+- ☐ **Visibilité** : palier courant + état « sursis » + compte à rebours dans la **barre de quota** et **Mes médias** ; surfacer côté **admin** (table des quotas) + **logs** (M26).
+
+#### B. Expiration automatique des médias par âge
+
+- ☐ **Délai d'expiration configurable** (global, surchargeable par user/rôle), **`0` = infini** (désactivé).
+- ☐ Le **décompte démarre quand le média devient `Available`** pour l'utilisateur.
+- ☐ À expiration → suppression via le **pipeline existant** (`DeletionTask` + propriété partagée : le fichier n'est supprimé que si **plus aucun propriétaire actif**).
+- ☐ **Avertissements** avant suppression (J-N) + bouton **« Garder »** (réinitialise le compteur) — réutilise le *Keep* de M23.
+- ☐ **Tâche planifiée** idempotente balayant les `Available` dont l'âge dépasse le délai (bornée, comme les autres tâches).
+
+### M32 — Réactivité de l'UI & exactitude temps réel du quota  ☐ *(périmètre 1.0)*
+
+> Investigation (2026-06-20) : l'enforcement est **déjà** raisonnablement sûr — `CanRequestAsync`
+> compte les requêtes **en vol** (Pending/Approved) via des **estimations** (`EstimateBytes`), donc
+> l'exploit « enchaîner des requêtes pour dépasser » est en grande partie **déjà bloqué au niveau
+> décision**. La lenteur perçue est surtout un **problème d'affichage** : la barre de quota
+> (`header.js → buildQuota`) ne fetch `JellyCrowd/Quota/Me` **qu'une fois à la construction**,
+> sans refresh après action ni polling. La taille **réelle** d'un titre n'est connue qu'après le
+> **scan Jellyfin** (`item.Size`) + reconcile (debounce 20 s, fallback 15 min) — borné par la
+> cadence de scan de Jellyfin, **pas** par un cache du plugin (il n'y en a aucun).
+
+- ☐ **Rafraîchir la barre de quota** immédiatement après chaque **création / annulation / claim** de requête, et au **changement de vue** (catalog / requests / mymedia).
+- ☐ **Léger polling** de la barre tant qu'une requête est **en vol** (réutiliser le polling de statut DL déjà à 3 s).
+- ☐ **Enforcement** : toujours utiliser `max(estimation, taille partielle connue)` ; rendre les **estimations conservatrices + configurables** ; *(option)* déclencher un **scan ciblé** de la bibliothèque après import pour réduire la latence de la taille réelle.
+- ☐ **Anti-exploit** : recompute atomique du *committed* à chaque création (déjà via mutex du store) + cap requêtes/période (M16) comme garde-fou ; documenter le modèle (estimation en vol → taille réelle à l'import).
+- ☐ **Objectif transversal** : **UI optimiste** + invalidation ciblée pour que tout changement (requête, quota, statut) se reflète **sans force-refresh**.
+
+### M33 — Avis & notes (style IMDb) — évolution des commentaires  ☐ *(périmètre 1.0)*
+
+> Transforme le **système de commentaires existant** (M25 : `MediaComment` / `JsonMediaCommentStore` /
+> `CommentsController` / `buildCommentsSection`) en **système d'avis noté**, interne. Principe directeur :
+> **ne pas se transformer en réseau social** — pas de fil social, pas de pseudos exposés.
+
+- ☐ **Note par avis** : chaque utilisateur attribue une **note** (échelle à fixer, ex. 1–10 ou 1–5) en plus du texte (le texte devient **optionnel**).
+- ☐ **Moyenne interne** affichée sur chaque média : **moyenne des notes utilisateurs du serveur** + **nombre de votes** (popup catalogue, et page native via M25.2 le moment venu).
+- ☐ **Anonymat** : les utilisateurs **non-admin ne voient PAS** le pseudo de l'auteur d'un avis ; seul l'**admin** voit qui a posté quoi (modération). Les avis s'affichent de façon **anonyme** côté public.
+- ☐ **Un seul avis par user et par média** (modifiable), pour une moyenne honnête.
+- ☐ **Migration** des commentaires existants (texte sans note) — note vide / exclus de la moyenne.
+- ☐ **Modération admin** conservée (masquer / supprimer), + l'avis masqué **sort de la moyenne**.
+- ☐ **Borné** : réutiliser le plafond existant par titre (M25) ; la moyenne est un **agrégat** recalculé (ou mis en cache borné).
+- ☐ **Anti-réseau-social** : pas de réponses/threads, pas de likes, pas de profils publics — juste note + avis anonyme + moyenne.
 
 ### 🏁 v1.0.0 — Stabilisation
 
