@@ -173,3 +173,25 @@ test('jellyfinDetailsHash builds the details hash, with optional serverId', () =
   assert.strictEqual(lib.jellyfinDetailsHash(''), '');
   assert.strictEqual(lib.jellyfinDetailsHash(null), '');
 });
+
+test('deletionCountdown formats the largest two units, empty when overdue', () => {
+  const now = 0;
+  assert.strictEqual(lib.deletionCountdown((3 * 1440 + 4 * 60) * 60000, now), '3d 4h');
+  assert.strictEqual(lib.deletionCountdown((5 * 60 + 10) * 60000, now), '5h 10m');
+  assert.strictEqual(lib.deletionCountdown(12 * 60000, now), '12m');
+  assert.strictEqual(lib.deletionCountdown(-1, now), '');
+  assert.strictEqual(lib.deletionCountdown(NaN, now), '');
+});
+
+test('requestedKeys collects active seasons/episodes for a title, ignoring denied/others', () => {
+  const keys = lib.requestedKeys([
+    { TmdbId: 5, Season: 1, Episode: null, Status: 1 },        // season 1 requested
+    { TmdbId: 5, Season: 2, Episode: 3, Status: 0 },           // S2E3 requested
+    { TmdbId: 5, Season: 4, Episode: null, Status: 2 },        // denied -> ignored
+    { TmdbId: 9, Season: 1, Episode: null, Status: 1 },        // other title -> ignored
+    { TmdbId: 5, Season: null, Episode: null, Status: 1 }      // movie-style -> ignored
+  ], 5);
+
+  assert.deepStrictEqual(keys.seasons, { 1: true });
+  assert.deepStrictEqual(keys.episodes, { '2:3': true });
+});

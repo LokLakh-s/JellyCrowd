@@ -60,6 +60,8 @@
   "no_media": "You have no available media yet.",
   "request_deletion": "Request deletion",
   "deletion_requested": "Deletion requested",
+  "deletes_in": "Deletes in",
+  "deletion_imminent": "Deletion imminent",
   "requested_on": "Requested on",
   "available_on": "Available on",
   "scheduled_for": "Scheduled for",

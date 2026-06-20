@@ -82,11 +82,17 @@
     }
   }
 
-  function flaggedBadge() {
+  function flaggedBadge(text) {
     var flagged = document.createElement('span');
     flagged.className = 'jellycrowd-status jellycrowd-status-denied';
-    flagged.textContent = t('deletion_requested');
+    flagged.textContent = text || t('deletion_requested');
     return flagged;
+  }
+
+  // Badge text for a deletion-flagged item: "Deletes in 3d 4h", or an imminent label past the deadline.
+  function deletionText(item) {
+    var countdown = item.DeletionAt ? lib.deletionCountdown(new Date(item.DeletionAt).getTime(), Date.now()) : '';
+    return countdown ? (t('deletes_in') + ' ' + countdown) : t('deletion_imminent');
   }
 
   function renderRow(item) {
@@ -125,7 +131,7 @@
     row.appendChild(size);
 
     if (item.DeletionRequestedAt) {
-      row.appendChild(flaggedBadge());
+      row.appendChild(flaggedBadge(deletionText(item)));
     } else {
       var button = document.createElement('button');
       button.className = 'jellycrowd-request';
