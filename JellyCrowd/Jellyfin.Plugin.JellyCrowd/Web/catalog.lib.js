@@ -184,6 +184,51 @@
       : '';
   }
 
+  // Compact countdown until a target time, e.g. "3d 4h", "5h 10m", "12m". Returns '' when the target
+  // is in the past, missing or invalid (caller then shows an "imminent" label).
+  function deletionCountdown(targetMs, nowMs) {
+    var diff = Number(targetMs) - Number(nowMs);
+    if (!isFinite(diff) || diff <= 0) {
+      return '';
+    }
+    var minutes = Math.floor(diff / 60000);
+    var days = Math.floor(minutes / 1440);
+    minutes -= days * 1440;
+    var hours = Math.floor(minutes / 60);
+    minutes -= hours * 60;
+    if (days > 0) {
+      return days + 'd ' + hours + 'h';
+    }
+    if (hours > 0) {
+      return hours + 'h ' + minutes + 'm';
+    }
+    return minutes + 'm';
+  }
+
+  // From the user's requests, the set of seasons/episodes already actively requested for one title.
+  // Returns { seasons: {N: true}, episodes: {'N:M': true} }. Denied requests are ignored.
+  function requestedKeys(requests, tmdbId) {
+    var seasons = {};
+    var episodes = {};
+    (requests || []).forEach(function (r) {
+      if (!r || r.TmdbId !== tmdbId) {
+        return;
+      }
+      if (r.Status === 2 || r.Status === 'Denied' || r.Status === 'denied') {
+        return;
+      }
+      if (r.Season === null || r.Season === undefined) {
+        return;
+      }
+      if (r.Episode === null || r.Episode === undefined) {
+        seasons[r.Season] = true;
+      } else {
+        episodes[r.Season + ':' + r.Episode] = true;
+      }
+    });
+    return { seasons: seasons, episodes: episodes };
+  }
+
   // Build the Jellyfin web details-page hash for a library item, e.g. "#/details?id=ABC&serverId=XYZ".
   // Returns '' when no item id is given. serverId is optional.
   function jellyfinDetailsHash(itemId, serverId) {
@@ -219,6 +264,8 @@
     statusRank: statusRank,
     downloadStateKey: downloadStateKey,
     jellyfinDetailsHash: jellyfinDetailsHash,
+    deletionCountdown: deletionCountdown,
+    requestedKeys: requestedKeys,
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,

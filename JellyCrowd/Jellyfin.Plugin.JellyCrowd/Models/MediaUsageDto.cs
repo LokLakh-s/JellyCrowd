@@ -33,4 +33,10 @@ public class MediaUsageDto
 
   /// <summary>Gets or sets the UTC time deletion was requested, if any.</summary>
   public DateTime? DeletionRequestedAt { get; set; }
+
+  /// <summary>
+  /// Gets or sets the UTC time the media is scheduled to be removed (deletion request + retention),
+  /// when a deletion has been requested. Lets the UI show a countdown.
+  /// </summary>
+  public DateTime? DeletionAt { get; set; }
 }

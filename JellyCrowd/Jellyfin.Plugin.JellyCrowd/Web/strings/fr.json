@@ -60,6 +60,8 @@
   "no_media": "Vous n'avez aucun média disponible.",
   "request_deletion": "Demander la suppression",
   "deletion_requested": "Suppression demandée",
+  "deletes_in": "Suppression dans",
+  "deletion_imminent": "Suppression imminente",
   "requested_on": "Demandé le",
   "available_on": "Disponible le",
   "scheduled_for": "Planifié pour le",
