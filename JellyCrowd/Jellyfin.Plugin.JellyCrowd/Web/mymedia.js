@@ -132,6 +132,17 @@
 
     if (item.DeletionRequestedAt) {
       row.appendChild(flaggedBadge(deletionText(item)));
+      var keep = document.createElement('button');
+      keep.className = 'jellycrowd-request';
+      keep.type = 'button';
+      keep.textContent = t('keep_media');
+      keep.addEventListener('click', function () {
+        keep.disabled = true;
+        apiPost('JellyCrowd/Requests/' + item.RequestId + '/CancelDeletion')
+          .then(function () { reloadMedia(); })
+          .catch(function () { keep.disabled = false; });
+      });
+      row.appendChild(keep);
     } else {
       var button = document.createElement('button');
       button.className = 'jellycrowd-request';
@@ -196,19 +207,22 @@
     media.forEach(function (item) { list.appendChild(renderRow(item)); });
   }
 
+  function reloadMedia() {
+    apiGet('JellyCrowd/Quota/Me')
+      .then(renderQuota)
+      .catch(function () { /* quota bar is best-effort */ });
+
+    apiGet('JellyCrowd/Quota/MyMedia')
+      .then(render)
+      .catch(function () { setMessage(t('error_generic')); });
+  }
+
   function init() {
     loadConfigLang().then(loadStrings).then(function () {
       document.getElementById('jcMediaLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcMediaTitle').textContent = t('my_media_title');
       setMessage(t('loading'));
-
-      apiGet('JellyCrowd/Quota/Me')
-        .then(renderQuota)
-        .catch(function () { /* quota bar is best-effort */ });
-
-      apiGet('JellyCrowd/Quota/MyMedia')
-        .then(render)
-        .catch(function () { setMessage(t('error_generic')); });
+      reloadMedia();
     });
   }
 

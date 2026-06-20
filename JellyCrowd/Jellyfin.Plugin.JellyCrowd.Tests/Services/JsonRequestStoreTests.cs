@@ -108,6 +108,21 @@ public sealed class JsonRequestStoreTests : IDisposable
   }
 
   [Fact]
+  public async Task CancelDeletionAsync_ClearsTheFlag()
+  {
+    var user = Guid.NewGuid();
+    var created = await _store.CreateAsync(NewRecord(user), CancellationToken.None);
+    await _store.MarkAvailableAsync(created.Id, "item", CancellationToken.None);
+    await _store.RequestDeletionAsync(created.Id, user, CancellationToken.None);
+
+    var updated = await _store.CancelDeletionAsync(created.Id, user, CancellationToken.None);
+
+    Assert.NotNull(updated);
+    Assert.Null(updated!.DeletionRequestedAt);
+    Assert.Null(await _store.CancelDeletionAsync(created.Id, user, CancellationToken.None)); // nothing to cancel now
+  }
+
+  [Fact]
   public async Task CancelAsync_AllowsPendingAndApproved_NotAvailable()
   {
     var user = Guid.NewGuid();

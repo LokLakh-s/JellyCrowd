@@ -101,6 +101,15 @@ public interface IRequestStore
   Task<RequestRecord?> RequestDeletionAsync(Guid id, Guid userId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Clears a pending deletion flag on one of the user's available requests (the user changed their mind).
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="userId">The owner (must match).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found, not owned, or not flagged for deletion.</returns>
+  Task<RequestRecord?> CancelDeletionAsync(Guid id, Guid userId, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Determines whether another request (different id, not flagged for deletion, not denied) still
   /// references the same title — i.e. another user/season still wants the media.
   /// </summary>

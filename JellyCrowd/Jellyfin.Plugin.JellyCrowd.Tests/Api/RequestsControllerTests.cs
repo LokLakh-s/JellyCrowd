@@ -21,7 +21,7 @@ public class RequestsControllerTests
 
   private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), new FakeDownloadDispatcher(), new FakeServarrStatusService())
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -142,6 +142,36 @@ public class RequestsControllerTests
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     var created = Assert.IsType<RequestRecord>(ok.Value);
     Assert.Equal(RequestStatus.Pending, created.Status);
+  }
+
+  [Fact]
+  public async Task Claim_AvailableTitle_CreatesAvailableOwnership()
+  {
+    var result = await CreateController(new FakeRequestStore()).Claim(ValidDto(), CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    var created = Assert.IsType<RequestRecord>(ok.Value);
+    Assert.Equal(RequestStatus.Available, created.Status);
+    Assert.False(string.IsNullOrEmpty(created.JellyfinItemId));
+  }
+
+  [Fact]
+  public async Task Claim_AlreadyOwned_ReturnsConflict()
+  {
+    var store = new FakeRequestStore();
+    await CreateController(store).Claim(ValidDto(), CancellationToken.None);
+
+    var result = await CreateController(store).Claim(ValidDto(), CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task CancelDeletion_UnknownRequest_NotFound()
+  {
+    var result = await CreateController(new FakeRequestStore()).CancelDeletion(Guid.NewGuid(), CancellationToken.None);
+
+    Assert.IsType<NotFoundResult>(result.Result);
   }
 
   [Fact]
@@ -345,6 +375,15 @@ public class RequestsControllerTests
       => Task.FromResult<IReadOnlyList<DownloadStatusDto>>(new List<DownloadStatusDto>());
   }
 
+  private sealed class FakeLibraryMatcher : ILibraryMatcher
+  {
+    public bool Exists(string mediaType, int tmdbId) => true;
+
+    public string? FindItemId(string mediaType, int tmdbId) => "item-" + tmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+  }
+
   private sealed class FakeRequestStore : IRequestStore
   {
     private readonly List<RequestRecord> _items = new();
@@ -423,6 +462,18 @@ public class RequestsControllerTests
       }
 
       record.DeletionRequestedAt = DateTime.UtcNow;
+      return Task.FromResult<RequestRecord?>(record);
+    }
+
+    public Task<RequestRecord?> CancelDeletionAsync(Guid id, Guid userId, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.UserId != userId || record.DeletionRequestedAt is null)
+      {
+        return Task.FromResult<RequestRecord?>(null);
+      }
+
+      record.DeletionRequestedAt = null;
       return Task.FromResult<RequestRecord?>(record);
     }
 

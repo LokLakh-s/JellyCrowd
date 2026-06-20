@@ -25,6 +25,7 @@ public class RequestsController : ControllerBase
   private readonly INotificationService _notificationService;
   private readonly IDownloadDispatcher _downloadDispatcher;
   private readonly IServarrStatusService _servarrStatus;
+  private readonly ILibraryMatcher _libraryMatcher;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="RequestsController"/> class.
@@ -35,13 +36,15 @@ public class RequestsController : ControllerBase
   /// <param name="notificationService">The notification service.</param>
   /// <param name="downloadDispatcher">The download dispatcher triggered on approval.</param>
   /// <param name="servarrStatus">The live download-status service (Radarr/Sonarr queue).</param>
+  /// <param name="libraryMatcher">The library matcher (resolves the Jellyfin item for a claim).</param>
   public RequestsController(
     IRequestStore store,
     ICurrentUserAccessor userAccessor,
     IQuotaService quotaService,
     INotificationService notificationService,
     IDownloadDispatcher downloadDispatcher,
-    IServarrStatusService servarrStatus)
+    IServarrStatusService servarrStatus,
+    ILibraryMatcher libraryMatcher)
   {
     _store = store;
     _userAccessor = userAccessor;
@@ -49,6 +52,7 @@ public class RequestsController : ControllerBase
     _notificationService = notificationService;
     _downloadDispatcher = downloadDispatcher;
     _servarrStatus = servarrStatus;
+    _libraryMatcher = libraryMatcher;
   }
 
   /// <summary>
@@ -140,6 +144,63 @@ public class RequestsController : ControllerBase
     {
       _ = _downloadDispatcher.DispatchAsync(created, CancellationToken.None);
     }
+
+    return Ok(created);
+  }
+
+  /// <summary>
+  /// Adds an already-available title to the current user's media (shared ownership). It counts toward
+  /// the user's quota; the caller is expected to have shown the quota warning.
+  /// </summary>
+  /// <param name="dto">The title to claim (season/episode are ignored).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The created available request.</response>
+  /// <response code="400">Invalid payload, or the title is not in the library.</response>
+  /// <response code="409">The user already owns this title.</response>
+  /// <returns>The persisted available request.</returns>
+  [HttpPost("Claim")]
+  [Authorize]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
+  public async Task<ActionResult<RequestRecord>> Claim([FromBody] CreateRequestDto dto, CancellationToken cancellationToken)
+  {
+    if (dto is null || string.IsNullOrWhiteSpace(dto.Title))
+    {
+      return BadRequest("A title is required.");
+    }
+
+    if (!IsValidMediaType(dto.MediaType))
+    {
+      return BadRequest("The 'mediaType' must be 'movie' or 'tv'.");
+    }
+
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var itemId = _libraryMatcher.FindItemId(dto.MediaType, dto.TmdbId);
+    if (string.IsNullOrEmpty(itemId))
+    {
+      return BadRequest("This title is not available in the library.");
+    }
+
+    if (await _store.ExistsActiveAsync(userId, dto.TmdbId, dto.MediaType, null, null, cancellationToken).ConfigureAwait(false))
+    {
+      return Conflict("This title is already in your media.");
+    }
+
+    var created = await _store.CreateAsync(
+      new RequestRecord
+      {
+        UserId = userId,
+        TmdbId = dto.TmdbId,
+        MediaType = dto.MediaType,
+        Title = dto.Title,
+        PosterPath = dto.PosterPath,
+        ReleaseDate = dto.ReleaseDate,
+        Status = RequestStatus.Available,
+        JellyfinItemId = itemId,
+        AvailableAt = DateTime.UtcNow
+      },
+      cancellationToken).ConfigureAwait(false);
 
     return Ok(created);
   }
@@ -240,6 +301,41 @@ public class RequestsController : ControllerBase
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var updated = await _store.RequestDeletionAsync(id, userId, cancellationToken).ConfigureAwait(false);
+    return updated is null ? NotFound() : Ok(updated);
+  }
+
+  /// <summary>
+  /// Cancels a pending deletion (the user changed their mind), allowed while more than a minute
+  /// remains before the deletion deadline.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The deletion flag was cleared.</response>
+  /// <response code="404">No matching flagged request owned by the user.</response>
+  /// <response code="409">Too late — the deletion is imminent.</response>
+  /// <returns>The updated request.</returns>
+  [HttpPost("{id}/CancelDeletion")]
+  [Authorize]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
+  public async Task<ActionResult<RequestRecord>> CancelDeletion(Guid id, CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var existing = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+    if (existing is null || existing.UserId != userId || existing.DeletionRequestedAt is null)
+    {
+      return NotFound();
+    }
+
+    var retentionHours = Plugin.Instance?.Configuration.DeletionRetentionHours ?? 0;
+    var deadline = existing.DeletionRequestedAt.Value.AddHours(retentionHours);
+    if (deadline - DateTime.UtcNow <= TimeSpan.FromMinutes(1))
+    {
+      return Conflict("Too late to cancel — the deletion is imminent.");
+    }
+
+    var updated = await _store.CancelDeletionAsync(id, userId, cancellationToken).ConfigureAwait(false);
     return updated is null ? NotFound() : Ok(updated);
   }
 
