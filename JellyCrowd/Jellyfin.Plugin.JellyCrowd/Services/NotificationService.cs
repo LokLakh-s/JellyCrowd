@@ -37,6 +37,7 @@ public sealed class NotificationService : INotificationService
   private readonly IReadOnlyList<ITextNotifier> _textNotifiers;
   private readonly IUserNotificationStore _userNotifications;
   private readonly IUserPrefsStore _userPrefs;
+  private readonly IActivityLog _activityLog;
   private readonly ILogger<NotificationService> _logger;
 
   /// <summary>
@@ -48,6 +49,7 @@ public sealed class NotificationService : INotificationService
   /// <param name="textNotifiers">The additional text notification channels (Telegram, ntfy, …).</param>
   /// <param name="userNotifications">The per-user in-app notification store (header bell).</param>
   /// <param name="userPrefs">The per-user delivery preferences (personal email / ntfy).</param>
+  /// <param name="activityLog">The plugin activity log.</param>
   /// <param name="logger">The logger.</param>
   public NotificationService(
     IHttpClientFactory httpClientFactory,
@@ -56,6 +58,7 @@ public sealed class NotificationService : INotificationService
     IEnumerable<ITextNotifier> textNotifiers,
     IUserNotificationStore userNotifications,
     IUserPrefsStore userPrefs,
+    IActivityLog activityLog,
     ILogger<NotificationService> logger)
   {
     _httpClientFactory = httpClientFactory;
@@ -64,6 +67,7 @@ public sealed class NotificationService : INotificationService
     _textNotifiers = new List<ITextNotifier>(textNotifiers);
     _userNotifications = userNotifications;
     _userPrefs = userPrefs;
+    _activityLog = activityLog;
     _logger = logger;
   }
 
@@ -81,6 +85,8 @@ public sealed class NotificationService : INotificationService
     var (subject, body) = NotificationMessages.Build(request, notificationEvent);
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
+
+    _ = _activityLog.LogAsync("info", "request", subject + " — " + username, CancellationToken.None);
 
     await NotifyUserAsync(request, notificationEvent, subject, body, cancellationToken).ConfigureAwait(false);
 

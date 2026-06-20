@@ -334,12 +334,12 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée.
 - ☐ Modération admin des commentaires/signalements (masquer/supprimer).
 
-### M26 — Observabilité & canaux de version  ☐ *(prévu : `v0.30.0`)*
+### M26 — Observabilité & canaux de version  ☑ *(livré : `v0.30.0`)*
 
-- ☐ **Logging global** : générer des logs pour tout (requêtes, users, admin, internals, infos).
-- ☐ **Rotation & rétention des logs** : taille max (ex. 10 Mo × N fichiers) + âge max + purge — c'est le **principal vecteur de croissance** ; jamais de log non borné.
-- ☐ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres**.
-- ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release).
+- ☑ **Logging global** : journal d'activité interne (`IActivityLog` / `JsonActivityLog`) — événements de requêtes (cycle de vie) + dispatch téléchargement (succès/échec).
+- ☑ **Rotation & rétention des logs** : borne par cap récent (2000 entrées) + fenêtre de rétention (30 j) avec purge à chaque écriture — jamais de log non borné.
+- ☑ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres** (catégorie / niveau).
+- ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release). *(reporté — M26.2)*
 
 ### 🏁 v1.0.0 — Stabilisation
 

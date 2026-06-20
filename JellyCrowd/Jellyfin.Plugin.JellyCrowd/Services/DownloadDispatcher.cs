@@ -21,6 +21,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   private readonly IRequestStore _store;
   private readonly Func<Guid, string> _resolveUserName;
   private readonly Func<PluginConfiguration> _config;
+  private readonly IActivityLog _activityLog;
   private readonly ILogger<DownloadDispatcher> _logger;
 
   /// <summary>
@@ -30,12 +31,14 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   /// <param name="store">The request store.</param>
   /// <param name="resolveUserName">Resolves a user id to a display name.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
+  /// <param name="activityLog">The plugin activity log.</param>
   /// <param name="logger">The logger.</param>
   public DownloadDispatcher(
     IEnumerable<IDownloadClient> clients,
     IRequestStore store,
     Func<Guid, string> resolveUserName,
     Func<PluginConfiguration> config,
+    IActivityLog activityLog,
     ILogger<DownloadDispatcher> logger)
   {
     ArgumentNullException.ThrowIfNull(clients);
@@ -43,6 +46,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     _store = store;
     _resolveUserName = resolveUserName;
     _config = config;
+    _activityLog = activityLog;
     _logger = logger;
   }
 
@@ -153,6 +157,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
         request.Id.ToString("N", CultureInfo.InvariantCulture),
         request.Title,
         client.Backend);
+      _ = _activityLog.LogAsync("info", "download", "Dispatched " + request.Title + " to " + client.Backend, CancellationToken.None);
       return true;
     }
 #pragma warning disable CA1031 // A backend failure must not break the request flow; it is retried by the scheduled task.
@@ -169,6 +174,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       // otherwise only lands in the Jellyfin log). Truncated to keep the store small.
       var message = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
       await _store.SetDispatchErrorAsync(request.Id, message, nowUtc, cancellationToken).ConfigureAwait(false);
+      _ = _activityLog.LogAsync("error", "download", "Dispatch failed for " + request.Title + ": " + message, CancellationToken.None);
       return false;
     }
   }

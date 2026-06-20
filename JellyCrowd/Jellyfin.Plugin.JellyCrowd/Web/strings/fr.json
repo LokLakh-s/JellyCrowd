@@ -136,5 +136,9 @@
   "tab_diagnostics": "Diagnostic",
   "diag_run": "Lancer les tests",
   "diag_backup": "Télécharger la sauvegarde",
-  "tab_requests": "Demandes"
+  "tab_requests": "Demandes",
+  "tab_logs": "Journaux",
+  "log_search": "Rechercher",
+  "log_refresh": "Actualiser",
+  "log_empty": "Aucune activité enregistrée pour l'instant."
 }

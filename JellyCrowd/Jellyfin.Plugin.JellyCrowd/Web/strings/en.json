@@ -136,5 +136,9 @@
   "tab_diagnostics": "Diagnostics",
   "diag_run": "Run checks",
   "diag_backup": "Download backup",
-  "tab_requests": "Requests"
+  "tab_requests": "Requests",
+  "tab_logs": "Logs",
+  "log_search": "Search",
+  "log_refresh": "Refresh",
+  "log_empty": "No activity recorded yet."
 }
