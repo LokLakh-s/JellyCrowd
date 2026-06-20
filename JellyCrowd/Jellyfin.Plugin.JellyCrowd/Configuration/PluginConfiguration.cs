@@ -128,6 +128,13 @@ public class PluginConfiguration : BasePluginConfiguration
   public long AutoApproveMaxSizeBytes { get; set; }
 
   /// <summary>
+  /// Gets the genre all-list (TMDB English genre names) gating size-based auto-approval: when non-empty,
+  /// a request is only auto-approved by the size rule if at least one of the title's genres is listed.
+  /// Empty disables the genre criterion (size rule applies to all genres). Trusted users bypass this.
+  /// </summary>
+  public Collection<string> AutoApproveGenres { get; } = new();
+
+  /// <summary>
   /// Gets the per-user quota overrides. A user not listed here uses <see cref="DefaultUserQuotaBytes"/>.
   /// </summary>
   public Collection<UserQuotaOverride> QuotaOverrides { get; } = new();

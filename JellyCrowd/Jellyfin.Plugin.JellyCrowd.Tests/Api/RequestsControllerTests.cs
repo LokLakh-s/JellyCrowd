@@ -19,9 +19,9 @@ public class RequestsControllerTests
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null)
+  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher())
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
