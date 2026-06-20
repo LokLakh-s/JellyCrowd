@@ -14,6 +14,7 @@
   var strings = {};
   var quotaExceeded = false;
   var cfgLang = 'auto';
+  var commentsEnabled = false;   // community comments are an admin opt-in
 
   // Admin-only "request on behalf of" support. When an admin picks a user in a modal, requests made
   // from that modal are created for that user (via Requests/ForUser); empty = the admin themselves.
@@ -77,7 +78,7 @@
 
   function loadConfigLang() {
     return apiGet('JellyCrowd/Settings/Language')
-      .then(function (d) { if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); } })
+      .then(function (d) { if (d) { if (d.Language) { cfgLang = String(d.Language).toLowerCase(); } commentsEnabled = d.CommentsEnabled === true; } })
       .catch(function () { /* keep 'auto' on failure */ });
   }
 
@@ -691,8 +692,10 @@
     overview.textContent = item.Overview || t('no_overview');
     content.appendChild(overview);
 
-    // Comments section, right under the synopsis.
-    content.appendChild(buildCommentsSection(item));
+    // Comments section, right under the synopsis (admin opt-in).
+    if (commentsEnabled) {
+      content.appendChild(buildCommentsSection(item));
+    }
 
     var links = document.createElement('div');
     links.className = 'jellycrowd-modal-links';
@@ -810,6 +813,7 @@
           var sagaBtn = document.createElement('button');
           sagaBtn.className = 'jellycrowd-request';
           sagaBtn.type = 'button';
+          sagaBtn.style.margin = '.4em 0 0 .6em'; // breathing room from the plain "Request" button
           sagaBtn.textContent = t('request_saga');
           sagaBtn.addEventListener('click', function () {
             sagaBtn.disabled = true;

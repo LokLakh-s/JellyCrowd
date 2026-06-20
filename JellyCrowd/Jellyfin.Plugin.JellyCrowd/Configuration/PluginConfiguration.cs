@@ -24,6 +24,7 @@ public class PluginConfiguration : BasePluginConfiguration
     RequireApproval = true;
     HiddenFromUsers = false;
     RateLimitPerMinute = 120;
+    CommentsEnabled = false;
     EstimatedMovieSizeBytes = 4L * 1024 * 1024 * 1024; // 4 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
     MaxRequestsPerPeriod = 0;
@@ -143,6 +144,12 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Defends against rapid-fire abuse (e.g. spamming requests faster than the quota refreshes).
   /// </summary>
   public int RateLimitPerMinute { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether community comments/reviews are enabled. Off by default so
+  /// the admin opts in; when off, the comments section is hidden and the comments API is disabled.
+  /// </summary>
+  public bool CommentsEnabled { get; set; }
 
   /// <summary>
   /// Gets the genre all-list (TMDB English genre names) gating size-based auto-approval: when non-empty,

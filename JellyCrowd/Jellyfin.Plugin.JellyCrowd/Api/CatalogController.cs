@@ -548,9 +548,9 @@ public class CatalogController : ControllerBase
     => string.Equals(mediaType, "movie", StringComparison.Ordinal)
        || string.Equals(mediaType, "tv", StringComparison.Ordinal);
 
-  // Episodes of the user's followed shows (shows they have requested) airing in the date range.
-  // TMDB has no global episode calendar, so we fetch per show; bounded to MaxFollowedShows and to each
-  // show's latest season (best for the current/upcoming months).
+  // Episodes airing in the date range for the shows the user cares about: shows they have requested
+  // AND shows on their watchlist ("séries suivies"). TMDB has no global episode calendar, so we fetch
+  // per show; bounded to MaxFollowedShows and to each show's latest season (best for the current months).
   private async Task<IReadOnlyList<CatalogItem>> BuildFollowedEpisodesAsync(string from, string to, string language, CancellationToken cancellationToken)
   {
     var result = new List<CatalogItem>();
@@ -563,9 +563,17 @@ public class CatalogController : ControllerBase
 
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var requests = await _requestStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+    var watchlist = await _watchlistStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+
+    // Merge requested + watchlisted TV shows, de-duplicated by TMDB id (first occurrence wins for the
+    // display title/poster), bounded to keep the per-show TMDB fan-out in check.
     var shows = requests
       .Where(r => string.Equals(r.MediaType, "tv", StringComparison.Ordinal))
-      .GroupBy(r => r.TmdbId)
+      .Select(r => new { r.TmdbId, r.Title, r.PosterPath })
+      .Concat(watchlist
+        .Where(w => string.Equals(w.MediaType, "tv", StringComparison.Ordinal))
+        .Select(w => new { w.TmdbId, w.Title, w.PosterPath }))
+      .GroupBy(s => s.TmdbId)
       .Select(g => g.First())
       .Take(MaxFollowedShows)
       .ToList();
