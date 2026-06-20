@@ -446,6 +446,7 @@ Content-Type: application/json
             <h2 id="jcDiagTitle" class="sectionTitle">Diagnostics</h2>
             <div class="jcTestRow">
               <button is="emby-button" type="button" id="jcDiagRun" class="raised emby-button"><span id="jcDiagRunLabel">Run checks</span></button>
+              <button is="emby-button" type="button" id="jcDiagBackup" class="raised emby-button"><span id="jcDiagBackupLabel">Download backup</span></button>
             </div>
             <div id="jcDiagResults"></div>
           </div>
@@ -500,6 +501,24 @@ Content-Type: application/json
             });
           })
           .catch(function () { box.textContent = t('error_generic'); });
+      }
+
+      function jcDownloadBackup() {
+        fetch(ApiClient.getUrl('JellyCrowd/Diagnostics/Export'), {
+          headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+        })
+          .then(function (r) { return r.blob(); })
+          .then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'jellycrowd-backup.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          })
+          .catch(function () { /* ignore */ });
       }
 
       function jcUpdateDownloadVisibility() {
@@ -712,6 +731,7 @@ Content-Type: application/json
       document.querySelector('#jcTabDiagnostics').addEventListener('click', function () { jcActivateTab('diagnostics'); });
       document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
       document.querySelector('#jcDiagRun').addEventListener('click', jcRunDiagnostics);
+      document.querySelector('#jcDiagBackup').addEventListener('click', jcDownloadBackup);
 
       document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
@@ -927,6 +947,7 @@ Content-Type: application/json
           document.querySelector('#jcTabDiagnostics').textContent = t('tab_diagnostics');
           document.querySelector('#jcDiagTitle').textContent = t('tab_diagnostics');
           document.querySelector('#jcDiagRunLabel').textContent = t('diag_run');
+          document.querySelector('#jcDiagBackupLabel').textContent = t('diag_backup');
           document.querySelector('#jcTabRequests').textContent = t('tab_requests');
           document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');

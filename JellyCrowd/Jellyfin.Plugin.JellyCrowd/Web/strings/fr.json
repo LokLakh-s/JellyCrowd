@@ -114,5 +114,6 @@
   "tab_download": "Téléchargement",
   "tab_diagnostics": "Diagnostic",
   "diag_run": "Lancer les tests",
+  "diag_backup": "Télécharger la sauvegarde",
   "tab_requests": "Demandes"
 }
