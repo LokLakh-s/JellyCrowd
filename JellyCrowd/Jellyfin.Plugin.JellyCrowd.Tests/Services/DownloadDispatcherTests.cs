@@ -36,7 +36,7 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   private DownloadDispatcher CreateDispatcher()
-    => new(new IDownloadClient[] { _client }, _store, _ => "tester", () => _config, NullLogger<DownloadDispatcher>.Instance);
+    => new(new IDownloadClient[] { _client }, _store, _ => "tester", () => _config, new NoOpActivityLog(), NullLogger<DownloadDispatcher>.Instance);
 
   private async Task<RequestRecord> SeedApprovedAsync()
   {

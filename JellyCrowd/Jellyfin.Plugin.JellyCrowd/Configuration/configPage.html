@@ -53,6 +53,7 @@
           <button type="button" id="jcTabNotifications" class="jcTab">Notifications</button>
           <button type="button" id="jcTabDownload" class="jcTab">Download</button>
           <button type="button" id="jcTabDiagnostics" class="jcTab">Diagnostics</button>
+          <button type="button" id="jcTabLogs" class="jcTab">Logs</button>
         </div>
 
         <form id="JellyCrowdConfigForm">
@@ -456,6 +457,31 @@ Content-Type: application/json
             <div id="jcDiagResults"></div>
           </div>
         </div>
+
+        <div id="jcPaneLogs" class="jcTabPane" style="display:none">
+          <div class="verticalSection">
+            <h2 id="jcLogsTitle" class="sectionTitle">Logs</h2>
+            <div class="jcTestRow">
+              <input is="emby-input" type="text" id="jcLogSearch" placeholder="Search" style="max-width:18em" />
+              <select is="emby-select" id="jcLogCategory" class="emby-select">
+                <option value="">All categories</option>
+                <option value="request">request</option>
+                <option value="download">download</option>
+                <option value="admin">admin</option>
+                <option value="user">user</option>
+                <option value="system">system</option>
+              </select>
+              <select is="emby-select" id="jcLogLevel" class="emby-select">
+                <option value="">All levels</option>
+                <option value="info">info</option>
+                <option value="warning">warning</option>
+                <option value="error">error</option>
+              </select>
+              <button is="emby-button" type="button" id="jcLogRefresh" class="raised emby-button"><span id="jcLogRefreshLabel">Refresh</span></button>
+            </div>
+            <div id="jcLogResults"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -468,9 +494,11 @@ Content-Type: application/json
       function jcActivateTab(tab) {
         var isRequests = tab === 'requests';
         var isDiag = tab === 'diagnostics';
-        document.querySelector('#JellyCrowdConfigForm').style.display = (isRequests || isDiag) ? 'none' : '';
+        var isLogs = tab === 'logs';
+        document.querySelector('#JellyCrowdConfigForm').style.display = (isRequests || isDiag || isLogs) ? 'none' : '';
         document.querySelector('#jcPaneRequests').style.display = isRequests ? '' : 'none';
         document.querySelector('#jcPaneDiagnostics').style.display = isDiag ? '' : 'none';
+        document.querySelector('#jcPaneLogs').style.display = isLogs ? '' : 'none';
         document.querySelector('#jcPaneSettings').style.display = tab === 'settings' ? '' : 'none';
         document.querySelector('#jcPaneQuotas').style.display = tab === 'quotas' ? '' : 'none';
         document.querySelector('#jcPaneNotifications').style.display = tab === 'notifications' ? '' : 'none';
@@ -480,8 +508,10 @@ Content-Type: application/json
         document.querySelector('#jcTabNotifications').classList.toggle('jcTabActive', tab === 'notifications');
         document.querySelector('#jcTabDownload').classList.toggle('jcTabActive', tab === 'download');
         document.querySelector('#jcTabDiagnostics').classList.toggle('jcTabActive', isDiag);
+        document.querySelector('#jcTabLogs').classList.toggle('jcTabActive', isLogs);
         document.querySelector('#jcTabRequests').classList.toggle('jcTabActive', isRequests);
         if (isDiag) { jcRunDiagnostics(); }
+        if (isLogs) { jcLoadLogs(); }
       }
 
       function jcRunDiagnostics() {
@@ -502,6 +532,40 @@ Content-Type: application/json
               detail.textContent = r.Detail;
               row.appendChild(name);
               row.appendChild(detail);
+              box.appendChild(row);
+            });
+          })
+          .catch(function () { box.textContent = t('error_generic'); });
+      }
+
+      function jcLoadLogs() {
+        var box = document.querySelector('#jcLogResults');
+        box.textContent = '…';
+        var params = {
+          term: document.querySelector('#jcLogSearch').value || '',
+          category: document.querySelector('#jcLogCategory').value || '',
+          level: document.querySelector('#jcLogLevel').value || '',
+          limit: 200
+        };
+        ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Logs', params), dataType: 'json' })
+          .then(function (rows) {
+            box.innerHTML = '';
+            var icons = { info: 'ℹ️', warning: '⚠️', error: '❌' };
+            if (!rows || !rows.length) { box.textContent = t('log_empty'); return; }
+            rows.forEach(function (r) {
+              var row = document.createElement('div');
+              row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:baseline;';
+              var when = document.createElement('span');
+              when.style.cssText = 'opacity:.6;min-width:12em;font-variant-numeric:tabular-nums;';
+              when.textContent = new Date(r.Timestamp).toLocaleString();
+              var cat = document.createElement('span');
+              cat.style.cssText = 'opacity:.75;min-width:7em;';
+              cat.textContent = (icons[r.Level] || '•') + ' ' + r.Category;
+              var msg = document.createElement('span');
+              msg.textContent = r.Message;
+              row.appendChild(when);
+              row.appendChild(cat);
+              row.appendChild(msg);
               box.appendChild(row);
             });
           })
@@ -734,9 +798,13 @@ Content-Type: application/json
       document.querySelector('#jcTabNotifications').addEventListener('click', function () { jcActivateTab('notifications'); });
       document.querySelector('#jcTabDownload').addEventListener('click', function () { jcActivateTab('download'); });
       document.querySelector('#jcTabDiagnostics').addEventListener('click', function () { jcActivateTab('diagnostics'); });
+      document.querySelector('#jcTabLogs').addEventListener('click', function () { jcActivateTab('logs'); });
       document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
       document.querySelector('#jcDiagRun').addEventListener('click', jcRunDiagnostics);
       document.querySelector('#jcDiagBackup').addEventListener('click', jcDownloadBackup);
+      document.querySelector('#jcLogRefresh').addEventListener('click', jcLoadLogs);
+      document.querySelector('#jcLogCategory').addEventListener('change', jcLoadLogs);
+      document.querySelector('#jcLogLevel').addEventListener('change', jcLoadLogs);
 
       document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
@@ -953,6 +1021,10 @@ Content-Type: application/json
           document.querySelector('#jcDiagTitle').textContent = t('tab_diagnostics');
           document.querySelector('#jcDiagRunLabel').textContent = t('diag_run');
           document.querySelector('#jcDiagBackupLabel').textContent = t('diag_backup');
+          document.querySelector('#jcTabLogs').textContent = t('tab_logs');
+          document.querySelector('#jcLogsTitle').textContent = t('tab_logs');
+          document.querySelector('#jcLogSearch').setAttribute('placeholder', t('log_search'));
+          document.querySelector('#jcLogRefreshLabel').textContent = t('log_refresh');
           document.querySelector('#jcTabRequests').textContent = t('tab_requests');
           document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
