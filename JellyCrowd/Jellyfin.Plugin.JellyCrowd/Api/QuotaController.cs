@@ -19,6 +19,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 [Route("JellyCrowd/Quota")]
 [Produces(MediaTypeNames.Application.Json)]
 [ServiceFilter(typeof(PluginVisibilityFilter))]
+[ServiceFilter(typeof(RateLimitFilter))]
 public class QuotaController : ControllerBase
 {
   private readonly IQuotaService _quotaService;

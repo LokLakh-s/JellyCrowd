@@ -31,6 +31,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IMediaDeleter, MediaDeleter>();
     serviceCollection.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
     serviceCollection.AddSingleton<Api.PluginVisibilityFilter>();
+    serviceCollection.AddSingleton<RateLimiter>();
+    serviceCollection.AddSingleton<Api.RateLimitFilter>();
     serviceCollection.AddSingleton<ITextNotifier, TelegramNotifier>();
     serviceCollection.AddSingleton<ITextNotifier, NtfyNotifier>();
     serviceCollection.AddSingleton<ITextNotifier, GotifyNotifier>();

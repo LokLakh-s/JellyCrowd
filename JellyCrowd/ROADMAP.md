@@ -285,7 +285,7 @@ Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
 - ☑ Surfacer chaque échec avec un message clair + piste de résolution.
 - ☑ **Empreinte disque du plugin** : taille de chaque store + total + **estimation de croissance** (~/utilisateur · ~/mois d'après les requêtes des 30 derniers jours).
 
-### M19 — Robustesse données & sécurité  ◑ *(livré, restes)*
+### M19 — Robustesse données & sécurité  ☑ *(livré)*
 
 Objectif : le « non-fonctionnel » qui sépare une 0.x d'une 1.0.
 
@@ -293,7 +293,7 @@ Objectif : le « non-fonctionnel » qui sépare une 0.x d'une 1.0.
 - ◑ **Export / sauvegarde** des **requêtes** fait ; **config exclue volontairement** du bundle (pas de secrets).
 - ☑ **Cache TMDB & affiches** (respecter les quotas d'API, réduire la latence).
 - ☑ **États vides & erreurs gracieuses** partout (backend down, réseau, 0 résultat).
-- ◑ **Passe sécurité** : auth/élévation sur chaque endpoint + anti-XSS (`textContent`) + pas de fuite de clé faits ; **rate-limit HTTP** manquant (cap requêtes/période applicatif présent).
+- ☑ **Passe sécurité** : auth/élévation sur chaque endpoint + anti-XSS (`textContent`) + pas de fuite de clé + **rate-limit HTTP** (limiteur glissant par utilisateur sur les écritures, configurable, admins exemptés) en plus du cap requêtes/période.
 
 ### M20 — Finition du shell & navigation  ☑ *(livré)*
 

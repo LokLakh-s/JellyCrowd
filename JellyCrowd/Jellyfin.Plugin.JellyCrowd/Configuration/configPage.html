@@ -77,6 +77,12 @@
             </div>
 
             <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="RateLimitPerMinute">API rate limit (writes / minute / user)</label>
+              <input id="RateLimitPerMinute" name="RateLimitPerMinute" type="number" is="emby-input" min="0" step="10" />
+              <div class="fieldDescription">Max write requests a non-admin user may make per minute (extra abuse guard on top of the per-period request cap). 0 disables it. Administrators are exempt.</div>
+            </div>
+
+            <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key</label>
               <input id="TmdbApiKey" name="TmdbApiKey" type="text" is="emby-input" />
               <div class="fieldDescription">TMDB v3 API key used to power the discovery catalog.</div>
@@ -844,6 +850,7 @@ Content-Type: application/json
             document.querySelector('#DefaultUserQuotaGiB').value = (config.DefaultUserQuotaBytes || 0) / gib;
             document.querySelector('#RequireApproval').checked = !!config.RequireApproval;
             document.querySelector('#HiddenFromUsers').checked = !!config.HiddenFromUsers;
+            document.querySelector('#RateLimitPerMinute').value = config.RateLimitPerMinute != null ? config.RateLimitPerMinute : 120;
             document.querySelector('#EstimatedMovieSizeGiB').value = (config.EstimatedMovieSizeBytes || 0) / gib;
             document.querySelector('#EstimatedEpisodeSizeGiB').value = (config.EstimatedEpisodeSizeBytes || 0) / gib;
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
@@ -920,6 +927,7 @@ Content-Type: application/json
             config.DefaultUserQuotaBytes = Math.round(parseFloat(document.querySelector('#DefaultUserQuotaGiB').value || '0') * gib);
             config.RequireApproval = document.querySelector('#RequireApproval').checked;
             config.HiddenFromUsers = document.querySelector('#HiddenFromUsers').checked;
+            config.RateLimitPerMinute = parseInt(document.querySelector('#RateLimitPerMinute').value || '0', 10);
             config.EstimatedMovieSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedMovieSizeGiB').value || '0') * gib);
             config.EstimatedEpisodeSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedEpisodeSizeGiB').value || '0') * gib);
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);
