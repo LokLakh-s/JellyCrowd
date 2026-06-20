@@ -80,5 +80,7 @@ public sealed class WatchlistControllerTests : IDisposable
     public FakeUserAccessor(Guid userId) => _userId = userId;
 
     public Task<Guid> GetUserIdAsync(HttpRequest request) => Task.FromResult(_userId);
+
+    public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(false);
   }
 }
