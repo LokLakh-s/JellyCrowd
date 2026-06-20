@@ -22,7 +22,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   /// <inheritdoc />
   public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
   {
-    serviceCollection.AddSingleton<ITmdbClient, TmdbClient>();
+    serviceCollection.AddSingleton<TmdbClient>();
+    serviceCollection.AddSingleton<ITmdbClient>(sp => new CachingTmdbClient(sp.GetRequiredService<TmdbClient>()));
     serviceCollection.AddSingleton<ILibraryMatcher, LibraryMatcher>();
     serviceCollection.AddSingleton<IMediaDeleter, MediaDeleter>();
     serviceCollection.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
