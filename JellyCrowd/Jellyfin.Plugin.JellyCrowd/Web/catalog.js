@@ -20,6 +20,7 @@
   var isAdmin = false;
   var adminUsers = [];
   var actAsUserId = null;
+  var myUserId = '';
 
   // Watchlist: the user's followed titles. watchlistKeys is a quick membership set ("type:tmdbId"),
   // watchlistEntries the full list (rendered when the "My list" toggle is on).
@@ -234,6 +235,7 @@
     }
     return window.ApiClient.getCurrentUser().then(function (user) {
       isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator);
+      myUserId = user ? user.Id : '';
       if (isAdmin && typeof window.ApiClient.getUsers === 'function') {
         return window.ApiClient.getUsers().then(function (users) { adminUsers = users || []; }).catch(function () { /* ignore */ });
       }
@@ -495,6 +497,103 @@
     });
   }
 
+  // ---------- comments ----------
+
+  function renderComments(listEl, comments) {
+    listEl.innerHTML = '';
+    if (!comments || !comments.length) {
+      var empty = document.createElement('div');
+      empty.className = 'jellycrowd-request-sub';
+      empty.textContent = t('comments_empty');
+      listEl.appendChild(empty);
+      return;
+    }
+    comments.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'jellycrowd-comment';
+      var head = document.createElement('div');
+      head.className = 'jellycrowd-comment-head';
+      var who = document.createElement('span');
+      who.className = 'jellycrowd-comment-author';
+      who.textContent = c.UserName || '';
+      head.appendChild(who);
+      var when = document.createElement('span');
+      when.className = 'jellycrowd-comment-date';
+      when.textContent = c.CreatedAt ? new Date(c.CreatedAt).toLocaleString() : '';
+      head.appendChild(when);
+
+      if (isAdmin) {
+        head.appendChild(commentAction(t('comment_hide'), 'JellyCrowd/Comments/' + c.Id + '/Hide', row));
+        head.appendChild(commentAction(t('comment_delete'), 'JellyCrowd/Comments/' + c.Id + '/Delete', row));
+      } else if (c.UserId === myUserId) {
+        head.appendChild(commentAction(t('comment_delete'), 'JellyCrowd/Comments/' + c.Id + '/DeleteMine', row));
+      }
+      row.appendChild(head);
+
+      var text = document.createElement('div');
+      text.className = 'jellycrowd-comment-text';
+      text.textContent = c.Text;
+      row.appendChild(text);
+      listEl.appendChild(row);
+    });
+  }
+
+  function commentAction(label, path, row) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jellycrowd-comment-action';
+    btn.textContent = label;
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      apiPostNoResult(path).then(function () { row.remove(); }).catch(function () { btn.disabled = false; });
+    });
+    return btn;
+  }
+
+  function loadComments(item, listEl) {
+    apiGet('JellyCrowd/Comments/' + item.MediaType + '/' + item.TmdbId)
+      .then(function (comments) { renderComments(listEl, comments); })
+      .catch(function () { /* comments are best-effort */ });
+  }
+
+  function buildCommentsSection(item) {
+    var section = document.createElement('div');
+    section.className = 'jellycrowd-comments';
+    var title = document.createElement('h4');
+    title.className = 'jellycrowd-comments-title';
+    title.textContent = t('comments');
+    section.appendChild(title);
+
+    var list = document.createElement('div');
+    list.className = 'jellycrowd-comments-list';
+    section.appendChild(list);
+
+    var form = document.createElement('div');
+    form.className = 'jellycrowd-comment-form';
+    var input = document.createElement('textarea');
+    input.className = 'jellycrowd-comment-input';
+    input.rows = 2;
+    input.placeholder = t('comment_placeholder');
+    var post = document.createElement('button');
+    post.type = 'button';
+    post.className = 'jellycrowd-request';
+    post.textContent = t('comment_post');
+    post.addEventListener('click', function () {
+      var text = input.value.trim();
+      if (!text) { return; }
+      post.disabled = true;
+      apiPost('JellyCrowd/Comments', { MediaType: item.MediaType, TmdbId: item.TmdbId, Text: text })
+        .then(function () { input.value = ''; post.disabled = false; loadComments(item, list); })
+        .catch(function () { post.disabled = false; });
+    });
+    form.appendChild(input);
+    form.appendChild(post);
+    section.appendChild(form);
+
+    loadComments(item, list);
+    return section;
+  }
+
   function openModal(item) {
     var overlay = document.createElement('div');
     overlay.className = 'jellycrowd-modal-overlay';
@@ -555,6 +654,9 @@
     overview.className = 'jellycrowd-modal-overview';
     overview.textContent = item.Overview || t('no_overview');
     content.appendChild(overview);
+
+    // Comments section, right under the synopsis.
+    content.appendChild(buildCommentsSection(item));
 
     var links = document.createElement('div');
     links.className = 'jellycrowd-modal-links';
