@@ -56,7 +56,9 @@
 
 - [ ] **Cloche** dans le bandeau avec **pastille rouge + compteur** quand une notif arrive.
 - [ ] Notifié sur **Approved / Denied / Available**.
+- [ ] **Notif « Échec »** : quand un dispatch échoue (1ʳᵉ fois), le **demandeur** reçoit une notif in-app (+ canal perso) « Request needs attention… ». Pas de doublon aux tentatives suivantes.
 - [ ] **Effacer tout** dans le panneau de notifs fonctionne.
+- [ ] **Bouton « × » par notification** : efface une seule notif ; la liste se met à jour (état vide si c'était la dernière).
 - [ ] **Préférences perso** (e-mail / ntfy) : un canal perso reçoit bien la notif.
 
 ## 7. Régression — Catalogue, calendrier, communauté (M24/M25)

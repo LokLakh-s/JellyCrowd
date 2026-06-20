@@ -73,6 +73,7 @@
   "notifications": "Notifications",
   "notif_empty": "No notifications.",
   "notif_clear_all": "Clear all",
+  "notif_clear_one": "Clear this notification",
   "notif_settings": "Notification settings",
   "notif_enabled": "Send me notifications",
   "notif_email": "Email address",

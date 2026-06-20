@@ -173,7 +173,7 @@ public sealed class NotificationService : INotificationService
   // channels (email / ntfy), when configured.
   private async Task NotifyUserAsync(RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CancellationToken cancellationToken)
   {
-    if (notificationEvent is not (NotificationEvent.Approved or NotificationEvent.Denied or NotificationEvent.Available))
+    if (notificationEvent is not (NotificationEvent.Approved or NotificationEvent.Denied or NotificationEvent.Available or NotificationEvent.Failed))
     {
       return;
     }
@@ -262,6 +262,7 @@ public sealed class NotificationService : INotificationService
     NotificationEvent.Approved => config.DiscordNotifyApproved,
     NotificationEvent.Denied => config.DiscordNotifyDenied,
     NotificationEvent.Available => config.DiscordNotifyAvailable,
+    NotificationEvent.Failed => config.DiscordNotifyDenied,
     _ => true
   };
 
@@ -273,6 +274,7 @@ public sealed class NotificationService : INotificationService
       NotificationEvent.Approved => config.DiscordColorApproved,
       NotificationEvent.Denied => config.DiscordColorDenied,
       NotificationEvent.Available => config.DiscordColorAvailable,
+      NotificationEvent.Failed => config.DiscordColorDenied,
       _ => config.DiscordColorCreated
     };
 

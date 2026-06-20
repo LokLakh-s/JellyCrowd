@@ -430,7 +430,9 @@
 
     items.forEach(function (n) {
       var row = document.createElement('div');
-      row.style.cssText = 'padding:.55em .7em;border-bottom:1px solid rgba(255,255,255,.07);' + (n.Read ? '' : 'background:rgba(0,164,220,.08);');
+      row.style.cssText = 'display:flex;align-items:flex-start;gap:.4em;padding:.55em .7em;border-bottom:1px solid rgba(255,255,255,.07);' + (n.Read ? '' : 'background:rgba(0,164,220,.08);');
+      var content = document.createElement('div');
+      content.style.cssText = 'flex:1;min-width:0;';
       var line1 = document.createElement('div');
       line1.textContent = n.Title;
       line1.style.cssText = 'font-weight:600;font-size:.9em;';
@@ -440,9 +442,28 @@
       var line3 = document.createElement('div');
       line3.textContent = n.CreatedAt ? new Date(n.CreatedAt).toLocaleString() : '';
       line3.style.cssText = 'font-size:.72em;opacity:.55;margin-top:.15em;';
-      row.appendChild(line1);
-      row.appendChild(line2);
-      row.appendChild(line3);
+      content.appendChild(line1);
+      content.appendChild(line2);
+      content.appendChild(line3);
+      row.appendChild(content);
+
+      // Per-item clear (×) — removes just this notification.
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.title = t('notif_clear_one');
+      del.textContent = '×';
+      del.style.cssText = 'background:none;border:0;color:#fff;opacity:.5;cursor:pointer;font-size:1.1em;line-height:1;flex:0 0 auto;';
+      del.addEventListener('click', function () {
+        del.disabled = true;
+        apiAjax('POST', 'JellyCrowd/Notifications/Mine/Clear/' + n.Id)
+          .then(function () {
+            row.remove();
+            if (!panel.querySelector('[data-jc-notif-row]')) { renderBellList(panel, []); }
+          })
+          .catch(function () { del.disabled = false; });
+      });
+      row.setAttribute('data-jc-notif-row', '1');
+      row.appendChild(del);
       panel.appendChild(row);
     });
   }

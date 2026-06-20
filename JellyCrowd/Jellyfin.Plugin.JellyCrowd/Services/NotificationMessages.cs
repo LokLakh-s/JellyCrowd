@@ -39,6 +39,9 @@ public static class NotificationMessages
       NotificationEvent.Available => (
         string.Format(CultureInfo.InvariantCulture, "Now available: {0}", title),
         string.Format(CultureInfo.InvariantCulture, "\"{0}\" is now available in the library.", title)),
+      NotificationEvent.Failed => (
+        string.Format(CultureInfo.InvariantCulture, "Request needs attention: {0}", title),
+        string.Format(CultureInfo.InvariantCulture, "The {0} request \"{1}\" could not be fulfilled yet (no release found or a backend error). You can retry the search.", kind, title)),
       _ => (
         string.Format(CultureInfo.InvariantCulture, "Jelly Crowd: {0}", title),
         title)
