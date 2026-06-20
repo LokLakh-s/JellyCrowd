@@ -53,7 +53,7 @@ public sealed class ReconcileTask : IScheduledTask
       new TaskTriggerInfo
       {
         Type = TaskTriggerInfoType.IntervalTrigger,
-        IntervalTicks = TimeSpan.FromMinutes(15).Ticks
+        IntervalTicks = TimeSpan.FromMinutes(5).Ticks
       }
     };
   }

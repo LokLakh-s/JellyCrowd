@@ -325,6 +325,9 @@
     box.style.cssText = 'display:inline-flex;flex-direction:column;justify-content:center;min-width:8em;margin:0 .6em;font-size:.7em;cursor:pointer;';
     box.title = t('my_media_title');
     box.addEventListener('click', function () { toggleView('mymedia'); });
+    var caption = document.createElement('span');
+    caption.textContent = t('my_media_title');
+    caption.style.cssText = 'color:#fff;font-weight:600;opacity:.85;';
     var label = document.createElement('span');
     label.style.color = '#fff';
     var track = document.createElement('span');
@@ -332,6 +335,7 @@
     var fill = document.createElement('span');
     fill.style.cssText = 'display:block;height:100%;background:' + quotaColor(0) + ';width:0%;';
     track.appendChild(fill);
+    box.appendChild(caption);
     box.appendChild(label);
     box.appendChild(track);
 
@@ -602,7 +606,8 @@
     btn.type = 'button';
     btn.className = 'paper-icon-button-light headerButton';
     btn.title = t('notifications');
-    btn.style.cssText = 'position:relative;';
+    // overflow:visible so the round icon button doesn't clip the corner badge.
+    btn.style.cssText = 'position:relative;overflow:visible;';
     var icon = document.createElement('span');
     icon.className = 'material-icons';
     icon.setAttribute('aria-hidden', 'true');
@@ -611,7 +616,8 @@
 
     var badge = document.createElement('span');
     badge.className = 'jcBellBadge';
-    badge.style.cssText = 'position:absolute;top:.1em;right:.1em;min-width:1.15em;height:1.15em;padding:0 .25em;border-radius:.6em;background:#e53935;color:#fff;font-size:.62em;line-height:1.15em;text-align:center;display:none;box-sizing:border-box;';
+    // Sit at the outer top-right corner (fully outside the icon glyph) so it is never half-hidden.
+    badge.style.cssText = 'position:absolute;top:-.15em;right:-.15em;min-width:1.2em;height:1.2em;padding:0 .25em;border-radius:.6em;background:#e53935;color:#fff;font-size:.62em;line-height:1.2em;text-align:center;display:none;box-sizing:border-box;z-index:1;pointer-events:none;';
     btn.appendChild(badge);
 
     // The panel is fixed-position and lives on <body> (not inside the header) so it is never clipped
