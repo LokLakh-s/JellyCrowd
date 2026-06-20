@@ -165,6 +165,27 @@ public class CatalogController : ControllerBase
   }
 
   /// <summary>
+  /// Gets the movies of a TMDB collection (saga/franchise), each flagged for availability.
+  /// </summary>
+  /// <param name="collectionId">The TMDB collection id.</param>
+  /// <param name="language">Optional TMDB language code (defaults to <c>en-US</c>).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The collection's movies.</response>
+  /// <response code="503">TMDB is not configured or unreachable.</response>
+  /// <returns>The movies belonging to the collection, with availability flags.</returns>
+  [HttpGet("Collection/{collectionId:int}")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+  public async Task<ActionResult<IReadOnlyList<CatalogItem>>> GetCollection(
+    int collectionId,
+    [FromQuery] string? language,
+    CancellationToken cancellationToken)
+  {
+    return await ExecuteAsync(
+      () => _tmdbClient.GetCollectionAsync(collectionId, Normalize(language), cancellationToken)).ConfigureAwait(false);
+  }
+
+  /// <summary>
   /// Discovers movies or shows matching genre/year/rating filters.
   /// </summary>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>); defaults to movie.</param>

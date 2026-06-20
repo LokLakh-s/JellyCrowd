@@ -87,6 +87,15 @@ public interface ITmdbClient
   Task<CatalogItem?> GetDetailsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Gets the movies belonging to a TMDB collection (saga/franchise), used by "request the whole saga".
+  /// </summary>
+  /// <param name="collectionId">The TMDB collection id.</param>
+  /// <param name="language">The TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The collection's movies.</returns>
+  Task<IReadOnlyList<CatalogItem>> GetCollectionAsync(int collectionId, string language, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Resolves a show's TVDB id from its TMDB id (used to add the series to Sonarr, which is TVDB-based).
   /// </summary>
   /// <param name="tmdbId">The show's TMDB identifier.</param>

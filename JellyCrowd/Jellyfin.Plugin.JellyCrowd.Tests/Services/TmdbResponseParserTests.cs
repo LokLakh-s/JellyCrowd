@@ -107,6 +107,44 @@ public class TmdbResponseParserTests
   }
 
   [Fact]
+  public void ParseDetails_Movie_ExtractsCollectionId()
+  {
+    const string json = """
+    { "id": 10, "title": "M", "belongs_to_collection": { "id": 99, "name": "M Collection" } }
+    """;
+
+    var item = TmdbResponseParser.ParseDetails(json, "movie");
+
+    Assert.Equal(99, item!.CollectionId);
+  }
+
+  [Fact]
+  public void ParseDetails_NoCollection_NullCollectionId()
+  {
+    var item = TmdbResponseParser.ParseDetails("""{ "id": 10, "title": "M" }""", "movie");
+
+    Assert.Null(item!.CollectionId);
+  }
+
+  [Fact]
+  public void ParseCollectionParts_ReturnsMoviesInOrder()
+  {
+    const string json = """
+    { "id": 99, "name": "Saga", "parts": [
+      { "id": 1, "title": "Part 1", "release_date": "2000-01-01" },
+      { "id": 2, "title": "Part 2", "release_date": "2003-01-01" }
+    ] }
+    """;
+
+    var parts = TmdbResponseParser.ParseCollectionParts(json);
+
+    Assert.Equal(2, parts.Count);
+    Assert.Equal("movie", parts[0].MediaType);
+    Assert.Equal(1, parts[0].TmdbId);
+    Assert.Equal("Part 2", parts[1].Title);
+  }
+
+  [Fact]
   public void ParseSeasons_MapsNumberNameAndCount()
   {
     const string json = """

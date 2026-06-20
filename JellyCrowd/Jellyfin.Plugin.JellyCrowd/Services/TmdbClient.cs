@@ -62,6 +62,13 @@ public class TmdbClient : ITmdbClient
   }
 
   /// <inheritdoc />
+  public async Task<IReadOnlyList<CatalogItem>> GetCollectionAsync(int collectionId, string language, CancellationToken cancellationToken)
+  {
+    var json = await GetAsync($"/collection/{collectionId.ToString(CultureInfo.InvariantCulture)}?language={Escape(language)}", cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseCollectionParts(json);
+  }
+
+  /// <inheritdoc />
   public async Task<IReadOnlyList<CatalogItem>> DiscoverAsync(string mediaType, DiscoverQuery query, string language, CancellationToken cancellationToken)
   {
     ArgumentNullException.ThrowIfNull(query);

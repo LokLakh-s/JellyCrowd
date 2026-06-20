@@ -365,5 +365,15 @@ public class CatalogControllerTests
 
       return Task.FromResult(Recommendations);
     }
+
+    public Task<IReadOnlyList<CatalogItem>> GetCollectionAsync(int collectionId, string language, CancellationToken cancellationToken)
+    {
+      if (Throw is not null)
+      {
+        throw Throw;
+      }
+
+      return Task.FromResult<IReadOnlyList<CatalogItem>>(new List<CatalogItem>());
+    }
   }
 }
