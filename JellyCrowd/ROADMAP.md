@@ -251,21 +251,21 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 > et la **stabilisation v1.0** (responsive/a11y, doc, tests e2e, polish). Sous-points reportés :
 > calendrier épisodes (M24), colonne commentaires page native (M25.2), canaux stable/nightly (M26.2).
 
-### M15 — Téléchargement : correctifs & échecs  ◑ *(livré en partie)*
+### M15 — Téléchargement : correctifs & échecs  ☑ *(livré)*
 
 Objectif : fiabiliser la chaîne de fulfillment (bug bloquant en tête).
 
 - ☑ **Bug bloquant** (saison aux champs vides chez Prowlarr) : `ServarrPayload.BuildSeriesAdd` **monitore explicitement la saison demandée** + `addOptions.searchForMissingEpisodes = true`, et **évite volontairement** `monitor: none` (qui démonitorait la saison voulue → recherche vide). L'échec terrain initial était une **config Sonarr** (corrigée).
 - ☑ État **« Bloqué »** distinct (badge rouge sur une requête approuvée portant une `DispatchError`, raison au survol) + action **« relancer la recherche »** (user) : `MoviesSearch`/`SeasonSearch`/`SeriesSearch` côté Radarr/Sonarr (ou ré-envoi pour webhook/script), erreur effacée au succès.
-- ☐ Si possible, **poller la progression depuis rdt-client** (plutôt que Radarr/Sonarr) pour un suivi plus **précis et temps réel**. *(reporté)*
+- ⤳ *Optionnel (hors périmètre 1.0, non bloquant)* : **poller la progression depuis rdt-client** plutôt que Radarr/Sonarr. Gain marginal (la file Radarr/Sonarr expose déjà la progression), matching flou par nom, et nécessite l'URL + l'auth du rdt-client interne. À faire seulement sur demande.
 
-### M16 — Permissions, rôles & règles d'auto-approbation  ◑ *(livré, 1 reste)*
+### M16 — Permissions, rôles & règles d'auto-approbation  ☑ *(livré)*
 
 Objectif : faire de JellyCrowd un vrai outil **multi-utilisateur**.
 
 - ☑ **Activer/désactiver les requêtes** par utilisateur ou par rôle ; catalogue réservable à certains.
 - ☑ **Plafonds par utilisateur/rôle** (quota disque, nombre de requêtes/période) en surcharge du global.
-- ◑ **Règles d'auto-approbation** : **taille < X Go** + **utilisateurs de confiance** faits ; **critère genre** non implémenté.
+- ☑ **Règles d'auto-approbation** : **taille < X Go** + **utilisateurs de confiance** + **critère genre** (liste de genres TMDB qui restreint l'auto-approbation par taille ; les utilisateurs de confiance la contournent).
 
 ### M17 — Notifications utilisateur & centre de notifications  ◑ *(livré, restes mineurs)*
 

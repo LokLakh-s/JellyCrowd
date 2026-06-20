@@ -75,4 +75,41 @@ public class RequestPolicyTests
     Assert.False(RequestPolicy.ShouldAutoApprove(config, User, "movie"));
     Assert.False(RequestPolicy.ShouldAutoApprove(config, User, "tv"));
   }
+
+  [Fact]
+  public void ShouldAutoApprove_GenreGate_RequiresMatchWhenConfigured()
+  {
+    var config = Config();
+    config.AutoApproveMaxSizeBytes = 2 * Gib; // tv (1 GiB) passes the size gate
+    config.AutoApproveGenres.Add("Documentary");
+
+    // Size passes but no genre supplied -> blocked by the genre gate.
+    Assert.False(RequestPolicy.ShouldAutoApprove(config, User, "tv", Array.Empty<string>()));
+
+    // A matching genre (case-insensitive) passes.
+    Assert.True(RequestPolicy.ShouldAutoApprove(config, User, "tv", new[] { "documentary" }));
+
+    // A non-matching genre stays pending.
+    Assert.False(RequestPolicy.ShouldAutoApprove(config, User, "tv", new[] { "Horror" }));
+  }
+
+  [Fact]
+  public void ShouldAutoApprove_GenreGate_IgnoredWhenListEmpty()
+  {
+    var config = Config();
+    config.AutoApproveMaxSizeBytes = 2 * Gib;
+
+    // No genre list configured -> size rule alone decides, genres irrelevant.
+    Assert.True(RequestPolicy.ShouldAutoApprove(config, User, "tv", Array.Empty<string>()));
+  }
+
+  [Fact]
+  public void ShouldAutoApprove_TrustedUser_BypassesGenreGate()
+  {
+    var config = Config();
+    config.AutoApproveGenres.Add("Documentary");
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = User, AutoApprove = true });
+
+    Assert.True(RequestPolicy.ShouldAutoApprove(config, User, "movie", Array.Empty<string>()));
+  }
 }

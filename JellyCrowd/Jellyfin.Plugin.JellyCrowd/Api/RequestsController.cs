@@ -26,6 +26,7 @@ public class RequestsController : ControllerBase
   private readonly IDownloadDispatcher _downloadDispatcher;
   private readonly IServarrStatusService _servarrStatus;
   private readonly ILibraryMatcher _libraryMatcher;
+  private readonly ITmdbClient _tmdbClient;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="RequestsController"/> class.
@@ -37,6 +38,7 @@ public class RequestsController : ControllerBase
   /// <param name="downloadDispatcher">The download dispatcher triggered on approval.</param>
   /// <param name="servarrStatus">The live download-status service (Radarr/Sonarr queue).</param>
   /// <param name="libraryMatcher">The library matcher (resolves the Jellyfin item for a claim).</param>
+  /// <param name="tmdbClient">The TMDB client (resolves genres for genre-based auto-approval).</param>
   public RequestsController(
     IRequestStore store,
     ICurrentUserAccessor userAccessor,
@@ -44,7 +46,8 @@ public class RequestsController : ControllerBase
     INotificationService notificationService,
     IDownloadDispatcher downloadDispatcher,
     IServarrStatusService servarrStatus,
-    ILibraryMatcher libraryMatcher)
+    ILibraryMatcher libraryMatcher,
+    ITmdbClient tmdbClient)
   {
     _store = store;
     _userAccessor = userAccessor;
@@ -53,6 +56,7 @@ public class RequestsController : ControllerBase
     _downloadDispatcher = downloadDispatcher;
     _servarrStatus = servarrStatus;
     _libraryMatcher = libraryMatcher;
+    _tmdbClient = tmdbClient;
   }
 
   /// <summary>
@@ -114,10 +118,23 @@ public class RequestsController : ControllerBase
     }
 
     // Approval mode: requests stay pending when admin approval is required, unless the user is trusted
-    // or the request matches the auto-approval size rule. Even auto-approved requests are held as
-    // pending (not rejected) when they would exceed the disk quota, for the admin to arbitrate.
-    var requireApproval = (config?.RequireApproval ?? true)
-      && !(config is not null && RequestPolicy.ShouldAutoApprove(config, userId, dto.MediaType));
+    // or the request matches the auto-approval size (and optional genre) rule. Even auto-approved
+    // requests are held as pending (not rejected) when they would exceed the disk quota, for the admin
+    // to arbitrate. Genres are resolved from TMDB only when a genre all-list is configured.
+    var autoApprove = false;
+    if (config is not null)
+    {
+      IReadOnlyList<string> genres = Array.Empty<string>();
+      if (config.AutoApproveGenres.Count > 0 && !RequestPolicy.IsTrusted(config, userId))
+      {
+        var details = await _tmdbClient.GetDetailsAsync(dto.MediaType, dto.TmdbId, "en-US", cancellationToken).ConfigureAwait(false);
+        genres = details?.Genres ?? Array.Empty<string>();
+      }
+
+      autoApprove = RequestPolicy.ShouldAutoApprove(config, userId, dto.MediaType, genres);
+    }
+
+    var requireApproval = (config?.RequireApproval ?? true) && !autoApprove;
     var withinQuota = await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false);
     var status = (requireApproval || !withinQuota) ? RequestStatus.Pending : RequestStatus.Approved;
 

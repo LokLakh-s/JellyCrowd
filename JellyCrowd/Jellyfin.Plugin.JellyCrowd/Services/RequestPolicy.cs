@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
 
@@ -59,14 +61,17 @@ public static class RequestPolicy
 
   /// <summary>
   /// Whether a request should be auto-approved (skip the admin queue): the user is trusted, or the
-  /// global size rule applies to the request's estimated size.
+  /// global size rule applies to the request's estimated size — further gated, when configured, by the
+  /// title's genres matching <see cref="PluginConfiguration.AutoApproveGenres"/>.
   /// </summary>
   /// <param name="config">The plugin configuration.</param>
   /// <param name="userId">The user id.</param>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="genres">The title's genre names (used only when an auto-approve genre list is set).</param>
   /// <returns><c>true</c> when the request should be auto-approved.</returns>
-  public static bool ShouldAutoApprove(PluginConfiguration config, Guid userId, string mediaType)
+  public static bool ShouldAutoApprove(PluginConfiguration config, Guid userId, string mediaType, IReadOnlyList<string>? genres = null)
   {
+    ArgumentNullException.ThrowIfNull(config);
     if (IsTrusted(config, userId))
     {
       return true;
@@ -81,6 +86,22 @@ public static class RequestPolicy
     var estimate = string.Equals(mediaType, "tv", StringComparison.Ordinal)
       ? config.EstimatedEpisodeSizeBytes
       : config.EstimatedMovieSizeBytes;
-    return estimate <= threshold;
+    if (estimate > threshold)
+    {
+      return false;
+    }
+
+    // Optional genre gate: when a list is configured, require at least one matching genre.
+    if (config.AutoApproveGenres.Count == 0)
+    {
+      return true;
+    }
+
+    if (genres is null || genres.Count == 0)
+    {
+      return false;
+    }
+
+    return genres.Any(g => config.AutoApproveGenres.Any(a => string.Equals(a, g, StringComparison.OrdinalIgnoreCase)));
   }
 }
