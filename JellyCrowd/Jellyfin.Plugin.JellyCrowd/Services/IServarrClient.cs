@@ -115,6 +115,16 @@ public interface IServarrClient
   Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Fetches the configured indexers (<c>GET /api/v3/indexer</c>), used by diagnostics to confirm at
+  /// least one search source is enabled.
+  /// </summary>
+  /// <param name="baseUrl">The instance base URL.</param>
+  /// <param name="apiKey">The API key.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The raw indexers JSON array.</returns>
+  Task<string> GetIndexersAsync(string baseUrl, string apiKey, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Triggers a command (<c>POST /api/v3/command</c>), e.g. <c>MoviesSearch</c>, <c>SeriesSearch</c>
   /// or <c>SeasonSearch</c>, to re-run a release search for an already-added item.
   /// </summary>

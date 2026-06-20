@@ -22,6 +22,8 @@ public sealed class DiagnosticsService : IDiagnosticsService
 
   private readonly ITmdbClient _tmdb;
   private readonly IDownloadDispatcher _dispatcher;
+  private readonly IServarrClient _servarr;
+  private readonly IRequestStore _requests;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<DiagnosticsService> _logger;
 
@@ -30,12 +32,16 @@ public sealed class DiagnosticsService : IDiagnosticsService
   /// </summary>
   /// <param name="tmdb">The TMDB client.</param>
   /// <param name="dispatcher">The download dispatcher (for the backend reachability test).</param>
+  /// <param name="servarr">The Radarr/Sonarr client (for the indexer check).</param>
+  /// <param name="requests">The request store (for the storage-growth estimate).</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public DiagnosticsService(ITmdbClient tmdb, IDownloadDispatcher dispatcher, Func<PluginConfiguration> config, ILogger<DiagnosticsService> logger)
+  public DiagnosticsService(ITmdbClient tmdb, IDownloadDispatcher dispatcher, IServarrClient servarr, IRequestStore requests, Func<PluginConfiguration> config, ILogger<DiagnosticsService> logger)
   {
     _tmdb = tmdb;
     _dispatcher = dispatcher;
+    _servarr = servarr;
+    _requests = requests;
     _config = config;
     _logger = logger;
   }
@@ -51,14 +57,101 @@ public sealed class DiagnosticsService : IDiagnosticsService
       await CheckDownloadBackendAsync(config, cancellationToken).ConfigureAwait(false)
     };
 
+    var indexers = await CheckIndexersAsync(config, cancellationToken).ConfigureAwait(false);
+    if (indexers is not null)
+    {
+      results.Add(indexers);
+    }
+
     if (Plugin.Instance is { } plugin)
     {
       results.Add(CheckDataFolder(plugin.DataFolderPath));
       results.Add(Footprint(plugin.DataFolderPath));
+      results.Add(await GrowthEstimateAsync(plugin.DataFolderPath, cancellationToken).ConfigureAwait(false));
     }
 
     return results;
   }
+
+  // Confirms at least one indexer is enabled on the configured *arr instance (search source).
+  private async Task<DiagnosticResult?> CheckIndexersAsync(PluginConfiguration config, CancellationToken cancellationToken)
+  {
+    if (!string.Equals(config.DownloadBackend, "servarr", StringComparison.OrdinalIgnoreCase))
+    {
+      return null;
+    }
+
+    var (label, baseUrl, apiKey) =
+      !string.IsNullOrWhiteSpace(config.RadarrUrl) && !string.IsNullOrWhiteSpace(config.RadarrApiKey)
+        ? ("Radarr", config.RadarrUrl, config.RadarrApiKey)
+        : !string.IsNullOrWhiteSpace(config.SonarrUrl) && !string.IsNullOrWhiteSpace(config.SonarrApiKey)
+          ? ("Sonarr", config.SonarrUrl, config.SonarrApiKey)
+          : (string.Empty, string.Empty, string.Empty);
+
+    if (label.Length == 0)
+    {
+      return null;
+    }
+
+    try
+    {
+      var json = await _servarr.GetIndexersAsync(baseUrl, apiKey, cancellationToken).ConfigureAwait(false);
+      var enabled = ServarrIndexerParser.CountEnabled(json);
+      return enabled > 0
+        ? Result("Indexers", "ok", string.Format(CultureInfo.InvariantCulture, "{0}: {1} indexer(s) enabled.", label, enabled))
+        : Result("Indexers", "warning", label + ": no enabled indexer — searches will find nothing. Add one (e.g. via Prowlarr).");
+    }
+#pragma warning disable CA1031 // Diagnostics must report any failure, not throw.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogDebug(ex, "Indexer diagnostic failed.");
+      return Result("Indexers", "error", label + ": could not read indexers: " + ex.Message);
+    }
+  }
+
+  // Rough projection: bytes/request from the requests store, applied to the last 30 days' volume,
+  // plus a per-user average. Clearly an estimate, to size capacity planning (the "growth" rule).
+  private async Task<DiagnosticResult> GrowthEstimateAsync(string dir, CancellationToken cancellationToken)
+  {
+    try
+    {
+      var all = await _requests.GetAllAsync(cancellationToken).ConfigureAwait(false);
+      var requestsBytes = FileSize(Path.Combine(dir, "requests.json"));
+      long totalBytes = 0;
+      foreach (var file in StoreFiles)
+      {
+        totalBytes += FileSize(Path.Combine(dir, file));
+      }
+
+      var users = all.Select(r => r.UserId).Distinct().Count();
+      var perUser = totalBytes / Math.Max(1, users);
+      var bytesPerRequest = all.Count > 0 ? requestsBytes / all.Count : 0;
+      var cutoff = DateTime.UtcNow.AddDays(-30);
+      var recent = all.Count(r => r.RequestedAt >= cutoff);
+      var monthly = recent * bytesPerRequest;
+
+      return Result(
+        "Storage growth",
+        "info",
+        string.Format(
+          CultureInfo.InvariantCulture,
+          "~{0}/user ({1} users) · ~{2}/month (based on {3} requests in the last 30 days). Stores are bounded by caps + retention.",
+          FormatBytes(perUser),
+          users,
+          FormatBytes(monthly),
+          recent));
+    }
+#pragma warning disable CA1031 // Diagnostics must report any failure, not throw.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogDebug(ex, "Growth estimate failed.");
+      return Result("Storage growth", "info", "Estimate unavailable.");
+    }
+  }
+
+  private static long FileSize(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;
 
   private static DiagnosticResult Result(string name, string status, string detail) => new() { Name = name, Status = status, Detail = detail };
 

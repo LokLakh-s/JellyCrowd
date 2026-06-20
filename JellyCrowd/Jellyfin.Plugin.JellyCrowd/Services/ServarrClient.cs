@@ -130,6 +130,10 @@ public sealed class ServarrClient : IServarrClient
     => GetStringAsync(baseUrl, apiKey, "/episode?seriesId=" + seriesId.ToString(CultureInfo.InvariantCulture), cancellationToken);
 
   /// <inheritdoc />
+  public Task<string> GetIndexersAsync(string baseUrl, string apiKey, CancellationToken cancellationToken)
+    => GetStringAsync(baseUrl, apiKey, "/indexer", cancellationToken);
+
+  /// <inheritdoc />
   public Task CommandAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken)
     => PostAsync(baseUrl, apiKey, "/command", body, cancellationToken);
 

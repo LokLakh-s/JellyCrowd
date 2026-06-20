@@ -277,13 +277,13 @@ Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux adm
 - ☑ Notifier le demandeur sur **Approved / Denied / Available / Échec** (`NotificationEvent.Failed` émis au **premier** échec de dispatch, in-app + canaux perso).
 - ☑ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
 
-### M18 — Diagnostic & santé  ◑ *(livré, restes mineurs)*
+### M18 — Diagnostic & santé  ☑ *(livré)*
 
 Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
 
-- ◑ Onglet **Diagnostic** : **clé TMDB**, **File Transformation**, **joignabilité du backend** (Radarr/Sonarr/webhook/script), **accès en écriture** au dossier faits ; **check indexer** manquant.
+- ☑ Onglet **Diagnostic** : **clé TMDB**, **File Transformation**, **joignabilité du backend** (Radarr/Sonarr/webhook/script), **accès en écriture** au dossier, et **check indexer** (≥ 1 indexer activé côté Radarr/Sonarr).
 - ☑ Surfacer chaque échec avec un message clair + piste de résolution.
-- ◑ **Empreinte disque du plugin** : taille de chaque store + total faits ; **estimation de croissance** (par utilisateur / par mois) manquante.
+- ☑ **Empreinte disque du plugin** : taille de chaque store + total + **estimation de croissance** (~/utilisateur · ~/mois d'après les requêtes des 30 derniers jours).
 
 ### M19 — Robustesse données & sécurité  ◑ *(livré, restes)*
 
