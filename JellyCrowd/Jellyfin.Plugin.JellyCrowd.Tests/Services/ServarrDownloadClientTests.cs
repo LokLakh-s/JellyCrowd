@@ -81,6 +81,32 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task CancelAsync_Movie_DeletesFromRadarr()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["id"] = 5 });
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), RadarrConfig);
+
+    await client.CancelAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
+
+    servarr.Verify(s => s.DeleteMovieAsync("http://localhost:7878", "rk", 5, true, It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task CancelAsync_Show_DoesNotDelete()
+  {
+    var servarr = new Mock<IServarrClient>();
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), SonarrConfig);
+
+    await client.CancelAsync(new DownloadDispatch { TmdbId = 1, MediaType = "tv", Title = "Y", Season = 1 }, CancellationToken.None);
+
+    servarr.Verify(
+      s => s.DeleteMovieAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+      Times.Never);
+  }
+
+  [Fact]
   public void IsConfigured_TrueWhenEitherSideConfigured()
   {
     var client = new ServarrDownloadClient(Mock.Of<IServarrClient>(), Mock.Of<ITmdbClient>(), RadarrConfig);

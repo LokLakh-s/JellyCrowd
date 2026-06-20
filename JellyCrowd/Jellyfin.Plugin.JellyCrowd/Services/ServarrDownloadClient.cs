@@ -80,6 +80,26 @@ public sealed class ServarrDownloadClient : IDownloadClient
   }
 
   /// <inheritdoc />
+  public async Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(dispatch);
+    var config = _config();
+
+    // v1: only movies are undone (delete from Radarr stops its search/download). Deleting a whole
+    // Sonarr series for a single-season request would be too destructive, so shows are left in place.
+    if (!string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal) || !RadarrConfigured(config))
+    {
+      return;
+    }
+
+    var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+    if (movie?["id"] is System.Text.Json.Nodes.JsonValue idValue && idValue.TryGetValue<int>(out var movieId) && movieId > 0)
+    {
+      await _servarr.DeleteMovieAsync(config.RadarrUrl, config.RadarrApiKey, movieId, deleteFiles: true, cancellationToken).ConfigureAwait(false);
+    }
+  }
+
+  /// <inheritdoc />
   public async Task TestAsync(CancellationToken cancellationToken)
   {
     var config = _config();

@@ -65,6 +65,9 @@ public sealed class WebhookDownloadClient : IDownloadClient
     return PostAsync(sample, cancellationToken);
   }
 
+  /// <inheritdoc />
+  public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
+
   private async Task PostAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
   {
     var config = _config();

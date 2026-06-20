@@ -191,7 +191,9 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
     {
       var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
       var record = items.FirstOrDefault(r => r.Id == id);
-      if (record is null || record.UserId != userId || record.Status != RequestStatus.Pending)
+      if (record is null
+          || record.UserId != userId
+          || (record.Status != RequestStatus.Pending && record.Status != RequestStatus.Approved))
       {
         return false;
       }

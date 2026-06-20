@@ -113,4 +113,15 @@ public interface IServarrClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The raw episodes JSON array.</returns>
   Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Removes a movie from Radarr (<c>DELETE /api/v3/movie/{id}</c>), stopping its search/download.
+  /// </summary>
+  /// <param name="baseUrl">The Radarr base URL.</param>
+  /// <param name="apiKey">The Radarr API key.</param>
+  /// <param name="movieId">The Radarr movie id.</param>
+  /// <param name="deleteFiles">Whether to also delete any downloaded files.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the movie is removed.</returns>
+  Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken);
 }

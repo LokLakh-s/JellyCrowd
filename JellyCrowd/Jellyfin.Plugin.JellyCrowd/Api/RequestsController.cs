@@ -244,12 +244,14 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
-  /// Cancels one of the current user's own requests, only while it is still pending.
+  /// Cancels one of the current user's own requests while it is still pending or approved. When an
+  /// approved request had been dispatched, the backend is asked to undo it (e.g. remove the movie
+  /// from Radarr so it stops downloading).
   /// </summary>
   /// <param name="id">The request identifier.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="204">The request was cancelled.</response>
-  /// <response code="404">No matching pending request owned by the user.</response>
+  /// <response code="404">No matching pending/approved request owned by the user.</response>
   /// <returns>No content on success; 404 otherwise.</returns>
   [HttpPost("{id}/Cancel")]
   [Authorize]
@@ -258,6 +260,15 @@ public class RequestsController : ControllerBase
   public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+
+    // Propagate upstream before removing it locally, while we still have the record (only for an
+    // approved request that may have been dispatched to a backend).
+    var existing = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+    if (existing is not null && existing.UserId == userId && existing.Status == RequestStatus.Approved)
+    {
+      await _downloadDispatcher.CancelAsync(existing, cancellationToken).ConfigureAwait(false);
+    }
+
     var cancelled = await _store.CancelAsync(id, userId, cancellationToken).ConfigureAwait(false);
     return cancelled ? NoContent() : NotFound();
   }

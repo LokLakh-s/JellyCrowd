@@ -335,6 +335,8 @@ public class RequestsControllerTests
     public Task DispatchDueAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task TestActiveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
   }
 
   private sealed class FakeServarrStatusService : IServarrStatusService

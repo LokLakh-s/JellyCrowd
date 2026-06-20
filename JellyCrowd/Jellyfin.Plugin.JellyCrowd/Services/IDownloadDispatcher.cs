@@ -33,4 +33,13 @@ public interface IDownloadDispatcher
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when the test succeeds.</returns>
   Task TestActiveAsync(CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Best-effort upstream cancellation of an already-dispatched request (e.g. remove it from Radarr
+  /// so it stops downloading). Never throws.
+  /// </summary>
+  /// <param name="request">The request being cancelled.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when cancellation has been attempted.</returns>
+  Task CancelAsync(RequestRecord request, CancellationToken cancellationToken);
 }
