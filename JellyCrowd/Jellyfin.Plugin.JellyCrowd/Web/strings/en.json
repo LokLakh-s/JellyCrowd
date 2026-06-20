@@ -114,5 +114,6 @@
   "tab_download": "Download",
   "tab_diagnostics": "Diagnostics",
   "diag_run": "Run checks",
+  "diag_backup": "Download backup",
   "tab_requests": "Requests"
 }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Net.Mime;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -41,5 +42,20 @@ public class DiagnosticsController : ControllerBase
   public async Task<ActionResult<IReadOnlyList<DiagnosticResult>>> Run(CancellationToken cancellationToken)
   {
     return Ok(await _diagnostics.RunAsync(cancellationToken).ConfigureAwait(false));
+  }
+
+  /// <summary>
+  /// Downloads a JSON backup of the data stores (requests, watchlist, notifications, preferences).
+  /// Config is excluded, so the file carries no secrets.
+  /// </summary>
+  /// <response code="200">The backup file.</response>
+  /// <returns>A JSON file attachment.</returns>
+  [HttpGet("Export")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public IActionResult Export()
+  {
+    var bundle = ExportBundle.Build(Plugin.Instance!.DataFolderPath);
+    var bytes = Encoding.UTF8.GetBytes(bundle.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    return File(bytes, MediaTypeNames.Application.Json, "jellycrowd-backup.json");
   }
 }
