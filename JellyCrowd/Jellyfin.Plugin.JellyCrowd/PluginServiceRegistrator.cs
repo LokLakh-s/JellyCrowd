@@ -51,6 +51,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     // Download backends (request fulfillment). Jelly Crowd only emits requests; the backend searches/downloads.
     serviceCollection.AddSingleton<IServarrClient, ServarrClient>();
     serviceCollection.AddSingleton<IServarrStatusService, ServarrStatusService>();
+    serviceCollection.AddSingleton<IDiagnosticsService, DiagnosticsService>();
     serviceCollection.AddSingleton<IProcessRunner, ProcessRunner>();
     serviceCollection.AddSingleton<IDownloadClient, WebhookDownloadClient>();
     serviceCollection.AddSingleton<IDownloadClient, ServarrDownloadClient>();

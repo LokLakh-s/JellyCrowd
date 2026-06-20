@@ -52,6 +52,7 @@
           <button type="button" id="jcTabSettings" class="jcTab">Settings</button>
           <button type="button" id="jcTabNotifications" class="jcTab">Notifications</button>
           <button type="button" id="jcTabDownload" class="jcTab">Download</button>
+          <button type="button" id="jcTabDiagnostics" class="jcTab">Diagnostics</button>
         </div>
 
         <form id="JellyCrowdConfigForm">
@@ -439,6 +440,16 @@ Content-Type: application/json
             <div id="jcAdminPending"></div>
           </div>
         </div>
+
+        <div id="jcPaneDiagnostics" class="jcTabPane" style="display:none">
+          <div class="verticalSection">
+            <h2 id="jcDiagTitle" class="sectionTitle">Diagnostics</h2>
+            <div class="jcTestRow">
+              <button is="emby-button" type="button" id="jcDiagRun" class="raised emby-button"><span id="jcDiagRunLabel">Run checks</span></button>
+            </div>
+            <div id="jcDiagResults"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -450,8 +461,10 @@ Content-Type: application/json
 
       function jcActivateTab(tab) {
         var isRequests = tab === 'requests';
-        document.querySelector('#JellyCrowdConfigForm').style.display = isRequests ? 'none' : '';
+        var isDiag = tab === 'diagnostics';
+        document.querySelector('#JellyCrowdConfigForm').style.display = (isRequests || isDiag) ? 'none' : '';
         document.querySelector('#jcPaneRequests').style.display = isRequests ? '' : 'none';
+        document.querySelector('#jcPaneDiagnostics').style.display = isDiag ? '' : 'none';
         document.querySelector('#jcPaneSettings').style.display = tab === 'settings' ? '' : 'none';
         document.querySelector('#jcPaneQuotas').style.display = tab === 'quotas' ? '' : 'none';
         document.querySelector('#jcPaneNotifications').style.display = tab === 'notifications' ? '' : 'none';
@@ -460,7 +473,33 @@ Content-Type: application/json
         document.querySelector('#jcTabQuotas').classList.toggle('jcTabActive', tab === 'quotas');
         document.querySelector('#jcTabNotifications').classList.toggle('jcTabActive', tab === 'notifications');
         document.querySelector('#jcTabDownload').classList.toggle('jcTabActive', tab === 'download');
+        document.querySelector('#jcTabDiagnostics').classList.toggle('jcTabActive', isDiag);
         document.querySelector('#jcTabRequests').classList.toggle('jcTabActive', isRequests);
+        if (isDiag) { jcRunDiagnostics(); }
+      }
+
+      function jcRunDiagnostics() {
+        var box = document.querySelector('#jcDiagResults');
+        box.textContent = '…';
+        ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Diagnostics'), dataType: 'json' })
+          .then(function (rows) {
+            box.innerHTML = '';
+            var icons = { ok: '✅', warning: '⚠️', error: '❌', info: 'ℹ️' };
+            (rows || []).forEach(function (r) {
+              var row = document.createElement('div');
+              row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:baseline;';
+              var name = document.createElement('span');
+              name.style.cssText = 'font-weight:600;min-width:11em;';
+              name.textContent = (icons[r.Status] || '•') + ' ' + r.Name;
+              var detail = document.createElement('span');
+              detail.style.cssText = 'opacity:.85;';
+              detail.textContent = r.Detail;
+              row.appendChild(name);
+              row.appendChild(detail);
+              box.appendChild(row);
+            });
+          })
+          .catch(function () { box.textContent = t('error_generic'); });
       }
 
       function jcUpdateDownloadVisibility() {
@@ -670,7 +709,9 @@ Content-Type: application/json
       document.querySelector('#jcTabQuotas').addEventListener('click', function () { jcActivateTab('quotas'); });
       document.querySelector('#jcTabNotifications').addEventListener('click', function () { jcActivateTab('notifications'); });
       document.querySelector('#jcTabDownload').addEventListener('click', function () { jcActivateTab('download'); });
+      document.querySelector('#jcTabDiagnostics').addEventListener('click', function () { jcActivateTab('diagnostics'); });
       document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
+      document.querySelector('#jcDiagRun').addEventListener('click', jcRunDiagnostics);
 
       document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
@@ -883,6 +924,9 @@ Content-Type: application/json
           document.querySelector('#jcTabQuotas').textContent = t('tab_quotas');
           document.querySelector('#jcTabNotifications').textContent = t('tab_notifications');
           document.querySelector('#jcTabDownload').textContent = t('tab_download');
+          document.querySelector('#jcTabDiagnostics').textContent = t('tab_diagnostics');
+          document.querySelector('#jcDiagTitle').textContent = t('tab_diagnostics');
+          document.querySelector('#jcDiagRunLabel').textContent = t('diag_run');
           document.querySelector('#jcTabRequests').textContent = t('tab_requests');
           document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
