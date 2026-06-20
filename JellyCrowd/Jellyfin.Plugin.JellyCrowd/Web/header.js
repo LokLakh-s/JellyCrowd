@@ -13,8 +13,7 @@
   var SUPPORTED = ['en', 'fr'];
   var strings = {};
   var cfgLang = 'auto';
-  var pluginHidden = false;   // "config mode": hide the plugin from non-admins
-  var isAdmin = false;        // current Jellyfin user is an administrator
+  var pluginHidden = false;   // "config mode": hide the plugin from non-admins (decided server-side)
 
   // The user pages we host. Order defines the overlay tab order.
   var VIEWS = [
@@ -82,26 +81,23 @@
   function loadConfigLang() {
     return fetch(getUrl('JellyCrowd/Settings/Language'))
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); }
-        if (d) { pluginHidden = d.Hidden === true; }
-      })
+      .then(function (d) { if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); } })
       .catch(function () { /* keep 'auto' on failure */ });
   }
 
-  // Resolve whether the current user is an administrator (so "config mode" still shows for admins).
-  function loadIsAdmin() {
-    if (!(window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function')) {
-      return Promise.resolve();
-    }
-    return window.ApiClient.getCurrentUser()
-      .then(function (user) { isAdmin = !!(user && user.Policy && user.Policy.IsAdministrator); })
-      .catch(function () { /* assume non-admin on failure */ });
+  // Ask the server (authenticated, so it knows our role) whether the plugin is visible to us. In
+  // "config mode" it is hidden for everyone except administrators. We trust the server rather than
+  // guessing admin status client-side. On failure we default to visible (the server-side filter still
+  // blocks data access for non-admins, so nothing leaks).
+  function loadVisibility() {
+    return apiAjax('GET', 'JellyCrowd/Settings/Visibility')
+      .then(function (d) { pluginHidden = !!(d && d.Visible === false); })
+      .catch(function () { pluginHidden = false; });
   }
 
-  // Config mode hides the plugin from everyone except administrators.
+  // Config mode hides the plugin from everyone except administrators (decided server-side).
   function pluginVisible() {
-    return !pluginHidden || isAdmin;
+    return !pluginHidden;
   }
 
   function loadStrings() {
@@ -630,5 +626,5 @@
     window.addEventListener('hashchange', hideOverlay);
   }
 
-  loadConfigLang().then(loadIsAdmin).then(loadStrings).then(start);
+  loadConfigLang().then(loadVisibility).then(loadStrings).then(start);
 })();
