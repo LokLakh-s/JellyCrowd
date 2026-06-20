@@ -38,11 +38,23 @@ public class SettingsController : ControllerBase
   [ProducesResponseType(StatusCodes.Status200OK)]
   public ActionResult<LanguageSettingDto> GetLanguage()
   {
-    var config = _config();
-    return Ok(new LanguageSettingDto
-    {
-      Language = string.IsNullOrWhiteSpace(config.Language) ? "auto" : config.Language,
-      Hidden = config.HiddenFromUsers
-    });
+    var language = _config().Language;
+    return Ok(new LanguageSettingDto { Language = string.IsNullOrWhiteSpace(language) ? "auto" : language });
+  }
+
+  /// <summary>
+  /// Tells the caller whether the plugin should be shown to them: hidden ("config mode") only affects
+  /// non-administrators. Authenticated so the current user's role is known.
+  /// </summary>
+  /// <response code="200">The visibility decision for the current user.</response>
+  /// <returns>Whether the plugin is visible to the current user.</returns>
+  [HttpGet("Visibility")]
+  [Authorize]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public ActionResult<VisibilitySettingDto> GetVisibility()
+  {
+    var isAdmin = User?.IsInRole("Administrator") ?? false;
+    var visible = !_config().HiddenFromUsers || isAdmin;
+    return Ok(new VisibilitySettingDto { Visible = visible });
   }
 }

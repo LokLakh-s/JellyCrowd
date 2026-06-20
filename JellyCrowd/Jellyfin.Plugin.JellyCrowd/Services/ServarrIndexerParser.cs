@@ -9,7 +9,9 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 public static class ServarrIndexerParser
 {
   /// <summary>
-  /// Counts the enabled indexers in the raw indexers JSON array (items with <c>enable: true</c>).
+  /// Counts the usable indexers in the raw Radarr/Sonarr indexers JSON array. An indexer counts as
+  /// enabled when any of <c>enableRss</c>, <c>enableAutomaticSearch</c> or <c>enableInteractiveSearch</c>
+  /// is <c>true</c> (Radarr/Sonarr have no single <c>enable</c> flag on indexers).
   /// </summary>
   /// <param name="json">The raw indexers JSON.</param>
   /// <returns>The number of enabled indexers (0 when the payload is empty or unparseable).</returns>
@@ -38,7 +40,8 @@ public static class ServarrIndexerParser
     var count = 0;
     foreach (var item in array)
     {
-      if (item is JsonObject obj && obj["enable"] is JsonValue v && v.TryGetValue<bool>(out var enabled) && enabled)
+      if (item is JsonObject obj
+        && (IsTrue(obj, "enableRss") || IsTrue(obj, "enableAutomaticSearch") || IsTrue(obj, "enableInteractiveSearch") || IsTrue(obj, "enable")))
       {
         count++;
       }
@@ -46,4 +49,7 @@ public static class ServarrIndexerParser
 
     return count;
   }
+
+  private static bool IsTrue(JsonObject obj, string property)
+    => obj[property] is JsonValue v && v.TryGetValue<bool>(out var b) && b;
 }

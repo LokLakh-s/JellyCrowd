@@ -9,10 +9,22 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 public class ServarrIndexerParserTests
 {
   [Fact]
-  public void CountEnabled_CountsOnlyEnabled()
+  public void CountEnabled_CountsIndexersWithAnySearchFlag()
   {
-    const string Json = "[{\"name\":\"a\",\"enable\":true},{\"name\":\"b\",\"enable\":false},{\"name\":\"c\",\"enable\":true}]";
+    // Radarr/Sonarr indexers expose enableRss / enableAutomaticSearch / enableInteractiveSearch.
+    const string Json = "["
+      + "{\"name\":\"a\",\"enableRss\":true,\"enableAutomaticSearch\":true,\"enableInteractiveSearch\":true},"
+      + "{\"name\":\"b\",\"enableRss\":false,\"enableAutomaticSearch\":false,\"enableInteractiveSearch\":false},"
+      + "{\"name\":\"c\",\"enableRss\":false,\"enableAutomaticSearch\":true,\"enableInteractiveSearch\":false}"
+      + "]";
     Assert.Equal(2, ServarrIndexerParser.CountEnabled(Json));
+  }
+
+  [Fact]
+  public void CountEnabled_InteractiveOnly_Counts()
+  {
+    const string Json = "[{\"name\":\"a\",\"enableRss\":false,\"enableAutomaticSearch\":false,\"enableInteractiveSearch\":true}]";
+    Assert.Equal(1, ServarrIndexerParser.CountEnabled(Json));
   }
 
   [Fact]
@@ -21,6 +33,7 @@ public class ServarrIndexerParserTests
     Assert.Equal(0, ServarrIndexerParser.CountEnabled("[]"));
     Assert.Equal(0, ServarrIndexerParser.CountEnabled(null));
     Assert.Equal(0, ServarrIndexerParser.CountEnabled("not json"));
-    Assert.Equal(0, ServarrIndexerParser.CountEnabled("{\"enable\":true}"));
+    Assert.Equal(0, ServarrIndexerParser.CountEnabled("{\"enableRss\":true}"));
+    Assert.Equal(0, ServarrIndexerParser.CountEnabled("[{\"name\":\"a\",\"enableRss\":false}]"));
   }
 }
