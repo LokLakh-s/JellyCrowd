@@ -19,6 +19,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 [Route("JellyCrowd/Notifications")]
 [Produces(MediaTypeNames.Application.Json)]
 [ServiceFilter(typeof(PluginVisibilityFilter))]
+[ServiceFilter(typeof(RateLimitFilter))]
 public class UserNotificationsController : ControllerBase
 {
   private readonly IUserNotificationStore _store;

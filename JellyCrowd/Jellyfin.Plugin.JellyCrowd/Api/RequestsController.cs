@@ -18,6 +18,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 [Route("JellyCrowd/Requests")]
 [Produces(MediaTypeNames.Application.Json)]
 [ServiceFilter(typeof(PluginVisibilityFilter))]
+[ServiceFilter(typeof(RateLimitFilter))]
 public class RequestsController : ControllerBase
 {
   private readonly IRequestStore _store;

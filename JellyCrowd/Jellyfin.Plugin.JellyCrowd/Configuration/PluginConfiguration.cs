@@ -23,6 +23,7 @@ public class PluginConfiguration : BasePluginConfiguration
     DefaultUserQuotaBytes = DefaultQuotaBytes;
     RequireApproval = true;
     HiddenFromUsers = false;
+    RateLimitPerMinute = 120;
     EstimatedMovieSizeBytes = 4L * 1024 * 1024 * 1024; // 4 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
     MaxRequestsPerPeriod = 0;
@@ -135,6 +136,13 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Administrators are unaffected.
   /// </summary>
   public bool HiddenFromUsers { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum number of write (POST/PUT/DELETE) requests a single non-admin user may
+  /// make per minute to the plugin's API, in addition to the per-period request cap. 0 disables it.
+  /// Defends against rapid-fire abuse (e.g. spamming requests faster than the quota refreshes).
+  /// </summary>
+  public int RateLimitPerMinute { get; set; }
 
   /// <summary>
   /// Gets the genre all-list (TMDB English genre names) gating size-based auto-approval: when non-empty,
