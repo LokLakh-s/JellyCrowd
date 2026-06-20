@@ -16,4 +16,9 @@ public class LanguageSettingDto
   /// the current user is exempt) is done separately against the authenticated visibility endpoint.
   /// </summary>
   public bool Hidden { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether community comments/reviews are enabled (admin opt-in).
+  /// </summary>
+  public bool CommentsEnabled { get; set; }
 }

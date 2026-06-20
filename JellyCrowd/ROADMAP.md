@@ -310,11 +310,11 @@ Objectif : que les écrans du plugin se fondent dans l'UI native de Jellyfin.
 - ☑ Afficher le **temps restant avant suppression** sur les médias en *Deletion requested*.
 - ☑ Rendre **cliquable** chaque média de *My media* et chaque requête *Available* → ouvre le média dans Jellyfin.
 
-### M22 — Cycle de vie des requêtes  ◑ *(livré, 1 reste)*
+### M22 — Cycle de vie des requêtes  ☑ *(livré)*
 
 - ☑ Tant qu'une requête est **Approved**, l'utilisateur peut la **supprimer** — en s'assurant qu'elle n'est plus traitée par Prowlarr/Sonarr/Radarr + RDT (annulation propagée en amont).
 - ☑ Afficher sur chaque requête la **date/heure de la demande** et la **date/heure de mise à disposition** dans Jellyfin.
-- ☐ Quand une requête est **Approved + Downloaded** (téléchargée, en attente de scan Jellyfin), refléter un statut « disponible dans < 2 min ». **Absent** — pas d'état intermédiaire *(couvert par M15)*.
+- ☑ Quand une requête est **Approved + Downloaded** (téléchargée, en attente de scan Jellyfin), refléter un statut « disponible dans < 2 min » : l'état live `completed` (fichier présent côté Radarr/Sonarr, requête encore Approved) s'affiche « Téléchargé · dispo dans <2 min ».
 
 ### M23 — Propriété partagée des médias  ☑ *(livré)*
 
@@ -325,11 +325,11 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ Sur demande de suppression par un propriétaire : retirer **son** appartenance en fin de délai + **décrémenter son quota** ; le média n'est **réellement supprimé** que s'il n'appartient **plus à personne** à la fin du délai.
 - ☑ Pouvoir **annuler une demande de suppression** tant qu'on est à **plus d'une minute** de l'échéance ; le quota n'est pas décrémenté tant que le média « appartient » encore.
 
-### M24 — Catalogue & Calendrier  ◑ *(livré en partie)*
+### M24 — Catalogue & Calendrier  ☑ *(livré)*
 
 - ☑ Bouton **« Voir plus → »** sur chaque sous-section de *Browse* (For you, Netflix, Apple TV, …) pour n'afficher que les médias de cette sous-section.
 - ☑ **« Demander toute la saga »** via les **collections TMDB** (toute la franchise en un clic).
-- ☐ Le **calendrier** affiche aussi les **épisodes de séries** (au-delà des séries suivies déjà gérées). *(reporté)*
+- ☑ Le **calendrier** affiche aussi les **épisodes de séries** : épisodes (saison en cours) des séries **demandées + suivies (watchlist)** qui diffusent dans le mois affiché.
 
 ### M25 — Communauté : commentaires & signalements  ◑ *(livré en partie)*
 

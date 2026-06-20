@@ -32,8 +32,8 @@ public sealed class CommentsControllerTests : IDisposable
     }
   }
 
-  private CommentsController CreateController()
-    => new(_store, new FakeUserAccessor(), _ => "tester")
+  private CommentsController CreateController(bool commentsEnabled = true)
+    => new(_store, new FakeUserAccessor(), _ => "tester", () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration { CommentsEnabled = commentsEnabled })
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };

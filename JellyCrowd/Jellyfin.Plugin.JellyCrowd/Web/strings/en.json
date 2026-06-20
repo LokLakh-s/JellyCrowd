@@ -102,7 +102,7 @@
   "dl_queued": "Queued",
   "dl_downloading": "Downloading",
   "dl_importing": "Importing",
-  "dl_completed": "Downloaded",
+  "dl_completed": "Downloaded · available in <2 min",
   "dl_warning": "Download issue",
   "dl_missing": "Missing",
   "dl_unreleased": "Unreleased",

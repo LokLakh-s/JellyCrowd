@@ -47,7 +47,8 @@ public class SettingsController : ControllerBase
     return Ok(new LanguageSettingDto
     {
       Language = string.IsNullOrWhiteSpace(config.Language) ? "auto" : config.Language,
-      Hidden = config.HiddenFromUsers
+      Hidden = config.HiddenFromUsers,
+      CommentsEnabled = config.CommentsEnabled
     });
   }
 

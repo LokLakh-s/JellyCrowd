@@ -82,6 +82,14 @@
               <div class="fieldDescription">Max write requests a non-admin user may make per minute (extra abuse guard on top of the per-period request cap). 0 disables it. Administrators are exempt.</div>
             </div>
 
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="CommentsEnabled" name="CommentsEnabled" type="checkbox" is="emby-checkbox" />
+                <span>Enable community comments / reviews</span>
+              </label>
+              <div class="fieldDescription">When enabled, users can comment on titles (under the synopsis). Off by default — the comments section and API stay disabled until you turn this on.</div>
+            </div>
+
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key</label>
               <input id="TmdbApiKey" name="TmdbApiKey" type="text" is="emby-input" />
@@ -851,6 +859,7 @@ Content-Type: application/json
             document.querySelector('#RequireApproval').checked = !!config.RequireApproval;
             document.querySelector('#HiddenFromUsers').checked = !!config.HiddenFromUsers;
             document.querySelector('#RateLimitPerMinute').value = config.RateLimitPerMinute != null ? config.RateLimitPerMinute : 120;
+            document.querySelector('#CommentsEnabled').checked = !!config.CommentsEnabled;
             document.querySelector('#EstimatedMovieSizeGiB').value = (config.EstimatedMovieSizeBytes || 0) / gib;
             document.querySelector('#EstimatedEpisodeSizeGiB').value = (config.EstimatedEpisodeSizeBytes || 0) / gib;
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
@@ -928,6 +937,7 @@ Content-Type: application/json
             config.RequireApproval = document.querySelector('#RequireApproval').checked;
             config.HiddenFromUsers = document.querySelector('#HiddenFromUsers').checked;
             config.RateLimitPerMinute = parseInt(document.querySelector('#RateLimitPerMinute').value || '0', 10);
+            config.CommentsEnabled = document.querySelector('#CommentsEnabled').checked;
             config.EstimatedMovieSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedMovieSizeGiB').value || '0') * gib);
             config.EstimatedEpisodeSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedEpisodeSizeGiB').value || '0') * gib);
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);

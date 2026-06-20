@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +28,7 @@ public class CommentsController : ControllerBase
   private readonly IMediaCommentStore _store;
   private readonly ICurrentUserAccessor _userAccessor;
   private readonly Func<Guid, string> _resolveUserName;
+  private readonly Func<PluginConfiguration> _config;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="CommentsController"/> class.
@@ -34,11 +36,13 @@ public class CommentsController : ControllerBase
   /// <param name="store">The comment store.</param>
   /// <param name="userAccessor">The current-user accessor.</param>
   /// <param name="resolveUserName">Resolves a user id to a display name.</param>
-  public CommentsController(IMediaCommentStore store, ICurrentUserAccessor userAccessor, Func<Guid, string> resolveUserName)
+  /// <param name="config">Accessor for the current plugin configuration.</param>
+  public CommentsController(IMediaCommentStore store, ICurrentUserAccessor userAccessor, Func<Guid, string> resolveUserName, Func<PluginConfiguration> config)
   {
     _store = store;
     _userAccessor = userAccessor;
     _resolveUserName = resolveUserName;
+    _config = config;
   }
 
   /// <summary>
@@ -53,6 +57,11 @@ public class CommentsController : ControllerBase
   [ProducesResponseType(StatusCodes.Status200OK)]
   public async Task<ActionResult<IReadOnlyList<MediaComment>>> Get(string mediaType, int tmdbId, CancellationToken cancellationToken)
   {
+    if (!_config().CommentsEnabled)
+    {
+      return Ok(Array.Empty<MediaComment>());
+    }
+
     return Ok(await _store.GetForTitleAsync(mediaType, tmdbId, includeHidden: false, cancellationToken).ConfigureAwait(false));
   }
 
@@ -69,6 +78,11 @@ public class CommentsController : ControllerBase
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<ActionResult<MediaComment>> Post([FromBody] CommentDto dto, CancellationToken cancellationToken)
   {
+    if (!_config().CommentsEnabled)
+    {
+      return StatusCode(StatusCodes.Status403Forbidden, "Comments are disabled.");
+    }
+
     if (dto is null || string.IsNullOrWhiteSpace(dto.Text))
     {
       return BadRequest("A comment text is required.");
