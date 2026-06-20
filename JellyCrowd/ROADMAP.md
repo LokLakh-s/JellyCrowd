@@ -260,71 +260,71 @@ Objectif : fiabiliser la chaîne de fulfillment (bug bloquant en tête).
 - ☐ État **« Échec / Bloqué »** distinct de *Manquant*, + action **« relancer la recherche »** (admin et/ou user), pour les requêtes introuvables.
 - ☐ Si possible, **poller la progression depuis rdt-client** (plutôt que Radarr/Sonarr) pour un suivi plus **précis et temps réel**.
 
-### M16 — Permissions, rôles & règles d'auto-approbation  ☑ *(livré)*
+### M16 — Permissions, rôles & règles d'auto-approbation  ◑ *(livré, 1 reste)*
 
 Objectif : faire de JellyCrowd un vrai outil **multi-utilisateur**.
 
-- ☐ **Activer/désactiver les requêtes** par utilisateur ou par rôle ; catalogue réservable à certains.
-- ☐ **Plafonds par utilisateur/rôle** (quota disque, nombre de requêtes/période) en surcharge du global.
-- ☐ **Règles d'auto-approbation** : auto-approuver selon des critères (taille < X Go, genre, **utilisateurs de confiance**) → file admin allégée.
+- ☑ **Activer/désactiver les requêtes** par utilisateur ou par rôle ; catalogue réservable à certains.
+- ☑ **Plafonds par utilisateur/rôle** (quota disque, nombre de requêtes/période) en surcharge du global.
+- ◑ **Règles d'auto-approbation** : **taille < X Go** + **utilisateurs de confiance** faits ; **critère genre** non implémenté.
 
-### M17 — Notifications utilisateur & centre de notifications  ☑ *(livré)*
+### M17 — Notifications utilisateur & centre de notifications  ◑ *(livré, restes mineurs)*
 
 Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux admin uniquement).
 
-- ☐ **Cloche** dans le bandeau, **juste à gauche du quota**, avec **pastille rouge + compteur** (style Facebook).
-- ☐ Menu déroulant = **journal de notifications** de l'utilisateur, **effaçable** (clear all / par item).
-  - **Borné** : plafond par utilisateur (ex. 100 dernières) + TTL (ex. 30 j) pour éviter une croissance illimitée du store.
-- ☐ Notifier le demandeur sur **Approved / Denied / Available / Échec**.
-- ☐ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
+- ☑ **Cloche** dans le bandeau, **juste à gauche du quota**, avec **pastille rouge + compteur** (style Facebook).
+- ◑ Menu déroulant = **journal de notifications** de l'utilisateur, **effaçable** : *clear all* OK + API par-item, mais **bouton « effacer par item » (UI) manquant**.
+  - ☑ **Borné** : plafond par utilisateur (50) + TTL (30 j).
+- ◑ Notifier le demandeur sur **Approved / Denied / Available** faits ; **event « Échec » manquant** *(couvert par M15)*.
+- ☑ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
 
-### M18 — Diagnostic & santé  ☑ *(livré)*
+### M18 — Diagnostic & santé  ◑ *(livré, restes mineurs)*
 
 Objectif : tuer 90 % du support « mauvaise config » d'un plugin self-hosted.
 
-- ☐ Onglet **Diagnostic** : vérifie en un clic la **clé TMDB**, la présence de **File Transformation**, la **joignabilité du backend** (Radarr/Sonarr/webhook/script), l'**indexer**, et l'**accès en écriture** au dossier de données.
-- ☐ Surfacer chaque échec avec un message clair + piste de résolution.
-- ☐ **Empreinte disque du plugin** : afficher la taille de chaque store (`requests.json`, `watchlist.json`, logs, notifs, stats) + total, avec une **estimation de croissance** (par utilisateur / par mois).
+- ◑ Onglet **Diagnostic** : **clé TMDB**, **File Transformation**, **joignabilité du backend** (Radarr/Sonarr/webhook/script), **accès en écriture** au dossier faits ; **check indexer** manquant.
+- ☑ Surfacer chaque échec avec un message clair + piste de résolution.
+- ◑ **Empreinte disque du plugin** : taille de chaque store + total faits ; **estimation de croissance** (par utilisateur / par mois) manquante.
 
-### M19 — Robustesse données & sécurité  ☑ *(livré)*
+### M19 — Robustesse données & sécurité  ◑ *(livré, restes)*
 
 Objectif : le « non-fonctionnel » qui sépare une 0.x d'une 1.0.
 
-- ☐ **Verrouillage concurrent** des stores JSON + **versionnage de schéma** (migrations entre versions).
-- ☐ **Export / sauvegarde** des requêtes + config.
-- ☐ **Cache TMDB & affiches** (respecter les quotas d'API, réduire la latence).
-- ☐ **États vides & erreurs gracieuses** partout (backend down, réseau, 0 résultat).
-- ☐ **Passe sécurité** : auth/élévation sur **chaque** endpoint, aucune fuite de clé, revue anti-XSS, rate-limit.
+- ◑ **Verrouillage concurrent** des stores JSON fait (SemaphoreSlim) ; **versionnage de schéma / migrations** manquant.
+- ◑ **Export / sauvegarde** des **requêtes** fait ; **config exclue volontairement** du bundle (pas de secrets).
+- ☑ **Cache TMDB & affiches** (respecter les quotas d'API, réduire la latence).
+- ☑ **États vides & erreurs gracieuses** partout (backend down, réseau, 0 résultat).
+- ◑ **Passe sécurité** : auth/élévation sur chaque endpoint + anti-XSS (`textContent`) + pas de fuite de clé faits ; **rate-limit HTTP** manquant (cap requêtes/période applicatif présent).
 
 ### M20 — Finition du shell & navigation  ☑ *(livré)*
 
 Objectif : que les écrans du plugin se fondent dans l'UI native de Jellyfin.
 
-- ☐ Logo JellyCrowd **plus grand** dans le titre de chaque onglet.
-- ☐ Liens d'onglets (Catalog / Calendar / My requests / My media) plus **ressemblants aux liens natifs** du bandeau Jellyfin, et **centrés**.
-- ☐ Remplacer la **croix** de fermeture par une **flèche de retour** cohérente avec Jellyfin, **du même côté**.
-- ☐ Afficher le **badge utilisateur** dans le bandeau des écrans du plugin (là où se trouve la croix aujourd'hui).
+- ☑ Logo JellyCrowd **plus grand** dans le titre de chaque onglet.
+- ☑ Liens d'onglets (Catalog / Calendar / My requests / My media) plus **ressemblants aux liens natifs** du bandeau Jellyfin, et **centrés**.
+- ☑ Remplacer la **croix** de fermeture par une **flèche de retour** cohérente avec Jellyfin, **du même côté**.
+- ☑ Afficher le **badge utilisateur** dans le bandeau des écrans du plugin (là où se trouve la croix aujourd'hui).
 
 ### M21 — « Mes médias » enrichi & liens cliquables  ☑ *(livré)*
 
-- ☐ Afficher la **taille** de chaque média dans *My media* + y ajouter la **barre de quota**.
-- ☐ Afficher le **temps restant avant suppression** sur les médias en *Deletion requested*.
-- ☐ Rendre **cliquable** chaque média de *My media* et chaque requête *Available* → ouvre le média dans Jellyfin.
+- ☑ Afficher la **taille** de chaque média dans *My media* + y ajouter la **barre de quota**.
+- ☑ Afficher le **temps restant avant suppression** sur les médias en *Deletion requested*.
+- ☑ Rendre **cliquable** chaque média de *My media* et chaque requête *Available* → ouvre le média dans Jellyfin.
 
-### M22 — Cycle de vie des requêtes  ☑ *(livré)*
+### M22 — Cycle de vie des requêtes  ◑ *(livré, 1 reste)*
 
-- ☐ Tant qu'une requête est **Approved**, l'utilisateur peut la **supprimer** — en s'assurant qu'elle n'est plus traitée par Prowlarr/Sonarr/Radarr + RDT (annulation propagée en amont).
-- ☐ Afficher sur chaque requête la **date/heure de la demande** et la **date/heure de mise à disposition** dans Jellyfin.
-- ☐ Quand une requête est **Approved + Downloaded** (téléchargée, en attente de scan Jellyfin), refléter un statut « disponible dans < 2 min » (affiner si la durée exacte est connue).
+- ☑ Tant qu'une requête est **Approved**, l'utilisateur peut la **supprimer** — en s'assurant qu'elle n'est plus traitée par Prowlarr/Sonarr/Radarr + RDT (annulation propagée en amont).
+- ☑ Afficher sur chaque requête la **date/heure de la demande** et la **date/heure de mise à disposition** dans Jellyfin.
+- ☐ Quand une requête est **Approved + Downloaded** (téléchargée, en attente de scan Jellyfin), refléter un statut « disponible dans < 2 min ». **Absent** — pas d'état intermédiaire *(couvert par M15)*.
 
 ### M23 — Propriété partagée des médias  ☑ *(livré)*
 
 Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec quota et suppression cohérents.
 
-- ☐ Un utilisateur peut **s'ajouter un média déjà disponible** (déjà demandé par un autre) à ses médias, avec **avertissement** qu'il compte dans son quota.
-- ☐ Modèle de **propriété multi-utilisateur** d'un même média.
-- ☐ Sur demande de suppression par un propriétaire : retirer **son** appartenance en fin de délai + **décrémenter son quota** ; le média n'est **réellement supprimé** que s'il n'appartient **plus à personne** à la fin du délai.
-- ☐ Pouvoir **annuler une demande de suppression** tant qu'on est à **plus d'une minute** de l'échéance ; le quota n'est pas décrémenté tant que le média « appartient » encore.
+- ☑ Un utilisateur peut **s'ajouter un média déjà disponible** (déjà demandé par un autre) à ses médias, avec **avertissement** qu'il compte dans son quota.
+- ☑ Modèle de **propriété multi-utilisateur** d'un même média.
+- ☑ Sur demande de suppression par un propriétaire : retirer **son** appartenance en fin de délai + **décrémenter son quota** ; le média n'est **réellement supprimé** que s'il n'appartient **plus à personne** à la fin du délai.
+- ☑ Pouvoir **annuler une demande de suppression** tant qu'on est à **plus d'une minute** de l'échéance ; le quota n'est pas décrémenté tant que le média « appartient » encore.
 
 ### M24 — Catalogue & Calendrier  ◑ *(livré en partie)*
 
@@ -339,7 +339,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée.
 - ☑ Modération admin des commentaires/signalements (masquer/supprimer).
 
-### M26 — Observabilité & canaux de version  ☑ *(livré : `v0.30.0`)*
+### M26 — Observabilité & canaux de version  ◑ *(livré : `v0.30.0`, M26.2 reporté)*
 
 - ☑ **Logging global** : journal d'activité interne (`IActivityLog` / `JsonActivityLog`) — événements de requêtes (cycle de vie) + dispatch téléchargement (succès/échec).
 - ☑ **Rotation & rétention des logs** : borne par cap récent (2000 entrées) + fenêtre de rétention (30 j) avec purge à chaque écriture — jamais de log non borné.
