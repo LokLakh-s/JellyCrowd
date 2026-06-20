@@ -67,6 +67,46 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Back arrow (left of the overlay bar) — round button, like Jellyfin's own back button. */
+.jellycrowd-overlay-back {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2em;
+  height: 2.2em;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  cursor: pointer;
+}
+
+.jellycrowd-overlay-back:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* User badge (right of the overlay bar). */
+.jellycrowd-overlay-userbadge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+}
+
+.jellycrowd-overlay-avatar {
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.jellycrowd-overlay-username {
+  font-size: 0.9em;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+
 .jellycrowd-overlay-views {
   flex: 1 1 auto;
   overflow: auto;

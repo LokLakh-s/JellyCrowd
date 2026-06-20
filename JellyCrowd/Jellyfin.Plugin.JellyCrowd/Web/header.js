@@ -109,6 +109,32 @@
     }
   }
 
+  // Fill the overlay user badge with the current Jellyfin user's avatar + name.
+  function populateUserBadge(el) {
+    if (!(window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function')) {
+      return;
+    }
+    window.ApiClient.getCurrentUser().then(function (user) {
+      if (!user) {
+        return;
+      }
+      if (user.PrimaryImageTag && typeof window.ApiClient.getUserImageUrl === 'function') {
+        var img = document.createElement('img');
+        img.className = 'jellycrowd-overlay-avatar';
+        img.alt = '';
+        try {
+          img.src = window.ApiClient.getUserImageUrl(user.Id, { type: 'Primary', tag: user.PrimaryImageTag });
+        } catch (e) { /* no image */ }
+        img.addEventListener('error', function () { img.remove(); });
+        el.appendChild(img);
+      }
+      var name = document.createElement('span');
+      name.className = 'jellycrowd-overlay-username';
+      name.textContent = user.Name || '';
+      el.appendChild(name);
+    }).catch(function () { /* badge is best-effort */ });
+  }
+
   function ensureOverlay() {
     if (overlay) {
       return;
@@ -132,15 +158,26 @@
       tabs.appendChild(b);
     });
 
-    var close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'jellycrowd-overlay-close';
-    close.setAttribute('aria-label', t('close'));
-    close.textContent = '✕';
-    close.addEventListener('click', hideOverlay);
+    // Back arrow (left, like Jellyfin's own back button) replaces the old close cross.
+    var back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'jellycrowd-overlay-back';
+    back.setAttribute('aria-label', t('back'));
+    var backIcon = document.createElement('span');
+    backIcon.className = 'material-icons';
+    backIcon.setAttribute('aria-hidden', 'true');
+    backIcon.textContent = 'arrow_back';
+    back.appendChild(backIcon);
+    back.addEventListener('click', hideOverlay);
 
+    // User badge on the right (where the close cross used to be).
+    var userBadge = document.createElement('span');
+    userBadge.className = 'jellycrowd-overlay-userbadge';
+    populateUserBadge(userBadge);
+
+    bar.appendChild(back);
     bar.appendChild(tabs);
-    bar.appendChild(close);
+    bar.appendChild(userBadge);
 
     viewHost = document.createElement('div');
     viewHost.className = 'jellycrowd-overlay-views';
