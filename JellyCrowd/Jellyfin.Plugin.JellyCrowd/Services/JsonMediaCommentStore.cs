@@ -16,6 +16,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 public sealed class JsonMediaCommentStore : IMediaCommentStore, IDisposable
 {
   private const int MaxPerTitle = 200;
+  private const int SchemaVersion = 1;
   private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
   private readonly string _filePath;
@@ -154,34 +155,10 @@ public sealed class JsonMediaCommentStore : IMediaCommentStore, IDisposable
       return _cache;
     }
 
-    if (File.Exists(_filePath))
-    {
-      using var stream = File.OpenRead(_filePath);
-      _cache = await JsonSerializer.DeserializeAsync<List<MediaComment>>(stream, SerializerOptions, cancellationToken).ConfigureAwait(false)
-               ?? new List<MediaComment>();
-    }
-    else
-    {
-      _cache = new List<MediaComment>();
-    }
-
+    _cache = await VersionedJsonFile.ReadAsync<MediaComment>(_filePath, SchemaVersion, migrate: null, SerializerOptions, cancellationToken).ConfigureAwait(false);
     return _cache;
   }
 
-  private async Task SaveAsync(CancellationToken cancellationToken)
-  {
-    var directory = Path.GetDirectoryName(_filePath);
-    if (!string.IsNullOrEmpty(directory))
-    {
-      Directory.CreateDirectory(directory);
-    }
-
-    var tempPath = _filePath + ".tmp";
-    using (var stream = File.Create(tempPath))
-    {
-      await JsonSerializer.SerializeAsync(stream, _cache, SerializerOptions, cancellationToken).ConfigureAwait(false);
-    }
-
-    File.Move(tempPath, _filePath, overwrite: true);
-  }
+  private Task SaveAsync(CancellationToken cancellationToken)
+    => VersionedJsonFile.WriteAsync(_filePath, SchemaVersion, _cache ?? new List<MediaComment>(), SerializerOptions, cancellationToken);
 }

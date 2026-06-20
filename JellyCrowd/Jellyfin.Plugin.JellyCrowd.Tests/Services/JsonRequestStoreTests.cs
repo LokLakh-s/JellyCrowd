@@ -220,4 +220,24 @@ public sealed class JsonRequestStoreTests : IDisposable
 
   private static RequestRecord NewRecord(Guid userId, int tmdbId = 1)
     => new() { UserId = userId, TmdbId = tmdbId, MediaType = "movie", Title = "Test" };
+
+  [Fact]
+  public async Task LoadsLegacyBareArray_ThenRewritesAsVersionedEnvelope()
+  {
+    // Simulate a file written by a pre-versioning build: a bare JSON array.
+    Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+    var legacy = new[] { new RequestRecord { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), TmdbId = 42, MediaType = "movie", Title = "Legacy" } };
+    await File.WriteAllTextAsync(_path, System.Text.Json.JsonSerializer.Serialize(legacy));
+
+    // The store reads the legacy format transparently.
+    var all = await _store.GetAllAsync(CancellationToken.None);
+    Assert.Single(all);
+    Assert.Equal("Legacy", all[0].Title);
+
+    // After a mutation it is rewritten as a versioned envelope.
+    await _store.CreateAsync(NewRecord(Guid.NewGuid(), 7), CancellationToken.None);
+    var json = await File.ReadAllTextAsync(_path);
+    Assert.Contains("\"SchemaVersion\"", json, StringComparison.Ordinal);
+    Assert.Contains("\"Items\"", json, StringComparison.Ordinal);
+  }
 }
