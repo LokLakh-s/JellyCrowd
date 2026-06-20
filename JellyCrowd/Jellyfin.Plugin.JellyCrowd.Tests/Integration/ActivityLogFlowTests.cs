@@ -132,5 +132,16 @@ public sealed class ActivityLogFlowTests : IDisposable
     public Task TestAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+    {
+      if (Throw)
+      {
+        throw new InvalidOperationException("boom");
+      }
+
+      Dispatched.Add(dispatch);
+      return Task.CompletedTask;
+    }
   }
 }

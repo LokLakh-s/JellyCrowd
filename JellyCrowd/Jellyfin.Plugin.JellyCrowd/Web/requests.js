@@ -149,6 +149,17 @@
     }
     row.appendChild(status);
 
+    // A dispatched-but-still-approved request that carries a backend error is "blocked" (not found /
+    // backend issue) — surfaced distinctly from a normal in-progress request, with the reason on hover.
+    var approved = (request.Status === 1 || request.Status === 'Approved');
+    if (approved && request.DispatchError && !request.DeletionRequestedAt) {
+      var blocked = document.createElement('span');
+      blocked.className = 'jellycrowd-status jellycrowd-status-denied';
+      blocked.textContent = t('status_blocked');
+      blocked.title = request.DispatchError;
+      row.appendChild(blocked);
+    }
+
     // Show a "scheduled for <date>" hint when fulfillment is deferred to a future (release) date.
     var desired = request.DesiredAt ? new Date(request.DesiredAt) : null;
     if (desired && desired.getTime() > Date.now() && !request.DeletionRequestedAt
@@ -174,6 +185,22 @@
           .catch(function () { cancel.disabled = false; });
       });
       row.appendChild(cancel);
+    }
+
+    // Approved requests can have their search re-triggered (Radarr/Sonarr) — useful when a release was
+    // not found yet or the dispatch had failed.
+    if (approved && !request.DeletionRequestedAt) {
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'jellycrowd-request';
+      retry.textContent = t('retry_search');
+      retry.addEventListener('click', function () {
+        retry.disabled = true;
+        apiPost('JellyCrowd/Requests/' + request.Id + '/Retry')
+          .then(function () { lastSignature = ''; tick(); })
+          .catch(function () { retry.disabled = false; });
+      });
+      row.appendChild(retry);
     }
 
     return row;

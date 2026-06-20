@@ -370,6 +370,41 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
+  /// Re-triggers a release search for one of the current user's approved requests that dispatched but
+  /// never became available ("blocked" / not found). Asks the backend to search again (Radarr/Sonarr)
+  /// or re-sends the dispatch (webhook/script), clearing the stored error on success.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The request after the retry attempt (with the error cleared or refreshed).</response>
+  /// <response code="404">No matching request owned by the user.</response>
+  /// <response code="409">The request is not in a state that can be retried.</response>
+  /// <returns>The refreshed request, or an error status.</returns>
+  [HttpPost("{id}/Retry")]
+  [Authorize]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
+  public async Task<ActionResult<RequestRecord>> Retry(Guid id, CancellationToken cancellationToken)
+  {
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var existing = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+    if (existing is null || existing.UserId != userId)
+    {
+      return NotFound();
+    }
+
+    if (existing.Status != RequestStatus.Approved)
+    {
+      return Conflict("Only an approved request can be retried.");
+    }
+
+    await _downloadDispatcher.RetryAsync(existing, cancellationToken).ConfigureAwait(false);
+    var updated = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+    return Ok(updated);
+  }
+
+  /// <summary>
   /// Deletes any request (administrators only).
   /// </summary>
   /// <param name="id">The request identifier.</param>
