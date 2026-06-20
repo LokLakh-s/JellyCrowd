@@ -19,7 +19,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 public class DiagnosticsServiceTests
 {
   private static DiagnosticsService Create(ITmdbClient tmdb, IDownloadDispatcher dispatcher, PluginConfiguration config)
-    => new(tmdb, dispatcher, () => config, NullLogger<DiagnosticsService>.Instance);
+    => new(tmdb, dispatcher, Mock.Of<IServarrClient>(), Mock.Of<IRequestStore>(), () => config, NullLogger<DiagnosticsService>.Instance);
 
   private static DiagnosticResult Find(IReadOnlyList<DiagnosticResult> results, string name)
     => results.First(r => r.Name == name);

@@ -102,6 +102,8 @@ public class DownloadControllerTests
 
     public Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken) => Task.FromResult("[]");
 
+    public Task<string> GetIndexersAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) => Task.FromResult("[]");
+
     public Task CommandAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken) => Task.CompletedTask;

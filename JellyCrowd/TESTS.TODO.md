@@ -10,6 +10,8 @@
 - [ ] **Mettre à jour** le plugin vers la **dernière version** publiée (Dashboard → Plugins → Jelly Crowd) puis **redémarrer Jellyfin**.
 - [ ] Vérifier la version active : Dashboard → Plugins → *Jelly Crowd* = dernière version, statut **Active**.
 - [ ] Onglet **Diagnostic** (config admin) → tout vert (TMDB, File Transformation, backend servarr, dossier data).
+- [ ] Diagnostic → ligne **« Indexers »** : nombre d'indexers activés côté Radarr/Sonarr (warning si 0).
+- [ ] Diagnostic → ligne **« Storage growth »** : estimation ~/utilisateur · ~/mois affichée.
 
 ## 1. M15 — Relance de recherche & état « Bloqué »
 
