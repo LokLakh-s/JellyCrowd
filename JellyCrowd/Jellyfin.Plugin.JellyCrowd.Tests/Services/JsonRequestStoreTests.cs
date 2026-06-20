@@ -108,6 +108,21 @@ public sealed class JsonRequestStoreTests : IDisposable
   }
 
   [Fact]
+  public async Task CancelAsync_AllowsPendingAndApproved_NotAvailable()
+  {
+    var user = Guid.NewGuid();
+    var pending = await _store.CreateAsync(NewRecord(user, 1), CancellationToken.None);
+    var approved = await _store.CreateAsync(NewRecord(user, 2), CancellationToken.None);
+    await _store.UpdateStatusAsync(approved.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+    var available = await _store.CreateAsync(NewRecord(user, 3), CancellationToken.None);
+    await _store.MarkAvailableAsync(available.Id, "item", CancellationToken.None);
+
+    Assert.True(await _store.CancelAsync(pending.Id, user, CancellationToken.None));
+    Assert.True(await _store.CancelAsync(approved.Id, user, CancellationToken.None));
+    Assert.False(await _store.CancelAsync(available.Id, user, CancellationToken.None)); // available -> not cancellable
+  }
+
+  [Fact]
   public async Task UpdateStatusAsync_UnknownId_ReturnsNull()
   {
     Assert.Null(await _store.UpdateStatusAsync(Guid.NewGuid(), RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None));

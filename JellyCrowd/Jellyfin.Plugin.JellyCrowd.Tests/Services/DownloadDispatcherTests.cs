@@ -124,6 +124,17 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   [Fact]
+  public async Task CancelAsync_DelegatesToActiveClient()
+  {
+    var request = await SeedApprovedAsync();
+
+    await CreateDispatcher().CancelAsync(request, CancellationToken.None);
+
+    Assert.Single(_client.Cancelled);
+    Assert.Equal(603, _client.Cancelled[0].TmdbId);
+  }
+
+  [Fact]
   public async Task TestActiveAsync_NoneBackend_Throws()
   {
     _config.DownloadBackend = "none";
@@ -134,6 +145,8 @@ public sealed class DownloadDispatcherTests : IDisposable
   private sealed class FakeDownloadClient : IDownloadClient
   {
     public List<DownloadDispatch> Dispatched { get; } = new();
+
+    public List<DownloadDispatch> Cancelled { get; } = new();
 
     public bool Throw { get; set; }
 
@@ -153,5 +166,11 @@ public sealed class DownloadDispatcherTests : IDisposable
     }
 
     public Task TestAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+    {
+      Cancelled.Add(dispatch);
+      return Task.CompletedTask;
+    }
   }
 }

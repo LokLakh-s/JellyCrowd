@@ -159,8 +159,10 @@
       row.appendChild(scheduled);
     }
 
-    var isPending = (request.Status === 0 || request.Status === 'Pending');
-    if (isPending && !request.DeletionRequestedAt) {
+    // Cancellable while pending or approved (an approved request also asks the backend to stop).
+    var cancellable = (request.Status === 0 || request.Status === 'Pending'
+      || request.Status === 1 || request.Status === 'Approved');
+    if (cancellable && !request.DeletionRequestedAt) {
       var cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'jellycrowd-request';

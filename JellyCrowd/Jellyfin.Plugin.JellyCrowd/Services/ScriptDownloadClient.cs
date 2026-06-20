@@ -65,6 +65,9 @@ public sealed class ScriptDownloadClient : IDownloadClient
     return RunAsync(sample, cancellationToken);
   }
 
+  /// <inheritdoc />
+  public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
+
   private Task RunAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
   {
     var config = _config();

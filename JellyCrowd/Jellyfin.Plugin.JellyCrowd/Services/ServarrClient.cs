@@ -129,6 +129,20 @@ public sealed class ServarrClient : IServarrClient
   public Task<string> GetEpisodesAsync(string baseUrl, string apiKey, int seriesId, CancellationToken cancellationToken)
     => GetStringAsync(baseUrl, apiKey, "/episode?seriesId=" + seriesId.ToString(CultureInfo.InvariantCulture), cancellationToken);
 
+  /// <inheritdoc />
+  public async Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken)
+  {
+    var path = string.Format(
+      CultureInfo.InvariantCulture,
+      "/movie/{0}?deleteFiles={1}&addImportExclusion=false",
+      movieId,
+      deleteFiles ? "true" : "false");
+    using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
+    var client = _httpClientFactory.CreateClient(NamedClient.Default);
+    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    response.EnsureSuccessStatusCode();
+  }
+
   private static JsonObject? ParseObject(string json)
   {
     var node = JsonNode.Parse(json);

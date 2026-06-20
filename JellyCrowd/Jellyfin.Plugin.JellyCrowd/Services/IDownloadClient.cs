@@ -38,4 +38,13 @@ public interface IDownloadClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when the test succeeds.</returns>
   Task TestAsync(CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Best-effort upstream cancellation when a user cancels an already-dispatched request (e.g. remove
+  /// the movie from Radarr so it stops downloading). No-op for backends that can't undo a dispatch.
+  /// </summary>
+  /// <param name="dispatch">The original request payload.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when cancellation has been attempted.</returns>
+  Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
 }

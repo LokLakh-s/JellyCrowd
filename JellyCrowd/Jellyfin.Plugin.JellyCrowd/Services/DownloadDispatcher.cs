@@ -98,6 +98,34 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     return client.TestAsync(cancellationToken);
   }
 
+  /// <inheritdoc />
+  public async Task CancelAsync(RequestRecord request, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    var client = ActiveClient(_config());
+    if (client is null)
+    {
+      return;
+    }
+
+    try
+    {
+      var name = _resolveUserName(request.UserId);
+      var payload = DownloadPayloadBuilder.Build(request, name);
+      await client.CancelAsync(payload, cancellationToken).ConfigureAwait(false);
+      _logger.LogInformation(
+        "Requested upstream cancel of request {RequestId} on the {Backend} backend.",
+        request.Id.ToString("N", CultureInfo.InvariantCulture),
+        client.Backend);
+    }
+#pragma warning disable CA1031 // Upstream cancel is best-effort; the local cancel still proceeds.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogWarning(ex, "Upstream cancel failed for request {RequestId}.", request.Id.ToString("N", CultureInfo.InvariantCulture));
+    }
+  }
+
   private static bool IsNoneBackend(string? backend)
     => string.IsNullOrWhiteSpace(backend) || string.Equals(backend, "none", StringComparison.OrdinalIgnoreCase);
 
