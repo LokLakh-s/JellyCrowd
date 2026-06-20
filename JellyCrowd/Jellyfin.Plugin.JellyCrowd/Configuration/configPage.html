@@ -68,6 +68,14 @@
               <div class="fieldDescription">Language of the Jelly Crowd user pages and notifications. "Auto" follows each user's browser/Jellyfin language.</div>
             </div>
 
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="HiddenFromUsers" name="HiddenFromUsers" type="checkbox" is="emby-checkbox" />
+                <span>Config mode — hide the plugin from regular users</span>
+              </label>
+              <div class="fieldDescription">When enabled, the Jelly Crowd header links, quota bar and bell are hidden for everyone except administrators, and the user-facing API returns 403 for non-admins. Use this to keep the plugin out of sight until it is configured and working. Administrators always see it.</div>
+            </div>
+
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key</label>
               <input id="TmdbApiKey" name="TmdbApiKey" type="text" is="emby-input" />
@@ -835,6 +843,7 @@ Content-Type: application/json
             document.querySelector('#TmdbApiKey').value = config.TmdbApiKey || '';
             document.querySelector('#DefaultUserQuotaGiB').value = (config.DefaultUserQuotaBytes || 0) / gib;
             document.querySelector('#RequireApproval').checked = !!config.RequireApproval;
+            document.querySelector('#HiddenFromUsers').checked = !!config.HiddenFromUsers;
             document.querySelector('#EstimatedMovieSizeGiB').value = (config.EstimatedMovieSizeBytes || 0) / gib;
             document.querySelector('#EstimatedEpisodeSizeGiB').value = (config.EstimatedEpisodeSizeBytes || 0) / gib;
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
@@ -910,6 +919,7 @@ Content-Type: application/json
             config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
             config.DefaultUserQuotaBytes = Math.round(parseFloat(document.querySelector('#DefaultUserQuotaGiB').value || '0') * gib);
             config.RequireApproval = document.querySelector('#RequireApproval').checked;
+            config.HiddenFromUsers = document.querySelector('#HiddenFromUsers').checked;
             config.EstimatedMovieSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedMovieSizeGiB').value || '0') * gib);
             config.EstimatedEpisodeSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedEpisodeSizeGiB').value || '0') * gib);
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);

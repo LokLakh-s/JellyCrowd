@@ -21,6 +21,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 [Authorize]
 [Route("JellyCrowd/Catalog")]
 [Produces(MediaTypeNames.Application.Json)]
+[ServiceFilter(typeof(PluginVisibilityFilter))]
 public class CatalogController : ControllerBase
 {
   private const string DefaultLanguage = "en-US";

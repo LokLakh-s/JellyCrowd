@@ -18,6 +18,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 [Authorize]
 [Route("JellyCrowd/Watchlist")]
 [Produces(MediaTypeNames.Application.Json)]
+[ServiceFilter(typeof(PluginVisibilityFilter))]
 public class WatchlistController : ControllerBase
 {
   private readonly IWatchlistStore _store;

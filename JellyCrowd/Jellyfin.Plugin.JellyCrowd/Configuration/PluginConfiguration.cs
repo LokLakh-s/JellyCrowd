@@ -22,6 +22,7 @@ public class PluginConfiguration : BasePluginConfiguration
     TmdbApiKey = string.Empty;
     DefaultUserQuotaBytes = DefaultQuotaBytes;
     RequireApproval = true;
+    HiddenFromUsers = false;
     EstimatedMovieSizeBytes = 4L * 1024 * 1024 * 1024; // 4 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
     MaxRequestsPerPeriod = 0;
@@ -126,6 +127,14 @@ public class PluginConfiguration : BasePluginConfiguration
   /// 0 disables the rule.
   /// </summary>
   public long AutoApproveMaxSizeBytes { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the plugin is hidden from regular users ("config mode").
+  /// When <c>true</c>, the header injection is skipped for non-administrators and the user-facing API
+  /// endpoints return 403 for them, so the admin can hide the plugin until it is configured and working.
+  /// Administrators are unaffected.
+  /// </summary>
+  public bool HiddenFromUsers { get; set; }
 
   /// <summary>
   /// Gets the genre all-list (TMDB English genre names) gating size-based auto-approval: when non-empty,

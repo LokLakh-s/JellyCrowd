@@ -18,6 +18,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 [Authorize]
 [Route("JellyCrowd/Comments")]
 [Produces(MediaTypeNames.Application.Json)]
+[ServiceFilter(typeof(PluginVisibilityFilter))]
 public class CommentsController : ControllerBase
 {
   private const int MaxCommentLength = 2000;
