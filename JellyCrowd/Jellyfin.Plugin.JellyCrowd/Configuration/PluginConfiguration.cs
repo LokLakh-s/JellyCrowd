@@ -121,6 +121,13 @@ public class PluginConfiguration : BasePluginConfiguration
   public int DeletionRetentionHours { get; set; }
 
   /// <summary>
+  /// Gets or sets the auto-approval size threshold (in bytes): when &gt; 0, requests whose estimated
+  /// size is at or below this value are auto-approved even if admin approval is otherwise required.
+  /// 0 disables the rule.
+  /// </summary>
+  public long AutoApproveMaxSizeBytes { get; set; }
+
+  /// <summary>
   /// Gets the per-user quota overrides. A user not listed here uses <see cref="DefaultUserQuotaBytes"/>.
   /// </summary>
   public Collection<UserQuotaOverride> QuotaOverrides { get; } = new();

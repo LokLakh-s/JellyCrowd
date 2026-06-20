@@ -327,7 +327,7 @@
       if (error && error.status === 409) {
         button.textContent = t('already_requested');
       } else if (error && error.status === 403) {
-        button.textContent = t('quota_exceeded');
+        button.textContent = t('requests_disabled');
       } else {
         button.disabled = false;
         button.textContent = t('request_button');

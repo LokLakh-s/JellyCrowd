@@ -95,6 +95,7 @@
   "quota_storage": "Stockage",
   "quota_unlimited": "Illimité",
   "quota_exceeded": "Quota dépassé",
+  "requests_disabled": "Demandes désactivées",
   "quota_full_hint": "Quota dépassé — supprimez des médias pour libérer de l'espace avant de demander plus.",
   "admin_quota_title": "Quotas disque par utilisateur (Gio)",
   "admin_quota_hint": "Laisser vide pour le quota par défaut. 0 = illimité.",
