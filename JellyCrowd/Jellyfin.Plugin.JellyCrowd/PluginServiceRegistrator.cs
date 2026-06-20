@@ -19,6 +19,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   private const string NotificationsFileName = "notifications.json";
   private const string UserPrefsFileName = "user-prefs.json";
   private const string CommentsFileName = "comments.json";
+  private const string ReportsFileName = "reports.json";
 
   /// <inheritdoc />
   public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
@@ -45,6 +46,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       _ => new JsonUserPrefsStore(Path.Combine(Plugin.Instance!.DataFolderPath, UserPrefsFileName)));
     serviceCollection.AddSingleton<IMediaCommentStore>(
       _ => new JsonMediaCommentStore(Path.Combine(Plugin.Instance!.DataFolderPath, CommentsFileName)));
+    serviceCollection.AddSingleton<IReportStore>(
+      _ => new JsonReportStore(Path.Combine(Plugin.Instance!.DataFolderPath, ReportsFileName)));
     serviceCollection.AddSingleton<Func<PluginConfiguration>>(_ => () => Plugin.Instance!.Configuration);
     serviceCollection.AddSingleton<IQuotaService>(sp => new QuotaService(
       sp.GetRequiredService<IRequestStore>(),

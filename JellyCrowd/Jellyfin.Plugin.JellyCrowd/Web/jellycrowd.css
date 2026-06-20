@@ -274,6 +274,23 @@
   font-family: inherit;
 }
 
+/* Report a problem */
+.jellycrowd-report {
+  margin-top: 0.6em;
+  font-size: 0.85em;
+}
+
+.jellycrowd-report-link {
+  background: none;
+  border: 0;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.jellycrowd-report-link:hover { color: #00a4dc; }
+
 .jellycrowd-row-strip {
   display: flex;
   gap: 1em;

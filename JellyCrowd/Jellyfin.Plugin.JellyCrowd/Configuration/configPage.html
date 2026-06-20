@@ -439,6 +439,11 @@ Content-Type: application/json
             <p id="jcAdminPendingEmpty" class="fieldDescription" hidden></p>
             <div id="jcAdminPending"></div>
           </div>
+          <div class="verticalSection">
+            <h2 id="jcReportsTitle" class="sectionTitle">Reports</h2>
+            <p id="jcReportsEmpty" class="fieldDescription" hidden></p>
+            <div id="jcReports"></div>
+          </div>
         </div>
 
         <div id="jcPaneDiagnostics" class="jcTabPane" style="display:none">
@@ -952,6 +957,7 @@ Content-Type: application/json
           document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
           document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
           document.querySelector('#jcAdminPendingTitle').textContent = t('tab_requests');
+          document.querySelector('#jcReportsTitle').textContent = t('admin_reports_title');
           document.querySelector('#jcAdminCreateHint').textContent = t('admin_create_hint');
           document.querySelector('#jcAdminFilterLabel').textContent = t('admin_filter_status');
           var sf = document.querySelector('#jcAdminStatusFilter');
@@ -1138,12 +1144,82 @@ Content-Type: application/json
             .catch(function () { /* ignore */ });
         }
 
+        function reportAction(id, action) {
+          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Reports/' + id + '/' + action) })
+            .then(loadReports)
+            .catch(function () { /* ignore */ });
+        }
+
+        function renderReports(reports) {
+          var container = document.querySelector('#jcReports');
+          var empty = document.querySelector('#jcReportsEmpty');
+          container.innerHTML = '';
+          if (!reports || reports.length === 0) {
+            empty.textContent = t('admin_no_reports');
+            empty.hidden = false;
+            return;
+          }
+          empty.hidden = true;
+
+          var table = document.createElement('table');
+          table.className = 'jcTable';
+          var tbody = document.createElement('tbody');
+          reports.forEach(function (r) {
+            var tr = document.createElement('tr');
+            if (r.Resolved) { tr.style.opacity = '0.55'; }
+
+            var tdMain = document.createElement('td');
+            var title = document.createElement('div');
+            title.textContent = r.Title + (r.Resolved ? ' ✓' : '');
+            title.style.fontWeight = '600';
+            var msg = document.createElement('div');
+            msg.className = 'jcAdminSub';
+            msg.textContent = r.Message;
+            var sub = document.createElement('div');
+            sub.className = 'jcAdminSub';
+            sub.textContent = (usersById[r.UserId] || r.UserName || '?') + ' · ' + (r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '');
+            tdMain.appendChild(title);
+            tdMain.appendChild(msg);
+            tdMain.appendChild(sub);
+            tr.appendChild(tdMain);
+
+            var tdActions = document.createElement('td');
+            tdActions.className = 'jcColActions';
+            if (!r.Resolved) {
+              var resolve = document.createElement('button');
+              resolve.type = 'button';
+              resolve.className = 'raised emby-button';
+              resolve.textContent = t('admin_resolve');
+              resolve.addEventListener('click', function () { reportAction(r.Id, 'Resolve'); });
+              tdActions.appendChild(resolve);
+            }
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'raised emby-button jcDangerButton';
+            del.textContent = t('admin_delete');
+            del.addEventListener('click', function () { reportAction(r.Id, 'Delete'); });
+            tdActions.appendChild(del);
+            tr.appendChild(tdActions);
+
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          container.appendChild(table);
+        }
+
+        function loadReports() {
+          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Reports'), dataType: 'json' })
+            .then(renderReports)
+            .catch(function () { /* ignore */ });
+        }
+
         document.querySelector('#jcAdminStatusFilter').addEventListener('change', function () { render(); });
 
         document.querySelector('#JellyCrowdConfigPage').addEventListener('pageshow', function () {
           loadStrings().then(ensureLib).then(loadUsers).then(function () {
             applyLabels();
             load();
+            loadReports();
           });
         });
       })();
