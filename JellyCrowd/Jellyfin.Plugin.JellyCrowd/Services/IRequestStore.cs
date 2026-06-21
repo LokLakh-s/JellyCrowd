@@ -99,8 +99,8 @@ public interface IRequestStore
   /// </summary>
   /// <param name="cutoffUtc">Ownerships with <see cref="RequestRecord.AvailableAt"/> before this lapse.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <returns>The number of ownerships that lapsed.</returns>
-  Task<int> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken);
+  /// <returns>The ownership records that lapsed (so their owners can be notified).</returns>
+  Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken);
 
   /// <summary>
   /// Cancels (removes) one of the user's own requests, only while it is still pending.

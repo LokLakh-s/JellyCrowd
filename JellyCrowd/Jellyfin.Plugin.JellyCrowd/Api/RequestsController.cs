@@ -159,6 +159,20 @@ public class RequestsController : ControllerBase
 
     _ = _notificationService.NotifyRequestEventAsync(created, NotificationEvent.Created, CancellationToken.None);
 
+    // Warn the requester when their request is held purely because they are at their disk quota
+    // (not the normal "awaiting admin approval" case), so they understand why it is not progressing.
+    if (!withinQuota && !requireApproval)
+    {
+      _ = _notificationService.NotifyPersonalAsync(
+        userId,
+        PersonalNotifyKind.QuotaExpiry,
+        created.Title,
+        "Request held — storage quota reached",
+        $"Your request \"{created.Title}\" is on hold because you have reached your storage quota. Free space (let some media expire, or request its deletion) and it will resume, or an admin can review it.",
+        created.PosterPath,
+        CancellationToken.None);
+    }
+
     // Auto-approved requests are dispatched right away (no-op if not yet due / no backend configured).
     if (status == RequestStatus.Approved)
     {

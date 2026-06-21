@@ -22,4 +22,29 @@ public class UserNotificationPrefs
 
   /// <summary>Gets or sets the user's ntfy topic (empty = no ntfy).</summary>
   public string? NtfyTopic { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether to deliver, on the user's personal channels, the
+  /// "available" notice for a title that was requested <em>before</em> its release (the deferred,
+  /// not-yet-out case most users care about). Opt-in; defaults to <c>false</c>.
+  /// </summary>
+  public bool NotifyAvailableUnreleased { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether to deliver the "available" notice for an ordinary
+  /// request of an already-released title. Opt-in; defaults to <c>false</c>.
+  /// </summary>
+  public bool NotifyAvailableReleased { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether to deliver decision notices (approved / denied / failed)
+  /// on the user's personal channels. Opt-in; defaults to <c>false</c>.
+  /// </summary>
+  public bool NotifyDecisions { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether to deliver quota and ownership-expiry warnings on the
+  /// user's personal channels. Opt-in; defaults to <c>false</c>.
+  /// </summary>
+  public bool NotifyQuotaExpiry { get; set; }
 }

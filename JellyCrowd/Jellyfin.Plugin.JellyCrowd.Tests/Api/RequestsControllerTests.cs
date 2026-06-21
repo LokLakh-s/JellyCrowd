@@ -397,6 +397,9 @@ public class RequestsControllerTests
     public Task NotifyRequestEventAsync(RequestRecord request, NotificationEvent notificationEvent, CancellationToken cancellationToken)
       => Task.CompletedTask;
 
+    public Task NotifyPersonalAsync(Guid userId, PersonalNotifyKind kind, string title, string subject, string body, string? posterPath, CancellationToken cancellationToken)
+      => Task.CompletedTask;
+
     public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
   }
 
@@ -493,10 +496,11 @@ public class RequestsControllerTests
       return Task.FromResult(record);
     }
 
-    public Task<int> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
     {
-      var removed = _items.RemoveAll(r => r.Status == RequestStatus.Available && r.DeletionRequestedAt is null && r.AvailableAt is { } at && at < cutoffUtc);
-      return Task.FromResult(removed);
+      var lapsed = _items.Where(r => r.Status == RequestStatus.Available && r.DeletionRequestedAt is null && r.AvailableAt is { } at && at < cutoffUtc).ToList();
+      _items.RemoveAll(r => lapsed.Contains(r));
+      return Task.FromResult<IReadOnlyList<RequestRecord>>(lapsed);
     }
 
     public Task<RequestRecord?> MarkAvailableAsync(Guid id, string jellyfinItemId, CancellationToken cancellationToken)

@@ -116,7 +116,11 @@ public class UserNotificationsController : ControllerBase
         UserId = userId,
         Enabled = dto?.Enabled ?? true,
         Email = dto?.Email,
-        NtfyTopic = dto?.NtfyTopic
+        NtfyTopic = dto?.NtfyTopic,
+        NotifyAvailableUnreleased = dto?.NotifyAvailableUnreleased ?? false,
+        NotifyAvailableReleased = dto?.NotifyAvailableReleased ?? false,
+        NotifyDecisions = dto?.NotifyDecisions ?? false,
+        NotifyQuotaExpiry = dto?.NotifyQuotaExpiry ?? false
       },
       cancellationToken).ConfigureAwait(false);
     return Ok(saved);

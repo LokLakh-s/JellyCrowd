@@ -209,23 +209,24 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
-  public async Task<int> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+  public async Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
     try
     {
       var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
-      var removed = items.RemoveAll(r =>
+      var lapsed = items.Where(r =>
         r.Status == RequestStatus.Available
         && r.DeletionRequestedAt is null
         && r.AvailableAt is { } at
-        && at < cutoffUtc);
-      if (removed > 0)
+        && at < cutoffUtc).ToList();
+      if (lapsed.Count > 0)
       {
+        items.RemoveAll(r => lapsed.Contains(r));
         await SaveAsync(cancellationToken).ConfigureAwait(false);
       }
 
-      return removed;
+      return lapsed;
     }
     finally
     {

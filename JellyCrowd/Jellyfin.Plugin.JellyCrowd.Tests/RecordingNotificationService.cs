@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,9 +14,17 @@ internal sealed class RecordingNotificationService : INotificationService
 {
   public List<NotificationEvent> Events { get; } = new();
 
+  public List<(Guid UserId, PersonalNotifyKind Kind, string Title)> Personal { get; } = new();
+
   public Task NotifyRequestEventAsync(RequestRecord request, NotificationEvent notificationEvent, CancellationToken cancellationToken)
   {
     Events.Add(notificationEvent);
+    return Task.CompletedTask;
+  }
+
+  public Task NotifyPersonalAsync(Guid userId, PersonalNotifyKind kind, string title, string subject, string body, string? posterPath, CancellationToken cancellationToken)
+  {
+    Personal.Add((userId, kind, title));
     return Task.CompletedTask;
   }
 
