@@ -49,6 +49,7 @@ public class SettingsController : ControllerBase
       Language = string.IsNullOrWhiteSpace(config.Language) ? "auto" : config.Language,
       Hidden = config.HiddenFromUsers,
       CommentsEnabled = config.CommentsEnabled,
+      AllowUserRetrySearch = config.AllowUserRetrySearch,
       AnnouncementText = config.AnnouncementText ?? string.Empty,
       AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel
     });

@@ -134,6 +134,10 @@ public sealed class ServarrClient : IServarrClient
     => GetStringAsync(baseUrl, apiKey, "/indexer", cancellationToken);
 
   /// <inheritdoc />
+  public Task<string> GetProwlarrIndexersAsync(string baseUrl, string apiKey, CancellationToken cancellationToken)
+    => GetStringAsync(baseUrl, apiKey, "/indexer", cancellationToken, "v1");
+
+  /// <inheritdoc />
   public Task CommandAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken)
     => PostAsync(baseUrl, apiKey, "/command", body, cancellationToken);
 
@@ -151,6 +155,21 @@ public sealed class ServarrClient : IServarrClient
     response.EnsureSuccessStatusCode();
   }
 
+  /// <inheritdoc />
+  public async Task DeleteQueueItemAsync(string baseUrl, string apiKey, int queueItemId, bool removeFromClient, bool blocklist, CancellationToken cancellationToken)
+  {
+    var path = string.Format(
+      CultureInfo.InvariantCulture,
+      "/queue/{0}?removeFromClient={1}&blocklist={2}",
+      queueItemId,
+      removeFromClient ? "true" : "false",
+      blocklist ? "true" : "false");
+    using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
+    var client = _httpClientFactory.CreateClient(NamedClient.Default);
+    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    response.EnsureSuccessStatusCode();
+  }
+
   private static JsonObject? ParseObject(string json)
   {
     var node = JsonNode.Parse(json);
@@ -162,18 +181,18 @@ public sealed class ServarrClient : IServarrClient
     };
   }
 
-  private HttpRequestMessage CreateRequest(HttpMethod method, string baseUrl, string apiKey, string path)
+  private HttpRequestMessage CreateRequest(HttpMethod method, string baseUrl, string apiKey, string path, string apiVersion = "v3")
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(baseUrl);
-    var uri = new Uri(baseUrl.TrimEnd('/') + "/api/v3" + path);
+    var uri = new Uri(baseUrl.TrimEnd('/') + "/api/" + apiVersion + path);
     var request = new HttpRequestMessage(method, uri);
     request.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
     return request;
   }
 
-  private async Task<string> GetStringAsync(string baseUrl, string apiKey, string path, CancellationToken cancellationToken)
+  private async Task<string> GetStringAsync(string baseUrl, string apiKey, string path, CancellationToken cancellationToken, string apiVersion = "v3")
   {
-    using var request = CreateRequest(HttpMethod.Get, baseUrl, apiKey, path);
+    using var request = CreateRequest(HttpMethod.Get, baseUrl, apiKey, path, apiVersion);
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
     using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();

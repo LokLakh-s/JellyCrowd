@@ -1002,23 +1002,36 @@
   margin-bottom: 1em;
 }
 
-/* Genres on the left, "Report a problem" pushed to the right of the same line. */
-.jellycrowd-modal-genres-row {
+/* Title on the left, "Report a problem" pushed to the right of the same line. */
+.jellycrowd-modal-title-row {
   display: flex;
   align-items: center;
   gap: 0.8em;
-  margin-bottom: 1em;
+  margin-bottom: 0.25em;
 }
 
-.jellycrowd-modal-genres-row .jellycrowd-modal-genres {
-  margin-bottom: 0;
+.jellycrowd-modal-title-row .jellycrowd-modal-title {
   flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
 }
 
-.jellycrowd-modal-genres-row .jellycrowd-report-link {
+.jellycrowd-modal-title-row .jellycrowd-report-link {
   margin-left: auto;
   flex: 0 0 auto;
   white-space: nowrap;
+  align-self: flex-start;
+}
+
+/* Full-width TV season picker, spanning under the poster + content columns. */
+.jellycrowd-modal-seasons-section {
+  padding: 0 1.5em 1.5em;
+}
+
+@media (max-width: 600px) {
+  .jellycrowd-modal-seasons-section {
+    padding: 0 1em 1em;
+  }
 }
 
 .jellycrowd-modal-links {

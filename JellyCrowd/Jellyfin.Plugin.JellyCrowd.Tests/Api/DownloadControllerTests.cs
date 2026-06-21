@@ -107,5 +107,9 @@ public class DownloadControllerTests
     public Task CommandAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task DeleteQueueItemAsync(string baseUrl, string apiKey, int queueItemId, bool removeFromClient, bool blocklist, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<string> GetProwlarrIndexersAsync(string baseUrl, string apiKey, CancellationToken cancellationToken) => Task.FromResult("[]");
   }
 }

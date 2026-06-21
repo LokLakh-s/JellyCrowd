@@ -44,7 +44,7 @@ public sealed class UserNotificationsControllerTests : IDisposable
   }
 
   private UserNotificationsController CreateController()
-    => new(_store, _prefs, new FakeUserAccessor())
+    => new(_store, _prefs, new FakeUserAccessor(), new Services.NoOpActivityLog(), _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };

@@ -11,8 +11,10 @@
   var strings = {};
   var cfgLang = 'auto';
   var statusTimer = null;        // live status polling interval
-  var STATUS_POLL_MS = 3000;
+  var STATUS_POLL_MS = 2000;
   var lastSignature = null;      // fingerprint of the rendered list, to re-render only on change
+  var allowRetry = false;        // admin opt-in: regular users may trigger a manual retry-search
+  var isAdmin = false;           // current user is an administrator
 
   function shortLang() {
     return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US');
@@ -20,8 +22,17 @@
 
   function loadConfigLang() {
     return apiGet('JellyCrowd/Settings/Language')
-      .then(function (d) { if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); } })
+      .then(function (d) {
+        if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); }
+        allowRetry = !!(d && d.AllowUserRetrySearch === true);
+      })
       .catch(function () { /* keep 'auto' on failure */ });
+  }
+
+  function resolveAdmin() {
+    return apiGet('JellyCrowd/Settings/Visibility')
+      .then(function (d) { isAdmin = !!(d && d.IsAdmin === true); })
+      .catch(function () { /* non-admin / unavailable */ });
   }
 
   function t(key) {
@@ -188,8 +199,8 @@
     }
 
     // Approved requests can have their search re-triggered (Radarr/Sonarr) — useful when a release was
-    // not found yet or the dispatch had failed.
-    if (approved && !request.DeletionRequestedAt) {
+    // not found yet or the dispatch had failed. Admin-only unless the admin opted users in.
+    if (approved && !request.DeletionRequestedAt && (allowRetry || isAdmin)) {
       var retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'jellycrowd-request';
@@ -342,7 +353,7 @@
   }
 
   function init() {
-    loadConfigLang().then(loadStrings).then(function () {
+    loadConfigLang().then(resolveAdmin).then(loadStrings).then(function () {
       document.getElementById('jcReqLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcReqTitle').textContent = t('my_requests_title');
       setMessage(t('loading'));

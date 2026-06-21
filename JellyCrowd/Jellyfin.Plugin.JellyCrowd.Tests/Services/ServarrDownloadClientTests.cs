@@ -46,6 +46,21 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task DispatchAsync_Movie_AlreadyInRadarr_SearchesInsteadOfReadding()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["id"] = 5 });
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), RadarrConfig);
+
+    await client.DispatchAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
+
+    // Re-adding would 400 ("movie already exists") and cause the Blocked-flapping loop; instead we search.
+    servarr.Verify(s => s.AddMovieAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.CommandAsync("http://localhost:7878", "rk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
   public async Task DispatchAsync_Show_ResolvesTvdbThenAddsToSonarr()
   {
     var servarr = new Mock<IServarrClient>();
@@ -90,6 +105,24 @@ public class ServarrDownloadClientTests
 
     await client.CancelAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
 
+    servarr.Verify(s => s.DeleteMovieAsync("http://localhost:7878", "rk", 5, true, It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task CancelAsync_Movie_RemovesActiveDownloadFromQueue()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:7878", "rk", false, It.IsAny<CancellationToken>()))
+      .ReturnsAsync("{ \"records\": [ { \"id\": 42, \"movie\": { \"tmdbId\": 603 } } ] }");
+    servarr.Setup(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["id"] = 5 });
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), RadarrConfig);
+
+    await client.CancelAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
+
+    // The active grab must be removed from the download client (otherwise RDT keeps downloading)…
+    servarr.Verify(s => s.DeleteQueueItemAsync("http://localhost:7878", "rk", 42, true, false, It.IsAny<CancellationToken>()), Times.Once);
+    // …and the movie itself deleted from Radarr.
     servarr.Verify(s => s.DeleteMovieAsync("http://localhost:7878", "rk", 5, true, It.IsAny<CancellationToken>()), Times.Once);
   }
 

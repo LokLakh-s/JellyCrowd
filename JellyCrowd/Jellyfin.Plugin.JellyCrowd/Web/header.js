@@ -349,7 +349,7 @@
 
   function buildQuota() {
     var box = document.createElement('span');
-    box.style.cssText = 'display:inline-flex;flex-direction:column;justify-content:center;min-width:8em;margin:0 .6em;font-size:.7em;cursor:pointer;';
+    box.style.cssText = 'display:inline-flex;flex-direction:column;justify-content:center;min-width:8em;margin:0 .6em;font-size:.7em;cursor:pointer;line-height:1.05;';
     box.title = t('my_media_title');
     box.addEventListener('click', function () { toggleView('mymedia'); });
     var caption = document.createElement('span');
@@ -422,7 +422,9 @@
     }
     var wrap = document.createElement('span');
     wrap.className = 'jcHeaderQuota';
-    wrap.style.cssText = 'display:inline-flex;align-items:center;';
+    // align-self:center so the block is centred against the native header row regardless of its
+    // default alignment; the column block is otherwise taller than its neighbours and sits low.
+    wrap.style.cssText = 'display:inline-flex;align-items:center;align-self:center;height:100%;';
     wrap.appendChild(buildQuota());
     var userBtn = host.querySelector('.headerUserButton');
     if (userBtn) {
@@ -453,6 +455,24 @@
     apiAjax('GET', 'JellyCrowd/Notifications/Mine')
       .then(function (d) { setBellBadge(d ? d.Unread : 0); })
       .catch(function () { /* best-effort */ });
+  }
+
+  // A status emoji per notification (green ✅ good / red 🟥 bad / yellow 🟨 warning).
+  function notifEmoji(event) {
+    switch (event) {
+      case 'Approved':
+      case 'Available':
+      case 'AvailableReleased':
+      case 'AvailableUnreleased':
+        return '✅';
+      case 'Denied':
+      case 'Failed':
+        return '🟥';
+      case 'QuotaExpiry':
+        return '🟨';
+      default:
+        return '🔔';
+    }
   }
 
   function renderBellList(panel, items) {
@@ -499,6 +519,10 @@
     items.forEach(function (n) {
       var row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:flex-start;gap:.4em;padding:.55em .7em;border-bottom:1px solid rgba(255,255,255,.07);' + (n.Read ? '' : 'background:rgba(0,164,220,.08);');
+      var icon = document.createElement('span');
+      icon.textContent = notifEmoji(n.Event);
+      icon.style.cssText = 'flex:0 0 auto;font-size:.95em;line-height:1.3;';
+      row.appendChild(icon);
       var content = document.createElement('div');
       content.style.cssText = 'flex:1;min-width:0;';
       var line1 = document.createElement('div');
@@ -1036,6 +1060,78 @@
       .catch(function () { detailReviewsPendingId = null; });
   }
 
+  // ---------- "Add to my library" button on the native Jellyfin detail page (§5) ----------
+  // A title open in the native client is already in the library, so we offer to claim ownership of it
+  // (same as the catalog popup's "Add to my library"). Defensive + idempotent like the reviews panel.
+  var detailClaimLoadedId = null;
+  var detailClaimPendingId = null;
+
+  function removeDetailClaim() {
+    var el = document.getElementById('jcDetailClaim');
+    if (el && el.parentNode) { el.parentNode.removeChild(el); }
+    detailClaimLoadedId = null;
+    detailClaimPendingId = null;
+  }
+
+  function buildDetailClaim(item) {
+    var wrap = document.createElement('span');
+    wrap.id = 'jcDetailClaim';
+    wrap.style.cssText = 'display:inline-flex;margin:.4em .6em .4em 0;vertical-align:middle;';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = t('add_to_my_media');
+    btn.title = t('claim_quota_warning');
+    btn.style.cssText = 'background:#00a4dc;border:0;color:#fff;padding:.5em 1em;border-radius:.25em;cursor:pointer;font-size:.95em;';
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      apiAjax('POST', 'JellyCrowd/Requests/Claim', {
+        TmdbId: item.tmdbId,
+        MediaType: item.mediaType,
+        Title: item.title
+      })
+        .then(function () { btn.textContent = t('added'); })
+        .catch(function (e) {
+          if (e && (e.status === 409 || (e.message && e.message.indexOf('409') >= 0))) { btn.textContent = t('already_yours'); }
+          else { btn.disabled = false; }
+        });
+    });
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  function maybeInjectClaimButton(retries) {
+    if (!pluginVisible()) { removeDetailClaim(); return; }
+    var id = currentDetailItemId();
+    if (!id) { removeDetailClaim(); return; }
+    if (id === detailClaimLoadedId && document.getElementById('jcDetailClaim')) { return; }
+    if (id === detailClaimPendingId) { return; }
+    if (!(window.ApiClient && window.ApiClient.getItem && window.ApiClient.getCurrentUserId)) { return; }
+
+    var anchor = document.querySelector('.itemDetailPage:not(.hide) .mainDetailButtons')
+      || document.querySelector('.itemDetailPage:not(.hide) .detailPageContent')
+      || document.querySelector('.detailPageContent');
+    if (!anchor) {
+      if ((retries || 0) < 12) { setTimeout(function () { maybeInjectClaimButton((retries || 0) + 1); }, 300); }
+      return;
+    }
+
+    detailClaimPendingId = id;
+    window.ApiClient.getItem(window.ApiClient.getCurrentUserId(), id)
+      .then(function (it) {
+        if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
+        var type = it && it.Type;
+        var tmdb = it && it.ProviderIds && (it.ProviderIds.Tmdb || it.ProviderIds.tmdb);
+        var mediaType = type === 'Movie' ? 'movie' : (type === 'Series' ? 'tv' : null);
+        if (!mediaType || !tmdb) { detailClaimPendingId = null; return; } // not a claimable title
+        var old = document.getElementById('jcDetailClaim');
+        if (old && old.parentNode) { old.parentNode.removeChild(old); }
+        if (!anchor.isConnected) { detailClaimPendingId = null; return; }
+        anchor.appendChild(buildDetailClaim({ mediaType: mediaType, tmdbId: parseInt(tmdb, 10), title: it.Name || '' }));
+        detailClaimLoadedId = id;
+      })
+      .catch(function () { detailClaimPendingId = null; });
+  }
+
   function start() {
     var observer = new MutationObserver(function () {
       tryInsert();
@@ -1048,10 +1144,14 @@
     window.addEventListener('hashchange', hideOverlay);
     window.addEventListener('popstate', hideOverlay);
     // On every navigation, (re)inject internal reviews when landing on a detail page.
-    function onDetailNav() { removeDetailReviews(); maybeInjectDetailReviews(0); }
+    function onDetailNav() {
+      removeDetailReviews(); maybeInjectDetailReviews(0);
+      removeDetailClaim(); maybeInjectClaimButton(0);
+    }
     window.addEventListener('hashchange', onDetailNav);
     window.addEventListener('popstate', onDetailNav);
     maybeInjectDetailReviews(0); // initial load may already be a detail page
+    maybeInjectClaimButton(0);
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).

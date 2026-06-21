@@ -43,9 +43,25 @@ public sealed class ServarrDownloadClient : IDownloadClient
   }
 
   /// <inheritdoc />
-  public async Task DispatchAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+  public Task DispatchAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
   {
     ArgumentNullException.ThrowIfNull(dispatch);
+    return EnsureRequestedAsync(dispatch, cancellationToken);
+  }
+
+  /// <inheritdoc />
+  public Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(dispatch);
+    return EnsureRequestedAsync(dispatch, cancellationToken);
+  }
+
+  // Idempotent dispatch: if the title is already in Radarr/Sonarr, (re)trigger a search; otherwise add
+  // it (the add payload already requests a search). Crucially, re-adding an existing title makes
+  // Radarr/Sonarr return 400 — which previously failed the dispatch, left it "due", and made the
+  // scheduled task re-add it forever (the "Blocked / 400 Bad Request" flapping). Checking first avoids that.
+  private async Task EnsureRequestedAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
     var config = _config();
 
     if (string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal))
@@ -53,6 +69,15 @@ public sealed class ServarrDownloadClient : IDownloadClient
       if (!RadarrConfigured(config))
       {
         throw new InvalidOperationException("Radarr is not configured (URL, API key, root folder and quality profile are required).");
+      }
+
+      var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+      if (movie?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var movieId) && movieId > 0)
+      {
+        // Already in Radarr — just (re)search it instead of re-adding (which would 400).
+        var command = new JsonObject { ["name"] = "MoviesSearch", ["movieIds"] = new JsonArray(movieId) };
+        await _servarr.CommandAsync(config.RadarrUrl, config.RadarrApiKey, command, cancellationToken).ConfigureAwait(false);
+        return;
       }
 
       var lookup = await _servarr.LookupMovieAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
@@ -69,63 +94,21 @@ public sealed class ServarrDownloadClient : IDownloadClient
 
       var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)}.");
-      var lookup = await _servarr.LookupSeriesAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false)
-        ?? throw new InvalidOperationException($"Sonarr could not find TVDB series {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
-      var body = ServarrPayload.BuildSeriesAdd(lookup, config.SonarrQualityProfileId, config.SonarrLanguageProfileId, config.SonarrRootFolderPath, dispatch.Season);
-      await _servarr.AddSeriesAsync(config.SonarrUrl, config.SonarrApiKey, body, cancellationToken).ConfigureAwait(false);
-    }
-    else
-    {
-      throw new InvalidOperationException($"Unsupported media type '{dispatch.MediaType}'.");
-    }
-  }
-
-  /// <inheritdoc />
-  public async Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
-  {
-    ArgumentNullException.ThrowIfNull(dispatch);
-    var config = _config();
-
-    if (string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal))
-    {
-      if (!RadarrConfigured(config))
-      {
-        throw new InvalidOperationException("Radarr is not configured (URL, API key, root folder and quality profile are required).");
-      }
-
-      var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
-      if (movie?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var movieId) && movieId > 0)
-      {
-        var command = new JsonObject { ["name"] = "MoviesSearch", ["movieIds"] = new JsonArray(movieId) };
-        await _servarr.CommandAsync(config.RadarrUrl, config.RadarrApiKey, command, cancellationToken).ConfigureAwait(false);
-      }
-      else
-      {
-        // Not in Radarr yet — (re-)adding it with search is the retry.
-        await DispatchAsync(dispatch, cancellationToken).ConfigureAwait(false);
-      }
-    }
-    else if (string.Equals(dispatch.MediaType, "tv", StringComparison.Ordinal))
-    {
-      if (!SonarrConfigured(config))
-      {
-        throw new InvalidOperationException("Sonarr is not configured (URL, API key, root folder and quality profile are required).");
-      }
-
-      var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
-        ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)}.");
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
       if (series?["id"] is JsonValue seriesIdValue && seriesIdValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
       {
+        // Already in Sonarr — search the requested season (or the whole series) rather than re-adding.
         var command = dispatch.Season is int season
           ? new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season }
           : new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };
         await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
+        return;
       }
-      else
-      {
-        await DispatchAsync(dispatch, cancellationToken).ConfigureAwait(false);
-      }
+
+      var lookup = await _servarr.LookupSeriesAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false)
+        ?? throw new InvalidOperationException($"Sonarr could not find TVDB series {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
+      var body = ServarrPayload.BuildSeriesAdd(lookup, config.SonarrQualityProfileId, config.SonarrLanguageProfileId, config.SonarrRootFolderPath, dispatch.Season);
+      await _servarr.AddSeriesAsync(config.SonarrUrl, config.SonarrApiKey, body, cancellationToken).ConfigureAwait(false);
     }
     else
     {
@@ -144,6 +127,23 @@ public sealed class ServarrDownloadClient : IDownloadClient
     if (!string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal) || !RadarrConfigured(config))
     {
       return;
+    }
+
+    // First remove any active download from the download client — deleting the Radarr movie alone
+    // leaves the grab running (e.g. the torrent/RDT job keeps going). Best-effort; never blocks the delete.
+    try
+    {
+      var queueJson = await _servarr.GetQueueAsync(config.RadarrUrl, config.RadarrApiKey, forSonarr: false, cancellationToken).ConfigureAwait(false);
+      foreach (var queueId in ServarrQueueParser.ParseMovieQueueRecordIds(queueJson, dispatch.TmdbId))
+      {
+        await _servarr.DeleteQueueItemAsync(config.RadarrUrl, config.RadarrApiKey, queueId, removeFromClient: true, blocklist: false, cancellationToken).ConfigureAwait(false);
+      }
+    }
+#pragma warning disable CA1031 // Queue cleanup is best-effort; still delete the movie below.
+    catch (Exception)
+#pragma warning restore CA1031
+    {
+      // Ignore — fall through to deleting the movie.
     }
 
     var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
