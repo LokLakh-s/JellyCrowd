@@ -118,5 +118,7 @@ public sealed class QuotaServiceTests : IDisposable
     public string? FindItemId(string mediaType, int tmdbId) => _size > 0 ? "x" : null;
 
     public long GetSizeBytes(string mediaType, int tmdbId) => _size;
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }
 }

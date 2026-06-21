@@ -490,6 +490,16 @@ Content-Type: application/json
             </div>
             <div id="jcDiagResults"></div>
           </div>
+
+          <div class="verticalSection">
+            <h2 class="sectionTitle">Library cleanup</h2>
+            <div class="fieldDescription">Find library media owned by nobody (orphans) and delete it from disk. Deletion is permanent.</div>
+            <div class="jcTestRow">
+              <button is="emby-button" type="button" id="jcCleanupScan" class="raised emby-button"><span>Scan media</span></button>
+              <label class="emby-checkbox-label" style="margin-left:1em"><input id="jcCleanupOrphansOnly" type="checkbox" is="emby-checkbox" checked /><span>Orphans only (0 owners)</span></label>
+            </div>
+            <div id="jcCleanupResults"></div>
+          </div>
         </div>
 
         <div id="jcPaneLogs" class="jcTabPane" style="display:none">
@@ -566,6 +576,49 @@ Content-Type: application/json
               detail.textContent = r.Detail;
               row.appendChild(name);
               row.appendChild(detail);
+              box.appendChild(row);
+            });
+          })
+          .catch(function () { box.textContent = t('error_generic'); });
+      }
+
+      function jcFormatBytes(n) {
+        n = Number(n) || 0;
+        var u = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+        var i = 0;
+        while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+        return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
+      }
+
+      function jcScanCleanup() {
+        var box = document.querySelector('#jcCleanupResults');
+        box.textContent = '…';
+        var orphansOnly = document.querySelector('#jcCleanupOrphansOnly').checked;
+        ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Maintenance/Media', { orphansOnly: orphansOnly }), dataType: 'json' })
+          .then(function (items) {
+            box.innerHTML = '';
+            if (!items || !items.length) { box.textContent = 'No matching media.'; return; }
+            items.forEach(function (m) {
+              var row = document.createElement('div');
+              row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:center;';
+              var name = document.createElement('span');
+              name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+              name.textContent = (m.MediaType === 'tv' ? '📺 ' : '🎬 ') + m.Title + ' — ' + jcFormatBytes(m.SizeBytes) + ' · ' + m.OwnerCount + ' owner(s)';
+              var del = document.createElement('button');
+              del.setAttribute('is', 'emby-button');
+              del.type = 'button';
+              del.className = 'raised emby-button';
+              del.style.cssText = 'background:#c62828;';
+              del.textContent = 'Delete';
+              del.addEventListener('click', function () {
+                if (!window.confirm('Delete "' + m.Title + '" from disk? This is permanent.')) { return; }
+                del.disabled = true;
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Maintenance/Media/' + m.JellyfinItemId + '/Delete') })
+                  .then(function () { row.remove(); })
+                  .catch(function () { del.disabled = false; });
+              });
+              row.appendChild(name);
+              row.appendChild(del);
               box.appendChild(row);
             });
           })
@@ -836,6 +889,7 @@ Content-Type: application/json
       document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
       document.querySelector('#jcDiagRun').addEventListener('click', jcRunDiagnostics);
       document.querySelector('#jcDiagBackup').addEventListener('click', jcDownloadBackup);
+      document.querySelector('#jcCleanupScan').addEventListener('click', jcScanCleanup);
       document.querySelector('#jcLogRefresh').addEventListener('click', jcLoadLogs);
       document.querySelector('#jcLogCategory').addEventListener('change', jcLoadLogs);
       document.querySelector('#jcLogLevel').addEventListener('change', jcLoadLogs);

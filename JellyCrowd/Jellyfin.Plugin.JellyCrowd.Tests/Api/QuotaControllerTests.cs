@@ -74,6 +74,8 @@ public sealed class QuotaControllerTests : IDisposable
     public string? FindItemId(string mediaType, int tmdbId) => null;
 
     public long GetSizeBytes(string mediaType, int tmdbId) => 123456;
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }
 
   private sealed class FakeUserAccessor : ICurrentUserAccessor

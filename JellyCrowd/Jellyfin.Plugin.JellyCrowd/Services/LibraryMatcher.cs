@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.JellyCrowd.Models;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
@@ -78,6 +79,41 @@ public sealed class LibraryMatcher : ILibraryMatcher
     }
 
     return total;
+  }
+
+  /// <inheritdoc />
+  public IReadOnlyList<LibraryMediaItem> ListLibraryMedia()
+  {
+    var result = new List<LibraryMediaItem>();
+    var kinds = new[] { (Kind: BaseItemKind.Movie, MediaType: "movie"), (Kind: BaseItemKind.Series, MediaType: "tv") };
+    foreach (var (kind, mediaType) in kinds)
+    {
+      var items = _libraryManager.GetItemList(new InternalItemsQuery
+      {
+        IncludeItemTypes = new[] { kind },
+        Recursive = true
+      });
+
+      foreach (var item in items)
+      {
+        var tmdb = item.GetProviderId(MetadataProvider.Tmdb);
+        if (string.IsNullOrEmpty(tmdb) || !int.TryParse(tmdb, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tmdbId))
+        {
+          continue;
+        }
+
+        result.Add(new LibraryMediaItem
+        {
+          JellyfinItemId = item.Id.ToString("N", CultureInfo.InvariantCulture),
+          TmdbId = tmdbId,
+          MediaType = mediaType,
+          Title = item.Name ?? string.Empty,
+          SizeBytes = kind == BaseItemKind.Series ? SumEpisodeSizes(item) : item.Size ?? 0
+        });
+      }
+    }
+
+    return result;
   }
 
   private long SumEpisodeSizes(BaseItem series)

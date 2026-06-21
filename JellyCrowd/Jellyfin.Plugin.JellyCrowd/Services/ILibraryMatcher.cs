@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using Jellyfin.Plugin.JellyCrowd.Models;
+
 namespace Jellyfin.Plugin.JellyCrowd.Services;
 
 /// <summary>
@@ -28,4 +31,11 @@ public interface ILibraryMatcher
   /// <param name="tmdbId">The TMDB identifier.</param>
   /// <returns>The total size in bytes, or 0 when nothing matches.</returns>
   long GetSizeBytes(string mediaType, int tmdbId);
+
+  /// <summary>
+  /// Lists every movie/show in the library that carries a TMDB id (id, type, title, size), for the
+  /// admin library-cleanup tool. <see cref="LibraryMediaItem.OwnerCount"/> is left for the caller to fill.
+  /// </summary>
+  /// <returns>The library media items.</returns>
+  IReadOnlyList<LibraryMediaItem> ListLibraryMedia();
 }
