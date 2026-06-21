@@ -265,14 +265,23 @@
 
 .jellycrowd-comment-form {
   display: flex;
-  gap: 0.5em;
-  margin-top: 0.6em;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6em;
+  margin-top: 0.9em;
+  padding-top: 0.8em;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.jellycrowd-comment-form .jellycrowd-request {
+  align-self: flex-start;
 }
 
 .jellycrowd-comment-input {
-  flex: 1 1 auto;
+  width: 100%;
+  min-height: 4.5em;
   resize: vertical;
-  padding: 0.4em 0.6em;
+  padding: 0.55em 0.7em;
   border-radius: 0.3em;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(0, 0, 0, 0.3);
@@ -557,8 +566,8 @@
 
 .jellycrowd-modal {
   position: relative;
-  width: min(720px, 100%);
-  max-height: 90vh;
+  width: min(980px, 100%);
+  max-height: 92vh;
   overflow-y: auto;
   border-radius: 0.6em;
   background-color: #101010;
@@ -633,6 +642,79 @@
 
 .jellycrowd-modal .jellycrowd-request {
   margin-top: 0;
+}
+
+/* Cast strip */
+.jellycrowd-cast {
+  margin: 0.4em 0 1.1em;
+}
+
+.jellycrowd-cast-title {
+  margin: 0 0 0.5em;
+  font-size: 1em;
+}
+
+.jellycrowd-cast-strip {
+  display: flex;
+  gap: 0.85em;
+  overflow-x: auto;
+  padding-bottom: 0.5em;
+  scrollbar-width: thin;
+}
+
+.jellycrowd-cast-cell {
+  flex: 0 0 auto;
+  width: 5.5em;
+  text-align: center;
+}
+
+.jellycrowd-cast-photo {
+  width: 5.5em;
+  height: 5.5em;
+  border-radius: 50%;
+  overflow: hidden;
+  margin: 0 auto 0.35em;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.jellycrowd-cast-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.jellycrowd-cast-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2em;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.jellycrowd-cast-name {
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.jellycrowd-cast-role {
+  font-size: 0.72em;
+  opacity: 0.65;
+  line-height: 1.2;
+}
+
+/* Action row in the modal (Open in Jellyfin / Add to my library) */
+.jellycrowd-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  align-items: center;
+}
+
+.jellycrowd-request.jellycrowd-request-secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .jellycrowd-quota {

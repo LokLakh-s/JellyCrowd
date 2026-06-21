@@ -66,6 +66,11 @@ public class CatalogItem
   public IReadOnlyList<string> Genres { get; set; } = Array.Empty<string>();
 
   /// <summary>
+  /// Gets or sets the top billed cast (populated on detail lookups; empty otherwise).
+  /// </summary>
+  public IReadOnlyList<CastMember> Cast { get; set; } = Array.Empty<CastMember>();
+
+  /// <summary>
   /// Gets or sets the runtime in minutes (movies, or a representative episode runtime for shows), if known.
   /// </summary>
   public int? Runtime { get; set; }

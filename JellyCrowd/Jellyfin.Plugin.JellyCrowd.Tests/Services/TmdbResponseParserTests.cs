@@ -127,6 +127,37 @@ public class TmdbResponseParserTests
   }
 
   [Fact]
+  public void ParseDetails_MapsTopBilledCast_SkippingNamelessEntries()
+  {
+    const string json = """
+    { "id": 10, "title": "M",
+      "credits": { "cast": [
+        { "name": "Alice A", "character": "Hero", "profile_path": "/a.jpg" },
+        { "character": "Ghost" },
+        { "name": "Bob B", "character": "Villain", "profile_path": null }
+      ] } }
+    """;
+
+    var item = TmdbResponseParser.ParseDetails(json, "movie");
+
+    Assert.NotNull(item);
+    Assert.Equal(2, item!.Cast.Count);
+    Assert.Equal("Alice A", item.Cast[0].Name);
+    Assert.Equal("Hero", item.Cast[0].Character);
+    Assert.Equal("/a.jpg", item.Cast[0].ProfilePath);
+    Assert.Equal("Bob B", item.Cast[1].Name);
+    Assert.Null(item.Cast[1].ProfilePath);
+  }
+
+  [Fact]
+  public void ParseDetails_NoCredits_EmptyCast()
+  {
+    var item = TmdbResponseParser.ParseDetails("""{ "id": 10, "title": "M" }""", "movie");
+
+    Assert.Empty(item!.Cast);
+  }
+
+  [Fact]
   public void ParseCollectionParts_ReturnsMoviesInOrder()
   {
     const string json = """

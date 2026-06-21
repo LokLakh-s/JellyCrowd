@@ -57,7 +57,7 @@ public class TmdbClient : ITmdbClient
     EnsureMediaType(mediaType);
 
     var id = tmdbId.ToString(CultureInfo.InvariantCulture);
-    var json = await GetAsync($"/{mediaType}/{id}?language={Escape(language)}&append_to_response=external_ids", cancellationToken).ConfigureAwait(false);
+    var json = await GetAsync($"/{mediaType}/{id}?language={Escape(language)}&append_to_response=external_ids,credits", cancellationToken).ConfigureAwait(false);
     return TmdbResponseParser.ParseDetails(json, mediaType);
   }
 
