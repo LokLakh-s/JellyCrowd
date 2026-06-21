@@ -104,16 +104,34 @@
     row.className = 'jellycrowd-request-row';
     row.dataset.reqId = request.Id;
 
+    var available = (request.Status === 3 || request.Status === 'Available');
+    // Clicking the title or poster opens the media detail popup (shared from the catalog view).
+    function openDetail() {
+      if (typeof window.jellyCrowdOpenDetail === 'function') {
+        window.jellyCrowdOpenDetail({
+          TmdbId: request.TmdbId,
+          MediaType: request.MediaType,
+          Title: request.Title,
+          PosterPath: request.PosterPath,
+          ReleaseDate: request.ReleaseDate,
+          Available: available,
+          JellyfinItemId: request.JellyfinItemId
+        });
+      }
+    }
+
     if (request.PosterPath) {
       var poster = document.createElement('img');
-      poster.className = 'jellycrowd-request-poster';
+      poster.className = 'jellycrowd-request-poster jellycrowd-link';
       poster.loading = 'lazy';
       poster.alt = request.Title || '';
       poster.src = POSTER_BASE + request.PosterPath;
+      poster.addEventListener('click', openDetail);
       row.appendChild(poster);
     } else {
       var empty = document.createElement('div');
-      empty.className = 'jellycrowd-request-poster';
+      empty.className = 'jellycrowd-request-poster jellycrowd-link';
+      empty.addEventListener('click', openDetail);
       row.appendChild(empty);
     }
 
@@ -121,17 +139,12 @@
     main.className = 'jellycrowd-request-main';
 
     var titleEl = document.createElement('div');
-    titleEl.className = 'jellycrowd-request-title';
+    titleEl.className = 'jellycrowd-request-title jellycrowd-link';
     titleEl.textContent = lib.formatTitle(request)
       + (request.Season ? ' · S' + request.Season : '')
       + (request.Episode ? 'E' + request.Episode : '');
-    // Available titles deep-link to their Jellyfin details page (the overlay closes on hashchange).
-    var available = (request.Status === 3 || request.Status === 'Available');
-    if (available && request.JellyfinItemId) {
-      titleEl.classList.add('jellycrowd-link');
-      titleEl.title = t('open_in_jellyfin');
-      titleEl.addEventListener('click', function () { openInJellyfin(request.JellyfinItemId); });
-    }
+    titleEl.title = t('details_button');
+    titleEl.addEventListener('click', openDetail);
     main.appendChild(titleEl);
 
     var dateParts = [];
@@ -179,6 +192,18 @@
       scheduled.className = 'jellycrowd-status jellycrowd-status-scheduled';
       scheduled.textContent = t('scheduled_for') + ' ' + desired.toLocaleDateString();
       row.appendChild(scheduled);
+
+      // For an unreleased / deferred request, spell out the release date + the next search attempt.
+      var unrelParts = [];
+      if (request.ReleaseDate) {
+        var rd = new Date(request.ReleaseDate);
+        unrelParts.push(t('release_date') + ' ' + (isNaN(rd.getTime()) ? request.ReleaseDate : rd.toLocaleDateString()));
+      }
+      unrelParts.push(t('next_attempt') + ' ' + desired.toLocaleDateString());
+      var sub2 = document.createElement('div');
+      sub2.className = 'jellycrowd-request-sub';
+      sub2.textContent = unrelParts.join(' · ');
+      main.appendChild(sub2);
     }
 
     // Cancellable while pending or approved (an approved request also asks the backend to stop).
@@ -259,6 +284,15 @@
 
   // Apply live download statuses (from the Radarr/Sonarr queue) onto the matching rows. Stale
   // badges are cleared first so a finished download stops showing progress.
+  // Decimal byte formatter (GB = /1000) to match RDT/Radarr's reported sizes (the quota bar uses binary GiB).
+  function formatBytesDecimal(n) {
+    n = Number(n) || 0;
+    var u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
+    return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
+  }
+
   function applyDownloadStatuses(statuses) {
     var list = document.getElementById('jcReqList');
     if (!list) {
@@ -278,9 +312,10 @@
       var label = key ? t(key) : s.State;
       if (s.State === 'downloading' || s.State === 'importing') {
         label += ' ' + Math.round(s.Percent || 0) + '%';
-        // Final size is known up front with debrid (RDT) — show it while downloading.
+        // Final size is known up front with debrid (RDT) — show it while downloading. Use DECIMAL
+        // units (GB, /1000) to match what RDT/Radarr display, not binary GiB.
         if (s.SizeBytes > 0) {
-          label += ' · ' + lib.formatBytes(s.SizeBytes);
+          label += ' · ' + formatBytesDecimal(s.SizeBytes);
         }
         if (s.TimeLeft) {
           label += ' · ' + s.TimeLeft;

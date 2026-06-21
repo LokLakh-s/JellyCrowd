@@ -71,6 +71,16 @@ public class CatalogItem
   public IReadOnlyList<CastMember> Cast { get; set; } = Array.Empty<CastMember>();
 
   /// <summary>
+  /// Gets or sets the director(s) / creator(s), comma-separated (populated on detail lookups).
+  /// </summary>
+  public string? Director { get; set; }
+
+  /// <summary>
+  /// Gets or sets the original-language title when it differs from the localized title.
+  /// </summary>
+  public string? OriginalTitle { get; set; }
+
+  /// <summary>
   /// Gets or sets the runtime in minutes (movies, or a representative episode runtime for shows), if known.
   /// </summary>
   public int? Runtime { get; set; }

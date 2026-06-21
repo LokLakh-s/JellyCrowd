@@ -900,6 +900,12 @@
       availSpan.textContent = t('available_badge');
       meta.appendChild(availSpan);
     }
+    if (item.ReleaseDate) {
+      var relSpan = document.createElement('span');
+      var relDate = new Date(item.ReleaseDate);
+      relSpan.textContent = isNaN(relDate.getTime()) ? item.ReleaseDate : relDate.toLocaleDateString();
+      meta.appendChild(relSpan);
+    }
     content.appendChild(meta);
     meta.appendChild(watchlistStar(item, true));
 
@@ -912,22 +918,28 @@
     overview.textContent = item.Overview || t('no_overview');
     content.appendChild(overview);
 
+    // Director + original title (filled by the details enrichment below).
+    var creditsLine = document.createElement('div');
+    creditsLine.className = 'jellycrowd-modal-credits';
+    content.appendChild(creditsLine);
+
+    // External links (TMDB/IMDb) sit between the synopsis and the cast.
+    var links = document.createElement('div');
+    links.className = 'jellycrowd-modal-links';
+    links.appendChild(externalLink('https://www.themoviedb.org/' + item.MediaType + '/' + item.TmdbId, t('view_tmdb')));
+    content.appendChild(links);
+
     // Cast strip (filled by the details enrichment below; hidden until then).
     var castEl = document.createElement('div');
     castEl.className = 'jellycrowd-cast';
     castEl.style.display = 'none';
     content.appendChild(castEl);
 
-    // Reviews section, right under the synopsis (admin opt-in). Passes meta so the internal
+    // Reviews section, under the cast (admin opt-in). Passes meta so the internal
     // average rating can also appear next to the TMDB rating.
     if (commentsEnabled) {
       content.appendChild(buildCommentsSection(item, meta));
     }
-
-    var links = document.createElement('div');
-    links.className = 'jellycrowd-modal-links';
-    links.appendChild(externalLink('https://www.themoviedb.org/' + item.MediaType + '/' + item.TmdbId, t('view_tmdb')));
-    content.appendChild(links);
 
     // Request controls live under the poster (left column) to keep the popup short — except a TV
     // season picker, which needs full width: it goes in its own section spanning under the body.
@@ -1059,6 +1071,12 @@
         if (details.ImdbId) {
           links.appendChild(externalLink('https://www.imdb.com/title/' + details.ImdbId, t('view_imdb')));
         }
+
+        // Director / creator + original title, between the synopsis and the links.
+        var creditsParts = [];
+        if (details.Director) { creditsParts.push(t('director') + ' : ' + details.Director); }
+        if (details.OriginalTitle) { creditsParts.push(t('original_title') + ' : ' + details.OriginalTitle); }
+        creditsLine.textContent = creditsParts.join(' · ');
 
         // "Request whole saga": for a movie that belongs to a TMDB collection, request every part.
         if (item.MediaType === 'movie' && details.CollectionId && !item.Available && !quotaExceeded) {
@@ -1613,5 +1631,10 @@
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+
+  // Let other views (e.g. My requests) open this media-detail popup.
+  if (typeof window.jellyCrowdRegisterDetailOpener === 'function') {
+    window.jellyCrowdRegisterDetailOpener(openModal);
   }
 })();

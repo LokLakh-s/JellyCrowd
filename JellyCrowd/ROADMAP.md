@@ -9,9 +9,9 @@ Légende : ☐ à faire · ☑ fait · ◐ en cours
 
 ## 📍 État actuel (point de reprise) — au 2026-06-13
 
-- **Dépôt** : le plugin vit dans le monorepo **`LokLakh-s/jellyfin-plugins`**, sous **`JellyCrowd/`**
+- **Dépôt** : le plugin vit dans le monorepo **`LokLakh-s/JellyCrowd`**, sous **`JellyCrowd/`**
   (migré depuis l'ancien `Klakh/jelly-crowd`). **Manifeste de dépôt à la racine** du repo (1 entrée/plugin,
-  3 versions max). URL dépôt : `https://raw.githubusercontent.com/LokLakh-s/jellyfin-plugins/main/manifest.json`.
+  3 versions max). URL dépôt : `https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json`.
 - **Version publiée** : releases auto, dernière **`v0.6.0`**. Branche `main`, CI **verte**.
 - **Fait (code, M0→M6)** : catalogue TMDB enrichi (filtres double-sliders genres/années/notes, tri, survol, fiche complète avec affiche + liens TMDB/IMDb, clic dispo → fiche Jellyfin, **scroll infini + rangées de catégories/plateformes**) ; requêtes en file admin **par saison**, **annulables tant que Pending**, avec **date souhaitée** optionnelle (`DesiredAt`) ; quotas disque par user (overrides, barre d'usage dégradée vert→rouge, refus 403/bouton grisé) ; **limite de requêtes par période** ; disponibilité **temps réel** (`IRequestReconciler` sur `ItemAdded`/`ItemRemoved` + tâche planifiée de secours) ; **« Mes médias » + suppression disque** après rétention, **multi-user aware** (tâche) ; **notifications Discord (embeds) + e-mail SMTP (MailKit, 465/587)** avec boutons de test ; **réglage de langue admin** (auto/en/fr) ; **logo** ; **page admin à onglets** (Demandes/Quotas/Réglages/Notifs/**Téléchargement**) ; **manifest de dépôt** (MAJ auto).
 - **Fait (code, M7)** : **téléchargement auto des requêtes** — onglet « Téléchargement » avec sélecteur de
@@ -433,23 +433,24 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 
 **Bugs (re-test live KO) :**
 
-- ☐ **Boutons admin noirs** : Approve/Deny **et** boutons *Test* restent noirs → doivent être **bleu Jellyfin** (le style `emby-button` l'emporte sur nos classes — surcharger correctement). *(Notes 1, 2)*
-- ☐ **Tableau User quotas, 1ʳᵉ ligne** toujours différente des autres → re-investiguer la vraie cause (le fallback avatar n'a pas suffi).
-- ☐ **Popup mobile portrait** : s'affiche correctement ~0,25 s puis change de format et **déborde des deux côtés** (paysage OK) — bug responsive du popup à corriger.
-- ☐ **Taille de DL en unités différentes** de RDT (5,1 GiB affiché vs 5,47 GB RDT = même taille) → afficher en **Go décimaux** pour coller à RDT.
+- ☑ **Boutons admin noirs** — re-corrigé : règles **préfixées `#JellyCrowdConfigPage`** (spécificité ID) → Approve vert, Deny/Delete rouge, **boutons Test bleu Jellyfin**. *(Notes 1, 2 ; à revérifier)*
+- ☑ **Tableau User quotas, 1ʳᵉ ligne** — re-corrigé : **toutes** les lignes affichent un cercle d'initiales (plus aucune photo) → uniformes. *(à revérifier ; sinon capture)*
+- ☑ **Popup mobile portrait** — re-corrigé : modal clampé (`width/max-width:100%`, `overflow-x:hidden`, padding réduit) + `content` en `min-width:0`. *(à revérifier en portrait)*
+- ☑ **Taille de DL** — corrigé : affichée en **Go décimaux** (/1000) pour coller à RDT (c'était la même taille en unités différentes).
 
 **UI / UX (Notes de Victor) :**
 
-- ☐ **Note 2** — boutons *Test* (onglet Notifications) en **bleu Jellyfin**.
-- ☐ **Note 3** — écran **Requests admin** : clic sur titre/jaquette ouvre le **popup** du média.
-- ☐ **Note 4** — requêtes **Unreleased** : afficher la **date de sortie** + la **date de prochaine tentative** de recherche.
-- ☐ **Notes 5/6/8** — popup : afficher **release date**, **réalisateur**, **titre original** (cast déjà fait) ; **acteurs + réalisateur cliquables** → catalogue filtré ; déplacer les liens **TMDB/IMDb entre le synopsis et le cast**.
-- ☐ **Note 7** — **curseur pointer + état hover** sur le logo *Home* et le bloc *My library* du bandeau.
-- ☐ **Note 13** — l'écran **admin Requests** doit afficher le statut **Downloading**.
-- ☐ **Note 12** — option admin pour **afficher/masquer les pseudos** sur les avis (aujourd'hui toujours anonymes côté user).
-- ☐ **Calendrier** — le bouton **Today** ouvre un **sélecteur de période** (date picker) pour sauter à une date.
+- ☑ **Note 2** — boutons *Test* en **bleu Jellyfin** (couvert par le correctif boutons admin).
+- ☑ **Note 3** — écran **My requests** : clic sur titre/jaquette ouvre le **popup** du média (modal du catalogue partagé via `window.jellyCrowdOpenDetail`). *(côté écran admin config : non applicable, pas d'infra modal)*
+- ☑ **Note 4** — requêtes **Unreleased/planifiées** : affichent **Sortie : …** + **Prochaine tentative : …** sous le titre.
+- ☑ **Notes 5/8** — popup : **release date** (méta), **réalisateur** + **titre original** (ligne crédits), liens **TMDB/IMDb entre synopsis et cast**. *(cast déjà fait)*
+- ☐ **Note 6** — **acteurs + réalisateur cliquables** → catalogue filtré (nécessite un filtre « par personne » dans le catalogue).
+- ☑ **Note 7** — **curseur pointer** sur le logo/home + **état hover** (brightness + underline) sur le bloc *My library*.
+- ☑ **Note 13** — l'écran **admin Requests** affiche le badge **Downloading** (+ %) via `Requests/All/DownloadStatus`.
+- ☑ **Note 12** — option admin **« Show review author names to everyone »** (`ShowReviewAuthors`, off par défaut) ; sinon les avis restent anonymes pour les non-admins.
+- ☑ **Calendrier** — le bouton **Today** ouvre un **sélecteur de date** (input date natif) pour sauter à n'importe quelle date.
 - ☐ **M25.2** (fiche native) — remplacer le **slider** par les **étoiles** du popup, **textarea multiligne**, repositionner le panneau (sous l'affiche / 2ᵉ colonne au niveau du synopsis).
-- ☐ **M16 (genres)** — remplacer le champ texte des *auto-approve genres* par un **menu déroulant des genres TMDB** + pastilles supprimables.
+- ☑ **M16 (genres)** — champ texte remplacé par un **menu déroulant des genres TMDB** (movie+tv fusionnés) + **pastilles supprimables** ; persiste dans `AutoApproveGenres`.
 - ☐ **Note 14** — **disclaimer** près du titre « Mes demandes » : l'affichage de la progression/disponibilité n'est pas temps réel (techno Jellyfin), le média peut être dispo dans Jellyfin avant que la requête soit marquée *Available*.
 
 **Réactivité / temps réel → relève de M28 :**

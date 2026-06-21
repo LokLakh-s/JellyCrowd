@@ -165,6 +165,12 @@ public class PluginConfiguration : BasePluginConfiguration
   public bool CommentsEnabled { get; set; }
 
   /// <summary>
+  /// Gets or sets a value indicating whether the author's name is shown on reviews to regular users.
+  /// Off by default (reviews are anonymous to non-admins; admins always see the author).
+  /// </summary>
+  public bool ShowReviewAuthors { get; set; }
+
+  /// <summary>
   /// Gets or sets the admin announcement shown in the header banner. Empty hides the banner.
   /// </summary>
   public string AnnouncementText { get; set; }
