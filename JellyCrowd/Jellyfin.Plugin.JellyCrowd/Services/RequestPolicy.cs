@@ -60,6 +60,25 @@ public static class RequestPolicy
     => Find(config, userId)?.AutoApprove ?? false;
 
   /// <summary>
+  /// Whether the plugin should be visible/usable for a user: administrators always; everyone when not
+  /// in "config mode"; in config mode only users granted per-user plugin access.
+  /// </summary>
+  /// <param name="config">The plugin configuration.</param>
+  /// <param name="userId">The user id.</param>
+  /// <param name="isAdmin">Whether the user is an administrator.</param>
+  /// <returns><c>true</c> when the plugin is visible to the user.</returns>
+  public static bool IsVisibleTo(PluginConfiguration config, Guid userId, bool isAdmin)
+  {
+    ArgumentNullException.ThrowIfNull(config);
+    if (isAdmin || !config.HiddenFromUsers)
+    {
+      return true;
+    }
+
+    return Find(config, userId)?.PluginAccess ?? false;
+  }
+
+  /// <summary>
   /// Whether a request should be auto-approved (skip the admin queue): the user is trusted, or the
   /// global size rule applies to the request's estimated size — further gated, when configured, by the
   /// title's genres matching <see cref="PluginConfiguration.AutoApproveGenres"/>.

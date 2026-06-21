@@ -229,6 +229,9 @@
     }
 
     overlay.style.display = '';
+    // Lock the page behind the overlay so it doesn't scroll under it (phantom scroll on mobile, where
+    // the native header also hides on scroll). Restored in hideOverlay().
+    document.body.classList.add('jellycrowd-overlay-open');
     positionOverlay();
     setActiveNav(id);
     VIEWS.forEach(function (v) {
@@ -263,6 +266,7 @@
     if (overlay) {
       overlay.style.display = 'none';
     }
+    document.body.classList.remove('jellycrowd-overlay-open');
     setActiveNav(null);
   }
 
@@ -354,7 +358,7 @@
     box.addEventListener('click', function () { toggleView('mymedia'); });
     var caption = document.createElement('span');
     caption.textContent = t('my_media_title');
-    caption.style.cssText = 'color:#4caf50;font-weight:700;font-size:1.25em;line-height:1.1;';
+    caption.style.cssText = 'color:#4caf50;font-weight:700;font-size:1.25em;line-height:1.1;white-space:nowrap;';
     var label = document.createElement('span');
     label.style.color = '#fff';
     var track = document.createElement('span');
@@ -713,7 +717,16 @@
     function positionPanel() {
       var r = btn.getBoundingClientRect();
       panel.style.top = Math.round(r.bottom + 4) + 'px';
-      panel.style.right = Math.round(window.innerWidth - r.right) + 'px';
+      if (window.innerWidth <= 600) {
+        // On phones, span (almost) full width so the panel never lands off-screen to the left.
+        panel.style.left = '0.5em';
+        panel.style.right = '0.5em';
+        panel.style.width = 'auto';
+      } else {
+        panel.style.left = 'auto';
+        panel.style.width = '22em';
+        panel.style.right = Math.round(window.innerWidth - r.right) + 'px';
+      }
     }
 
     btn.addEventListener('click', function (e) {

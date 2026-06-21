@@ -112,4 +112,24 @@ public class RequestPolicyTests
 
     Assert.True(RequestPolicy.ShouldAutoApprove(config, User, "movie", Array.Empty<string>()));
   }
+
+  [Fact]
+  public void IsVisibleTo_NotHidden_VisibleToEveryone()
+  {
+    var config = Config(); // HiddenFromUsers defaults false
+    Assert.True(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));
+  }
+
+  [Fact]
+  public void IsVisibleTo_Hidden_OnlyAdminsAndGrantedUsers()
+  {
+    var config = Config();
+    config.HiddenFromUsers = true;
+    var granted = Guid.NewGuid();
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = granted, PluginAccess = true });
+
+    Assert.True(RequestPolicy.IsVisibleTo(config, User, isAdmin: true));        // admin
+    Assert.True(RequestPolicy.IsVisibleTo(config, granted, isAdmin: false));    // granted access
+    Assert.False(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));      // regular, no access
+  }
 }

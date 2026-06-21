@@ -175,6 +175,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.Status = RequestStatus.Available;
       record.JellyfinItemId = jellyfinItemId;
       record.AvailableAt = DateTime.UtcNow;
+      record.DispatchError = null; // the title is here now — any earlier dispatch failure is moot
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }

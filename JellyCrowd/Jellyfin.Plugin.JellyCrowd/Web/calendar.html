@@ -9,9 +9,14 @@
       <h1 id="jcCalTitle" class="jellycrowd-title">Calendar</h1>
     </div>
     <div class="jellycrowd-cal-nav">
-      <button type="button" id="jcCalPrev" class="jellycrowd-chip" aria-label="Previous month">‹</button>
+      <span class="jellycrowd-cal-views">
+        <button type="button" id="jcCalViewMonth" class="jellycrowd-chip"></button>
+        <button type="button" id="jcCalViewWeek" class="jellycrowd-chip"></button>
+        <button type="button" id="jcCalViewDay" class="jellycrowd-chip"></button>
+      </span>
+      <button type="button" id="jcCalPrev" class="jellycrowd-chip" aria-label="Previous">‹</button>
       <span id="jcCalMonth" class="jellycrowd-cal-month"></span>
-      <button type="button" id="jcCalNext" class="jellycrowd-chip" aria-label="Next month">›</button>
+      <button type="button" id="jcCalNext" class="jellycrowd-chip" aria-label="Next">›</button>
       <button type="button" id="jcCalToday" class="jellycrowd-chip"></button>
       <select id="jcCalLang" class="jellycrowd-cal-filter"></select>
       <select id="jcCalCountry" class="jellycrowd-cal-filter"></select>

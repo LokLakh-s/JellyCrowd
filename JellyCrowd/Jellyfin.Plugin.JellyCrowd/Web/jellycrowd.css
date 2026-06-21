@@ -21,6 +21,11 @@
   background: var(--theme-body-background, #101013);
 }
 
+/* While a plugin overlay is open, freeze the page behind it (no phantom scroll, esp. on mobile). */
+body.jellycrowd-overlay-open {
+  overflow: hidden !important;
+}
+
 .jellycrowd-overlay-bar {
   display: flex;
   align-items: center;
@@ -636,6 +641,22 @@
     width: 60%;
     max-width: 260px;
   }
+
+  /* Announcement gets its own full line under the logo (it's too cramped squeezed into the header). */
+  .skinHeader .headerLeft {
+    flex-wrap: wrap;
+  }
+
+  .jcHeaderAnnounce {
+    order: 10;
+    flex-basis: 100%;
+    max-width: 100% !important;
+    margin: 0.2em 0 !important;
+  }
+
+  .jcHeaderAnnounce span {
+    white-space: normal !important;
+  }
 }
 
 .jellycrowd-modal-close {
@@ -885,6 +906,30 @@
   color: #fff;
 }
 
+@media (max-width: 600px) {
+  /* Catalog: show every genre chip (wrapping) instead of an inner scroll area. */
+  .jellycrowd-genres {
+    max-width: 100%;
+    max-height: none;
+  }
+
+  /* Request / library rows: let them wrap so the status badge(s) and action buttons drop to their own
+     line under the title instead of overlapping it or running off-screen to the right. */
+  .jellycrowd-request-row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 0.5em;
+  }
+
+  .jellycrowd-request-main {
+    flex: 1 1 auto;
+  }
+
+  .jellycrowd-request-row .jellycrowd-request {
+    flex: 0 0 auto;
+  }
+}
+
 /* Dual range slider */
 .jellycrowd-dual {
   position: relative;
@@ -1008,6 +1053,8 @@
   align-items: center;
   gap: 0.8em;
   margin-bottom: 0.25em;
+  /* Leave room at the top-right for the modal close (×) so the report button doesn't sit under it. */
+  padding-right: 2.6em;
 }
 
 .jellycrowd-modal-title-row .jellycrowd-modal-title {
@@ -1108,7 +1155,14 @@
 .jellycrowd-cal-nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5em;
+}
+
+.jellycrowd-cal-views {
+  display: inline-flex;
+  gap: 0.25em;
+  margin-right: 0.3em;
 }
 
 .jellycrowd-cal-month {
@@ -1199,7 +1253,72 @@
   overflow: hidden;
 }
 
+/* Week/Day "list" view: vertical day sections (no horizontal scroll). */
+.jellycrowd-cal-grid.jellycrowd-cal-list {
+  display: block;
+}
+
+.jellycrowd-cal-day-section {
+  padding: 0.5em 0.2em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.jellycrowd-cal-day-section.jellycrowd-cal-today {
+  outline: none;
+  border-left: 3px solid #00a4dc;
+  padding-left: 0.5em;
+}
+
+.jellycrowd-cal-day-header {
+  font-weight: 600;
+  text-transform: capitalize;
+  margin-bottom: 0.4em;
+}
+
+.jellycrowd-cal-day-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.jellycrowd-cal-day-empty {
+  font-size: 0.85em;
+  opacity: 0.5;
+}
+
 @media (max-width: 640px) {
   .jellycrowd-cal-item span { display: none; }
-  .jellycrowd-cal-cell { min-height: 4.5em; }
+  /* Month view becomes a poster mosaic: posters wrap so each day cell stays roughly square. */
+  .jellycrowd-cal-cell {
+    min-height: 4.5em;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+
+  .jellycrowd-cal-daynum {
+    flex: 0 0 100%;
+  }
+
+  .jellycrowd-cal-item {
+    width: auto;
+    padding: 0;
+    background: transparent;
+  }
+
+  .jellycrowd-cal-item img {
+    width: 1.9em;
+    height: 2.8em;
+  }
+
+  /* In the list (week/day) view, keep titles visible — only the month mosaic hides them. */
+  .jellycrowd-cal-list .jellycrowd-cal-item {
+    width: 100%;
+    padding: 0.15em;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .jellycrowd-cal-list .jellycrowd-cal-item span {
+    display: inline;
+  }
 }
