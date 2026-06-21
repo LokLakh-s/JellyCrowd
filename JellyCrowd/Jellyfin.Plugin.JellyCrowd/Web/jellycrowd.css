@@ -458,8 +458,13 @@
   padding: 0.3em 0.4em;
   border-radius: 0.3em;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(0, 0, 0, 0.3);
-  color: inherit;
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
+.jellycrowd-admin-actas select option {
+  background-color: #1a1a1a;
+  color: #fff;
 }
 
 .jellycrowd-desired-date {
@@ -704,6 +709,50 @@
   line-height: 1.2;
 }
 
+/* Saga (collection) request preview */
+.jellycrowd-saga-preview {
+  margin: 0.6em 0 0;
+  padding: 0.7em 0.8em;
+  border-radius: 0.4em;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.jellycrowd-saga-heading {
+  font-weight: 600;
+  margin-bottom: 0.4em;
+}
+
+.jellycrowd-saga-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  max-height: 14em;
+  overflow-y: auto;
+  margin-bottom: 0.6em;
+}
+
+.jellycrowd-saga-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8em;
+  font-size: 0.9em;
+}
+
+.jellycrowd-saga-status {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.jellycrowd-saga-status.jellycrowd-saga-have {
+  color: #4caf50;
+  opacity: 1;
+}
+
+.jellycrowd-saga-actions {
+  display: flex;
+  gap: 0.6em;
+}
+
 /* Action row in the modal (Open in Jellyfin / Add to my library) */
 .jellycrowd-modal-actions {
   display: flex;
@@ -800,9 +849,15 @@
 .jellycrowd-filter select {
   padding: 0.4em;
   border-radius: 0.3em;
-  background: rgba(255, 255, 255, 0.08);
-  color: inherit;
+  /* Solid dark background (not translucent) so the native option list isn't white-on-white. */
+  background-color: #1a1a1a;
+  color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.jellycrowd-filter select option {
+  background-color: #1a1a1a;
+  color: #fff;
 }
 
 /* Dual range slider */
