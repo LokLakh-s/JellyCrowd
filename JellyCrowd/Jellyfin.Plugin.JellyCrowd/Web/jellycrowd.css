@@ -291,20 +291,25 @@
 
 /* Report a problem */
 .jellycrowd-report {
-  margin-top: 0.6em;
-  font-size: 0.85em;
+  margin-top: 0.9em;
+  padding-top: 0.7em;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.9em;
 }
 
 .jellycrowd-report-link {
-  background: none;
-  border: 0;
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.3em;
+  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
+  padding: 0.35em 0.7em;
 }
 
-.jellycrowd-report-link:hover { color: #00a4dc; }
+.jellycrowd-report-link:hover {
+  color: #fff;
+  border-color: #00a4dc;
+}
 
 .jellycrowd-row-strip {
   display: flex;

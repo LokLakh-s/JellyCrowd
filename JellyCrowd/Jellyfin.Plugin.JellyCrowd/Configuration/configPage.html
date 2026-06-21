@@ -1321,10 +1321,32 @@ Content-Type: application/json
             .catch(function () { /* ignore */ });
         }
 
+        function updateReportsBadge(unresolved) {
+          var title = document.querySelector('#jcReportsTitle');
+          if (title) { title.textContent = t('admin_reports_title') + (unresolved ? ' (' + unresolved + ')' : ''); }
+          var tab = document.querySelector('#jcTabRequests');
+          if (tab) {
+            var badge = tab.querySelector('.jcTabBadge');
+            if (unresolved) {
+              if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'jcTabBadge';
+                badge.style.cssText = 'margin-left:.4em;background:#c62828;color:#fff;border-radius:1em;padding:0 .5em;font-size:.8em;';
+                tab.appendChild(badge);
+              }
+              badge.textContent = unresolved;
+            } else if (badge) {
+              badge.remove();
+            }
+          }
+        }
+
         function renderReports(reports) {
           var container = document.querySelector('#jcReports');
           var empty = document.querySelector('#jcReportsEmpty');
           container.innerHTML = '';
+          var unresolved = (reports || []).filter(function (r) { return !r.Resolved; }).length;
+          updateReportsBadge(unresolved);
           if (!reports || reports.length === 0) {
             empty.textContent = t('admin_no_reports');
             empty.hidden = false;
