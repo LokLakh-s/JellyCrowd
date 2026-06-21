@@ -198,3 +198,6 @@
 5. Les requêtes "Unreleased" doivent afficher la date de sortie et la date de prochaine tentative
 6. Le popup doit afficher la release date, la liste d'acteurs, le réalisateur, le titre original.
 7. La liste d'acteurs et le réalisateur doivent être cliquables et amener sur le catalogue filtré par cet acteur/réalisateur
+8. Le lien Home sur le logo Keeklah.tv dans le bandeau doit avoir le curseur qui change on hover, car actuellement on ne voit pas que c'est un lien. Le lien My library doit réagir on hover aussi
+9. sur le popup, les liens TMDB et IMDb doivent être entre le synopsis et le cast
+10. 

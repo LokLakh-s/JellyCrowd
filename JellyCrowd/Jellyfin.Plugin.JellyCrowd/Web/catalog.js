@@ -801,16 +801,17 @@
   }
 
   // "Report a problem": a link that reveals a small reason form and submits a report.
-  function buildReportSection(item) {
-    var wrap = document.createElement('div');
-    wrap.className = 'jellycrowd-report';
+  // The "Report a problem" button (placed on the genres row). When clicked it reveals a full-width
+  // report form inserted right after `anchorEl` so the textarea isn't cramped in the genres line.
+  function buildReportSection(item, anchorEl) {
     var link = document.createElement('button');
     link.type = 'button';
     link.className = 'jellycrowd-report-link';
     link.textContent = '⚠ ' + t('report_problem');
-    wrap.appendChild(link);
     link.addEventListener('click', function () {
-      link.style.display = 'none';
+      link.disabled = true;
+      var wrap = document.createElement('div');
+      wrap.className = 'jellycrowd-report';
       var form = document.createElement('div');
       form.className = 'jellycrowd-comment-form';
       var input = document.createElement('textarea');
@@ -832,8 +833,9 @@
       form.appendChild(input);
       form.appendChild(send);
       wrap.appendChild(form);
+      anchorEl.insertAdjacentElement('afterend', wrap);
     });
-    return wrap;
+    return link;
   }
 
   function openModal(item) {
@@ -855,14 +857,22 @@
     var body = document.createElement('div');
     body.className = 'jellycrowd-modal-body';
 
+    // Left column: poster + the request/claim controls underneath it (keeps the popup short — the
+    // request action no longer pushes everything down the right column / off-screen).
+    var leftCol = document.createElement('div');
+    leftCol.className = 'jellycrowd-modal-left';
     if (item.PosterPath) {
       var poster = document.createElement('img');
       poster.className = 'jellycrowd-modal-poster';
       poster.loading = 'lazy';
       poster.alt = item.Title || '';
       poster.src = POSTER_BASE + item.PosterPath;
-      body.appendChild(poster);
+      leftCol.appendChild(poster);
     }
+    var requestHost = document.createElement('div');
+    requestHost.className = 'jellycrowd-modal-request';
+    leftCol.appendChild(requestHost);
+    body.appendChild(leftCol);
 
     var content = document.createElement('div');
     content.className = 'jellycrowd-modal-content';
@@ -888,9 +898,14 @@
     content.appendChild(meta);
     meta.appendChild(watchlistStar(item, true));
 
+    // Genres on the left, "Report a problem" pushed to the right of the same line.
+    var genresRow = document.createElement('div');
+    genresRow.className = 'jellycrowd-modal-genres-row';
     var genresEl = document.createElement('div');
     genresEl.className = 'jellycrowd-modal-genres';
-    content.appendChild(genresEl);
+    genresRow.appendChild(genresEl);
+    genresRow.appendChild(buildReportSection(item, genresRow));
+    content.appendChild(genresRow);
 
     var overview = document.createElement('p');
     overview.className = 'jellycrowd-modal-overview';
@@ -914,7 +929,9 @@
     links.appendChild(externalLink('https://www.themoviedb.org/' + item.MediaType + '/' + item.TmdbId, t('view_tmdb')));
     content.appendChild(links);
 
-    content.appendChild(buildReportSection(item));
+    // Request controls live under the poster (left column) to keep the popup short — except a TV
+    // season picker, which needs the right column's width.
+    var reqTarget = (!item.Available && item.MediaType === 'tv') ? content : requestHost;
 
     // Admin-only "request on behalf of" selector. Applies to every request control in this modal.
     actAsUserId = null;
@@ -937,7 +954,7 @@
       adminSelect.addEventListener('change', function () { actAsUserId = adminSelect.value || null; });
       adminRow.appendChild(adminLabel);
       adminRow.appendChild(adminSelect);
-      content.appendChild(adminRow);
+      reqTarget.appendChild(adminRow);
     }
 
     if (!item.Available) {
@@ -945,13 +962,13 @@
       if (!quotaExceeded) {
         var dateRow = buildDesiredDateRow();
         dateInput = dateRow.input;
-        content.appendChild(dateRow.row);
+        reqTarget.appendChild(dateRow.row);
       }
 
       if (item.MediaType === 'tv') {
         var seasonsEl = document.createElement('div');
         seasonsEl.className = 'jellycrowd-seasons';
-        content.appendChild(seasonsEl);
+        reqTarget.appendChild(seasonsEl);
         Promise.all([
           apiGet('JellyCrowd/Catalog/Seasons/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale())),
           loadRequestedKeys(item.TmdbId)
@@ -959,14 +976,14 @@
           .then(function (res) { renderSeasonRequests(seasonsEl, item, res[0], dateInput, res[1]); })
           .catch(function () { /* seasons are best-effort */ });
       } else if (quotaExceeded) {
-        content.appendChild(blockedRequestButton());
+        reqTarget.appendChild(blockedRequestButton());
       } else {
         var requestButton = document.createElement('button');
         requestButton.className = 'jellycrowd-request';
         requestButton.type = 'button';
         requestButton.textContent = t('request_button');
         requestButton.addEventListener('click', function () { requestItem(item, requestButton, null, dateInput); });
-        content.appendChild(requestButton);
+        reqTarget.appendChild(requestButton);
       }
     } else {
       // Already in the library: offer a visible link into Jellyfin, then let the user claim it into
@@ -1004,11 +1021,11 @@
         });
       });
       actions.appendChild(claimBtn);
-      content.appendChild(actions);
+      reqTarget.appendChild(actions);
       var claimNote = document.createElement('div');
       claimNote.className = 'jellycrowd-request-sub';
       claimNote.textContent = t('claim_quota_warning');
-      content.appendChild(claimNote);
+      reqTarget.appendChild(claimNote);
     }
 
     body.appendChild(content);
@@ -1042,7 +1059,7 @@
           var sagaBtn = document.createElement('button');
           sagaBtn.className = 'jellycrowd-request';
           sagaBtn.type = 'button';
-          sagaBtn.style.margin = '.4em 0 0 .6em'; // breathing room from the plain "Request" button
+          sagaBtn.style.margin = '.5em 0 0'; // stacks under the plain "Request" button (left column)
           sagaBtn.textContent = t('request_saga');
           var sagaPreview = document.createElement('div');
           sagaPreview.className = 'jellycrowd-saga-preview';
@@ -1075,8 +1092,8 @@
               })
               .catch(function () { sagaBtn.disabled = false; sagaBtn.textContent = t('request_saga'); });
           });
-          content.appendChild(sagaBtn);
-          content.appendChild(sagaPreview);
+          reqTarget.appendChild(sagaBtn);
+          reqTarget.appendChild(sagaPreview);
         }
       })
       .catch(function () { /* details are best-effort */ });
