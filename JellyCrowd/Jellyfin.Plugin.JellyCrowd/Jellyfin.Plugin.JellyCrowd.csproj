@@ -9,6 +9,10 @@
     <Nullable>enable</Nullable>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
     <CodeAnalysisRuleSet>../jellyfin.ruleset</CodeAnalysisRuleSet>
+    <!-- Copy NuGet runtime dependencies (MailKit/MimeKit/BouncyCastle) into the build output so the
+         release packaging bundles them in the plugin zip; without this a library build leaves them in
+         the NuGet cache and SMTP fails at runtime with "Could not load file or assembly 'MailKit'". -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
