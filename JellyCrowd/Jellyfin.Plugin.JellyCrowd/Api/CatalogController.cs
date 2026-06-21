@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Mime;
@@ -460,6 +461,8 @@ public class CatalogController : ControllerBase
         ordered = CalendarPlanner.OrderUpcoming(merged, DateTime.UtcNow);
       }
 
+      ordered = await ApplyRequestedMarkersAsync(ordered, useRange ? from : null, useRange ? to : null, cancellationToken).ConfigureAwait(false);
+
       foreach (var item in ordered)
       {
         item.JellyfinItemId = _libraryMatcher.FindItemId(item.MediaType, item.TmdbId);
@@ -547,6 +550,73 @@ public class CatalogController : ControllerBase
   private static bool IsSeedType(string mediaType)
     => string.Equals(mediaType, "movie", StringComparison.Ordinal)
        || string.Equals(mediaType, "tv", StringComparison.Ordinal);
+
+  // Marks calendar items that have an active request from any user (so the UI can colour them), and —
+  // when a date range is given — adds entries for requests scheduled at a future desired date. No
+  // requester identity is exposed; the flag/entry is the aggregate "requested by someone".
+  private async Task<IReadOnlyList<CatalogItem>> ApplyRequestedMarkersAsync(IReadOnlyList<CatalogItem> items, string? from, string? to, CancellationToken cancellationToken)
+  {
+    var all = await _requestStore.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    var active = all
+      .Where(r => r.Status is RequestStatus.Pending or RequestStatus.Approved)
+      .ToList();
+
+    var keys = new HashSet<string>(
+      active.Select(r => r.MediaType + ":" + r.TmdbId.ToString(CultureInfo.InvariantCulture)),
+      StringComparer.Ordinal);
+
+    var list = items.ToList();
+    foreach (var item in list)
+    {
+      // Idempotent (set true OR false) so a cached TMDB item never keeps a stale flag.
+      item.Requested = keys.Contains(item.MediaType + ":" + item.TmdbId.ToString(CultureInfo.InvariantCulture));
+    }
+
+    var fromDate = from is null ? null : RequestScheduling.ParseReleaseDate(from);
+    var toDate = to is null ? null : RequestScheduling.ParseReleaseDate(to);
+    if (fromDate is null || toDate is null)
+    {
+      return list;
+    }
+
+    var existing = new HashSet<string>(
+      list.Select(i => i.MediaType + ":" + i.TmdbId.ToString(CultureInfo.InvariantCulture) + ":" + (i.ReleaseDate ?? string.Empty)),
+      StringComparer.Ordinal);
+    var today = DateTime.UtcNow.Date;
+    var added = false;
+    foreach (var request in active)
+    {
+      if (request.DesiredAt is not { } desired)
+      {
+        continue;
+      }
+
+      var day = desired.Date;
+      if (day <= today || day < fromDate.Value.Date || day > toDate.Value.Date)
+      {
+        continue;
+      }
+
+      var iso = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+      if (!existing.Add(request.MediaType + ":" + request.TmdbId.ToString(CultureInfo.InvariantCulture) + ":" + iso))
+      {
+        continue;
+      }
+
+      list.Add(new CatalogItem
+      {
+        TmdbId = request.TmdbId,
+        MediaType = request.MediaType,
+        Title = request.Title,
+        PosterPath = request.PosterPath,
+        ReleaseDate = iso,
+        Requested = true
+      });
+      added = true;
+    }
+
+    return added ? CalendarPlanner.OrderByDate(list) : list;
+  }
 
   // Episodes airing in the date range for the shows the user cares about: shows they have requested
   // AND shows on their watchlist ("séries suivies"). TMDB has no global episode calendar, so we fetch

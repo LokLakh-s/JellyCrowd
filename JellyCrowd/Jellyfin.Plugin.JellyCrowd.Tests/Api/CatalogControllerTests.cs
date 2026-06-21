@@ -23,6 +23,8 @@ public class CatalogControllerTests
   {
     var store = Mock.Of<IRequestStore>(s =>
       s.GetByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())
+        == Task.FromResult(userRequests ?? new List<RequestRecord>())
+      && s.GetAllAsync(It.IsAny<CancellationToken>())
         == Task.FromResult(userRequests ?? new List<RequestRecord>()));
     var watchlist = Mock.Of<IWatchlistStore>(w =>
       w.GetByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())

@@ -95,4 +95,11 @@ public class CatalogItem
   /// Gets or sets the episode name when this entry represents a specific episode (calendar), else <c>null</c>.
   /// </summary>
   public string? EpisodeName { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether this title has an active request from any user (used by the
+  /// calendar to colour requested releases / future-dated requests differently). No requester identity
+  /// is exposed.
+  /// </summary>
+  public bool Requested { get; set; }
 }
