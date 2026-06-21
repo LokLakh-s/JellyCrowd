@@ -279,6 +279,7 @@
 
 .jellycrowd-comment-input {
   width: 100%;
+  box-sizing: border-box; /* keep the textarea (padding included) inside the popup */
   min-height: 4.5em;
   resize: vertical;
   padding: 0.55em 0.7em;
@@ -595,11 +596,29 @@
   background: linear-gradient(to bottom, rgba(16, 16, 16, 0.55) 0%, rgba(16, 16, 16, 0.92) 45%, #101010 100%);
 }
 
-.jellycrowd-modal-poster {
+.jellycrowd-modal-left {
   width: 32%;
-  max-width: 220px;
+  max-width: 230px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+
+.jellycrowd-modal-poster {
+  width: 100%;
   border-radius: 0.4em;
+}
+
+/* Request / claim controls, stacked under the poster. */
+.jellycrowd-modal-request {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.jellycrowd-modal-request .jellycrowd-request {
+  width: 100%;
 }
 
 .jellycrowd-modal-content {
@@ -613,8 +632,9 @@
     align-items: center;
   }
 
-  .jellycrowd-modal-poster {
-    width: 50%;
+  .jellycrowd-modal-left {
+    width: 60%;
+    max-width: 260px;
   }
 }
 
@@ -980,6 +1000,25 @@
   flex-wrap: wrap;
   gap: 0.4em;
   margin-bottom: 1em;
+}
+
+/* Genres on the left, "Report a problem" pushed to the right of the same line. */
+.jellycrowd-modal-genres-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  margin-bottom: 1em;
+}
+
+.jellycrowd-modal-genres-row .jellycrowd-modal-genres {
+  margin-bottom: 0;
+  flex: 1 1 auto;
+}
+
+.jellycrowd-modal-genres-row .jellycrowd-report-link {
+  margin-left: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .jellycrowd-modal-links {
