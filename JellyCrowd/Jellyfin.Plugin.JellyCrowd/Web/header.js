@@ -107,7 +107,8 @@
         if (configMode && d && d.Visible === true) {
           pluginHidden = false;
         }
-        tryInsert(); // (re-)render now that admin state is known (banner edit affordance, etc.)
+        tryInsert();           // ensure elements are present now that visibility/admin is known
+        refreshAnnouncement(); // re-render the banner to show the admin edit affordance (once, no loop)
       })
       .catch(function () {
         if (attempt < 5) {
@@ -745,16 +746,19 @@
   }
 
   // Announcement banner sits in the header's left area, just after the logo/home button.
+  // IMPORTANT: only build it once. Re-rendering here on every MutationObserver tick would mutate the
+  // DOM and re-trigger the observer in an infinite loop (froze the browser). Content refreshes happen
+  // explicitly via refreshAnnouncement() when the announcement or admin state changes.
   function insertAnnouncement() {
+    if (document.querySelector('.jcHeaderAnnounce')) {
+      return;
+    }
     var host = document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
     if (!host) { return; }
-    var box = document.querySelector('.jcHeaderAnnounce');
-    if (!box) {
-      box = document.createElement('span');
-      box.className = 'jcHeaderAnnounce';
-      box.style.cssText = 'display:inline-flex;align-items:center;gap:.3em;margin:0 .8em;padding:.15em .7em;border-radius:.4em;font-size:.82em;font-weight:600;max-width:40vw;overflow:hidden;';
-      host.appendChild(box);
-    }
+    var box = document.createElement('span');
+    box.className = 'jcHeaderAnnounce';
+    box.style.cssText = 'display:inline-flex;align-items:center;gap:.3em;margin:0 .8em;padding:.15em .7em;border-radius:.4em;font-size:.82em;font-weight:600;max-width:40vw;overflow:hidden;';
+    host.appendChild(box);
     renderAnnouncementInner(box);
   }
 
