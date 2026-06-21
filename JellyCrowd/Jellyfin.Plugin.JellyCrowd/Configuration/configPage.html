@@ -144,6 +144,12 @@
             </div>
 
             <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="MediaExpiryDays">Media ownership expiry (days)</label>
+              <input id="MediaExpiryDays" type="number" is="emby-input" min="0" step="1" />
+              <div class="fieldDescription">A user's ownership of an available title lapses (freeing their quota) this many days after it became available / was last claimed; re-claiming resets the countdown. The file is never auto-deleted (deletion stays on-demand). 0 = never expires.</div>
+            </div>
+
+            <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="AutoApproveMaxSizeGiB">Auto-approve if estimated size ≤ (GiB)</label>
               <input id="AutoApproveMaxSizeGiB" type="number" is="emby-input" min="0" step="0.5" />
               <div class="fieldDescription">When &gt; 0, requests whose estimated size is at or below this are auto-approved even if approval is required. 0 = off. (Uses the estimated movie/episode sizes above.)</div>
@@ -865,6 +871,7 @@ Content-Type: application/json
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
             document.querySelector('#RequestPeriod').value = config.RequestPeriod || 'Week';
             document.querySelector('#DeletionRetentionHours').value = config.DeletionRetentionHours != null ? config.DeletionRetentionHours : 24;
+            document.querySelector('#MediaExpiryDays').value = config.MediaExpiryDays != null ? config.MediaExpiryDays : 90;
             document.querySelector('#AutoApproveMaxSizeGiB').value = (config.AutoApproveMaxSizeBytes || 0) / gib;
             document.querySelector('#AutoApproveGenres').value = (config.AutoApproveGenres || []).join(', ');
             document.querySelector('#DiscordWebhookUrl').value = config.DiscordWebhookUrl || '';
@@ -943,6 +950,7 @@ Content-Type: application/json
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);
             config.RequestPeriod = document.querySelector('#RequestPeriod').value;
             config.DeletionRetentionHours = parseInt(document.querySelector('#DeletionRetentionHours').value || '0', 10);
+            config.MediaExpiryDays = parseInt(document.querySelector('#MediaExpiryDays').value || '0', 10);
             config.AutoApproveMaxSizeBytes = Math.round(parseFloat(document.querySelector('#AutoApproveMaxSizeGiB').value || '0') * gib);
             config.AutoApproveGenres = (document.querySelector('#AutoApproveGenres').value || '')
               .split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });

@@ -39,4 +39,10 @@ public class MediaUsageDto
   /// when a deletion has been requested. Lets the UI show a countdown.
   /// </summary>
   public DateTime? DeletionAt { get; set; }
+
+  /// <summary>
+  /// Gets or sets the UTC time the ownership lapses (became available + the expiry window), when expiry
+  /// is enabled. Lets the UI show an expiry countdown; re-claiming resets it.
+  /// </summary>
+  public DateTime? ExpiresAt { get; set; }
 }

@@ -156,14 +156,17 @@ public class RequestsControllerTests
   }
 
   [Fact]
-  public async Task Claim_AlreadyOwned_ReturnsConflict()
+  public async Task Claim_AlreadyOwned_RenewsInsteadOfDuplicating()
   {
     var store = new FakeRequestStore();
-    await CreateController(store).Claim(ValidDto(), CancellationToken.None);
+    var first = (RequestRecord)((OkObjectResult)(await CreateController(store).Claim(ValidDto(), CancellationToken.None)).Result!).Value!;
 
     var result = await CreateController(store).Claim(ValidDto(), CancellationToken.None);
 
-    Assert.IsType<ConflictObjectResult>(result.Result);
+    // Re-claiming renews the same ownership (resets the expiry countdown), not a duplicate.
+    var renewed = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(first.Id, renewed.Id);
+    Assert.Single(await store.GetByUserAsync(renewed.UserId, CancellationToken.None));
   }
 
   [Fact]
@@ -475,6 +478,24 @@ public class RequestsControllerTests
 
     public Task<int> CountUserRequestsSinceAsync(Guid userId, DateTime sinceUtc, CancellationToken cancellationToken)
       => Task.FromResult(_items.Count(r => r.UserId == userId && r.Status != RequestStatus.Denied && r.RequestedAt >= sinceUtc));
+
+    public Task<RequestRecord?> RenewAvailableAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is not null)
+      {
+        record.AvailableAt = whenUtc;
+        record.DeletionRequestedAt = null;
+      }
+
+      return Task.FromResult(record);
+    }
+
+    public Task<int> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+    {
+      var removed = _items.RemoveAll(r => r.Status == RequestStatus.Available && r.DeletionRequestedAt is null && r.AvailableAt is { } at && at < cutoffUtc);
+      return Task.FromResult(removed);
+    }
 
     public Task<RequestRecord?> MarkAvailableAsync(Guid id, string jellyfinItemId, CancellationToken cancellationToken)
     {

@@ -185,6 +185,55 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<RequestRecord?> RenewAvailableAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null)
+      {
+        return null;
+      }
+
+      record.AvailableAt = whenUtc;
+      record.DeletionRequestedAt = null; // renewing keeps the media
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
+  public async Task<int> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var removed = items.RemoveAll(r =>
+        r.Status == RequestStatus.Available
+        && r.DeletionRequestedAt is null
+        && r.AvailableAt is { } at
+        && at < cutoffUtc);
+      if (removed > 0)
+      {
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+      }
+
+      return removed;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<bool> CancelAsync(Guid id, Guid userId, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
