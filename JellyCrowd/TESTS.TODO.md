@@ -107,6 +107,7 @@
   - [ ] cocher **« approuvées / refusées / échec »** → e-mail sur ces décisions.
   - [ ] cocher **« quota & expiration »** → e-mail quand une requête est **bloquée pour cause de quota**, et quand un média **expire** de ma bibliothèque (tâche de purge).
   - [ ] la **cloche in-app** continue d'afficher toutes les notifs quelle que soit la config e-mail.
+- [ ] **Avis sur la fiche native (M25.2)** : avec « Enable ratings & reviews » activé, ouvrir la **fiche d'un film/série** dans le client Jellyfin natif → un panneau **« Reviews »** apparaît sous la page (moyenne ★ + nb, curseur 1–10 + texte pour poster/mettre à jour, liste anonyme ; admin voit les auteurs). Naviguer vers une autre fiche met à jour le panneau ; une fiche **sans TMDB** ou un **épisode/saison** → pas de panneau. Désactiver l'option → plus de panneau.
 
 ---
 

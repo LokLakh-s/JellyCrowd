@@ -334,7 +334,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 ### M25 — Communauté : commentaires & signalements  ◑ *(livré en partie)*
 
 - ☑ **Commentaires** sur chaque film/série du catalogue, dans le **popup, sous le Synopsis**.
-- ☐ Mêmes commentaires visibles sur chaque **média disponible dans Jellyfin** : **2ᵉ colonne scrollable** ajoutée à côté des détails (synopsis, tags…) — via injection DOM (File Transformation). *(reporté — M25.2)*
+- ☑ **Avis internes (notes + texte) visibles sur la fiche native Jellyfin** (film/série) : panneau « Reviews » injecté via `header.js` (déclenché sur navigation, défensif, gated par CommentsEnabled) — moyenne + saisie 1–10 + liste anonymisée. *(M25.2 — à vérifier en live)*
 - ☑ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée.
 - ☑ Modération admin des commentaires/signalements (masquer/supprimer).
 
