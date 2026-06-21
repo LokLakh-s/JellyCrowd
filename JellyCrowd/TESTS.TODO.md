@@ -101,6 +101,12 @@
 - [ ] **Expiration / propriété (M27)** : « My library » montre « Expire dans … » + bouton **Conserver (renouveler)** (reset 90 j). Régler « Media ownership expiry (days) ».
 - [ ] **Cleanup admin** : Diagnostics → « Library cleanup » → **Scan media** (orphelins) → **Delete** (confirmation) supprime du disque.
 - [ ] **Anti-freeze** : naviguer entre pages/volets ne fige plus le navigateur (régression v0.47.0 corrigée en v0.47.1).
+- [ ] **Notifs e-mail par catégorie (opt-in)** : cloche → ⚙ Réglages. Renseigner une **adresse e-mail** + cocher des catégories (toutes **OFF** par défaut). Avec SMTP admin configuré :
+  - [ ] cocher **« requête classique disponible »** seulement → recevoir l'e-mail quand un titre **déjà sorti** devient dispo, **mais pas** les décisions/quota.
+  - [ ] cocher **« titre demandé avant sortie »** → un titre demandé **avant** sa date de sortie qui devient dispo déclenche l'e-mail (et **pas** un titre déjà sorti).
+  - [ ] cocher **« approuvées / refusées / échec »** → e-mail sur ces décisions.
+  - [ ] cocher **« quota & expiration »** → e-mail quand une requête est **bloquée pour cause de quota**, et quand un média **expire** de ma bibliothèque (tâche de purge).
+  - [ ] la **cloche in-app** continue d'afficher toutes les notifs quelle que soit la config e-mail.
 
 ---
 
