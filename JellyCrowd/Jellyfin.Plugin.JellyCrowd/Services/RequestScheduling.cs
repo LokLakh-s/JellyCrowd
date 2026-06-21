@@ -31,6 +31,19 @@ public static class RequestScheduling
   }
 
   /// <summary>
+  /// Determines whether a request was placed for a not-yet-released title: its effective desired
+  /// fulfillment time was deferred meaningfully past the moment it was requested (because the release
+  /// date was still in the future). Used to route the "available" notice to the right opt-in category.
+  /// </summary>
+  /// <param name="request">The request record.</param>
+  /// <returns><c>true</c> when the request was deferred for a future release.</returns>
+  public static bool WasUnreleasedRequest(Models.RequestRecord request)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    return request.DesiredAt is { } desired && desired > request.RequestedAt.AddHours(12);
+  }
+
+  /// <summary>
   /// Parses a TMDB date string (<c>yyyy-MM-dd</c>) as UTC midnight, or returns <c>null</c>.
   /// </summary>
   /// <param name="releaseDate">The date string.</param>

@@ -16,6 +16,7 @@ public sealed class DeletionTask : IScheduledTask
 {
   private readonly IRequestStore _store;
   private readonly IMediaDeleter _mediaDeleter;
+  private readonly INotificationService _notificationService;
   private readonly Func<PluginConfiguration> _configurationProvider;
   private readonly ILogger<DeletionTask> _logger;
 
@@ -24,12 +25,14 @@ public sealed class DeletionTask : IScheduledTask
   /// </summary>
   /// <param name="store">The request store.</param>
   /// <param name="mediaDeleter">The media deleter.</param>
+  /// <param name="notificationService">The notification service, used to warn owners on expiry.</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
+  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, INotificationService notificationService, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
   {
     _store = store;
     _mediaDeleter = mediaDeleter;
+    _notificationService = notificationService;
     _configurationProvider = configurationProvider;
     _logger = logger;
   }
@@ -90,9 +93,21 @@ public sealed class DeletionTask : IScheduledTask
     {
       var expiryCutoff = DateTime.UtcNow - TimeSpan.FromDays(expiryDays);
       var lapsed = await _store.ExpireOwnershipsAsync(expiryCutoff, cancellationToken).ConfigureAwait(false);
-      if (lapsed > 0)
+      if (lapsed.Count > 0)
       {
-        _logger.LogInformation("Jelly Crowd expiry: lapsed {Count} ownership(s).", lapsed);
+        _logger.LogInformation("Jelly Crowd expiry: lapsed {Count} ownership(s).", lapsed.Count);
+        foreach (var record in lapsed)
+        {
+          var body = $"\"{record.Title}\" has left your library after {expiryDays} days (your quota is freed). Re-add it from the catalog if you still want it.";
+          await _notificationService.NotifyPersonalAsync(
+            record.UserId,
+            Models.PersonalNotifyKind.QuotaExpiry,
+            record.Title,
+            "Media expired from your library",
+            body,
+            record.PosterPath,
+            cancellationToken).ConfigureAwait(false);
+        }
       }
     }
 

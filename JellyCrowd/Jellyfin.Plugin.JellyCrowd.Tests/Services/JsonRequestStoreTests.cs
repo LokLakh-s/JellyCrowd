@@ -238,7 +238,8 @@ public sealed class JsonRequestStoreTests : IDisposable
 
     var removed = await _store.ExpireOwnershipsAsync(DateTime.UtcNow.AddDays(-90), CancellationToken.None);
 
-    Assert.Equal(1, removed);
+    Assert.Single(removed);
+    Assert.Equal(lapsed.Id, removed[0].Id);
     var all = await _store.GetAllAsync(CancellationToken.None);
     Assert.DoesNotContain(all, r => r.Id == lapsed.Id);
     Assert.Equal(3, all.Count);

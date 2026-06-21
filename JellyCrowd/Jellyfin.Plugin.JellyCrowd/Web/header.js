@@ -588,6 +588,31 @@
         var emailInp = field('notif_email', p.Email, 'you@example.com');
         var ntfyInp = field('notif_ntfy_topic', p.NtfyTopic, 'my-topic');
 
+        // Per-category opt-ins for personal (email / ntfy) delivery. The in-app bell stays always-on.
+        var catHead = document.createElement('div');
+        catHead.textContent = t('notif_categories');
+        catHead.style.cssText = 'margin-top:.3em;font-size:.78em;opacity:.7;';
+        form.appendChild(catHead);
+
+        function toggle(labelKey, checked) {
+          var lab = document.createElement('label');
+          lab.style.cssText = 'display:flex;align-items:flex-start;gap:.5em;cursor:pointer;font-size:.85em;';
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = !!checked;
+          var span = document.createElement('span');
+          span.textContent = t(labelKey);
+          lab.appendChild(cb);
+          lab.appendChild(span);
+          form.appendChild(lab);
+          return cb;
+        }
+
+        var unrel = toggle('notif_cat_unreleased', p.NotifyAvailableUnreleased);
+        var rel = toggle('notif_cat_released', p.NotifyAvailableReleased);
+        var dec = toggle('notif_cat_decisions', p.NotifyDecisions);
+        var quo = toggle('notif_cat_quota', p.NotifyQuotaExpiry);
+
         var save = document.createElement('button');
         save.type = 'button';
         save.textContent = t('save');
@@ -598,7 +623,11 @@
           apiAjax('POST', 'JellyCrowd/Notifications/Mine/Prefs', {
             Enabled: ena.checked,
             Email: emailInp.value.trim(),
-            NtfyTopic: ntfyInp.value.trim()
+            NtfyTopic: ntfyInp.value.trim(),
+            NotifyAvailableUnreleased: unrel.checked,
+            NotifyAvailableReleased: rel.checked,
+            NotifyDecisions: dec.checked,
+            NotifyQuotaExpiry: quo.checked
           })
             .then(function () { save.textContent = t('saved'); setTimeout(function () { openBellPanel(panel); }, 700); })
             .catch(function () { save.disabled = false; save.textContent = t('save'); });

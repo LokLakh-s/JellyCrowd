@@ -58,4 +58,15 @@ public class RequestSchedulingTests
   {
     Assert.Null(RequestScheduling.ParseReleaseDate(date));
   }
+
+  [Fact]
+  public void WasUnreleasedRequest_TrueOnlyWhenDeferredPastRequestTime()
+  {
+    var requestedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    Assert.True(RequestScheduling.WasUnreleasedRequest(new Models.RequestRecord { RequestedAt = requestedAt, DesiredAt = requestedAt.AddDays(10) }));
+    Assert.False(RequestScheduling.WasUnreleasedRequest(new Models.RequestRecord { RequestedAt = requestedAt, DesiredAt = requestedAt }));
+    Assert.False(RequestScheduling.WasUnreleasedRequest(new Models.RequestRecord { RequestedAt = requestedAt, DesiredAt = null }));
+    Assert.False(RequestScheduling.WasUnreleasedRequest(new Models.RequestRecord { RequestedAt = requestedAt, DesiredAt = requestedAt.AddHours(1) }));
+  }
 }

@@ -198,11 +198,38 @@ public sealed class NotificationService : INotificationService
       _logger.LogDebug(ex, "Could not store the in-app notification for user {UserId}.", request.UserId);
     }
 
-    await DeliverPersonalAsync(request.UserId, subject, body, cancellationToken).ConfigureAwait(false);
+    var kind = PersonalDelivery.KindFor(notificationEvent, request);
+    await DeliverPersonalAsync(request.UserId, kind, subject, body, cancellationToken).ConfigureAwait(false);
   }
 
-  // Deliver to the user's own channels (email / ntfy), each best-effort.
-  private async Task DeliverPersonalAsync(Guid userId, string subject, string body, CancellationToken cancellationToken)
+  /// <inheritdoc />
+  public async Task NotifyPersonalAsync(Guid userId, PersonalNotifyKind kind, string title, string subject, string body, string? posterPath, CancellationToken cancellationToken)
+  {
+    try
+    {
+      await _userNotifications.AddAsync(
+        new UserNotification
+        {
+          UserId = userId,
+          Event = kind.ToString(),
+          Title = title,
+          Message = body,
+          PosterPath = posterPath
+        },
+        cancellationToken).ConfigureAwait(false);
+    }
+#pragma warning disable CA1031 // In-app notification is best-effort.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogDebug(ex, "Could not store the in-app notification for user {UserId}.", userId);
+    }
+
+    await DeliverPersonalAsync(userId, kind, subject, body, cancellationToken).ConfigureAwait(false);
+  }
+
+  // Deliver to the user's own channels (email / ntfy), each best-effort, gated by their per-category opt-in.
+  private async Task DeliverPersonalAsync(Guid userId, PersonalNotifyKind kind, string subject, string body, CancellationToken cancellationToken)
   {
     var config = Plugin.Instance?.Configuration;
     if (config is null)
@@ -211,7 +238,7 @@ public sealed class NotificationService : INotificationService
     }
 
     var prefs = await _userPrefs.GetAsync(userId, cancellationToken).ConfigureAwait(false);
-    if (!prefs.Enabled)
+    if (!prefs.Enabled || !PersonalDelivery.IsKindEnabled(prefs, kind))
     {
       return;
     }

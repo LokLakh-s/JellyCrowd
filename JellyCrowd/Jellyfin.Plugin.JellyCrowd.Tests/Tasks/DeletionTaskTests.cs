@@ -39,7 +39,7 @@ public sealed class DeletionTaskTests : IDisposable
   {
     var id = await SeedFlaggedAsync("item-abc");
     var deleter = new RecordingDeleter();
-    var task = new DeletionTask(_store, deleter, () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -52,7 +52,7 @@ public sealed class DeletionTaskTests : IDisposable
   {
     var id = await SeedFlaggedAsync("item-xyz");
     var deleter = new RecordingDeleter();
-    var task = new DeletionTask(_store, deleter, () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
