@@ -22,8 +22,14 @@ public class MediaComment
   /// <summary>Gets or sets the author's display name (captured at post time).</summary>
   public string UserName { get; set; } = string.Empty;
 
-  /// <summary>Gets or sets the comment text.</summary>
+  /// <summary>Gets or sets the comment/review text (optional once a rating is given).</summary>
   public string Text { get; set; } = string.Empty;
+
+  /// <summary>
+  /// Gets or sets the user's rating on a 1–10 scale (0 = no rating, e.g. a legacy text-only comment).
+  /// Only ratings &gt; 0 count toward a title's internal average.
+  /// </summary>
+  public int Rating { get; set; }
 
   /// <summary>Gets or sets the UTC creation time.</summary>
   public DateTime CreatedAt { get; set; }

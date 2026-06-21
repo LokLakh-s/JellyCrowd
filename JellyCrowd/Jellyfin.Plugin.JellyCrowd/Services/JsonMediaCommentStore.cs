@@ -51,6 +51,43 @@ public sealed class JsonMediaCommentStore : IMediaCommentStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<MediaComment> AddOrUpdateAsync(MediaComment review, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(review);
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var existing = items.FirstOrDefault(c =>
+        c.UserId == review.UserId
+        && c.TmdbId == review.TmdbId
+        && string.Equals(c.MediaType, review.MediaType, StringComparison.Ordinal));
+
+      if (existing is not null)
+      {
+        existing.Text = review.Text;
+        existing.Rating = review.Rating;
+        existing.UserName = review.UserName;
+        existing.CreatedAt = DateTime.UtcNow;
+        existing.Hidden = false; // a fresh edit un-hides; admin can re-hide
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+        return existing;
+      }
+
+      review.Id = review.Id == Guid.Empty ? Guid.NewGuid() : review.Id;
+      review.CreatedAt = DateTime.UtcNow;
+      items.Add(review);
+      TrimTitle(items, review.MediaType, review.TmdbId);
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return review;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<IReadOnlyList<MediaComment>> GetForTitleAsync(string mediaType, int tmdbId, bool includeHidden, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
