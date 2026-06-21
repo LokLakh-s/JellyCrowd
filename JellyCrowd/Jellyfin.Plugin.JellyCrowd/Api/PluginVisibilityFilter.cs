@@ -35,10 +35,17 @@ public sealed class PluginVisibilityFilter : IAsyncActionFilter
     ArgumentNullException.ThrowIfNull(context);
     ArgumentNullException.ThrowIfNull(next);
 
-    if (_config().HiddenFromUsers && !await _userAccessor.IsAdministratorAsync(context.HttpContext.Request).ConfigureAwait(false))
+    var config = _config();
+    if (config.HiddenFromUsers)
     {
-      context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
-      return;
+      var request = context.HttpContext.Request;
+      var isAdmin = await _userAccessor.IsAdministratorAsync(request).ConfigureAwait(false);
+      var userId = await _userAccessor.GetUserIdAsync(request).ConfigureAwait(false);
+      if (!RequestPolicy.IsVisibleTo(config, userId, isAdmin))
+      {
+        context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
+        return;
+      }
     }
 
     await next().ConfigureAwait(false);

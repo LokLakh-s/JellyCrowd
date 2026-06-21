@@ -278,6 +278,10 @@
       var label = key ? t(key) : s.State;
       if (s.State === 'downloading' || s.State === 'importing') {
         label += ' ' + Math.round(s.Percent || 0) + '%';
+        // Final size is known up front with debrid (RDT) — show it while downloading.
+        if (s.SizeBytes > 0) {
+          label += ' · ' + lib.formatBytes(s.SizeBytes);
+        }
         if (s.TimeLeft) {
           label += ' · ' + s.TimeLeft;
         }

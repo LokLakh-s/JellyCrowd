@@ -220,7 +220,8 @@ public sealed class ServarrStatusService : IServarrStatusService
     RequestId = requestId,
     State = progress.State,
     Percent = progress.Percent,
-    TimeLeft = progress.TimeLeft
+    TimeLeft = progress.TimeLeft,
+    SizeBytes = progress.SizeBytes
   };
 
   private static bool RadarrConfigured(PluginConfiguration config)

@@ -143,7 +143,8 @@ public static class ServarrQueueParser
     {
       State = MapState(GetString(record, "status"), GetString(record, "trackedDownloadState"), GetString(record, "trackedDownloadStatus")),
       Percent = Math.Round(percent),
-      TimeLeft = string.IsNullOrWhiteSpace(timeLeft) ? null : timeLeft
+      TimeLeft = string.IsNullOrWhiteSpace(timeLeft) ? null : timeLeft,
+      SizeBytes = size > 0 ? (long)size : 0
     };
   }
 

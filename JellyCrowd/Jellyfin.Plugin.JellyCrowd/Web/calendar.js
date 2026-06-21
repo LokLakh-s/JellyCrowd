@@ -31,8 +31,11 @@
   var filterCountry = '';
 
   var now = new Date();
-  var viewYear = now.getFullYear();
-  var viewMonth = now.getMonth();
+  var viewMode = 'month';                 // 'month' | 'week' | 'day'
+  var anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // reference date for the view
+  // Month view still keys off the anchor's year/month.
+  function viewYearOf() { return anchor.getFullYear(); }
+  function viewMonthOf() { return anchor.getMonth(); }
 
   function fullLocale() { return lib.contentLocale(cfgLang, navigator.language || 'en-US'); }
   function shortLang() { return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US'); }
@@ -502,11 +505,39 @@
     if (text) { el.textContent = text; el.hidden = false; } else { el.hidden = true; }
   }
 
-  function localeMonth() {
+  function pad2(n) { return n < 10 ? '0' + n : String(n); }
+  function iso(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+
+  // Monday of the week containing d.
+  function weekStart(d) {
+    var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var dow = (x.getDay() + 6) % 7; // 0 = Monday
+    x.setDate(x.getDate() - dow);
+    return x;
+  }
+
+  // The list of dates the current week/day view spans.
+  function currentDays() {
+    if (viewMode === 'day') { return [new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())]; }
+    var ws = weekStart(anchor);
+    var arr = [];
+    for (var i = 0; i < 7; i++) { arr.push(new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + i)); }
+    return arr;
+  }
+
+  function periodLabel() {
     try {
-      return new Intl.DateTimeFormat(fullLocale(), { month: 'long', year: 'numeric' }).format(new Date(viewYear, viewMonth, 1));
+      if (viewMode === 'day') {
+        return new Intl.DateTimeFormat(fullLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(anchor);
+      }
+      if (viewMode === 'week') {
+        var days = currentDays();
+        var f = new Intl.DateTimeFormat(fullLocale(), { day: 'numeric', month: 'short' });
+        return f.format(days[0]) + ' – ' + f.format(days[6]);
+      }
+      return new Intl.DateTimeFormat(fullLocale(), { month: 'long', year: 'numeric' }).format(new Date(viewYearOf(), viewMonthOf(), 1));
     } catch (e) {
-      return viewYear + '-' + (viewMonth + 1);
+      return iso(anchor);
     }
   }
 
@@ -553,6 +584,7 @@
   function renderGrid(byDate) {
     var grid = document.getElementById('jcCalGrid');
     grid.innerHTML = '';
+    grid.classList.remove('jellycrowd-cal-list');
 
     weekdayLabels().forEach(function (label) {
       var head = document.createElement('div');
@@ -562,7 +594,7 @@
     });
 
     var todayIso = lib.isoDate(new Date());
-    lib.buildMonthMatrix(viewYear, viewMonth).forEach(function (week) {
+    lib.buildMonthMatrix(viewYearOf(), viewMonthOf()).forEach(function (week) {
       week.forEach(function (cellDay) {
         var cell = document.createElement('div');
         if (!cellDay) {
@@ -581,17 +613,56 @@
     });
   }
 
-  function monthRange() {
-    function pad(n) { return n < 10 ? '0' + n : String(n); }
-    var lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
-    var mm = pad(viewMonth + 1);
-    return { from: viewYear + '-' + mm + '-01', to: viewYear + '-' + mm + '-' + pad(lastDay) };
+  // Week/Day view: a vertical list of day sections (no horizontal scroll, mobile-friendly).
+  function renderList(days, byDate) {
+    var grid = document.getElementById('jcCalGrid');
+    grid.innerHTML = '';
+    grid.classList.add('jellycrowd-cal-list');
+
+    var todayIso = lib.isoDate(new Date());
+    days.forEach(function (d) {
+      var dayIso = iso(d);
+      var section = document.createElement('div');
+      section.className = 'jellycrowd-cal-day-section' + (dayIso === todayIso ? ' jellycrowd-cal-today' : '');
+
+      var header = document.createElement('div');
+      header.className = 'jellycrowd-cal-day-header';
+      try {
+        header.textContent = new Intl.DateTimeFormat(fullLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+      } catch (e) { header.textContent = dayIso; }
+      section.appendChild(header);
+
+      var items = byDate[dayIso] || [];
+      if (!items.length) {
+        var none = document.createElement('div');
+        none.className = 'jellycrowd-cal-day-empty';
+        none.textContent = t('calendar_no_releases');
+        section.appendChild(none);
+      } else {
+        var box = document.createElement('div');
+        box.className = 'jellycrowd-cal-day-items';
+        items.forEach(function (item) { box.appendChild(dayItem(item)); });
+        section.appendChild(box);
+      }
+
+      grid.appendChild(section);
+    });
+  }
+
+  function rangeFor() {
+    if (viewMode === 'month') {
+      var lastDay = new Date(viewYearOf(), viewMonthOf() + 1, 0).getDate();
+      var mm = pad2(viewMonthOf() + 1);
+      return { from: viewYearOf() + '-' + mm + '-01', to: viewYearOf() + '-' + mm + '-' + pad2(lastDay) };
+    }
+    var days = currentDays();
+    return { from: iso(days[0]), to: iso(days[days.length - 1]) };
   }
 
   function load() {
-    document.getElementById('jcCalMonth').textContent = localeMonth();
+    document.getElementById('jcCalMonth').textContent = periodLabel();
     setMessage(t('loading'));
-    var range = monthRange();
+    var range = rangeFor();
     apiGet('JellyCrowd/Quota/Me')
       .then(function (q) { quotaExceeded = !!(q && !q.Unlimited && q.QuotaBytes > 0 && q.UsedBytes >= q.QuotaBytes); })
       .catch(function () { /* best-effort */ })
@@ -606,15 +677,15 @@
         var byDate = {};
         lib.groupByReleaseDate(items).forEach(function (group) { byDate[group.date] = group.items; });
         setMessage('');
-        renderGrid(byDate);
+        if (viewMode === 'month') { renderGrid(byDate); } else { renderList(currentDays(), byDate); }
       })
       .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
   function step(delta) {
-    viewMonth += delta;
-    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-    else if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    if (viewMode === 'month') { anchor.setMonth(anchor.getMonth() + delta); }
+    else if (viewMode === 'week') { anchor.setDate(anchor.getDate() + delta * 7); }
+    else { anchor.setDate(anchor.getDate() + delta); }
     load();
   }
 
@@ -627,10 +698,26 @@
       document.getElementById('jcCalNext').addEventListener('click', function () { step(1); });
       document.getElementById('jcCalToday').addEventListener('click', function () {
         var d = new Date();
-        viewYear = d.getFullYear();
-        viewMonth = d.getMonth();
+        anchor = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         load();
       });
+
+      // View switcher (Month / Week / Day).
+      function setView(mode) {
+        viewMode = mode;
+        [['Month', 'month'], ['Week', 'week'], ['Day', 'day']].forEach(function (pair) {
+          var b = document.getElementById('jcCalView' + pair[0]);
+          if (b) { b.classList.toggle('jellycrowd-chip-active', pair[1] === mode); }
+        });
+        load();
+      }
+      document.getElementById('jcCalViewMonth').textContent = t('calendar_view_month');
+      document.getElementById('jcCalViewWeek').textContent = t('calendar_view_week');
+      document.getElementById('jcCalViewDay').textContent = t('calendar_view_day');
+      document.getElementById('jcCalViewMonth').addEventListener('click', function () { setView('month'); });
+      document.getElementById('jcCalViewWeek').addEventListener('click', function () { setView('week'); });
+      document.getElementById('jcCalViewDay').addEventListener('click', function () { setView('day'); });
+      document.getElementById('jcCalViewMonth').classList.add('jellycrowd-chip-active');
 
       var langSelect = document.getElementById('jcCalLang');
       fillCodeSelect(langSelect, FILTER_LANGUAGES, 'language', t('filters_language'), filterLanguage);

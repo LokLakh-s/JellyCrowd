@@ -27,4 +27,10 @@ public class DownloadStatusDto
   /// Gets or sets the remaining-time hint as reported by Radarr/Sonarr, if any.
   /// </summary>
   public string? TimeLeft { get; set; }
+
+  /// <summary>
+  /// Gets or sets the total download size in bytes (0 when unknown). Known up front with debrid (RDT),
+  /// so it can be shown while the title is still downloading.
+  /// </summary>
+  public long SizeBytes { get; set; }
 }

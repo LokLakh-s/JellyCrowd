@@ -139,29 +139,43 @@
 ## 8. Régression — Mobile / responsive (rapide)
 
 - 🟨 Ouvrir l'overlay sur **téléphone** : bandeau, onglets, modale, barre de quota lisibles et utilisables.
+  - 🔧 **Overlay** : le fond ne défile plus derrière (body verrouillé tant qu'un volet est ouvert → fin du « scroll fantôme »).
   - Dans le catalogue :
     - la liste de filtres de genres à un scrolling léger alors qu'elle pourrait s'afficher en entière
+      - 🔧 Sur mobile, la liste de genres s'affiche **en entier** (plus de scroll interne).
     - sur les popups des films, la ligne de la review + note est compressée. Rend le bloc "Ta note:" + étoiles + champ commentaire optionnel + bouton "publier l'avis" vertical ?
+      - 🔧 Déjà rendu **vertical** lors de la refonte du popup (étoiles au-dessus, texte pleine largeur, bouton dessous).
     - le bouton Demander peut être à droite de la case de date souhaitée plutot qu'en dessous
+      - ℹ️ Layout du popup revu depuis : la zone Request est sous l'affiche (colonne gauche). À réévaluer en live si encore gênant.
     - j'ouvre un popup de film et appuie sur le bouton Retour du téléphone pour revenir dans la liste des films, il sort de l'application (voir Note de Victor n°3)
+      - ℹ️ Lié à l'architecture overlay (Note #3) — à traiter avec ce sujet.
   - Dans le calendrier :
     - la vue mensuelle sur téléphone est trop compacte, on ne pourrait afficher que les jaquettes en mosaiques pour que les jours soient plus "carrés". Il faudrait proposer une vue hebdo et journalière également.
+      - 🔧 Corrigé : **sélecteur Mois / Semaine / Jour**. Vue **Mois** = mosaïque de jaquettes sur mobile (jours plus carrés). Vues **Semaine** et **Jour** = liste verticale par jour (pas de scroll horizontal). ‹ › et Aujourd'hui naviguent selon la vue active.
     - Actuellement je dois scroller à droite et à gauche en plus d'en haut et en bas pour voir tous les boutons de navigation du calendrier, filtres et le calendrier
+      - 🔧 La barre de navigation **wrappe** (plus de scroll horizontal) ; les vues Semaine/Jour sont verticales.
   - Dans la vue Mes demandes :
     - Les badges des différents statuts chevauchent les titres et jaquettes, s'il y en a plus d'un, en plus de réduire la colonne de titre au max
     - les boutons sortent de l'écran à droite
+      - 🔧 Sur mobile, les lignes (Mes demandes ET Ma bibliothèque) **wrappent** : titre sur sa ligne, badges + boutons passent en dessous (plus de chevauchement ni de débordement à droite).
     - si je scrolle sur téléphone, le bandeau disparait et je vois le contenu jellyfin qui défile à sa place (voir Note de Victor n°3)
+      - 🔧 Corrigé par le verrouillage du scroll du fond (voir §8 overlay ci-dessus).
   - Dans la vue Ma bibliothèque :
     - Les badges des différents statuts chevauchent les titres et jaquettes, s'il y en a plus d'un, en plus de réduire la colonne de titre au max
     - les boutons sortent de l'écran à droite
+      - 🔧 Même correctif que Mes demandes (lignes qui wrappent sur mobile).
   - Dans la navbar, "Ma bibliothèque" est écrit sur deux lignes
+    - 🔧 Corrigé : `white-space:nowrap` sur le libellé (reste sur une ligne).
   - Le volet de notifications sort de l'écran à gauche
+    - 🔧 Corrigé : sur mobile le panneau de notifs s'affiche en pleine largeur (0.5em de marge), jamais hors écran.
   - L'annonce est beaucoup trop compressée pour s'afficher, sans doute lui faudra t'il une ligne pour elle seule sur tel.
+    - 🔧 Corrigé : sur mobile l'annonce passe sur **sa propre ligne** sous le logo (headerLeft wrap) + texte qui peut s'enrouler.
   - Sur le pannel admin :
     - Onglet Requests :
       - Je ne peux pas scroller à droite, donc ne peux pas voir toutes les infos ni approuver les requêtes (pourtant j'ai un ascenseur horizontal apparent)
     - Onglet User quotas :
       - Je ne peux pas scroller à droite, donc ne peux pas voir toutes les infos
+    - 🔧 Corrigé : les tableaux admin (Requests / User quotas / Reports) ont un **conteneur scrollable horizontalement** + largeur min, donc on accède à toutes les colonnes (et au bouton Approuver) sur mobile.
 
 ## 9. Bandeau natif & intégration (custom CSS)
 
@@ -215,10 +229,21 @@
   - [ ] **Films** : la zone Request (date + bouton Demander / saga, ou Open/Add pour un dispo) est **sous l'affiche** (colonne de gauche).
   - [ ] **Séries** : le sélecteur de **saisons** est dans une **section pleine largeur sous le corps** du popup (plus compact en haut).
 
+## 12. Lot de correctifs récents (à revérifier en live)
+
+- [ ] 🔧 **Activer le plugin par utilisateur** : config mode ON → onglet **User quotas** → colonne **Plugin access**. Cocher un user → il revoit le plugin (bandeau + API 200) ; décoché → masqué + API 403. L'admin reste toujours visible.
+- [ ] 🔧 **Boutons admin Requests colorés** : **Approve** (vert) / **Deny** (rouge) bien visibles.
+- [ ] 🔧 **Tableau User quotas, 1ʳᵉ ligne** : alignée comme les autres (avatar = initiales pour les users sans photo, donc plus de décalage dû à la photo de l'admin).
+- [ ] 🔧 **Available + Dispatch failed** : un média devenu disponible n'affiche plus « Dispatch failed » (l'erreur est effacée quand il devient dispo).
+- [ ] 🔧 **Taille finale pendant le téléchargement** : l'écran **Mes demandes** affiche la taille (connue via RDT) à côté du %/ETA.
+- [ ] 🔧 **Popup** : le bouton **⚠ Report a problem** (ligne du titre) ne chevauche plus la croix de fermeture.
+- [ ] 🔧 **Calendrier** : vues **Mois / Semaine / Jour** (voir §8).
+
 ---
 
 ## Notes de Victor
 1. Sur l'écran des requêtes du panel admin, colore les boutons car actuellement on les voit mal. Si tu peux rendre les tableaux Requests et User quotas plus sexy, je prends.
+   - 🔧 Boutons Approve/Deny colorés. (Refonte « plus sexy » des tableaux : optionnel, non fait.)
 2. Colore les boutons de test dans le panneau d'admin car on ne les voit pas.
 3. Le fait que tout soit dans un volet qui recouvre Jellyfin est il obligatoire ? Est possible de tout déplacer sur des pages dédiées ? Ca serait plus fluide pour la navigation (page précédente, pas de scroll fantôme du background). Va t'on perdre des fonctionnalités ? Réponds moi ce avant de bouger sur ce sujet.
 4. Sur l'écran des requêtes, un clic sur le titre ou la jaquette doit ouvrir le popup du média

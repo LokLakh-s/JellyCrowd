@@ -14,6 +14,10 @@
                background: rgba(127, 127, 127, 0.15); color: inherit; }
       .jcTab.jcTabActive { background: #00a4dc; color: #fff; }
       .jcTable { width: 100%; border-collapse: collapse; }
+      /* On narrow screens the admin tables would clip their right columns; let their containers scroll
+         horizontally and keep a usable min width so columns stay legible. */
+      #jcAdminPending, #jcQuotaOverrides, #jcReports { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      #jcAdminPending .jcTable, #jcQuotaOverrides .jcTable, #jcReports .jcTable { min-width: 560px; }
       .jcTable th, .jcTable td { text-align: left; padding: 0.55em 0.8em; border-bottom: 1px solid rgba(127, 127, 127, 0.2); vertical-align: middle; }
       .jcTable th { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; font-weight: 600; }
       .jcTable td.jcColActions { text-align: right; white-space: nowrap; }
@@ -33,6 +37,11 @@
       .jcCreateRow input[type="text"] { min-width: 12em; }
       .jcColActions select, .jcColActions input[type="date"] { margin-right: 0.4em; }
       .jcDangerButton { background: #c0392b; color: #fff; }
+      /* Coloured admin action buttons so Approve/Deny stand out in the requests table. */
+      .jcApproveButton { background: #2e7d32 !important; color: #fff !important; }
+      .jcDenyButton { background: #c0392b !important; color: #fff !important; }
+      .jcApproveButton:hover { background: #357a38 !important; }
+      .jcDenyButton:hover { background: #d24332 !important; }
       .jcHelp { position: relative; display: inline-flex; align-items: center; justify-content: center;
                 width: 1.3em; height: 1.3em; margin-left: 0.4em; border-radius: 50%; cursor: help;
                 background: rgba(127, 127, 127, 0.45); color: #fff; font-size: 0.8em; font-weight: 600; vertical-align: middle; }
@@ -766,7 +775,7 @@ Content-Type: application/json
           table.className = 'jcTable';
           var thead = document.createElement('thead');
           var htr = document.createElement('tr');
-          ['', 'User', 'Quota (GiB)', 'Can request', 'Auto-approve', 'Req/period'].forEach(function (h) {
+          ['', 'User', 'Quota (GiB)', 'Can request', 'Auto-approve', 'Req/period', 'Plugin access'].forEach(function (h) {
             var th = document.createElement('th');
             th.textContent = h;
             htr.appendChild(th);
@@ -780,11 +789,24 @@ Content-Type: application/json
             var tr = document.createElement('tr');
 
             var tdAvatar = document.createElement('td');
-            var avatar = document.createElement('img');
-            avatar.className = 'jcAvatar';
-            try { avatar.src = ApiClient.getUserImageUrl(user.Id, { type: 'Primary' }); } catch (e) { /* no image */ }
-            avatar.addEventListener('error', function () { avatar.style.visibility = 'hidden'; });
-            tdAvatar.appendChild(avatar);
+            // Consistent avatar across rows: an initials circle, overlaid by the user's photo when there
+            // is one (users without a photo previously rendered blank, so the first row — usually the
+            // admin, who has a photo — looked different from the rest).
+            var avatarWrap = document.createElement('div');
+            avatarWrap.className = 'jcAvatar';
+            avatarWrap.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:0.8em;font-weight:600;color:rgba(255,255,255,0.75);overflow:hidden;';
+            avatarWrap.textContent = (user.Name || '?').charAt(0).toUpperCase();
+            var hasImage = false;
+            try { hasImage = !!(user.PrimaryImageTag); } catch (e) { hasImage = false; }
+            if (hasImage) {
+              var avatar = document.createElement('img');
+              avatar.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+              try { avatar.src = ApiClient.getUserImageUrl(user.Id, { type: 'Primary', tag: user.PrimaryImageTag }); } catch (e2) { /* keep initials */ }
+              avatar.addEventListener('error', function () { avatar.remove(); });
+              avatarWrap.textContent = '';
+              avatarWrap.appendChild(avatar);
+            }
+            tdAvatar.appendChild(avatarWrap);
             tr.appendChild(tdAvatar);
 
             var tdName = document.createElement('td');
@@ -841,6 +863,17 @@ Content-Type: application/json
             tdCap.appendChild(capInput);
             tr.appendChild(tdCap);
 
+            // Plugin access: only matters in "config mode" — lets the admin enable the plugin for
+            // specific users while it stays hidden from everyone else.
+            var tdAccess = document.createElement('td');
+            var accessCb = document.createElement('input');
+            accessCb.type = 'checkbox';
+            accessCb.className = 'jc-plugin-access';
+            accessCb.setAttribute('data-userid', user.Id);
+            accessCb.checked = existing.PluginAccess === true;
+            tdAccess.appendChild(accessCb);
+            tr.appendChild(tdAccess);
+
             tbody.appendChild(tr);
           });
 
@@ -881,12 +914,14 @@ Content-Type: application/json
           var quotaEl = document.querySelector('.jc-quota-override[data-userid="' + uid + '"]');
           var autoEl = document.querySelector('.jc-auto-approve[data-userid="' + uid + '"]');
           var capEl = document.querySelector('.jc-req-cap[data-userid="' + uid + '"]');
+          var accessEl = document.querySelector('.jc-plugin-access[data-userid="' + uid + '"]');
           var quotaSet = quotaEl && quotaEl.value !== '' && quotaEl.value !== null;
           var capSet = capEl && capEl.value !== '' && capEl.value !== null;
           var canRequest = canCb.checked;
           var autoApprove = autoEl && autoEl.checked;
+          var pluginAccess = accessEl && accessEl.checked;
           // Only persist an entry when it deviates from the defaults.
-          if (!quotaSet && !capSet && canRequest && !autoApprove) {
+          if (!quotaSet && !capSet && canRequest && !autoApprove && !pluginAccess) {
             return;
           }
           var o = { UserId: uid };
@@ -894,6 +929,7 @@ Content-Type: application/json
           if (!canRequest) { o.CanRequest = false; }
           if (autoApprove) { o.AutoApprove = true; }
           if (capSet) { o.MaxRequestsPerPeriod = parseInt(capEl.value, 10); }
+          if (pluginAccess) { o.PluginAccess = true; }
           result.push(o);
         });
         return result;
@@ -1277,7 +1313,9 @@ Content-Type: application/json
             status.className = 'jcStatus jcStatus-' + statusKey.replace('status_', '');
             status.textContent = t(statusKey);
             tdStatus.appendChild(status);
-            if (request.DispatchError) {
+            // Don't surface a stale dispatch error once the title is available (it's here now).
+            var isAvailable = request.Status === 3 || request.Status === 'Available';
+            if (request.DispatchError && !isAvailable) {
               var dispatchErr = document.createElement('span');
               dispatchErr.className = 'jcStatus jcStatus-denied jcDispatchError';
               dispatchErr.textContent = '⚠ ' + t('dispatch_failed');
@@ -1292,14 +1330,14 @@ Content-Type: application/json
             if (isPending(request)) {
               var approve = document.createElement('button');
               approve.type = 'button';
-              approve.className = 'raised emby-button';
+              approve.className = 'raised emby-button jcApproveButton';
               approve.textContent = t('admin_approve');
               approve.addEventListener('click', function () { decide(request.Id, 'Approve'); });
               tdActions.appendChild(approve);
 
               var deny = document.createElement('button');
               deny.type = 'button';
-              deny.className = 'raised emby-button';
+              deny.className = 'raised emby-button jcDenyButton';
               deny.textContent = t('admin_deny');
               deny.addEventListener('click', function () { decide(request.Id, 'Deny'); });
               tdActions.appendChild(deny);

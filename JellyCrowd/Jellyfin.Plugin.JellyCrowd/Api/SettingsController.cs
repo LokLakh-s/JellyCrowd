@@ -67,7 +67,8 @@ public class SettingsController : ControllerBase
   public async Task<ActionResult<VisibilitySettingDto>> GetVisibility()
   {
     var isAdmin = await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false);
-    var visible = !_config().HiddenFromUsers || isAdmin;
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var visible = Services.RequestPolicy.IsVisibleTo(_config(), userId, isAdmin);
     return Ok(new VisibilitySettingDto { Visible = visible, IsAdmin = isAdmin });
   }
 
