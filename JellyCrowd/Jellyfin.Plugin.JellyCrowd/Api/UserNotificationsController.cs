@@ -25,6 +25,8 @@ public class UserNotificationsController : ControllerBase
   private readonly IUserNotificationStore _store;
   private readonly IUserPrefsStore _prefs;
   private readonly ICurrentUserAccessor _userAccessor;
+  private readonly IActivityLog _activityLog;
+  private readonly Func<Guid, string> _resolveUserName;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="UserNotificationsController"/> class.
@@ -32,11 +34,15 @@ public class UserNotificationsController : ControllerBase
   /// <param name="store">The per-user notification store.</param>
   /// <param name="prefs">The per-user delivery preferences store.</param>
   /// <param name="userAccessor">The current-user accessor.</param>
-  public UserNotificationsController(IUserNotificationStore store, IUserPrefsStore prefs, ICurrentUserAccessor userAccessor)
+  /// <param name="activityLog">The activity log (records preference changes).</param>
+  /// <param name="resolveUserName">Resolves a user id to a display name for log messages.</param>
+  public UserNotificationsController(IUserNotificationStore store, IUserPrefsStore prefs, ICurrentUserAccessor userAccessor, IActivityLog activityLog, Func<Guid, string> resolveUserName)
   {
     _store = store;
     _prefs = prefs;
     _userAccessor = userAccessor;
+    _activityLog = activityLog;
+    _resolveUserName = resolveUserName;
   }
 
   /// <summary>
@@ -123,6 +129,7 @@ public class UserNotificationsController : ControllerBase
         NotifyQuotaExpiry = dto?.NotifyQuotaExpiry ?? false
       },
       cancellationToken).ConfigureAwait(false);
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " updated their notification preferences", CancellationToken.None);
     return Ok(saved);
   }
 

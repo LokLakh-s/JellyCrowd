@@ -75,6 +75,8 @@ public class PluginConfiguration : BasePluginConfiguration
     DownloadWebhookHeaders = string.Empty;
     RadarrUrl = string.Empty;
     RadarrApiKey = string.Empty;
+    ProwlarrUrl = string.Empty;
+    ProwlarrApiKey = string.Empty;
     RadarrRootFolderPath = string.Empty;
     RadarrQualityProfileId = 0;
     SonarrUrl = string.Empty;
@@ -100,6 +102,13 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets a value indicating whether new requests require admin approval before fulfillment.
   /// </summary>
   public bool RequireApproval { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether regular users may trigger a manual "retry search" on their
+  /// approved requests. Off by default: Radarr/Sonarr already search automatically, so the button is
+  /// admin-only unless this is enabled.
+  /// </summary>
+  public bool AllowUserRetrySearch { get; set; }
 
   /// <summary>
   /// Gets or sets the estimated size (in bytes) of a movie, used for quota pre-checks before the real size is known.
@@ -366,6 +375,17 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the Radarr API key.
   /// </summary>
   public string RadarrApiKey { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Prowlarr base URL (e.g. <c>http://localhost:9696</c>). Optional — used only by the
+  /// Diagnostics indexer check to report Prowlarr's own enabled-indexer count (the upstream source).
+  /// </summary>
+  public string ProwlarrUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Prowlarr API key.
+  /// </summary>
+  public string ProwlarrApiKey { get; set; }
 
   /// <summary>
   /// Gets or sets the Radarr root folder path new movies are added under.

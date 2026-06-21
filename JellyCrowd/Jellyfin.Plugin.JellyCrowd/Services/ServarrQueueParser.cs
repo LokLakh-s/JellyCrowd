@@ -37,6 +37,33 @@ public static class ServarrQueueParser
   }
 
   /// <summary>
+  /// Finds the Radarr queue record ids for a given TMDB movie, so the active download can be removed
+  /// from the download client on cancel (deleting the movie alone leaves the grab running, e.g. in RDT).
+  /// </summary>
+  /// <param name="json">The raw Radarr <c>/queue?includeMovie=true</c> payload.</param>
+  /// <param name="tmdbId">The TMDB movie id to match.</param>
+  /// <returns>The matching queue record ids.</returns>
+  public static IReadOnlyList<int> ParseMovieQueueRecordIds(string json, int tmdbId)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+    var ids = new List<int>();
+    using var doc = JsonDocument.Parse(json);
+    foreach (var record in Records(doc))
+    {
+      if (record.TryGetProperty("movie", out var movie)
+          && movie.ValueKind == JsonValueKind.Object
+          && TryGetInt(movie, "tmdbId", out var t)
+          && t == tmdbId
+          && TryGetInt(record, "id", out var recordId))
+      {
+        ids.Add(recordId);
+      }
+    }
+
+    return ids;
+  }
+
+  /// <summary>
   /// Parses a Sonarr queue payload into per-episode progress items carrying their series TVDB id.
   /// </summary>
   /// <param name="json">The raw <c>/queue?includeSeries=true&amp;includeEpisode=true</c> payload.</param>

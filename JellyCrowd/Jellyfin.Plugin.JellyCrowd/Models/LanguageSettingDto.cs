@@ -22,6 +22,11 @@ public class LanguageSettingDto
   /// </summary>
   public bool CommentsEnabled { get; set; }
 
+  /// <summary>
+  /// Gets or sets a value indicating whether regular users may trigger a manual "retry search" (admin opt-in).
+  /// </summary>
+  public bool AllowUserRetrySearch { get; set; }
+
   /// <summary>Gets or sets the admin announcement banner text (empty = no banner).</summary>
   public string AnnouncementText { get; set; } = string.Empty;
 

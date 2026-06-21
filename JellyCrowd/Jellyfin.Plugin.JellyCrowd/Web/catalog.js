@@ -877,10 +877,15 @@
     var content = document.createElement('div');
     content.className = 'jellycrowd-modal-content';
 
+    // Title on the left, "Report a problem" pushed to the right of the same line.
+    var titleRow = document.createElement('div');
+    titleRow.className = 'jellycrowd-modal-title-row';
     var title = document.createElement('h2');
     title.className = 'jellycrowd-modal-title';
     title.textContent = lib.formatTitle(item);
-    content.appendChild(title);
+    titleRow.appendChild(title);
+    titleRow.appendChild(buildReportSection(item, titleRow));
+    content.appendChild(titleRow);
 
     var meta = document.createElement('div');
     meta.className = 'jellycrowd-modal-meta';
@@ -898,14 +903,9 @@
     content.appendChild(meta);
     meta.appendChild(watchlistStar(item, true));
 
-    // Genres on the left, "Report a problem" pushed to the right of the same line.
-    var genresRow = document.createElement('div');
-    genresRow.className = 'jellycrowd-modal-genres-row';
     var genresEl = document.createElement('div');
     genresEl.className = 'jellycrowd-modal-genres';
-    genresRow.appendChild(genresEl);
-    genresRow.appendChild(buildReportSection(item, genresRow));
-    content.appendChild(genresRow);
+    content.appendChild(genresEl);
 
     var overview = document.createElement('p');
     overview.className = 'jellycrowd-modal-overview';
@@ -930,8 +930,14 @@
     content.appendChild(links);
 
     // Request controls live under the poster (left column) to keep the popup short — except a TV
-    // season picker, which needs the right column's width.
-    var reqTarget = (!item.Available && item.MediaType === 'tv') ? content : requestHost;
+    // season picker, which needs full width: it goes in its own section spanning under the body.
+    var seasonsSection = null;
+    var reqTarget = requestHost;
+    if (!item.Available && item.MediaType === 'tv') {
+      seasonsSection = document.createElement('div');
+      seasonsSection.className = 'jellycrowd-modal-seasons-section';
+      reqTarget = seasonsSection;
+    }
 
     // Admin-only "request on behalf of" selector. Applies to every request control in this modal.
     actAsUserId = null;
@@ -1100,6 +1106,7 @@
 
     modal.appendChild(close);
     modal.appendChild(body);
+    if (seasonsSection) { modal.appendChild(seasonsSection); } // full-width TV season picker under the body
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 

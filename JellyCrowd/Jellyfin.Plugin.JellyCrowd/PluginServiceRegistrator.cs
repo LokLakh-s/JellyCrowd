@@ -82,5 +82,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
 
     serviceCollection.AddHostedService<WebInjectionService>();
     serviceCollection.AddHostedService<LibraryEventEntryPoint>();
+    serviceCollection.AddHostedService<ConfigChangeLogger>();
   }
 }

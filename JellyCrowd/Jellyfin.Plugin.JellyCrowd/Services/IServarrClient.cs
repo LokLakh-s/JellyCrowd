@@ -145,4 +145,27 @@ public interface IServarrClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when the movie is removed.</returns>
   Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Removes a queue item (<c>DELETE /api/v3/queue/{id}</c>), optionally also removing the active
+  /// download from the download client — needed so a cancel actually stops the grab (e.g. in RDT).
+  /// </summary>
+  /// <param name="baseUrl">The Radarr/Sonarr base URL.</param>
+  /// <param name="apiKey">The API key.</param>
+  /// <param name="queueItemId">The queue record id.</param>
+  /// <param name="removeFromClient">Whether to also remove the download from the download client.</param>
+  /// <param name="blocklist">Whether to blocklist the release.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the queue item is removed.</returns>
+  Task DeleteQueueItemAsync(string baseUrl, string apiKey, int queueItemId, bool removeFromClient, bool blocklist, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets Prowlarr's raw indexers JSON (<c>GET /api/v1/indexer</c>) for the Diagnostics indexer check.
+  /// Prowlarr is the upstream indexer manager, on a different API version than Radarr/Sonarr.
+  /// </summary>
+  /// <param name="baseUrl">The Prowlarr base URL.</param>
+  /// <param name="apiKey">The Prowlarr API key.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The raw indexers JSON.</returns>
+  Task<string> GetProwlarrIndexersAsync(string baseUrl, string apiKey, CancellationToken cancellationToken);
 }

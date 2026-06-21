@@ -73,7 +73,8 @@ public sealed class DiagnosticsService : IDiagnosticsService
     return results;
   }
 
-  // Confirms at least one indexer is enabled on the configured *arr instance (search source).
+  // Reports the enabled-indexer count for each configured *arr instance (Radarr and Sonarr) — these
+  // are typically synced from Prowlarr, which is the upstream source but isn't queried directly here.
   private async Task<DiagnosticResult?> CheckIndexersAsync(PluginConfiguration config, CancellationToken cancellationToken)
   {
     if (!string.Equals(config.DownloadBackend, "servarr", StringComparison.OrdinalIgnoreCase))
@@ -81,33 +82,73 @@ public sealed class DiagnosticsService : IDiagnosticsService
       return null;
     }
 
-    var (label, baseUrl, apiKey) =
-      !string.IsNullOrWhiteSpace(config.RadarrUrl) && !string.IsNullOrWhiteSpace(config.RadarrApiKey)
-        ? ("Radarr", config.RadarrUrl, config.RadarrApiKey)
-        : !string.IsNullOrWhiteSpace(config.SonarrUrl) && !string.IsNullOrWhiteSpace(config.SonarrApiKey)
-          ? ("Sonarr", config.SonarrUrl, config.SonarrApiKey)
-          : (string.Empty, string.Empty, string.Empty);
+    // (Label, Url, Key, IsProwlarr) — Prowlarr is the upstream indexer manager on a different API version.
+    var instances = new List<(string Label, string Url, string Key, bool IsProwlarr)>();
+    if (!string.IsNullOrWhiteSpace(config.ProwlarrUrl) && !string.IsNullOrWhiteSpace(config.ProwlarrApiKey))
+    {
+      instances.Add(("Prowlarr", config.ProwlarrUrl, config.ProwlarrApiKey, true));
+    }
 
-    if (label.Length == 0)
+    if (!string.IsNullOrWhiteSpace(config.RadarrUrl) && !string.IsNullOrWhiteSpace(config.RadarrApiKey))
+    {
+      instances.Add(("Radarr", config.RadarrUrl, config.RadarrApiKey, false));
+    }
+
+    if (!string.IsNullOrWhiteSpace(config.SonarrUrl) && !string.IsNullOrWhiteSpace(config.SonarrApiKey))
+    {
+      instances.Add(("Sonarr", config.SonarrUrl, config.SonarrApiKey, false));
+    }
+
+    if (instances.Count == 0)
     {
       return null;
     }
 
-    try
+    var parts = new List<string>();
+    var worst = "ok";
+    foreach (var (label, baseUrl, apiKey, isProwlarr) in instances)
     {
-      var json = await _servarr.GetIndexersAsync(baseUrl, apiKey, cancellationToken).ConfigureAwait(false);
-      var enabled = ServarrIndexerParser.CountEnabled(json);
-      return enabled > 0
-        ? Result("Indexers", "ok", string.Format(CultureInfo.InvariantCulture, "{0}: {1} indexer(s) enabled.", label, enabled))
-        : Result("Indexers", "warning", label + ": no enabled indexer — searches will find nothing. Add one (e.g. via Prowlarr).");
-    }
+      try
+      {
+        var json = isProwlarr
+          ? await _servarr.GetProwlarrIndexersAsync(baseUrl, apiKey, cancellationToken).ConfigureAwait(false)
+          : await _servarr.GetIndexersAsync(baseUrl, apiKey, cancellationToken).ConfigureAwait(false);
+        var enabled = ServarrIndexerParser.CountEnabled(json);
+        parts.Add(string.Format(CultureInfo.InvariantCulture, "{0}: {1} enabled", label, enabled));
+        if (enabled == 0)
+        {
+          worst = Worse(worst, "warning");
+        }
+      }
 #pragma warning disable CA1031 // Diagnostics must report any failure, not throw.
-    catch (Exception ex)
+      catch (Exception ex)
 #pragma warning restore CA1031
-    {
-      _logger.LogDebug(ex, "Indexer diagnostic failed.");
-      return Result("Indexers", "error", label + ": could not read indexers: " + ex.Message);
+      {
+        _logger.LogDebug(ex, "Indexer diagnostic failed for {Label}.", label);
+        parts.Add(label + ": error (" + ex.Message + ")");
+        worst = Worse(worst, "error");
+      }
     }
+
+    var detail = string.Join(" · ", parts);
+    if (string.IsNullOrWhiteSpace(config.ProwlarrUrl))
+    {
+      detail += " (indexers are managed in Prowlarr and synced here)";
+    }
+
+    if (worst == "warning")
+    {
+      detail += " — an instance has no enabled indexer; its searches find nothing.";
+    }
+
+    return Result("Indexers", worst, detail);
+  }
+
+  // Returns the more severe of two statuses (error > warning > ok).
+  private static string Worse(string a, string b)
+  {
+    static int Rank(string s) => string.Equals(s, "error", StringComparison.Ordinal) ? 2 : string.Equals(s, "warning", StringComparison.Ordinal) ? 1 : 0;
+    return Rank(b) > Rank(a) ? b : a;
   }
 
   // Rough projection: bytes/request from the requests store, applied to the last 30 days' volume,

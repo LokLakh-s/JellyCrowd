@@ -110,6 +110,14 @@
               <div class="fieldDescription">When enabled, every request stays pending until an administrator approves or denies it. When disabled, requests are auto-approved — except those exceeding the user's disk quota, which are held as pending for you to arbitrate.</div>
             </div>
 
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="AllowUserRetrySearch" name="AllowUserRetrySearch" type="checkbox" is="emby-checkbox" />
+                <span>Let users retry the search themselves</span>
+              </label>
+              <div class="fieldDescription">When enabled, regular users get a "Retry search" button on their approved requests. Off by default — Radarr/Sonarr already search automatically, so the button stays admin-only.</div>
+            </div>
+
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="EstimatedMovieSizeGiB">Estimated movie size (GiB)</label>
               <input id="EstimatedMovieSizeGiB" name="EstimatedMovieSizeGiB" type="number" is="emby-input" min="0" step="0.5" />
@@ -427,6 +435,17 @@ Content-Type: application/json
                 <label class="selectLabel" for="SonarrLanguageProfile">Sonarr language profile (Sonarr v3 only)</label>
                 <select is="emby-select" id="SonarrLanguageProfile" class="emby-select-withcolor emby-select"></select>
               </div>
+
+              <h3 class="sectionTitle">Prowlarr (indexers, optional)</h3>
+              <div class="fieldDescription">Optional. Only used by the Diagnostics tab to report Prowlarr's own enabled-indexer count (Prowlarr is the upstream indexer manager that syncs indexers to Radarr/Sonarr).</div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="ProwlarrUrl">Prowlarr URL</label>
+                <input id="ProwlarrUrl" type="text" is="emby-input" placeholder="http://localhost:9696" />
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="ProwlarrApiKey">Prowlarr API key</label>
+                <input id="ProwlarrApiKey" type="password" is="emby-input" />
+              </div>
             </div>
 
             <div id="jcScriptFields">
@@ -569,10 +588,10 @@ Content-Type: application/json
               var row = document.createElement('div');
               row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:baseline;';
               var name = document.createElement('span');
-              name.style.cssText = 'font-weight:600;min-width:11em;';
+              name.style.cssText = 'font-weight:600;min-width:15em;flex:0 0 auto;';
               name.textContent = (icons[r.Status] || '•') + ' ' + r.Name;
               var detail = document.createElement('span');
-              detail.style.cssText = 'opacity:.85;';
+              detail.style.cssText = 'opacity:.85;flex:1 1 auto;min-width:0;';
               detail.textContent = r.Detail;
               row.appendChild(name);
               row.appendChild(detail);
@@ -893,6 +912,14 @@ Content-Type: application/json
       document.querySelector('#jcLogRefresh').addEventListener('click', jcLoadLogs);
       document.querySelector('#jcLogCategory').addEventListener('change', jcLoadLogs);
       document.querySelector('#jcLogLevel').addEventListener('change', jcLoadLogs);
+      // The search box now filters on Enter, and live (debounced) as you type — previously it only
+      // applied when clicking Refresh, so pressing Enter "did nothing".
+      (function () {
+        var debounce;
+        var search = document.querySelector('#jcLogSearch');
+        search.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debounce); jcLoadLogs(); } });
+        search.addEventListener('input', function () { clearTimeout(debounce); debounce = setTimeout(jcLoadLogs, 350); });
+      })();
 
       document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
@@ -917,6 +944,7 @@ Content-Type: application/json
             document.querySelector('#TmdbApiKey').value = config.TmdbApiKey || '';
             document.querySelector('#DefaultUserQuotaGiB').value = (config.DefaultUserQuotaBytes || 0) / gib;
             document.querySelector('#RequireApproval').checked = !!config.RequireApproval;
+            document.querySelector('#AllowUserRetrySearch').checked = !!config.AllowUserRetrySearch;
             document.querySelector('#HiddenFromUsers').checked = !!config.HiddenFromUsers;
             document.querySelector('#RateLimitPerMinute').value = config.RateLimitPerMinute != null ? config.RateLimitPerMinute : 120;
             document.querySelector('#CommentsEnabled').checked = !!config.CommentsEnabled;
@@ -970,6 +998,8 @@ Content-Type: application/json
             document.querySelector('#RadarrApiKey').value = config.RadarrApiKey || '';
             document.querySelector('#SonarrUrl').value = config.SonarrUrl || '';
             document.querySelector('#SonarrApiKey').value = config.SonarrApiKey || '';
+            document.querySelector('#ProwlarrUrl').value = config.ProwlarrUrl || '';
+            document.querySelector('#ProwlarrApiKey').value = config.ProwlarrApiKey || '';
             document.querySelector('#ScriptPath').value = config.ScriptPath || '';
             document.querySelector('#ScriptArguments').value = config.ScriptArguments || '';
             // Seed each folder/profile select with the saved value (kept across reload until "Connect"
@@ -996,6 +1026,7 @@ Content-Type: application/json
             config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
             config.DefaultUserQuotaBytes = Math.round(parseFloat(document.querySelector('#DefaultUserQuotaGiB').value || '0') * gib);
             config.RequireApproval = document.querySelector('#RequireApproval').checked;
+            config.AllowUserRetrySearch = document.querySelector('#AllowUserRetrySearch').checked;
             config.HiddenFromUsers = document.querySelector('#HiddenFromUsers').checked;
             config.RateLimitPerMinute = parseInt(document.querySelector('#RateLimitPerMinute').value || '0', 10);
             config.CommentsEnabled = document.querySelector('#CommentsEnabled').checked;
@@ -1055,6 +1086,8 @@ Content-Type: application/json
             config.SonarrRootFolderPath = document.querySelector('#SonarrRootFolder').value;
             config.SonarrQualityProfileId = parseInt(document.querySelector('#SonarrQualityProfile').value || '0', 10);
             config.SonarrLanguageProfileId = parseInt(document.querySelector('#SonarrLanguageProfile').value || '0', 10);
+            config.ProwlarrUrl = document.querySelector('#ProwlarrUrl').value;
+            config.ProwlarrApiKey = document.querySelector('#ProwlarrApiKey').value;
             config.ScriptPath = document.querySelector('#ScriptPath').value;
             config.ScriptArguments = document.querySelector('#ScriptArguments').value;
             config.QuotaOverrides = collectQuotaOverrides();

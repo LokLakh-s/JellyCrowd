@@ -30,6 +30,8 @@ public class RequestsController : ControllerBase
   private readonly IServarrStatusService _servarrStatus;
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly ITmdbClient _tmdbClient;
+  private readonly IActivityLog _activityLog;
+  private readonly Func<Guid, string> _resolveUserName;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="RequestsController"/> class.
@@ -42,6 +44,8 @@ public class RequestsController : ControllerBase
   /// <param name="servarrStatus">The live download-status service (Radarr/Sonarr queue).</param>
   /// <param name="libraryMatcher">The library matcher (resolves the Jellyfin item for a claim).</param>
   /// <param name="tmdbClient">The TMDB client (resolves genres for genre-based auto-approval).</param>
+  /// <param name="activityLog">The activity log (records user actions).</param>
+  /// <param name="resolveUserName">Resolves a user id to a display name for log messages.</param>
   public RequestsController(
     IRequestStore store,
     ICurrentUserAccessor userAccessor,
@@ -50,7 +54,9 @@ public class RequestsController : ControllerBase
     IDownloadDispatcher downloadDispatcher,
     IServarrStatusService servarrStatus,
     ILibraryMatcher libraryMatcher,
-    ITmdbClient tmdbClient)
+    ITmdbClient tmdbClient,
+    IActivityLog activityLog,
+    Func<Guid, string> resolveUserName)
   {
     _store = store;
     _userAccessor = userAccessor;
@@ -60,6 +66,8 @@ public class RequestsController : ControllerBase
     _servarrStatus = servarrStatus;
     _libraryMatcher = libraryMatcher;
     _tmdbClient = tmdbClient;
+    _activityLog = activityLog;
+    _resolveUserName = resolveUserName;
   }
 
   /// <summary>
@@ -243,6 +251,7 @@ public class RequestsController : ControllerBase
       },
       cancellationToken).ConfigureAwait(false);
 
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " added " + created.Title + " to their library", CancellationToken.None);
     return Ok(created);
   }
 
@@ -342,7 +351,13 @@ public class RequestsController : ControllerBase
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var updated = await _store.RequestDeletionAsync(id, userId, cancellationToken).ConfigureAwait(false);
-    return updated is null ? NotFound() : Ok(updated);
+    if (updated is null)
+    {
+      return NotFound();
+    }
+
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " requested deletion of " + updated.Title, CancellationToken.None);
+    return Ok(updated);
   }
 
   /// <summary>
@@ -377,7 +392,13 @@ public class RequestsController : ControllerBase
     }
 
     var updated = await _store.CancelDeletionAsync(id, userId, cancellationToken).ConfigureAwait(false);
-    return updated is null ? NotFound() : Ok(updated);
+    if (updated is null)
+    {
+      return NotFound();
+    }
+
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " cancelled deletion of " + updated.Title, CancellationToken.None);
+    return Ok(updated);
   }
 
   /// <summary>
@@ -429,6 +450,14 @@ public class RequestsController : ControllerBase
   public async Task<ActionResult<RequestRecord>> Retry(Guid id, CancellationToken cancellationToken)
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+
+    // Manual retry is admin-only unless the admin has opted users in (Radarr/Sonarr already auto-search).
+    var isAdmin = await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false);
+    if (!isAdmin && !(Plugin.Instance?.Configuration.AllowUserRetrySearch ?? false))
+    {
+      return Forbid();
+    }
+
     var existing = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
     if (existing is null || existing.UserId != userId)
     {

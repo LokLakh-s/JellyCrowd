@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Api;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
+using Jellyfin.Plugin.JellyCrowd.Tests.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
@@ -19,9 +20,9 @@ public class RequestsControllerTests
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null)
+  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User), new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient())
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -244,10 +245,23 @@ public class RequestsControllerTests
     await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
     var dispatcher = new FakeDownloadDispatcher();
 
-    var result = await CreateController(store, User, dispatcher: dispatcher).Retry(created.Id, CancellationToken.None);
+    var result = await CreateController(store, User, dispatcher: dispatcher, isAdmin: true).Retry(created.Id, CancellationToken.None);
 
     Assert.IsType<OkObjectResult>(result.Result);
     Assert.Contains(created.Id, dispatcher.Retried);
+  }
+
+  [Fact]
+  public async Task Retry_NonAdmin_WhenNotAllowed_ReturnsForbidden()
+  {
+    var store = new FakeRequestStore();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+    await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+
+    // No Plugin.Instance in tests => AllowUserRetrySearch defaults false, and the caller is not admin.
+    var result = await CreateController(store, User).Retry(created.Id, CancellationToken.None);
+
+    Assert.IsType<ForbidResult>(result.Result);
   }
 
   [Fact]
@@ -257,7 +271,7 @@ public class RequestsControllerTests
     var created = (RequestRecord)((OkObjectResult)(await CreateController(store, User).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
     await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
 
-    var result = await CreateController(store, Guid.NewGuid()).Retry(created.Id, CancellationToken.None);
+    var result = await CreateController(store, Guid.NewGuid(), isAdmin: true).Retry(created.Id, CancellationToken.None);
 
     Assert.IsType<NotFoundResult>(result.Result);
   }
@@ -268,7 +282,7 @@ public class RequestsControllerTests
     var store = new FakeRequestStore();
     var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
 
-    var result = await CreateController(store).Retry(created.Id, CancellationToken.None);
+    var result = await CreateController(store, isAdmin: true).Retry(created.Id, CancellationToken.None);
 
     Assert.IsType<ConflictObjectResult>(result.Result);
   }
@@ -369,12 +383,17 @@ public class RequestsControllerTests
   private sealed class FakeUserAccessor : ICurrentUserAccessor
   {
     private readonly Guid _userId;
+    private readonly bool _isAdmin;
 
-    public FakeUserAccessor(Guid userId) => _userId = userId;
+    public FakeUserAccessor(Guid userId, bool isAdmin = false)
+    {
+      _userId = userId;
+      _isAdmin = isAdmin;
+    }
 
     public Task<Guid> GetUserIdAsync(HttpRequest request) => Task.FromResult(_userId);
 
-    public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(false);
+    public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(_isAdmin);
   }
 
   private sealed class FakeQuotaService : IQuotaService
