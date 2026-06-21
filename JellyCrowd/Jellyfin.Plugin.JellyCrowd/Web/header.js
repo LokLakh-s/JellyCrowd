@@ -80,6 +80,7 @@
 
   var configMode = false;     // raw "config mode" flag (hidden from non-admins)
   var isAdmin = false;        // current user is an administrator (resolved server-side)
+  var commentsEnabled = false; // admin opt-in: show internal reviews on the native detail page
   var announcement = { text: '', level: 'green' };
 
   function loadConfigLang() {
@@ -92,6 +93,7 @@
         if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); }
         configMode = !!(d && d.Hidden === true);
         pluginHidden = configMode; // fail closed while config mode is on
+        commentsEnabled = !!(d && d.CommentsEnabled === true);
         if (d) { announcement = { text: d.AnnouncementText || '', level: d.AnnouncementLevel || 'green' }; }
       })
       .catch(function () { /* keep defaults on failure */ });
@@ -840,6 +842,171 @@
     insertAnnouncement();
   }
 
+  // ---------- Internal reviews on the native Jellyfin detail page (M25.2) ----------
+  // Admin opt-in (CommentsEnabled). The native detail DOM is not a contract, so this is defensive:
+  // it fails silently when it can't find an anchor or resolve a TMDB id, and never loops.
+  var detailReviewsLoadedId = null;   // item id we've rendered reviews for
+  var detailReviewsPendingId = null;  // item id whose reviews are being fetched
+
+  function currentDetailItemId() {
+    var h = window.location.hash || '';
+    var m = h.match(/[?&]id=([a-f0-9]{32})/i);
+    return m ? m[1] : null;
+  }
+
+  function removeDetailReviews() {
+    var el = document.getElementById('jcDetailReviews');
+    if (el && el.parentNode) { el.parentNode.removeChild(el); }
+    detailReviewsLoadedId = null;
+    detailReviewsPendingId = null;
+  }
+
+  // A compact gold/grey star row for a 1–10 rating (each star = 2 points; rounded to nearest star).
+  function reviewStarRow(value10) {
+    var span = document.createElement('span');
+    var full = Math.round(value10 / 2);
+    if (full < 0) { full = 0; }
+    if (full > 5) { full = 5; }
+    span.textContent = '★★★★★'.slice(0, full) + '☆☆☆☆☆'.slice(0, 5 - full);
+    span.style.cssText = 'color:#f5c518;letter-spacing:1px;';
+    return span;
+  }
+
+  function buildDetailReviewsPanel(item, dto) {
+    dto = dto || { Average: 0, Count: 0, Reviews: [] };
+    var panel = document.createElement('div');
+    panel.id = 'jcDetailReviews';
+    panel.style.cssText = 'margin:1.5em 0;padding:1em 1.2em;border-radius:.5em;background:rgba(255,255,255,.05);max-width:900px;';
+
+    var title = document.createElement('h2');
+    title.textContent = t('reviews');
+    title.style.cssText = 'margin:0 0 .5em;font-size:1.2em;';
+    panel.appendChild(title);
+
+    var avg = document.createElement('div');
+    avg.style.cssText = 'display:flex;align-items:center;gap:.5em;margin-bottom:.8em;';
+    if (dto.Count > 0) {
+      avg.appendChild(reviewStarRow(dto.Average));
+      var num = document.createElement('span');
+      num.textContent = dto.Average.toFixed(1) + '/10 · ' + dto.Count + ' ' + t('ratings_count');
+      num.style.opacity = '.8';
+      avg.appendChild(num);
+    } else {
+      var none = document.createElement('span');
+      none.textContent = t('reviews_none');
+      none.style.opacity = '.7';
+      avg.appendChild(none);
+    }
+    panel.appendChild(avg);
+
+    // Your rating (1–10) + optional text.
+    var form = document.createElement('div');
+    form.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:.6em;margin-bottom:1em;';
+    var mine = (dto.Reviews || []).filter(function (r) { return r.Mine; })[0];
+    var range = document.createElement('input');
+    range.type = 'range';
+    range.min = '1';
+    range.max = '10';
+    range.step = '1';
+    range.value = mine && mine.Rating ? String(mine.Rating) : '8';
+    range.style.cssText = 'vertical-align:middle;';
+    var ratingLabel = document.createElement('span');
+    ratingLabel.style.cssText = 'min-width:3em;font-weight:600;';
+    function syncLabel() { ratingLabel.textContent = range.value + '/10'; }
+    syncLabel();
+    range.addEventListener('input', syncLabel);
+    var text = document.createElement('input');
+    text.type = 'text';
+    text.placeholder = t('review_text_placeholder');
+    text.value = mine && mine.Text ? mine.Text : '';
+    text.style.cssText = 'flex:1;min-width:180px;padding:.4em .6em;border-radius:.25em;border:1px solid rgba(255,255,255,.25);background:#000;color:#fff;';
+    var post = document.createElement('button');
+    post.type = 'button';
+    post.textContent = mine ? t('review_update') : t('review_submit');
+    post.style.cssText = 'background:#00a4dc;border:0;color:#fff;padding:.45em 1em;border-radius:.25em;cursor:pointer;';
+    post.addEventListener('click', function () {
+      post.disabled = true;
+      apiAjax('POST', 'JellyCrowd/Comments', { MediaType: item.mediaType, TmdbId: item.tmdbId, Text: text.value.trim(), Rating: parseInt(range.value, 10) })
+        .then(function () {
+          detailReviewsLoadedId = null; // force a re-render with fresh data
+          loadDetailReviews(item, panel.parentNode);
+        })
+        .catch(function () { post.disabled = false; });
+    });
+    form.appendChild(document.createTextNode(t('your_review') + ':'));
+    form.appendChild(range);
+    form.appendChild(ratingLabel);
+    form.appendChild(text);
+    form.appendChild(post);
+    panel.appendChild(form);
+
+    // The reviews (anonymous unless the viewer is an admin).
+    (dto.Reviews || []).forEach(function (r) {
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:.5em 0;border-top:1px solid rgba(255,255,255,.1);';
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;gap:.5em;font-size:.9em;opacity:.85;';
+      if (r.Rating > 0) { head.appendChild(reviewStarRow(r.Rating)); }
+      var who = document.createElement('span');
+      who.textContent = r.UserName ? r.UserName : t('review_anonymous');
+      head.appendChild(who);
+      row.appendChild(head);
+      if (r.Text) {
+        var body = document.createElement('div');
+        body.textContent = r.Text;
+        body.style.cssText = 'margin-top:.2em;';
+        row.appendChild(body);
+      }
+      panel.appendChild(row);
+    });
+
+    return panel;
+  }
+
+  function loadDetailReviews(item, anchor) {
+    apiAjax('GET', 'JellyCrowd/Comments/' + item.mediaType + '/' + item.tmdbId)
+      .then(function (dto) {
+        var existing = document.getElementById('jcDetailReviews');
+        if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); }
+        // Only attach if we're still on the same detail page.
+        if (currentDetailItemId() !== item.jellyfinId || !anchor || !anchor.isConnected) { return; }
+        anchor.appendChild(buildDetailReviewsPanel(item, dto || {}));
+        detailReviewsLoadedId = item.jellyfinId;
+      })
+      .catch(function () { detailReviewsPendingId = null; });
+  }
+
+  // Resolve the visible detail item -> its TMDB id + type, then render reviews under the page.
+  function maybeInjectDetailReviews(retries) {
+    if (!commentsEnabled || !pluginVisible()) { removeDetailReviews(); return; }
+    var id = currentDetailItemId();
+    if (!id) { removeDetailReviews(); return; }
+    if (id === detailReviewsLoadedId && document.getElementById('jcDetailReviews')) { return; }
+    if (id === detailReviewsPendingId) { return; }
+    if (!(window.ApiClient && window.ApiClient.getItem && window.ApiClient.getCurrentUserId)) { return; }
+
+    var anchor = document.querySelector('.itemDetailPage:not(.hide) .detailPageContent')
+      || document.querySelector('.itemDetailPage:not(.hide)')
+      || document.querySelector('.detailPageContent');
+    if (!anchor) {
+      // The detail DOM loads asynchronously; retry a few times before giving up.
+      if ((retries || 0) < 12) { setTimeout(function () { maybeInjectDetailReviews((retries || 0) + 1); }, 300); }
+      return;
+    }
+
+    detailReviewsPendingId = id;
+    window.ApiClient.getItem(window.ApiClient.getCurrentUserId(), id)
+      .then(function (it) {
+        if (currentDetailItemId() !== id) { detailReviewsPendingId = null; return; }
+        var type = it && it.Type;
+        var tmdb = it && it.ProviderIds && (it.ProviderIds.Tmdb || it.ProviderIds.tmdb);
+        var mediaType = type === 'Movie' ? 'movie' : (type === 'Series' ? 'tv' : null);
+        if (!mediaType || !tmdb) { detailReviewsPendingId = null; return; } // not a reviewable title
+        loadDetailReviews({ jellyfinId: id, mediaType: mediaType, tmdbId: parseInt(tmdb, 10) }, anchor);
+      })
+      .catch(function () { detailReviewsPendingId = null; });
+  }
+
   function start() {
     injectHeaderStyle();
     var observer = new MutationObserver(function () {
@@ -852,6 +1019,11 @@
     // Any real navigation (Jellyfin menu, opening a library item) closes our overlay.
     window.addEventListener('hashchange', hideOverlay);
     window.addEventListener('popstate', hideOverlay);
+    // On every navigation, (re)inject internal reviews when landing on a detail page.
+    function onDetailNav() { removeDetailReviews(); maybeInjectDetailReviews(0); }
+    window.addEventListener('hashchange', onDetailNav);
+    window.addEventListener('popstate', onDetailNav);
+    maybeInjectDetailReviews(0); // initial load may already be a detail page
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).

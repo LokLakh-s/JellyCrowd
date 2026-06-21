@@ -99,6 +99,8 @@
   "notif_cat_released": "Une requête classique devient disponible",
   "notif_cat_decisions": "Mes requêtes sont approuvées, refusées ou échouent",
   "notif_cat_quota": "Avertissements de quota & d'expiration",
+  "reviews_none": "Pas encore d'avis interne — soyez le premier.",
+  "review_anonymous": "Anonyme",
   "save": "Enregistrer",
   "saved": "Enregistré",
   "no_media": "Vous n'avez aucun média disponible.",

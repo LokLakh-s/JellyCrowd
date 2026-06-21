@@ -99,6 +99,8 @@
   "notif_cat_released": "An ordinary request becomes available",
   "notif_cat_decisions": "My requests are approved, denied or fail",
   "notif_cat_quota": "Quota & expiry warnings",
+  "reviews_none": "No internal reviews yet — be the first.",
+  "review_anonymous": "Anonymous",
   "save": "Save",
   "saved": "Saved",
   "no_media": "You have no available media yet.",
