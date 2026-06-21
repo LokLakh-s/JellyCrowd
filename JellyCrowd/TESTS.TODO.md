@@ -181,15 +181,19 @@
   - il faut pouvoir aller à la ligne, le champ de texte est trop petit
   - ce panneau doit apparaitre plus haut, si possible sous l'affiche du film, colonne de gauche, ou bien dans une deuxième colonne au même niveau que le synopsis.
 - 🟥 **Popup mobile (portrait)** : depuis le téléphone, le popup s'affiche correctement pendant un quart de seconde, puis tout semble changer de format et sort de l'écran des deux côtés (uniquement en **portrait** ; le **paysage** fonctionne bien).
+  - 🔧 Re-corrigé : sur mobile le modal est **clampé** (`width/max-width:100%`, `overflow-x:hidden`, padding réduit) et `.jellycrowd-modal-content` passe en `min-width:0` → un enfant large (strip cast) ne peut plus pousser le popup hors écran. À revérifier en portrait.
 
 ## 12. Lot de correctifs récents (à revérifier en live)
 
 - 🟥 🔧 **Boutons admin Requests colorés** : **Approve** (vert) / **Deny** (rouge) bien visibles.
   ils sont toujours noirs, comme les boutons de Test sur l'onglet des notifications.
+  - 🔧 Re-corrigé : mes classes étaient écrasées par `.emby-button.raised` (plus spécifique). Règles **préfixées par `#JellyCrowdConfigPage`** (spécificité ID) → Approve **vert**, Deny/Delete **rouge**, et **tous les boutons Test** (`.jcTestRow`) en **bleu Jellyfin**.
 - 🟥 🔧 **Tableau User quotas, 1ʳᵉ ligne** : alignée comme les autres (avatar = initiales pour les users sans photo, donc plus de décalage dû à la photo de l'admin).
   C'est toujours pareil
+  - 🔧 Re-corrigé : **toutes** les lignes affichent désormais le même élément (cercle d'initiales, **plus aucune photo**) → la ligne de l'admin (seule à avoir une photo) ne diffère plus. Si ça diffère encore, c'est autre chose → envoie une capture.
 - 🟥 🔧 **Taille finale pendant le téléchargement** : l'écran **Mes demandes** affiche la taille (connue via RDT) à côté du %/ETA.
   Test : la taille affichée sur une requête en cours de téléchargement (5.1 GiB) n'est pas la même que celle de RDT (5.47 GB)
+  - 🔧 Re-corrigé : c'était la **même taille en unités différentes** (5,1 **GiB** binaire = 5,47 **GB** décimal). On affiche maintenant en **GB décimaux** (/1000) pour coller à RDT.
 - 🟨 🔧 **Popup** : le bouton **⚠ Report a problem** (ligne du titre) ne chevauche plus la croix de fermeture.
 - [ ] 🔧 **Calendrier** : vues **Mois / Semaine / Jour** (voir §8).
   Pas mal, mais je voudrais que sur les différents affichage, un clic sur Today ouvre un popup de calendrier pour choisir la période voulue

@@ -50,7 +50,7 @@ authentification et son thème.
 
 1. **Dashboard → Plugins → Dépôts (Repositories) → +** et ajouter :
    ```
-   https://raw.githubusercontent.com/LokLakh-s/jellyfin-plugins/main/manifest.json
+   https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json
    ```
 2. **Catalogue (Catalog)** → installer **Jelly Crowd** → redémarrer Jellyfin.
 
@@ -68,7 +68,7 @@ l'URL de l'archive et son empreinte MD5). Jellyfin détecte la nouvelle version 
   vérification/installation auto des mises à jour ; Jellyfin applique alors les nouvelles versions au
   redémarrage, sans intervention.
 
-> ⚠️ **Pré-requis indispensable** : le dépôt GitHub `LokLakh-s/jellyfin-plugins` doit être **public** — Jellyfin
+> ⚠️ **Pré-requis indispensable** : le dépôt GitHub `LokLakh-s/JellyCrowd` doit être **public** — Jellyfin
 > télécharge le `manifest.json` (URL *raw*) et l'archive de release **sans authentification**. Si le dépôt
 > est privé, l'install/MAJ par dépôt échoue (il faudrait alors héberger le manifest ailleurs).
 

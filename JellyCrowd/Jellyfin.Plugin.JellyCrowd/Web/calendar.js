@@ -696,9 +696,19 @@
       document.getElementById('jcCalToday').textContent = t('calendar_today');
       document.getElementById('jcCalPrev').addEventListener('click', function () { step(-1); });
       document.getElementById('jcCalNext').addEventListener('click', function () { step(1); });
+      // "Today" opens a date picker to jump to any date (defaults to the current view's date).
+      var datePicker = document.getElementById('jcCalDatePicker');
       document.getElementById('jcCalToday').addEventListener('click', function () {
-        var d = new Date();
-        anchor = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        datePicker.value = iso(anchor);
+        if (typeof datePicker.showPicker === 'function') {
+          try { datePicker.showPicker(); return; } catch (e) { /* fall back to focus */ }
+        }
+        datePicker.focus();
+      });
+      datePicker.addEventListener('change', function () {
+        if (!datePicker.value) { return; }
+        var p = datePicker.value.split('-');
+        anchor = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
         load();
       });
 

@@ -288,6 +288,43 @@
   // Let a hosted page register a callback re-run each time its (already-loaded) view is shown again.
   window.jellyCrowdRegisterRefresh = function (id, fn) { viewRefreshers[id] = fn; };
 
+  // Shared media-detail modal: the catalog view owns openModal; other views (e.g. My requests) call
+  // window.jellyCrowdOpenDetail(item) to open it. If the catalog view isn't loaded yet, we load it
+  // hidden (which registers the opener) and flush the pending item.
+  var detailOpener = null;
+  var pendingDetailItem = null;
+
+  function ensureViewLoaded(id) {
+    ensureOverlay();
+    var view = null;
+    VIEWS.forEach(function (v) { if (v.id === id) { view = v; } });
+    if (!view || view.container) { return; }
+    var container = document.createElement('div');
+    container.className = 'jellycrowd-view';
+    container.style.display = 'none';
+    view.container = container;
+    viewHost.appendChild(container);
+    fetch(getUrl('JellyCrowd/Web/' + view.file))
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (html) { container.innerHTML = html; executeScripts(container); })
+      .catch(function () { /* ignore */ });
+  }
+
+  window.jellyCrowdRegisterDetailOpener = function (fn) {
+    detailOpener = fn;
+    if (pendingDetailItem) {
+      var it = pendingDetailItem;
+      pendingDetailItem = null;
+      try { fn(it); } catch (e) { /* ignore */ }
+    }
+  };
+
+  window.jellyCrowdOpenDetail = function (item) {
+    if (detailOpener) { detailOpener(item); return; }
+    pendingDetailItem = item;
+    ensureViewLoaded('catalog'); // loads catalog.js → registers the opener → flushes pendingDetailItem
+  };
+
   // ---------- header injection ----------
 
   function navButton(labelKey, viewId) {
@@ -358,7 +395,10 @@
     box.addEventListener('click', function () { toggleView('mymedia'); });
     var caption = document.createElement('span');
     caption.textContent = t('my_media_title');
-    caption.style.cssText = 'color:#4caf50;font-weight:700;font-size:1.25em;line-height:1.1;white-space:nowrap;';
+    caption.style.cssText = 'color:#4caf50;font-weight:700;font-size:1.25em;line-height:1.1;white-space:nowrap;transition:filter .1s;';
+    // Hover affordance: it's clickable (opens My library), so brighten + underline the caption.
+    box.addEventListener('mouseenter', function () { caption.style.filter = 'brightness(1.25)'; caption.style.textDecoration = 'underline'; });
+    box.addEventListener('mouseleave', function () { caption.style.filter = ''; caption.style.textDecoration = ''; });
     var label = document.createElement('span');
     label.style.color = '#fff';
     var track = document.createElement('span');
@@ -885,7 +925,9 @@
     style.textContent =
       '.headerTabs .emby-tab-button{display:none !important;}' +
       // Some library types (Other/Books) hide the empty tab row — keep it shown when it hosts our nav.
-      '.headerTabs:has(.jcHeaderNav){display:flex !important;justify-content:center;}';
+      '.headerTabs:has(.jcHeaderNav){display:flex !important;justify-content:center;}' +
+      // The header logo / home button is a link to Home — show it as one (pointer cursor on hover).
+      '.skinHeader .headerHomeButton,.skinHeader .pageTitleWithLogo,.skinHeader .pageTitle{cursor:pointer;}';
     document.head.appendChild(style);
   }
 

@@ -74,6 +74,7 @@ public class CommentsController : ControllerBase
 
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var isAdmin = await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false);
+    var showAuthors = isAdmin || _config().ShowReviewAuthors;
     foreach (var r in reviews)
     {
       dto.Reviews.Add(new ReviewView
@@ -83,8 +84,8 @@ public class CommentsController : ControllerBase
         Text = r.Text,
         CreatedAt = r.CreatedAt,
         Mine = r.UserId == userId,
-        // Anonymous to everyone but admins (and the author always sees it's "Mine").
-        UserName = isAdmin ? r.UserName : null
+        // Anonymous to non-admins unless the admin opted to show author names (admins always see them).
+        UserName = showAuthors ? r.UserName : null
       });
     }
 

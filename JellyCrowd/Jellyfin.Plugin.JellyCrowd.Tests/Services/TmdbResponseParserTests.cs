@@ -158,6 +158,44 @@ public class TmdbResponseParserTests
   }
 
   [Fact]
+  public void ParseDetails_Movie_DirectorFromCrew_AndOriginalTitle()
+  {
+    const string json = """
+    { "id": 10, "title": "Localized", "original_title": "Original",
+      "credits": { "crew": [
+        { "name": "Jane Doe", "job": "Director" },
+        { "name": "Editor Guy", "job": "Editor" },
+        { "name": "John Roe", "job": "Director" }
+      ] } }
+    """;
+
+    var item = TmdbResponseParser.ParseDetails(json, "movie");
+
+    Assert.Equal("Jane Doe, John Roe", item!.Director);
+    Assert.Equal("Original", item.OriginalTitle);
+  }
+
+  [Fact]
+  public void ParseDetails_OriginalTitle_NullWhenSameAsTitle()
+  {
+    var item = TmdbResponseParser.ParseDetails("""{ "id": 10, "title": "Same", "original_title": "Same" }""", "movie");
+
+    Assert.Null(item!.OriginalTitle);
+  }
+
+  [Fact]
+  public void ParseDetails_Tv_CreatorAsDirector()
+  {
+    const string json = """
+    { "id": 20, "name": "Show", "created_by": [ { "name": "Vince Gilligan" } ] }
+    """;
+
+    var item = TmdbResponseParser.ParseDetails(json, "tv");
+
+    Assert.Equal("Vince Gilligan", item!.Director);
+  }
+
+  [Fact]
   public void ParseCollectionParts_ReturnsMoviesInOrder()
   {
     const string json = """

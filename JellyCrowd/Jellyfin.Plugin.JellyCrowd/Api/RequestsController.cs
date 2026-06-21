@@ -306,6 +306,23 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
+  /// Live download status (Radarr/Sonarr queue) for every request (administrators only) — lets the
+  /// admin requests table show a "Downloading" badge.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The download statuses, keyed by request id.</response>
+  /// <returns>The list of live download statuses.</returns>
+  [HttpGet("All/DownloadStatus")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<IReadOnlyList<DownloadStatusDto>>> AllDownloadStatus(CancellationToken cancellationToken)
+  {
+    var items = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    var statuses = await _servarrStatus.GetStatusesAsync(items, cancellationToken).ConfigureAwait(false);
+    return Ok(statuses);
+  }
+
+  /// <summary>
   /// Approves a request (administrators only).
   /// </summary>
   /// <param name="id">The request identifier.</param>

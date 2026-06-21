@@ -632,9 +632,29 @@ body.jellycrowd-overlay-open {
 }
 
 @media (max-width: 600px) {
+  /* Keep the popup strictly inside the viewport in portrait — once the cast/details load, a wide flex
+     child (cast strip, etc.) could push the modal past both edges. Clamp the modal + let children shrink. */
+  .jellycrowd-modal-overlay {
+    padding: 0.5em;
+  }
+
+  .jellycrowd-modal {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+
   .jellycrowd-modal-body {
     flex-direction: column;
     align-items: center;
+    padding: 1em;
+  }
+
+  .jellycrowd-modal-content {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .jellycrowd-modal-left {
@@ -689,6 +709,16 @@ body.jellycrowd-overlay-open {
   margin: 0 0 1.25em;
   line-height: 1.5;
   max-width: 60ch;
+}
+
+.jellycrowd-modal-credits {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin: 0 0 0.6em;
+}
+
+.jellycrowd-modal-credits:empty {
+  margin: 0;
 }
 
 .jellycrowd-modal .jellycrowd-request {

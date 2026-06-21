@@ -105,10 +105,61 @@ public static class TmdbResponseParser
       VoteAverage = GetDouble(element, "vote_average"),
       Genres = GetGenreNames(element),
       Cast = GetCast(element),
+      Director = GetDirector(element, isMovie),
+      OriginalTitle = GetOriginalTitle(element, isMovie),
       Runtime = GetRuntime(element, isMovie),
       ImdbId = GetImdbId(element),
       CollectionId = GetCollectionId(element)
     };
+  }
+
+  // Original-language title, only when it differs from the localized title.
+  private static string? GetOriginalTitle(JsonElement element, bool isMovie)
+  {
+    var original = GetString(element, isMovie ? "original_title" : "original_name");
+    var localized = GetString(element, isMovie ? "title" : "name");
+    return !string.IsNullOrWhiteSpace(original) && !string.Equals(original, localized, StringComparison.Ordinal)
+      ? original
+      : null;
+  }
+
+  // Director (movies) or creator (shows) from an appended `credits` payload, comma-separated.
+  private static string? GetDirector(JsonElement element, bool isMovie)
+  {
+    var names = new List<string>();
+
+    // Shows: top-level `created_by`.
+    if (!isMovie && element.TryGetProperty("created_by", out var creators) && creators.ValueKind == JsonValueKind.Array)
+    {
+      foreach (var c in creators.EnumerateArray())
+      {
+        var n = GetString(c, "name");
+        if (!string.IsNullOrWhiteSpace(n) && !names.Contains(n!))
+        {
+          names.Add(n!);
+        }
+      }
+    }
+
+    // Movies (and as fallback): crew members with job == Director.
+    if (names.Count == 0
+        && element.TryGetProperty("credits", out var credits) && credits.ValueKind == JsonValueKind.Object
+        && credits.TryGetProperty("crew", out var crew) && crew.ValueKind == JsonValueKind.Array)
+    {
+      foreach (var member in crew.EnumerateArray())
+      {
+        if (string.Equals(GetString(member, "job"), "Director", StringComparison.Ordinal))
+        {
+          var n = GetString(member, "name");
+          if (!string.IsNullOrWhiteSpace(n) && !names.Contains(n!))
+          {
+            names.Add(n!);
+          }
+        }
+      }
+    }
+
+    return names.Count > 0 ? string.Join(", ", names) : null;
   }
 
   // Top billed cast from an appended `credits` payload (empty unless append_to_response=credits).

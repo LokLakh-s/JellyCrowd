@@ -28,6 +28,10 @@
       .jcStatus-approved { background: #268bd2; color: #fff; }
       .jcStatus-available { background: #2e7d32; color: #fff; }
       .jcStatus-denied { background: #c0392b; color: #fff; }
+      .jcAdminDl { background: #00a4dc; color: #fff; margin-left: 0.35em; }
+      .jcChips { display: flex; flex-wrap: wrap; gap: 0.4em; margin: 0.5em 0; }
+      .jcChip { display: inline-flex; align-items: center; gap: 0.3em; padding: 0.2em 0.5em; border-radius: 1em; background: #00a4dc; color: #fff; font-size: 0.85em; }
+      .jcChipRemove { background: none; border: 0; color: #fff; cursor: pointer; font-size: 1.1em; line-height: 1; padding: 0; }
       .jcAvatar { width: 2em; height: 2em; border-radius: 50%; object-fit: cover; background: rgba(127, 127, 127, 0.3); display: block; }
       .jcTable input[type="number"] { width: 7em; }
       .jcTestRow { display: flex; align-items: center; gap: 0.8em; margin-top: 0.5em; flex-wrap: wrap; }
@@ -37,11 +41,16 @@
       .jcCreateRow input[type="text"] { min-width: 12em; }
       .jcColActions select, .jcColActions input[type="date"] { margin-right: 0.4em; }
       .jcDangerButton { background: #c0392b; color: #fff; }
-      /* Coloured admin action buttons so Approve/Deny stand out in the requests table. */
-      .jcApproveButton { background: #2e7d32 !important; color: #fff !important; }
-      .jcDenyButton { background: #c0392b !important; color: #fff !important; }
-      .jcApproveButton:hover { background: #357a38 !important; }
-      .jcDenyButton:hover { background: #d24332 !important; }
+      /* Coloured admin buttons. ID-prefixed so they beat Jellyfin's `.emby-button.raised` theme rule
+         (a bare class with !important lost to it). Approve = green, Deny/Delete = red, Test/action = blue. */
+      #JellyCrowdConfigPage button.emby-button.jcApproveButton { background-color: #2e7d32 !important; color: #fff !important; }
+      #JellyCrowdConfigPage button.emby-button.jcApproveButton:hover { background-color: #357a38 !important; }
+      #JellyCrowdConfigPage button.emby-button.jcDenyButton,
+      #JellyCrowdConfigPage button.emby-button.jcDangerButton { background-color: #c0392b !important; color: #fff !important; }
+      #JellyCrowdConfigPage button.emby-button.jcDenyButton:hover,
+      #JellyCrowdConfigPage button.emby-button.jcDangerButton:hover { background-color: #d24332 !important; }
+      #JellyCrowdConfigPage .jcTestRow button.emby-button { background-color: #00a4dc !important; color: #fff !important; }
+      #JellyCrowdConfigPage .jcTestRow button.emby-button:hover { background-color: #1bb3e6 !important; }
       .jcHelp { position: relative; display: inline-flex; align-items: center; justify-content: center;
                 width: 1.3em; height: 1.3em; margin-left: 0.4em; border-radius: 50%; cursor: help;
                 background: rgba(127, 127, 127, 0.45); color: #fff; font-size: 0.8em; font-weight: 600; vertical-align: middle; }
@@ -97,6 +106,14 @@
                 <span>Enable ratings &amp; reviews</span>
               </label>
               <div class="fieldDescription">When enabled, users can rate titles (1–10, half-stars) with an optional comment under the synopsis; each title shows the internal average. Reviews are anonymous to non-admins. Off by default until you turn this on.</div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="ShowReviewAuthors" name="ShowReviewAuthors" type="checkbox" is="emby-checkbox" />
+                <span>Show review author names to everyone</span>
+              </label>
+              <div class="fieldDescription">When enabled, regular users also see who wrote each review. Off by default — reviews stay anonymous to non-admins (admins always see the author).</div>
             </div>
 
             <div class="inputContainer">
@@ -172,10 +189,11 @@
               <div class="fieldDescription">When &gt; 0, requests whose estimated size is at or below this are auto-approved even if approval is required. 0 = off. (Uses the estimated movie/episode sizes above.)</div>
             </div>
 
-            <div class="inputContainer">
-              <label class="inputLabel inputLabelUnfocused" for="AutoApproveGenres">Auto-approve genres (optional)</label>
-              <input id="AutoApproveGenres" type="text" is="emby-input" placeholder="Documentary, Animation" />
-              <div class="fieldDescription">Comma-separated TMDB genre names (English). When set, the size rule above only auto-approves a title if it has at least one of these genres. Empty = all genres. Trusted users always bypass.</div>
+            <div class="selectContainer">
+              <label class="selectLabel" for="AutoApproveGenreSelect">Auto-approve genres (optional)</label>
+              <select is="emby-select" id="AutoApproveGenreSelect" class="emby-select-withcolor emby-select"></select>
+              <div id="AutoApproveGenreChips" class="jcChips"></div>
+              <div class="fieldDescription">Pick one or more TMDB genres. When set, the size rule above only auto-approves a title if it has at least one of these genres. Empty = all genres. Trusted users always bypass.</div>
             </div>
           </div>
 
@@ -563,6 +581,67 @@ Content-Type: application/json
         bytesPerGiB: 1024 * 1024 * 1024
       };
 
+      // Auto-approve genres: selected genre names (chips) instead of a free-text field.
+      var autoApproveGenres = [];
+
+      function renderGenreChips() {
+        var box = document.querySelector('#AutoApproveGenreChips');
+        if (!box) { return; }
+        box.innerHTML = '';
+        autoApproveGenres.forEach(function (name) {
+          var chip = document.createElement('span');
+          chip.className = 'jcChip';
+          chip.textContent = name;
+          var x = document.createElement('button');
+          x.type = 'button';
+          x.className = 'jcChipRemove';
+          x.textContent = '×';
+          x.setAttribute('aria-label', 'Remove ' + name);
+          x.addEventListener('click', function () {
+            autoApproveGenres = autoApproveGenres.filter(function (g) { return g !== name; });
+            renderGenreChips();
+          });
+          chip.appendChild(x);
+          box.appendChild(chip);
+        });
+      }
+
+      function loadGenreOptions() {
+        var select = document.querySelector('#AutoApproveGenreSelect');
+        if (!select || select.dataset.jcLoaded) { return; } // populate + wire once
+        select.dataset.jcLoaded = '1';
+        // Merge movie + tv genre names (TMDB lists differ slightly), de-duplicated and sorted.
+        Promise.all([
+          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Catalog/Genres/movie'), dataType: 'json' }).catch(function () { return []; }),
+          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Catalog/Genres/tv'), dataType: 'json' }).catch(function () { return []; })
+        ]).then(function (lists) {
+          var names = {};
+          (lists[0] || []).concat(lists[1] || []).forEach(function (g) { if (g && g.Name) { names[g.Name] = true; } });
+          var sorted = Object.keys(names).sort();
+          select.innerHTML = '';
+          var placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = '— add a genre —';
+          select.appendChild(placeholder);
+          sorted.forEach(function (name) {
+            var opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            opt.style.backgroundColor = '#1a1a1a';
+            opt.style.color = '#fff';
+            select.appendChild(opt);
+          });
+        });
+        select.addEventListener('change', function () {
+          var name = select.value;
+          if (name && autoApproveGenres.indexOf(name) < 0) {
+            autoApproveGenres.push(name);
+            renderGenreChips();
+          }
+          select.value = '';
+        });
+      }
+
       function jcActivateTab(tab) {
         var isRequests = tab === 'requests';
         var isDiag = tab === 'diagnostics';
@@ -789,23 +868,12 @@ Content-Type: application/json
             var tr = document.createElement('tr');
 
             var tdAvatar = document.createElement('td');
-            // Consistent avatar across rows: an initials circle, overlaid by the user's photo when there
-            // is one (users without a photo previously rendered blank, so the first row — usually the
-            // admin, who has a photo — looked different from the rest).
+            // EVERY row gets the SAME element: a plain initials circle (no photo). Previously the admin
+            // (usually row 1, the only one with a profile photo) rendered differently from the rest.
             var avatarWrap = document.createElement('div');
             avatarWrap.className = 'jcAvatar';
-            avatarWrap.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:0.8em;font-weight:600;color:rgba(255,255,255,0.75);overflow:hidden;';
+            avatarWrap.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:0.8em;font-weight:600;color:rgba(255,255,255,0.75);';
             avatarWrap.textContent = (user.Name || '?').charAt(0).toUpperCase();
-            var hasImage = false;
-            try { hasImage = !!(user.PrimaryImageTag); } catch (e) { hasImage = false; }
-            if (hasImage) {
-              var avatar = document.createElement('img');
-              avatar.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-              try { avatar.src = ApiClient.getUserImageUrl(user.Id, { type: 'Primary', tag: user.PrimaryImageTag }); } catch (e2) { /* keep initials */ }
-              avatar.addEventListener('error', function () { avatar.remove(); });
-              avatarWrap.textContent = '';
-              avatarWrap.appendChild(avatar);
-            }
             tdAvatar.appendChild(avatarWrap);
             tr.appendChild(tdAvatar);
 
@@ -973,6 +1041,7 @@ Content-Type: application/json
       document.querySelector('#JellyCrowdConfigPage')
         .addEventListener('pageshow', function () {
           jcActivateTab('requests');
+          loadGenreOptions();
           Dashboard.showLoadingMsg();
           ApiClient.getPluginConfiguration(JellyCrowdConfig.pluginUniqueId).then(function (config) {
             var gib = JellyCrowdConfig.bytesPerGiB;
@@ -984,6 +1053,7 @@ Content-Type: application/json
             document.querySelector('#HiddenFromUsers').checked = !!config.HiddenFromUsers;
             document.querySelector('#RateLimitPerMinute').value = config.RateLimitPerMinute != null ? config.RateLimitPerMinute : 120;
             document.querySelector('#CommentsEnabled').checked = !!config.CommentsEnabled;
+            document.querySelector('#ShowReviewAuthors').checked = !!config.ShowReviewAuthors;
             document.querySelector('#EstimatedMovieSizeGiB').value = (config.EstimatedMovieSizeBytes || 0) / gib;
             document.querySelector('#EstimatedEpisodeSizeGiB').value = (config.EstimatedEpisodeSizeBytes || 0) / gib;
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
@@ -991,7 +1061,8 @@ Content-Type: application/json
             document.querySelector('#DeletionRetentionHours').value = config.DeletionRetentionHours != null ? config.DeletionRetentionHours : 24;
             document.querySelector('#MediaExpiryDays').value = config.MediaExpiryDays != null ? config.MediaExpiryDays : 90;
             document.querySelector('#AutoApproveMaxSizeGiB').value = (config.AutoApproveMaxSizeBytes || 0) / gib;
-            document.querySelector('#AutoApproveGenres').value = (config.AutoApproveGenres || []).join(', ');
+            autoApproveGenres = (config.AutoApproveGenres || []).slice();
+            renderGenreChips();
             document.querySelector('#DiscordWebhookUrl').value = config.DiscordWebhookUrl || '';
             document.querySelector('#DiscordNotifyCreated').checked = config.DiscordNotifyCreated !== false;
             document.querySelector('#DiscordNotifyApproved').checked = config.DiscordNotifyApproved !== false;
@@ -1066,6 +1137,7 @@ Content-Type: application/json
             config.HiddenFromUsers = document.querySelector('#HiddenFromUsers').checked;
             config.RateLimitPerMinute = parseInt(document.querySelector('#RateLimitPerMinute').value || '0', 10);
             config.CommentsEnabled = document.querySelector('#CommentsEnabled').checked;
+            config.ShowReviewAuthors = document.querySelector('#ShowReviewAuthors').checked;
             config.EstimatedMovieSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedMovieSizeGiB').value || '0') * gib);
             config.EstimatedEpisodeSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedEpisodeSizeGiB').value || '0') * gib);
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);
@@ -1073,8 +1145,7 @@ Content-Type: application/json
             config.DeletionRetentionHours = parseInt(document.querySelector('#DeletionRetentionHours').value || '0', 10);
             config.MediaExpiryDays = parseInt(document.querySelector('#MediaExpiryDays').value || '0', 10);
             config.AutoApproveMaxSizeBytes = Math.round(parseFloat(document.querySelector('#AutoApproveMaxSizeGiB').value || '0') * gib);
-            config.AutoApproveGenres = (document.querySelector('#AutoApproveGenres').value || '')
-              .split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
+            config.AutoApproveGenres = autoApproveGenres.slice();
             config.DiscordWebhookUrl = document.querySelector('#DiscordWebhookUrl').value;
             config.DiscordNotifyCreated = document.querySelector('#DiscordNotifyCreated').checked;
             config.DiscordNotifyApproved = document.querySelector('#DiscordNotifyApproved').checked;
@@ -1282,6 +1353,7 @@ Content-Type: application/json
           var tbody = document.createElement('tbody');
           all.forEach(function (request) {
             var tr = document.createElement('tr');
+            tr.setAttribute('data-req-id', request.Id);
 
             var tdPoster = document.createElement('td');
             var poster = document.createElement(request.PosterPath ? 'img' : 'div');
@@ -1308,6 +1380,7 @@ Content-Type: application/json
             tr.appendChild(tdDate);
 
             var tdStatus = document.createElement('td');
+            tdStatus.className = 'jcAdminStatusCell';
             var statusKey = window.JellyCrowdLib ? window.JellyCrowdLib.statusLabelKey(request.Status) : 'status_pending';
             var status = document.createElement('span');
             status.className = 'jcStatus jcStatus-' + statusKey.replace('status_', '');
@@ -1378,6 +1451,33 @@ Content-Type: application/json
 
           table.appendChild(tbody);
           container.appendChild(table);
+          loadAdminDownloadStatus();
+        }
+
+        function applyAdminDownloadStatuses(statuses) {
+          (statuses || []).forEach(function (s) {
+            var row = document.querySelector('#jcAdminPending tr[data-req-id="' + s.RequestId + '"]');
+            if (!row) { return; }
+            var cell = row.querySelector('.jcAdminStatusCell');
+            if (!cell) { return; }
+            var old = cell.querySelector('.jcAdminDl');
+            if (old) { old.remove(); }
+            if (s.State === 'downloading' || s.State === 'importing' || s.State === 'queued') {
+              var key = window.JellyCrowdLib ? window.JellyCrowdLib.downloadStateKey(s.State) : null;
+              var badge = document.createElement('span');
+              badge.className = 'jcStatus jcAdminDl';
+              var label = key ? t(key) : s.State;
+              if (s.State === 'downloading' || s.State === 'importing') { label += ' ' + Math.round(s.Percent || 0) + '%'; }
+              badge.textContent = label;
+              cell.appendChild(badge);
+            }
+          });
+        }
+
+        function loadAdminDownloadStatus() {
+          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Requests/All/DownloadStatus'), dataType: 'json' })
+            .then(applyAdminDownloadStatuses)
+            .catch(function () { /* ignore */ });
         }
 
         function load() {

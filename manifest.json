@@ -6,13 +6,13 @@
     "overview": "Browse a TMDB catalog, request titles through an admin approval queue, and enforce per-user disk quotas.",
     "owner": "LokLakh-s",
     "category": "General",
-    "imageUrl": "https://raw.githubusercontent.com/LokLakh-s/jellyfin-plugins/main/JellyCrowd/Jellyfin.Plugin.JellyCrowd/Web/logo.png",
+    "imageUrl": "https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/JellyCrowd/Jellyfin.Plugin.JellyCrowd/Web/logo.png",
     "versions": [
       {
         "version": "0.54.0.0",
         "changelog": "Release v0.54.0",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/LokLakh-s/jellyfin-plugins/releases/download/v0.54.0/jelly-crowd-v0.54.0.zip",
+        "sourceUrl": "https://github.com/LokLakh-s/JellyCrowd/releases/download/v0.54.0/jelly-crowd-v0.54.0.zip",
         "checksum": "26c5cb87abc54532cb7c1d221b452b65",
         "timestamp": "2026-06-21T13:46:07.0000000Z"
       },
@@ -20,7 +20,7 @@
         "version": "0.53.0.0",
         "changelog": "Release v0.53.0",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/LokLakh-s/jellyfin-plugins/releases/download/v0.53.0/jelly-crowd-v0.53.0.zip",
+        "sourceUrl": "https://github.com/LokLakh-s/JellyCrowd/releases/download/v0.53.0/jelly-crowd-v0.53.0.zip",
         "checksum": "f2bf966829e425127ba7076631025d34",
         "timestamp": "2026-06-21T13:17:01.0000000Z"
       },
@@ -28,7 +28,7 @@
         "version": "0.52.5.0",
         "changelog": "Release v0.52.5",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/LokLakh-s/jellyfin-plugins/releases/download/v0.52.5/jelly-crowd-v0.52.5.zip",
+        "sourceUrl": "https://github.com/LokLakh-s/JellyCrowd/releases/download/v0.52.5/jelly-crowd-v0.52.5.zip",
         "checksum": "7f8cc9cffea6d181ce84a062274ac466",
         "timestamp": "2026-06-21T11:57:00.0000000Z"
       }
