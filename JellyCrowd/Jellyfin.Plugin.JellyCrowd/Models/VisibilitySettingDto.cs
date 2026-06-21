@@ -11,4 +11,10 @@ public class VisibilitySettingDto
   /// Gets or sets a value indicating whether the plugin is visible to the current user.
   /// </summary>
   public bool Visible { get; set; } = true;
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the current user is an administrator (so the client can
+  /// show admin-only affordances such as editing the announcement banner).
+  /// </summary>
+  public bool IsAdmin { get; set; }
 }
