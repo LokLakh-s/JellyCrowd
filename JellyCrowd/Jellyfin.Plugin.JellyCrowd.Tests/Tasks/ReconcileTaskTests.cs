@@ -75,6 +75,8 @@ public sealed class ReconcileTaskTests : IDisposable
     public string? FindItemId(string mediaType, int tmdbId) => _result ? "x" : null;
 
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }
 
   private sealed class NoopNotificationService : INotificationService

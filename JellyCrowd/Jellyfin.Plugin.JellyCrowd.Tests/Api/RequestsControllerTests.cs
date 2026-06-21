@@ -432,6 +432,8 @@ public class RequestsControllerTests
     public string? FindItemId(string mediaType, int tmdbId) => "item-" + tmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }
 
   private sealed class FakeRequestStore : IRequestStore
