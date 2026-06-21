@@ -807,7 +807,7 @@
     var link = document.createElement('button');
     link.type = 'button';
     link.className = 'jellycrowd-report-link';
-    link.textContent = t('report_problem');
+    link.textContent = '⚠ ' + t('report_problem');
     wrap.appendChild(link);
     link.addEventListener('click', function () {
       link.style.display = 'none';
