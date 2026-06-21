@@ -222,6 +222,42 @@ public sealed class JsonRequestStoreTests : IDisposable
     => new() { UserId = userId, TmdbId = tmdbId, MediaType = "movie", Title = "Test" };
 
   [Fact]
+  public async Task ExpireOwnershipsAsync_RemovesOnlyLapsedAvailableNotFlaggedNotOther()
+  {
+    var user = Guid.NewGuid();
+    async Task<RequestRecord> Avail(int id, DateTime availableAt, DateTime? deletionAt = null)
+    {
+      var r = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = id, MediaType = "movie", Title = "T" + id, Status = RequestStatus.Available, AvailableAt = availableAt, DeletionRequestedAt = deletionAt }, CancellationToken.None);
+      return r;
+    }
+
+    var lapsed = await Avail(1, DateTime.UtcNow.AddDays(-100));
+    await Avail(2, DateTime.UtcNow.AddDays(-1));                                  // fresh -> kept
+    await Avail(3, DateTime.UtcNow.AddDays(-100), DateTime.UtcNow);              // flagged -> kept (deletion flow owns it)
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 4, MediaType = "movie", Title = "Pending", Status = RequestStatus.Pending }, CancellationToken.None);
+
+    var removed = await _store.ExpireOwnershipsAsync(DateTime.UtcNow.AddDays(-90), CancellationToken.None);
+
+    Assert.Equal(1, removed);
+    var all = await _store.GetAllAsync(CancellationToken.None);
+    Assert.DoesNotContain(all, r => r.Id == lapsed.Id);
+    Assert.Equal(3, all.Count);
+  }
+
+  [Fact]
+  public async Task RenewAvailableAsync_ResetsAvailableAtAndClearsDeletionFlag()
+  {
+    var created = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 1, MediaType = "movie", Title = "T", Status = RequestStatus.Available, AvailableAt = DateTime.UtcNow.AddDays(-50), DeletionRequestedAt = DateTime.UtcNow.AddDays(-1) }, CancellationToken.None);
+    var now = DateTime.UtcNow;
+
+    var renewed = await _store.RenewAvailableAsync(created.Id, now, CancellationToken.None);
+
+    Assert.NotNull(renewed);
+    Assert.Equal(now, renewed!.AvailableAt);
+    Assert.Null(renewed.DeletionRequestedAt);
+  }
+
+  [Fact]
   public async Task LoadsLegacyBareArray_ThenRewritesAsVersionedEnvelope()
   {
     // Simulate a file written by a pre-versioning build: a bare JSON array.

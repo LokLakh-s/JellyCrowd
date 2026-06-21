@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -201,9 +202,16 @@ public class RequestsController : ControllerBase
       return BadRequest("This title is not available in the library.");
     }
 
-    if (await _store.ExistsActiveAsync(userId, dto.TmdbId, dto.MediaType, null, null, cancellationToken).ConfigureAwait(false))
+    // Already owned → just renew the ownership (resets the expiry countdown) rather than rejecting.
+    var mine = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+    var owned = mine.FirstOrDefault(r =>
+      r.TmdbId == dto.TmdbId
+      && string.Equals(r.MediaType, dto.MediaType, StringComparison.Ordinal)
+      && r.Status == RequestStatus.Available);
+    if (owned is not null)
     {
-      return Conflict("This title is already in your media.");
+      var renewed = await _store.RenewAvailableAsync(owned.Id, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+      return Ok(renewed);
     }
 
     var created = await _store.CreateAsync(

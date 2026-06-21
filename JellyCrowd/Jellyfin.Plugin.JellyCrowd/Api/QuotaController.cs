@@ -72,6 +72,7 @@ public class QuotaController : ControllerBase
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
     var retentionHours = Plugin.Instance?.Configuration.DeletionRetentionHours ?? 0;
+    var expiryDays = Plugin.Instance?.Configuration.MediaExpiryDays ?? 0;
 
     var media = requests
       .Where(r => r.Status == RequestStatus.Available)
@@ -86,7 +87,8 @@ public class QuotaController : ControllerBase
         JellyfinItemId = r.JellyfinItemId,
         SizeBytes = _libraryMatcher.GetSizeBytes(r.MediaType, r.TmdbId),
         DeletionRequestedAt = r.DeletionRequestedAt,
-        DeletionAt = r.DeletionRequestedAt?.AddHours(retentionHours)
+        DeletionAt = r.DeletionRequestedAt?.AddHours(retentionHours),
+        ExpiresAt = (expiryDays > 0 && r.AvailableAt is { } at) ? at.AddDays(expiryDays) : null
       })
       .ToList();
 

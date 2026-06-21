@@ -84,6 +84,18 @@ public sealed class DeletionTask : IScheduledTask
       _logger.LogInformation("Jelly Crowd deletion task: removed {Count} flagged item(s).", deleted);
     }
 
+    // Lapse ownerships whose expiry window has elapsed (frees quota; never deletes the file).
+    var expiryDays = _configurationProvider().MediaExpiryDays;
+    if (expiryDays > 0)
+    {
+      var expiryCutoff = DateTime.UtcNow - TimeSpan.FromDays(expiryDays);
+      var lapsed = await _store.ExpireOwnershipsAsync(expiryCutoff, cancellationToken).ConfigureAwait(false);
+      if (lapsed > 0)
+      {
+        _logger.LogInformation("Jelly Crowd expiry: lapsed {Count} ownership(s).", lapsed);
+      }
+    }
+
     progress.Report(100);
   }
 

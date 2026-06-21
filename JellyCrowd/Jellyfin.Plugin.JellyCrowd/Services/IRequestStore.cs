@@ -83,6 +83,26 @@ public interface IRequestStore
   Task<RequestRecord?> MarkAvailableAsync(Guid id, string jellyfinItemId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Resets an available request's ownership clock (its <see cref="RequestRecord.AvailableAt"/>) to the
+  /// given time, restarting the expiry countdown ("renew" / re-claim).
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="whenUtc">The new ownership timestamp (usually now).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found.</returns>
+  Task<RequestRecord?> RenewAvailableAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Removes ownerships (available requests, not pending deletion) that became available before
+  /// <paramref name="cutoffUtc"/>, i.e. whose expiry window has elapsed. Only the ownership record is
+  /// removed — the media file is never deleted here (deletion stays on-demand).
+  /// </summary>
+  /// <param name="cutoffUtc">Ownerships with <see cref="RequestRecord.AvailableAt"/> before this lapse.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The number of ownerships that lapsed.</returns>
+  Task<int> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Cancels (removes) one of the user's own requests, only while it is still pending.
   /// </summary>
   /// <param name="id">The request identifier.</param>

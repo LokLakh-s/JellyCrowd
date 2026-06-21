@@ -144,6 +144,27 @@
       });
       row.appendChild(keep);
     } else {
+      // Expiry countdown ("Expires in 12d") + a one-click renew (re-claim) that resets it.
+      if (item.ExpiresAt) {
+        var exp = document.createElement('span');
+        exp.className = 'jellycrowd-status jellycrowd-status-scheduled';
+        var left = lib.deletionCountdown(new Date(item.ExpiresAt).getTime(), Date.now());
+        exp.textContent = left ? (t('expires_in') + ' ' + left) : t('expires_in') + ' <1d';
+        row.appendChild(exp);
+
+        var renew = document.createElement('button');
+        renew.className = 'jellycrowd-request';
+        renew.type = 'button';
+        renew.textContent = t('renew_ownership');
+        renew.addEventListener('click', function () {
+          renew.disabled = true;
+          apiPost('JellyCrowd/Requests/Claim', { TmdbId: item.TmdbId, MediaType: item.MediaType, Title: item.Title, PosterPath: item.PosterPath })
+            .then(function () { reloadMedia(); })
+            .catch(function () { renew.disabled = false; });
+        });
+        row.appendChild(renew);
+      }
+
       var button = document.createElement('button');
       button.className = 'jellycrowd-request';
       button.type = 'button';

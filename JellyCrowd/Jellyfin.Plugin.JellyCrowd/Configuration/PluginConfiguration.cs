@@ -27,6 +27,7 @@ public class PluginConfiguration : BasePluginConfiguration
     CommentsEnabled = false;
     AnnouncementText = string.Empty;
     AnnouncementLevel = "green";
+    MediaExpiryDays = 90;
     EstimatedMovieSizeBytes = 4L * 1024 * 1024 * 1024; // 4 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
     MaxRequestsPerPeriod = 0;
@@ -162,6 +163,14 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the announcement severity colour: <c>green</c>, <c>yellow</c> or <c>red</c>.
   /// </summary>
   public string AnnouncementLevel { get; set; }
+
+  /// <summary>
+  /// Gets or sets the media ownership expiry window in days. A user's ownership of an available title
+  /// lapses (freeing their quota) this many days after it became available / was last claimed; claiming
+  /// again resets the countdown. The media file is never auto-deleted (deletion stays on-demand).
+  /// 0 disables expiry (ownerships never lapse).
+  /// </summary>
+  public int MediaExpiryDays { get; set; }
 
   /// <summary>
   /// Gets the genre all-list (TMDB English genre names) gating size-based auto-approval: when non-empty,
