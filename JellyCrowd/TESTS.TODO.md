@@ -91,6 +91,17 @@
 - [ ] Avec le compte **admin** : le plugin reste **visible et utilisable** (pour configurer/tester).
 - [ ] Décocher l'option → les utilisateurs revoient le plugin (après rechargement de page).
 
+## 11. Nouveautés récentes (v0.44 → v0.47+)
+
+- [ ] **Avis & notes (M29)** : activer « Enable ratings & reviews » (admin). Sur un titre du catalogue (popup), noter (1–10 en demi-étoiles) + commentaire optionnel ; la **moyenne interne** + nb de votes s'affichent (et un badge à côté de la note TMDB). Re-noter **met à jour** (pas de doublon). Avis **anonymes** pour les non-admins ; l'admin voit l'auteur + peut masquer/supprimer.
+- [ ] **Bandeau natif** : sur Home + chaque librairie, seuls les liens Jelly Crowd (Home, Catalog, Calendar, My requests) s'affichent ; les onglets natifs sont masqués. Vérifier **Other & Books** (nos liens présents).
+- [ ] **Lien Home** : ferme le volet plugin + va à l'accueil. Cliquer ailleurs (recherche, menu, librairie) **ferme** le volet.
+- [ ] **Annonce admin** : l'admin édite l'annonce depuis le bandeau (✎) → bandeau coloré vert/jaune/rouge visible par tous.
+- [ ] **Calendrier** : titres demandés (par n'importe qui) en **violet** + demandes à date future affichées ; épisodes des séries suivies/demandées.
+- [ ] **Expiration / propriété (M27)** : « My library » montre « Expire dans … » + bouton **Conserver (renouveler)** (reset 90 j). Régler « Media ownership expiry (days) ».
+- [ ] **Cleanup admin** : Diagnostics → « Library cleanup » → **Scan media** (orphelins) → **Delete** (confirmation) supprime du disque.
+- [ ] **Anti-freeze** : naviguer entre pages/volets ne fige plus le navigateur (régression v0.47.0 corrigée en v0.47.1).
+
 ---
 
 ### Notes
