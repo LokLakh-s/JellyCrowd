@@ -488,6 +488,64 @@
     container.appendChild(strip);
   }
 
+  // Preview of a saga before requesting it: the full list with each film's status, the count that
+  // will actually be requested, and explicit Confirm/Cancel buttons (sendAll fires the requests).
+  function renderSagaPreview(container, parts, pending, sendAll) {
+    container.innerHTML = '';
+    container.style.display = '';
+
+    var heading = document.createElement('div');
+    heading.className = 'jellycrowd-saga-heading';
+    heading.textContent = t('saga_preview_title');
+    container.appendChild(heading);
+
+    var list = document.createElement('div');
+    list.className = 'jellycrowd-saga-list';
+    parts.forEach(function (p) {
+      var row = document.createElement('div');
+      row.className = 'jellycrowd-saga-row';
+      var name = document.createElement('span');
+      name.className = 'jellycrowd-saga-name';
+      var year = lib.yearOf(p);
+      name.textContent = (p.Title || '') + (year ? ' (' + year + ')' : '');
+      var status = document.createElement('span');
+      status.className = 'jellycrowd-saga-status';
+      if (p.Available) { status.textContent = t('available_badge'); status.classList.add('jellycrowd-saga-have'); }
+      else { status.textContent = t('saga_to_request'); }
+      row.appendChild(name);
+      row.appendChild(status);
+      list.appendChild(row);
+    });
+    container.appendChild(list);
+
+    var actions = document.createElement('div');
+    actions.className = 'jellycrowd-saga-actions';
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'jellycrowd-request jellycrowd-request-secondary';
+    cancel.textContent = t('cancel');
+    cancel.addEventListener('click', function () { container.style.display = 'none'; container.innerHTML = ''; });
+    var confirm = document.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'jellycrowd-request';
+    if (!pending.length) {
+      confirm.disabled = true;
+      confirm.textContent = t('saga_nothing_to_request');
+    } else {
+      confirm.textContent = t('saga_confirm').replace('{n}', pending.length);
+      confirm.addEventListener('click', function () {
+        confirm.disabled = true;
+        cancel.disabled = true;
+        confirm.textContent = t('requesting');
+        sendAll().then(function () { confirm.textContent = t('requested'); })
+          .catch(function () { confirm.disabled = false; cancel.disabled = false; confirm.textContent = t('saga_confirm').replace('{n}', pending.length); });
+      });
+    }
+    actions.appendChild(cancel);
+    actions.appendChild(confirm);
+    container.appendChild(actions);
+  }
+
   function renderSeasonRequests(container, item, seasons, dateInput, requested) {
     var req = requested || { seasons: {}, episodes: {} };
     container.innerHTML = '';
@@ -986,29 +1044,39 @@
           sagaBtn.type = 'button';
           sagaBtn.style.margin = '.4em 0 0 .6em'; // breathing room from the plain "Request" button
           sagaBtn.textContent = t('request_saga');
+          var sagaPreview = document.createElement('div');
+          sagaPreview.className = 'jellycrowd-saga-preview';
+          sagaPreview.style.display = 'none';
+
+          // First click previews the saga (list + how many will actually be requested); the user must
+          // then confirm before anything is sent — requesting a whole franchise blind was too risky.
           sagaBtn.addEventListener('click', function () {
             sagaBtn.disabled = true;
-            sagaBtn.textContent = t('requesting');
+            sagaBtn.textContent = t('loading');
             apiGet('JellyCrowd/Catalog/Collection/' + details.CollectionId + '?language=' + encodeURIComponent(fullLocale()))
               .then(function (parts) {
-                var pending = (parts || []).filter(function (p) { return !p.Available; });
-                return Promise.all(pending.map(function (p) {
-                  return submitRequest({
-                    TmdbId: p.TmdbId,
-                    MediaType: 'movie',
-                    Title: p.Title,
-                    PosterPath: p.PosterPath,
-                    ReleaseDate: p.ReleaseDate,
-                    Season: null,
-                    Episode: null,
-                    DesiredAt: null
-                  }).catch(function () { /* skip dups / errors */ });
-                }));
+                parts = parts || [];
+                var pending = parts.filter(function (p) { return !p.Available; });
+                renderSagaPreview(sagaPreview, parts, pending, function () {
+                  return Promise.all(pending.map(function (p) {
+                    return submitRequest({
+                      TmdbId: p.TmdbId,
+                      MediaType: 'movie',
+                      Title: p.Title,
+                      PosterPath: p.PosterPath,
+                      ReleaseDate: p.ReleaseDate,
+                      Season: null,
+                      Episode: null,
+                      DesiredAt: null
+                    }).catch(function () { /* skip dups / errors */ });
+                  }));
+                });
+                sagaBtn.style.display = 'none'; // replaced by the preview's own confirm/cancel
               })
-              .then(function () { sagaBtn.textContent = t('requested'); })
               .catch(function () { sagaBtn.disabled = false; sagaBtn.textContent = t('request_saga'); });
           });
           content.appendChild(sagaBtn);
+          content.appendChild(sagaPreview);
         }
       })
       .catch(function () { /* details are best-effort */ });

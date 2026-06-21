@@ -774,19 +774,39 @@
     sel.style.cssText = 'margin-top:.5em;background:#111;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:.3em;padding:.3em;';
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:.5em;margin-top:.6em;justify-content:flex-end;';
-    function save(text, level) {
-      apiAjax('POST', 'JellyCrowd/Settings/Announcement', { Text: text, Level: level })
-        .then(function () { announcement = { text: (text || '').trim(), level: level }; pop.remove(); refreshAnnouncement(); })
-        .catch(function () { /* ignore */ });
+    // The endpoint returns 204 No Content, so we must NOT ask ApiClient to parse JSON (it would
+    // reject on the empty body and the banner would only update on the next page load).
+    function save(text, level, btn) {
+      if (!(window.ApiClient && window.ApiClient.ajax)) { return; }
+      saveBtn.disabled = true; clearBtn.disabled = true;
+      var prev = btn ? btn.textContent : '';
+      if (btn) { btn.textContent = '…'; }
+      window.ApiClient.ajax({
+        type: 'POST',
+        url: getUrl('JellyCrowd/Settings/Announcement'),
+        data: JSON.stringify({ Text: text, Level: level }),
+        contentType: 'application/json'
+      })
+        .then(function () {
+          announcement = { text: (text || '').trim(), level: level };
+          refreshAnnouncement();           // live update of the banner — the visible success signal
+          if (btn) { btn.textContent = '✓'; }
+          setTimeout(function () { pop.remove(); }, 500);
+        })
+        .catch(function () {
+          saveBtn.disabled = false; clearBtn.disabled = false;
+          if (btn) { btn.textContent = prev; }
+          ta.style.border = '1px solid #c62828';
+        });
     }
     var clearBtn = document.createElement('button');
     clearBtn.type = 'button'; clearBtn.textContent = t('announcement_clear');
     clearBtn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:.3em;padding:.3em .7em;cursor:pointer;';
-    clearBtn.addEventListener('click', function () { save('', sel.value); });
+    clearBtn.addEventListener('click', function () { save('', sel.value, clearBtn); });
     var saveBtn = document.createElement('button');
     saveBtn.type = 'button'; saveBtn.textContent = t('save');
     saveBtn.style.cssText = 'background:#00a4dc;border:0;color:#fff;border-radius:.3em;padding:.3em .8em;cursor:pointer;';
-    saveBtn.addEventListener('click', function () { save(ta.value, sel.value); });
+    saveBtn.addEventListener('click', function () { save(ta.value, sel.value, saveBtn); });
     actions.appendChild(clearBtn); actions.appendChild(saveBtn);
     pop.appendChild(ta); pop.appendChild(sel); pop.appendChild(actions);
     pop.addEventListener('click', function (e) { e.stopPropagation(); });
@@ -832,10 +852,19 @@
     document.head.appendChild(style);
   }
 
+  // In "config mode" the plugin is hidden from non-admins — in that case we must NOT hide the native
+  // tabs, otherwise those users get an empty header (our nav isn't inserted to fill it).
+  function removeHeaderStyle() {
+    var style = document.getElementById('jcHeaderStyle');
+    if (style && style.parentNode) { style.parentNode.removeChild(style); }
+  }
+
   function tryInsert() {
     if (!pluginVisible()) {
+      removeHeaderStyle(); // restore the native header tabs for users who can't see the plugin
       return;
     }
+    injectHeaderStyle();
     insertNav();
     insertQuota();
     insertBell();
@@ -1008,7 +1037,6 @@
   }
 
   function start() {
-    injectHeaderStyle();
     var observer = new MutationObserver(function () {
       tryInsert();
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
