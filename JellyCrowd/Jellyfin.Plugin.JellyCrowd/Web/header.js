@@ -367,8 +367,11 @@
     if (document.querySelector('.jcHeaderNav')) {
       return;
     }
+    // Prefer the native tabs row (centered). Fall back to the header's left area for library types
+    // (Other/Books) that don't render a tabs row, so our nav is still reachable there.
     var tabs = document.querySelector('.headerTabs.sectionTabs') || document.querySelector('.headerTabs');
-    if (!tabs) {
+    var host = tabs || document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
+    if (!host) {
       return;
     }
     var nav = document.createElement('div');
@@ -377,9 +380,9 @@
     nav.appendChild(navButton('nav_catalog', 'catalog'));
     nav.appendChild(navButton('nav_calendar', 'calendar'));
     nav.appendChild(navButton('nav_requests', 'requests'));
-    // Sit on the same line as the real tabs when the slider exists, else in the centered row itself.
-    var slider = tabs.querySelector('.emby-tabs-slider');
-    (slider || tabs).appendChild(nav);
+    // Sit on the same line as the real tabs when the slider exists, else in the row/host itself.
+    var slider = tabs ? tabs.querySelector('.emby-tabs-slider') : null;
+    (slider || host).appendChild(nav);
   }
 
   // Quota bar lives in .headerRight, placed between the search icon and the user avatar
@@ -652,6 +655,21 @@
     refreshBellBadge();
   }
 
+  // Hide Jellyfin's native section tabs (Home/Favorites, Movies/Suggestions/…, Shows/…): Jelly Crowd
+  // supplies its own nav in that row instead. Injected once; harmless if the row isn't present.
+  function injectHeaderStyle() {
+    if (document.getElementById('jcHeaderStyle')) {
+      return;
+    }
+    var style = document.createElement('style');
+    style.id = 'jcHeaderStyle';
+    style.textContent =
+      '.headerTabs .emby-tab-button{display:none !important;}' +
+      // Some library types (Other/Books) hide the empty tab row — keep it shown when it hosts our nav.
+      '.headerTabs:has(.jcHeaderNav){display:flex !important;justify-content:center;}';
+    document.head.appendChild(style);
+  }
+
   function tryInsert() {
     if (!pluginVisible()) {
       return;
@@ -662,6 +680,7 @@
   }
 
   function start() {
+    injectHeaderStyle();
     var observer = new MutationObserver(function () {
       tryInsert();
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
