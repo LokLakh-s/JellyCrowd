@@ -48,7 +48,9 @@ public class SettingsController : ControllerBase
     {
       Language = string.IsNullOrWhiteSpace(config.Language) ? "auto" : config.Language,
       Hidden = config.HiddenFromUsers,
-      CommentsEnabled = config.CommentsEnabled
+      CommentsEnabled = config.CommentsEnabled,
+      AnnouncementText = config.AnnouncementText ?? string.Empty,
+      AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel
     });
   }
 
@@ -65,6 +67,25 @@ public class SettingsController : ControllerBase
   {
     var isAdmin = await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false);
     var visible = !_config().HiddenFromUsers || isAdmin;
-    return Ok(new VisibilitySettingDto { Visible = visible });
+    return Ok(new VisibilitySettingDto { Visible = visible, IsAdmin = isAdmin });
+  }
+
+  /// <summary>
+  /// Sets (or clears) the header announcement banner. Administrators only.
+  /// </summary>
+  /// <param name="dto">The announcement payload (empty text clears it).</param>
+  /// <response code="204">The announcement was saved.</response>
+  /// <returns>No content.</returns>
+  [HttpPost("Announcement")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  public IActionResult SetAnnouncement([FromBody] AnnouncementDto dto)
+  {
+    var plugin = Plugin.Instance ?? throw new InvalidOperationException("Plugin is not initialized.");
+    var level = dto?.Level?.ToLowerInvariant();
+    plugin.Configuration.AnnouncementText = (dto?.Text ?? string.Empty).Trim();
+    plugin.Configuration.AnnouncementLevel = level is "green" or "yellow" or "red" ? level : "green";
+    plugin.SaveConfiguration();
+    return NoContent();
   }
 }

@@ -79,34 +79,35 @@
   }
 
   var configMode = false;     // raw "config mode" flag (hidden from non-admins)
+  var isAdmin = false;        // current user is an administrator (resolved server-side)
+  var announcement = { text: '', level: 'green' };
 
   function loadConfigLang() {
-    // Token-free request (works before ApiClient is ready): gives us the language and the raw
-    // config-mode flag. If config mode is on we hide by default (fail closed) until an authenticated
-    // admin check confirms the current user is exempt.
+    // Token-free request (works before ApiClient is ready): gives us the language, the raw config-mode
+    // flag and the announcement. If config mode is on we hide by default (fail closed) until an
+    // authenticated admin check confirms the current user is exempt.
     return fetch(getUrl('JellyCrowd/Settings/Language'))
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); }
         configMode = !!(d && d.Hidden === true);
         pluginHidden = configMode; // fail closed while config mode is on
+        if (d) { announcement = { text: d.AnnouncementText || '', level: d.AnnouncementLevel || 'green' }; }
       })
       .catch(function () { /* keep defaults on failure */ });
   }
 
-  // When config mode is on, confirm via the authenticated endpoint whether THIS user is an admin
-  // (and therefore exempt). Retried a few times because ApiClient may not be ready at first paint.
+  // Confirm via the authenticated endpoint whether THIS user is an admin (and, in config mode, exempt).
+  // Retried a few times because ApiClient may not be ready at first paint.
   function resolveAdminVisibility(attempt) {
-    if (!configMode) {
-      return; // not hidden — nothing to resolve
-    }
     attempt = attempt || 0;
     apiAjax('GET', 'JellyCrowd/Settings/Visibility')
       .then(function (d) {
-        if (d && d.Visible === true) {
+        isAdmin = !!(d && d.IsAdmin === true);
+        if (configMode && d && d.Visible === true) {
           pluginHidden = false;
-          tryInsert();
         }
+        tryInsert(); // (re-)render now that admin state is known (banner edit affordance, etc.)
       })
       .catch(function () {
         if (attempt < 5) {
@@ -655,6 +656,108 @@
     refreshBellBadge();
   }
 
+  // ---------- admin announcement banner ----------
+
+  function announcementColors(level) {
+    if (level === 'red') { return { bg: '#c62828', fg: '#fff' }; }
+    if (level === 'yellow') { return { bg: '#f9a825', fg: '#1a1a1a' }; }
+    return { bg: '#2e7d32', fg: '#fff' }; // green
+  }
+
+  function renderAnnouncementInner(box) {
+    box.innerHTML = '';
+    var hasText = !!(announcement.text && announcement.text.trim());
+    if (!hasText && !isAdmin) { box.style.display = 'none'; return; }
+    box.style.display = 'inline-flex';
+    if (hasText) {
+      var c = announcementColors(announcement.level);
+      box.style.background = c.bg;
+      box.style.color = c.fg;
+      box.style.border = '0';
+      var txt = document.createElement('span');
+      txt.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      txt.textContent = announcement.text;
+      txt.title = announcement.text;
+      box.appendChild(txt);
+    } else {
+      box.style.background = 'transparent';
+      box.style.color = 'inherit';
+      box.style.border = '1px dashed rgba(255,255,255,.4)';
+      var add = document.createElement('span');
+      add.textContent = t('announcement_add');
+      add.style.opacity = '.8';
+      box.appendChild(add);
+    }
+    if (isAdmin) {
+      var edit = document.createElement('button');
+      edit.type = 'button';
+      edit.textContent = '✎';
+      edit.title = t('announcement_edit');
+      edit.style.cssText = 'margin-left:.4em;background:none;border:0;color:inherit;cursor:pointer;font-size:1em;flex:0 0 auto;';
+      edit.addEventListener('click', function (e) { e.stopPropagation(); openAnnouncementEditor(); });
+      box.appendChild(edit);
+    }
+  }
+
+  function openAnnouncementEditor() {
+    if (document.getElementById('jcAnnEditor')) { return; }
+    var pop = document.createElement('div');
+    pop.id = 'jcAnnEditor';
+    pop.style.cssText = 'position:fixed;z-index:100001;top:3.4em;left:1em;width:24em;max-width:92vw;background:#1c1c1c;border:1px solid rgba(255,255,255,.18);border-radius:.4em;box-shadow:0 8px 26px rgba(0,0,0,.55);padding:.7em;color:#fff;';
+    var ta = document.createElement('textarea');
+    ta.value = announcement.text || '';
+    ta.placeholder = t('announcement_placeholder');
+    ta.style.cssText = 'width:100%;min-height:3em;box-sizing:border-box;background:#111;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:.3em;padding:.4em;';
+    var sel = document.createElement('select');
+    [['green', t('announcement_green')], ['yellow', t('announcement_yellow')], ['red', t('announcement_red')]].forEach(function (o) {
+      var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1];
+      op.style.backgroundColor = '#1c1c1c'; op.style.color = '#fff';
+      sel.appendChild(op);
+    });
+    sel.value = announcement.level || 'green';
+    sel.style.cssText = 'margin-top:.5em;background:#111;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:.3em;padding:.3em;';
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:.5em;margin-top:.6em;justify-content:flex-end;';
+    function save(text, level) {
+      apiAjax('POST', 'JellyCrowd/Settings/Announcement', { Text: text, Level: level })
+        .then(function () { announcement = { text: (text || '').trim(), level: level }; pop.remove(); refreshAnnouncement(); })
+        .catch(function () { /* ignore */ });
+    }
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button'; clearBtn.textContent = t('announcement_clear');
+    clearBtn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:.3em;padding:.3em .7em;cursor:pointer;';
+    clearBtn.addEventListener('click', function () { save('', sel.value); });
+    var saveBtn = document.createElement('button');
+    saveBtn.type = 'button'; saveBtn.textContent = t('save');
+    saveBtn.style.cssText = 'background:#00a4dc;border:0;color:#fff;border-radius:.3em;padding:.3em .8em;cursor:pointer;';
+    saveBtn.addEventListener('click', function () { save(ta.value, sel.value); });
+    actions.appendChild(clearBtn); actions.appendChild(saveBtn);
+    pop.appendChild(ta); pop.appendChild(sel); pop.appendChild(actions);
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.body.appendChild(pop);
+    var onDoc = function () { pop.remove(); document.removeEventListener('click', onDoc); };
+    setTimeout(function () { document.addEventListener('click', onDoc); }, 0);
+  }
+
+  function refreshAnnouncement() {
+    var box = document.querySelector('.jcHeaderAnnounce');
+    if (box) { renderAnnouncementInner(box); }
+  }
+
+  // Announcement banner sits in the header's left area, just after the logo/home button.
+  function insertAnnouncement() {
+    var host = document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
+    if (!host) { return; }
+    var box = document.querySelector('.jcHeaderAnnounce');
+    if (!box) {
+      box = document.createElement('span');
+      box.className = 'jcHeaderAnnounce';
+      box.style.cssText = 'display:inline-flex;align-items:center;gap:.3em;margin:0 .8em;padding:.15em .7em;border-radius:.4em;font-size:.82em;font-weight:600;max-width:40vw;overflow:hidden;';
+      host.appendChild(box);
+    }
+    renderAnnouncementInner(box);
+  }
+
   // Hide Jellyfin's native section tabs (Home/Favorites, Movies/Suggestions/…, Shows/…): Jelly Crowd
   // supplies its own nav in that row instead. Injected once; harmless if the row isn't present.
   function injectHeaderStyle() {
@@ -677,6 +780,7 @@
     insertNav();
     insertQuota();
     insertBell();
+    insertAnnouncement();
   }
 
   function start() {

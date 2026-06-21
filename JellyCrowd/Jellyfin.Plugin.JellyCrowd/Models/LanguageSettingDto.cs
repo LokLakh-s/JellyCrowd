@@ -21,4 +21,10 @@ public class LanguageSettingDto
   /// Gets or sets a value indicating whether community comments/reviews are enabled (admin opt-in).
   /// </summary>
   public bool CommentsEnabled { get; set; }
+
+  /// <summary>Gets or sets the admin announcement banner text (empty = no banner).</summary>
+  public string AnnouncementText { get; set; } = string.Empty;
+
+  /// <summary>Gets or sets the announcement severity colour (<c>green</c>/<c>yellow</c>/<c>red</c>).</summary>
+  public string AnnouncementLevel { get; set; } = "green";
 }

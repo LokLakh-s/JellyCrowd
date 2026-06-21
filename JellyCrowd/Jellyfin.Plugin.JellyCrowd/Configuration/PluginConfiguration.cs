@@ -25,6 +25,8 @@ public class PluginConfiguration : BasePluginConfiguration
     HiddenFromUsers = false;
     RateLimitPerMinute = 120;
     CommentsEnabled = false;
+    AnnouncementText = string.Empty;
+    AnnouncementLevel = "green";
     EstimatedMovieSizeBytes = 4L * 1024 * 1024 * 1024; // 4 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
     MaxRequestsPerPeriod = 0;
@@ -150,6 +152,16 @@ public class PluginConfiguration : BasePluginConfiguration
   /// the admin opts in; when off, the comments section is hidden and the comments API is disabled.
   /// </summary>
   public bool CommentsEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the admin announcement shown in the header banner. Empty hides the banner.
+  /// </summary>
+  public string AnnouncementText { get; set; }
+
+  /// <summary>
+  /// Gets or sets the announcement severity colour: <c>green</c>, <c>yellow</c> or <c>red</c>.
+  /// </summary>
+  public string AnnouncementLevel { get; set; }
 
   /// <summary>
   /// Gets the genre all-list (TMDB English genre names) gating size-based auto-approval: when non-empty,
