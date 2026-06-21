@@ -163,13 +163,9 @@
   function renderCard(item) {
     var card = document.createElement('div');
     card.className = 'jellycrowd-card jellycrowd-card-clickable';
-    card.addEventListener('click', function () {
-      if (item.Available && item.JellyfinItemId) {
-        navigateToItem(item.JellyfinItemId);
-      } else {
-        openModal(item);
-      }
-    });
+    // Both available and not-yet-available titles open the details popup (available media gets a
+    // "Add to my library" action + a visible link into Jellyfin from there).
+    card.addEventListener('click', function () { openModal(item); });
 
     var posterWrap = document.createElement('div');
     posterWrap.className = 'jellycrowd-poster-wrap';
@@ -212,19 +208,17 @@
 
     card.appendChild(posterWrap);
 
-    if (!item.Available) {
-      // The poster button opens the details modal rather than requesting directly: users must see
-      // the media details (and pick a season for shows) before sending a request from the modal.
-      var button = document.createElement('button');
-      button.className = 'jellycrowd-request';
-      button.type = 'button';
-      button.textContent = t('details_button');
-      button.addEventListener('click', function (e) {
-        e.stopPropagation();
-        openModal(item);
-      });
-      card.appendChild(button);
-    }
+    // Every card gets a "Details" button: the modal is where requesting (or claiming an available
+    // title into your library, plus the link into Jellyfin) happens.
+    var button = document.createElement('button');
+    button.className = 'jellycrowd-request';
+    button.type = 'button';
+    button.textContent = t('details_button');
+    button.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openModal(item);
+    });
+    card.appendChild(button);
 
     return card;
   }
@@ -450,6 +444,50 @@
     return a;
   }
 
+  var CAST_PROFILE_BASE = 'https://image.tmdb.org/t/p/w185';
+
+  // A horizontal scrolling strip of cast members (photo + name + character).
+  function renderCast(container, cast) {
+    container.innerHTML = '';
+    container.style.display = '';
+    var title = document.createElement('h4');
+    title.className = 'jellycrowd-cast-title';
+    title.textContent = t('cast');
+    container.appendChild(title);
+
+    var strip = document.createElement('div');
+    strip.className = 'jellycrowd-cast-strip';
+    cast.forEach(function (member) {
+      var cell = document.createElement('div');
+      cell.className = 'jellycrowd-cast-cell';
+      var photo = document.createElement('div');
+      photo.className = 'jellycrowd-cast-photo';
+      if (member.ProfilePath) {
+        var img = document.createElement('img');
+        img.loading = 'lazy';
+        img.alt = member.Name || '';
+        img.src = CAST_PROFILE_BASE + member.ProfilePath;
+        photo.appendChild(img);
+      } else {
+        photo.classList.add('jellycrowd-cast-photo-empty');
+        photo.textContent = (member.Name || '?').slice(0, 1);
+      }
+      cell.appendChild(photo);
+      var name = document.createElement('div');
+      name.className = 'jellycrowd-cast-name';
+      name.textContent = member.Name || '';
+      cell.appendChild(name);
+      if (member.Character) {
+        var role = document.createElement('div');
+        role.className = 'jellycrowd-cast-role';
+        role.textContent = member.Character;
+        cell.appendChild(role);
+      }
+      strip.appendChild(cell);
+    });
+    container.appendChild(strip);
+  }
+
   function renderSeasonRequests(container, item, seasons, dateInput, requested) {
     var req = requested || { seasons: {}, episodes: {} };
     container.innerHTML = '';
@@ -518,36 +556,43 @@
     return wrap;
   }
 
-  // Interactive half-star input (value 1–10). Click left/right half of a star.
+  // Interactive half-star input (value 1–10). Hover previews the rating under the cursor; click sets it.
   function starInput(initial) {
     var wrap = document.createElement('span');
-    wrap.style.cssText = 'display:inline-flex;gap:.1em;font-size:1.6em;line-height:1;cursor:pointer;';
+    wrap.className = 'jellycrowd-star-input';
+    wrap.style.cssText = 'display:inline-flex;gap:.1em;font-size:1.7em;line-height:1;cursor:pointer;';
     var value = initial || 0;
     var fills = [];
-    function render() {
+    // Paint the stars filled up to `shown` (defaults to the committed value).
+    function render(shown) {
+      var v = (shown === undefined || shown === null) ? value : shown;
       fills.forEach(function (f, idx) {
-        f.style.width = Math.max(0, Math.min(100, (value - idx * 2) / 2 * 100)) + '%';
+        f.style.width = Math.max(0, Math.min(100, (v - idx * 2) / 2 * 100)) + '%';
       });
+    }
+    function valueAt(star, idx, clientX) {
+      var r = star.getBoundingClientRect();
+      var leftHalf = (clientX - r.left) < r.width / 2;
+      return idx * 2 + (leftHalf ? 1 : 2);
     }
     for (var i = 0; i < 5; i++) {
       (function (idx) {
         var star = document.createElement('span');
-        star.style.cssText = 'position:relative;display:inline-block;width:1em;color:#888;';
+        star.style.cssText = 'position:relative;display:inline-block;width:1em;color:#888;transition:transform .05s;';
         star.textContent = '★';
         var fill = document.createElement('span');
         fill.style.cssText = 'position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5c518;width:0;';
         fill.textContent = '★';
         star.appendChild(fill);
-        star.addEventListener('click', function (e) {
-          var r = star.getBoundingClientRect();
-          var leftHalf = (e.clientX - r.left) < r.width / 2;
-          value = idx * 2 + (leftHalf ? 1 : 2);
-          render();
-        });
+        // Live preview as the cursor moves across the star (shows exactly what a click would set).
+        star.addEventListener('mousemove', function (e) { render(valueAt(star, idx, e.clientX)); });
+        star.addEventListener('click', function (e) { value = valueAt(star, idx, e.clientX); render(); });
         fills.push(fill);
         wrap.appendChild(star);
       })(i);
     }
+    // Leaving the whole control restores the committed value.
+    wrap.addEventListener('mouseleave', function () { render(); });
     render();
     wrap.getValue = function () { return value; };
     wrap.setValue = function (v) { value = v || 0; render(); };
@@ -794,6 +839,12 @@
     overview.textContent = item.Overview || t('no_overview');
     content.appendChild(overview);
 
+    // Cast strip (filled by the details enrichment below; hidden until then).
+    var castEl = document.createElement('div');
+    castEl.className = 'jellycrowd-cast';
+    castEl.style.display = 'none';
+    content.appendChild(castEl);
+
     // Reviews section, right under the synopsis (admin opt-in). Passes meta so the internal
     // average rating can also appear next to the TMDB rating.
     if (commentsEnabled) {
@@ -860,9 +911,22 @@
         content.appendChild(requestButton);
       }
     } else {
-      // Already in the library: let the user claim it into their own media (shared ownership).
+      // Already in the library: offer a visible link into Jellyfin, then let the user claim it into
+      // their own media (shared ownership: starts the expiry clock + lets them request deletion).
+      var actions = document.createElement('div');
+      actions.className = 'jellycrowd-modal-actions';
+
+      if (item.JellyfinItemId) {
+        var openBtn = document.createElement('button');
+        openBtn.className = 'jellycrowd-request jellycrowd-open-jellyfin';
+        openBtn.type = 'button';
+        openBtn.textContent = t('open_in_jellyfin');
+        openBtn.addEventListener('click', function () { navigateToItem(item.JellyfinItemId); });
+        actions.appendChild(openBtn);
+      }
+
       var claimBtn = document.createElement('button');
-      claimBtn.className = 'jellycrowd-request';
+      claimBtn.className = 'jellycrowd-request jellycrowd-request-secondary';
       claimBtn.type = 'button';
       claimBtn.textContent = t('add_to_my_media');
       claimBtn.title = t('claim_quota_warning');
@@ -881,7 +945,8 @@
           else { claimBtn.disabled = false; }
         });
       });
-      content.appendChild(claimBtn);
+      actions.appendChild(claimBtn);
+      content.appendChild(actions);
       var claimNote = document.createElement('div');
       claimNote.className = 'jellycrowd-request-sub';
       claimNote.textContent = t('claim_quota_warning');
@@ -902,6 +967,9 @@
           chip.textContent = name;
           genresEl.appendChild(chip);
         });
+        if (details.Cast && details.Cast.length) {
+          renderCast(castEl, details.Cast);
+        }
         if (details.Runtime) {
           var rt = document.createElement('span');
           rt.textContent = details.Runtime + ' ' + t('runtime_min');

@@ -104,10 +104,46 @@ public static class TmdbResponseParser
       ReleaseDate = GetString(element, isMovie ? "release_date" : "first_air_date"),
       VoteAverage = GetDouble(element, "vote_average"),
       Genres = GetGenreNames(element),
+      Cast = GetCast(element),
       Runtime = GetRuntime(element, isMovie),
       ImdbId = GetImdbId(element),
       CollectionId = GetCollectionId(element)
     };
+  }
+
+  // Top billed cast from an appended `credits` payload (empty unless append_to_response=credits).
+  private static IReadOnlyList<CastMember> GetCast(JsonElement element)
+  {
+    const int MaxCast = 15;
+    if (!element.TryGetProperty("credits", out var credits) || credits.ValueKind != JsonValueKind.Object
+        || !credits.TryGetProperty("cast", out var cast) || cast.ValueKind != JsonValueKind.Array)
+    {
+      return Array.Empty<CastMember>();
+    }
+
+    var result = new List<CastMember>();
+    foreach (var member in cast.EnumerateArray())
+    {
+      var name = GetString(member, "name");
+      if (string.IsNullOrWhiteSpace(name))
+      {
+        continue;
+      }
+
+      result.Add(new CastMember
+      {
+        Name = name!,
+        Character = GetString(member, "character") ?? string.Empty,
+        ProfilePath = GetString(member, "profile_path")
+      });
+
+      if (result.Count >= MaxCast)
+      {
+        break;
+      }
+    }
+
+    return result;
   }
 
   /// <summary>
