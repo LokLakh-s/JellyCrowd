@@ -392,7 +392,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ **Anti-exploit** : recompute atomique du *committed* à chaque création (déjà via mutex du store) + cap requêtes/période (M16) comme garde-fou ; documenter le modèle (estimation en vol → taille réelle à l'import).
 - ☐ **Objectif transversal** : **UI optimiste** + invalidation ciblée pour que tout changement (requête, quota, statut) se reflète **sans force-refresh**.
 
-### M29 — Avis & notes (style IMDb) — évolution des commentaires  ☐ *(périmètre 1.0)*
+### M29 — Avis & notes (style IMDb) — évolution des commentaires  ☑ *(livré)*
 
 > Transforme le **système de commentaires existant** (M25 : `MediaComment` / `JsonMediaCommentStore` /
 > `CommentsController` / `buildCommentsSection`) en **système d'avis noté**, interne. Principe directeur :

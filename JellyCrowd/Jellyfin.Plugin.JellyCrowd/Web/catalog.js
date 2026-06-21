@@ -498,43 +498,119 @@
     });
   }
 
-  // ---------- comments ----------
+  // ---------- reviews (rating 1–10, shown as half-stars; anonymous to non-admins) ----------
 
-  function renderComments(listEl, comments) {
+  // Read-only star display for a 1–10 value (5 stars; each star = 2 points, half-star = 1).
+  function starsDisplay(value) {
+    var wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;gap:.05em;font-size:1.05em;line-height:1;vertical-align:middle;';
+    for (var i = 0; i < 5; i++) {
+      var pct = Math.max(0, Math.min(100, (Number(value) - i * 2) / 2 * 100));
+      var star = document.createElement('span');
+      star.style.cssText = 'position:relative;display:inline-block;width:1em;color:#888;';
+      star.textContent = '★';
+      var fill = document.createElement('span');
+      fill.style.cssText = 'position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5c518;width:' + pct + '%;';
+      fill.textContent = '★';
+      star.appendChild(fill);
+      wrap.appendChild(star);
+    }
+    return wrap;
+  }
+
+  // Interactive half-star input (value 1–10). Click left/right half of a star.
+  function starInput(initial) {
+    var wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;gap:.1em;font-size:1.6em;line-height:1;cursor:pointer;';
+    var value = initial || 0;
+    var fills = [];
+    function render() {
+      fills.forEach(function (f, idx) {
+        f.style.width = Math.max(0, Math.min(100, (value - idx * 2) / 2 * 100)) + '%';
+      });
+    }
+    for (var i = 0; i < 5; i++) {
+      (function (idx) {
+        var star = document.createElement('span');
+        star.style.cssText = 'position:relative;display:inline-block;width:1em;color:#888;';
+        star.textContent = '★';
+        var fill = document.createElement('span');
+        fill.style.cssText = 'position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5c518;width:0;';
+        fill.textContent = '★';
+        star.appendChild(fill);
+        star.addEventListener('click', function (e) {
+          var r = star.getBoundingClientRect();
+          var leftHalf = (e.clientX - r.left) < r.width / 2;
+          value = idx * 2 + (leftHalf ? 1 : 2);
+          render();
+        });
+        fills.push(fill);
+        wrap.appendChild(star);
+      })(i);
+    }
+    render();
+    wrap.getValue = function () { return value; };
+    wrap.setValue = function (v) { value = v || 0; render(); };
+    return wrap;
+  }
+
+  function renderReviewAverage(el, dto) {
+    el.innerHTML = '';
+    if (!dto || !dto.Count) {
+      el.textContent = t('no_ratings');
+      el.style.opacity = '.7';
+      return;
+    }
+    el.style.opacity = '1';
+    el.appendChild(starsDisplay(dto.Average));
+    var num = document.createElement('span');
+    num.style.marginLeft = '.4em';
+    num.textContent = dto.Average.toFixed(1) + '/10 · ' + dto.Count + ' ' + t('ratings_count');
+    el.appendChild(num);
+  }
+
+  function renderReviews(listEl, reviews) {
     listEl.innerHTML = '';
-    if (!comments || !comments.length) {
+    if (!reviews || !reviews.length) {
       var empty = document.createElement('div');
       empty.className = 'jellycrowd-request-sub';
       empty.textContent = t('comments_empty');
       listEl.appendChild(empty);
       return;
     }
-    comments.forEach(function (c) {
+    reviews.forEach(function (c) {
       var row = document.createElement('div');
       row.className = 'jellycrowd-comment';
       var head = document.createElement('div');
       head.className = 'jellycrowd-comment-head';
-      var who = document.createElement('span');
-      who.className = 'jellycrowd-comment-author';
-      who.textContent = c.UserName || '';
-      head.appendChild(who);
+      if (c.Rating > 0) { head.appendChild(starsDisplay(c.Rating)); }
+      // Author name is only present for admins; everyone else sees anonymous reviews.
+      if (c.UserName) {
+        var who = document.createElement('span');
+        who.className = 'jellycrowd-comment-author';
+        who.style.marginLeft = '.5em';
+        who.textContent = c.UserName;
+        head.appendChild(who);
+      }
       var when = document.createElement('span');
       when.className = 'jellycrowd-comment-date';
-      when.textContent = c.CreatedAt ? new Date(c.CreatedAt).toLocaleString() : '';
+      when.textContent = c.CreatedAt ? new Date(c.CreatedAt).toLocaleDateString() : '';
       head.appendChild(when);
 
       if (isAdmin) {
         head.appendChild(commentAction(t('comment_hide'), 'JellyCrowd/Comments/' + c.Id + '/Hide', row));
         head.appendChild(commentAction(t('comment_delete'), 'JellyCrowd/Comments/' + c.Id + '/Delete', row));
-      } else if (c.UserId === myUserId) {
+      } else if (c.Mine) {
         head.appendChild(commentAction(t('comment_delete'), 'JellyCrowd/Comments/' + c.Id + '/DeleteMine', row));
       }
       row.appendChild(head);
 
-      var text = document.createElement('div');
-      text.className = 'jellycrowd-comment-text';
-      text.textContent = c.Text;
-      row.appendChild(text);
+      if (c.Text) {
+        var text = document.createElement('div');
+        text.className = 'jellycrowd-comment-text';
+        text.textContent = c.Text;
+        row.appendChild(text);
+      }
       listEl.appendChild(row);
     });
   }
@@ -551,47 +627,73 @@
     return btn;
   }
 
-  function loadComments(item, listEl) {
-    apiGet('JellyCrowd/Comments/' + item.MediaType + '/' + item.TmdbId)
-      .then(function (comments) { renderComments(listEl, comments); })
-      .catch(function () { /* comments are best-effort */ });
-  }
-
-  function buildCommentsSection(item) {
+  function buildCommentsSection(item, metaEl) {
     var section = document.createElement('div');
     section.className = 'jellycrowd-comments';
     var title = document.createElement('h4');
     title.className = 'jellycrowd-comments-title';
-    title.textContent = t('comments');
+    title.textContent = t('reviews');
     section.appendChild(title);
+
+    var avg = document.createElement('div');
+    avg.className = 'jellycrowd-reviews-average';
+    avg.style.cssText = 'margin:.2em 0 .6em;display:flex;align-items:center;flex-wrap:wrap;gap:.1em;';
+    section.appendChild(avg);
 
     var list = document.createElement('div');
     list.className = 'jellycrowd-comments-list';
     section.appendChild(list);
 
+    // Your review: star rating (required) + optional text.
     var form = document.createElement('div');
     form.className = 'jellycrowd-comment-form';
+    var rateRow = document.createElement('div');
+    rateRow.style.cssText = 'display:flex;align-items:center;gap:.6em;margin-bottom:.3em;';
+    var rateLabel = document.createElement('span');
+    rateLabel.textContent = t('your_review');
+    var stars = starInput(0);
+    rateRow.appendChild(rateLabel);
+    rateRow.appendChild(stars);
     var input = document.createElement('textarea');
     input.className = 'jellycrowd-comment-input';
     input.rows = 2;
-    input.placeholder = t('comment_placeholder');
+    input.placeholder = t('review_text_placeholder');
     var post = document.createElement('button');
     post.type = 'button';
     post.className = 'jellycrowd-request';
-    post.textContent = t('comment_post');
+    post.textContent = t('review_submit');
     post.addEventListener('click', function () {
-      var text = input.value.trim();
-      if (!text) { return; }
+      var rating = stars.getValue();
+      if (rating < 1) { post.textContent = t('rating_required'); setTimeout(function () { post.textContent = t('review_submit'); }, 1500); return; }
       post.disabled = true;
-      apiPost('JellyCrowd/Comments', { MediaType: item.MediaType, TmdbId: item.TmdbId, Text: text })
-        .then(function () { input.value = ''; post.disabled = false; loadComments(item, list); })
+      apiPost('JellyCrowd/Comments', { MediaType: item.MediaType, TmdbId: item.TmdbId, Text: input.value.trim(), Rating: rating })
+        .then(function () { post.disabled = false; reload(); })
         .catch(function () { post.disabled = false; });
     });
+    form.appendChild(rateRow);
     form.appendChild(input);
     form.appendChild(post);
     section.appendChild(form);
 
-    loadComments(item, list);
+    function reload() {
+      apiGet('JellyCrowd/Comments/' + item.MediaType + '/' + item.TmdbId)
+        .then(function (dto) {
+          dto = dto || { Average: 0, Count: 0, Reviews: [] };
+          renderReviewAverage(avg, dto);
+          renderReviews(list, dto.Reviews || []);
+          if (metaEl && dto.Count) {
+            var chip = metaEl.querySelector('.jellycrowd-internal-rating');
+            if (!chip) { chip = document.createElement('span'); chip.className = 'jellycrowd-internal-rating'; metaEl.appendChild(chip); }
+            chip.textContent = '⬤ ' + dto.Average.toFixed(1) + '/10';
+            chip.title = t('reviews') + ' (' + dto.Count + ')';
+          }
+          var mine = (dto.Reviews || []).filter(function (r) { return r.Mine; })[0];
+          if (mine) { stars.setValue(mine.Rating); input.value = mine.Text || ''; post.textContent = t('review_update'); }
+        })
+        .catch(function () { /* reviews are best-effort */ });
+    }
+
+    reload();
     return section;
   }
 
@@ -692,9 +794,10 @@
     overview.textContent = item.Overview || t('no_overview');
     content.appendChild(overview);
 
-    // Comments section, right under the synopsis (admin opt-in).
+    // Reviews section, right under the synopsis (admin opt-in). Passes meta so the internal
+    // average rating can also appear next to the TMDB rating.
     if (commentsEnabled) {
-      content.appendChild(buildCommentsSection(item));
+      content.appendChild(buildCommentsSection(item, meta));
     }
 
     var links = document.createElement('div');

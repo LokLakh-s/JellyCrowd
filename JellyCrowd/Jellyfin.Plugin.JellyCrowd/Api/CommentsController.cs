@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,28 +52,54 @@ public class CommentsController : ControllerBase
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
   /// <param name="tmdbId">The TMDB id.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <response code="200">The comments.</response>
-  /// <returns>The visible comments.</returns>
+  /// <response code="200">The title's reviews + internal average.</response>
+  /// <returns>The internal average, count and anonymised reviews.</returns>
   [HttpGet("{mediaType}/{tmdbId:int}")]
   [ProducesResponseType(StatusCodes.Status200OK)]
-  public async Task<ActionResult<IReadOnlyList<MediaComment>>> Get(string mediaType, int tmdbId, CancellationToken cancellationToken)
+  public async Task<ActionResult<MediaReviewsDto>> Get(string mediaType, int tmdbId, CancellationToken cancellationToken)
   {
+    var dto = new MediaReviewsDto();
     if (!_config().CommentsEnabled)
     {
-      return Ok(Array.Empty<MediaComment>());
+      return Ok(dto);
     }
 
-    return Ok(await _store.GetForTitleAsync(mediaType, tmdbId, includeHidden: false, cancellationToken).ConfigureAwait(false));
+    var reviews = await _store.GetForTitleAsync(mediaType, tmdbId, includeHidden: false, cancellationToken).ConfigureAwait(false);
+    var rated = reviews.Where(r => r.Rating > 0).ToList();
+    if (rated.Count > 0)
+    {
+      dto.Average = Math.Round(rated.Average(r => r.Rating), 1);
+      dto.Count = rated.Count;
+    }
+
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var isAdmin = await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false);
+    foreach (var r in reviews)
+    {
+      dto.Reviews.Add(new ReviewView
+      {
+        Id = r.Id,
+        Rating = r.Rating,
+        Text = r.Text,
+        CreatedAt = r.CreatedAt,
+        Mine = r.UserId == userId,
+        // Anonymous to everyone but admins (and the author always sees it's "Mine").
+        UserName = isAdmin ? r.UserName : null
+      });
+    }
+
+    return Ok(dto);
   }
 
   /// <summary>
-  /// Posts a comment on a title.
+  /// Posts (or updates) the caller's review of a title: a 1–10 rating with optional text. One review
+  /// per user per title.
   /// </summary>
-  /// <param name="dto">The comment payload.</param>
+  /// <param name="dto">The review payload.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <response code="200">The created comment.</response>
+  /// <response code="200">The created/updated review.</response>
   /// <response code="400">The payload was invalid.</response>
-  /// <returns>The persisted comment with its id and timestamp.</returns>
+  /// <returns>The persisted review.</returns>
   [HttpPost]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -80,12 +107,17 @@ public class CommentsController : ControllerBase
   {
     if (!_config().CommentsEnabled)
     {
-      return StatusCode(StatusCodes.Status403Forbidden, "Comments are disabled.");
+      return StatusCode(StatusCodes.Status403Forbidden, "Reviews are disabled.");
     }
 
-    if (dto is null || string.IsNullOrWhiteSpace(dto.Text))
+    if (dto is null)
     {
-      return BadRequest("A comment text is required.");
+      return BadRequest("A review payload is required.");
+    }
+
+    if (dto.Rating < 1 || dto.Rating > 10)
+    {
+      return BadRequest("A rating from 1 to 10 is required.");
     }
 
     if (!string.Equals(dto.MediaType, "movie", StringComparison.Ordinal) && !string.Equals(dto.MediaType, "tv", StringComparison.Ordinal))
@@ -93,25 +125,26 @@ public class CommentsController : ControllerBase
       return BadRequest("The 'mediaType' must be 'movie' or 'tv'.");
     }
 
-    var text = dto.Text.Trim();
+    var text = (dto.Text ?? string.Empty).Trim();
     if (text.Length > MaxCommentLength)
     {
       text = text[..MaxCommentLength];
     }
 
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
-    var created = await _store.AddAsync(
+    var saved = await _store.AddOrUpdateAsync(
       new MediaComment
       {
         MediaType = dto.MediaType,
         TmdbId = dto.TmdbId,
         UserId = userId,
         UserName = _resolveUserName(userId),
-        Text = text
+        Text = text,
+        Rating = dto.Rating
       },
       cancellationToken).ConfigureAwait(false);
 
-    return Ok(created);
+    return Ok(saved);
   }
 
   /// <summary>

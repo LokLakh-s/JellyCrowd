@@ -39,34 +39,50 @@ public sealed class CommentsControllerTests : IDisposable
     };
 
   [Fact]
-  public async Task Post_CreatesCommentWithResolvedName()
+  public async Task Post_CreatesReviewWithRatingAndResolvedName()
   {
-    var result = await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 1, Text = "  hello  " }, CancellationToken.None);
+    var result = await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 1, Text = "  hello  ", Rating = 8 }, CancellationToken.None);
 
     var ok = Assert.IsType<OkObjectResult>(result.Result);
-    var comment = Assert.IsType<MediaComment>(ok.Value);
-    Assert.Equal("hello", comment.Text);
-    Assert.Equal("tester", comment.UserName);
-    Assert.Equal(User, comment.UserId);
+    var review = Assert.IsType<MediaComment>(ok.Value);
+    Assert.Equal("hello", review.Text);
+    Assert.Equal(8, review.Rating);
+    Assert.Equal("tester", review.UserName);
+    Assert.Equal(User, review.UserId);
   }
 
   [Fact]
-  public async Task Post_EmptyText_BadRequest()
+  public async Task Post_NoRating_BadRequest()
   {
-    var result = await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 1, Text = "   " }, CancellationToken.None);
+    // Text is optional now, but a 1–10 rating is required.
+    var result = await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 1, Text = "great", Rating = 0 }, CancellationToken.None);
 
     Assert.IsType<BadRequestObjectResult>(result.Result);
   }
 
   [Fact]
-  public async Task Get_ReturnsVisibleComments()
+  public async Task Post_SecondReview_UpdatesInsteadOfDuplicating()
   {
-    await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 7, Text = "x" }, CancellationToken.None);
+    await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 7, Rating = 6 }, CancellationToken.None);
+    await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 7, Rating = 9 }, CancellationToken.None);
 
-    var result = await CreateController().Get("movie", 7, CancellationToken.None);
+    var dto = Assert.IsType<MediaReviewsDto>(Assert.IsType<OkObjectResult>((await CreateController().Get("movie", 7, CancellationToken.None)).Result).Value);
+    Assert.Equal(1, dto.Count);
+    Assert.Equal(9, dto.Average);
+  }
 
-    var ok = Assert.IsType<OkObjectResult>(result.Result);
-    Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<MediaComment>>(ok.Value));
+  [Fact]
+  public async Task Get_ReturnsAverageAndAnonymisesForNonAdmin()
+  {
+    await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 7, Text = "good", Rating = 8 }, CancellationToken.None);
+
+    var dto = Assert.IsType<MediaReviewsDto>(Assert.IsType<OkObjectResult>((await CreateController().Get("movie", 7, CancellationToken.None)).Result).Value);
+
+    Assert.Equal(1, dto.Count);
+    Assert.Equal(8, dto.Average);
+    var review = Assert.Single(dto.Reviews);
+    Assert.Null(review.UserName); // anonymous to non-admins
+    Assert.True(review.Mine);
   }
 
   [Fact]
