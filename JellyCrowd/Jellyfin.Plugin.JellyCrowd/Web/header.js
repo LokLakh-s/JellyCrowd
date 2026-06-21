@@ -352,7 +352,7 @@
     box.addEventListener('click', function () { toggleView('mymedia'); });
     var caption = document.createElement('span');
     caption.textContent = t('my_media_title');
-    caption.style.cssText = 'color:#fff;font-weight:600;opacity:.85;';
+    caption.style.cssText = 'color:#4caf50;font-weight:700;font-size:1.25em;line-height:1.1;';
     var label = document.createElement('span');
     label.style.color = '#fff';
     var track = document.createElement('span');
