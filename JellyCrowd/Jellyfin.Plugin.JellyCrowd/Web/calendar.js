@@ -526,9 +526,14 @@
   function dayItem(item) {
     var el = document.createElement('button');
     el.type = 'button';
-    el.className = 'jellycrowd-cal-item';
+    el.className = 'jellycrowd-cal-item' + (item.Requested ? ' jellycrowd-cal-item-requested' : '');
     var epTag = item.EpisodeNumber ? (' S' + (item.SeasonNumber || 0) + 'E' + item.EpisodeNumber) : '';
-    el.title = (item.Title || '') + epTag + (item.EpisodeName ? ' — ' + item.EpisodeName : '');
+    el.title = (item.Title || '') + epTag + (item.EpisodeName ? ' — ' + item.EpisodeName : '') + (item.Requested ? ' · ' + t('requested') : '');
+    // Distinct accent for titles already requested (vs plain releases). Anonymous — no requester shown.
+    if (item.Requested) {
+      el.style.borderLeft = '3px solid #a855f7';
+      el.style.background = 'rgba(168,85,247,.18)';
+    }
     if (item.PosterPath) {
       var img = document.createElement('img');
       img.loading = 'lazy';
