@@ -395,6 +395,7 @@
     loadConfigLang().then(resolveAdmin).then(loadStrings).then(function () {
       document.getElementById('jcReqLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcReqTitle').textContent = t('my_requests_title');
+      document.getElementById('jcReqDisclaimer').textContent = t('requests_latency_disclaimer');
       setMessage(t('loading'));
 
       if (typeof window.jellyCrowdRegisterRefresh === 'function') {

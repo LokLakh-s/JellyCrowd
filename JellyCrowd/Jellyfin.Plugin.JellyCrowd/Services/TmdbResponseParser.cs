@@ -105,7 +105,7 @@ public static class TmdbResponseParser
       VoteAverage = GetDouble(element, "vote_average"),
       Genres = GetGenreNames(element),
       Cast = GetCast(element),
-      Director = GetDirector(element, isMovie),
+      Directors = GetDirectors(element, isMovie),
       OriginalTitle = GetOriginalTitle(element, isMovie),
       Runtime = GetRuntime(element, isMovie),
       ImdbId = GetImdbId(element),
@@ -123,26 +123,33 @@ public static class TmdbResponseParser
       : null;
   }
 
-  // Director (movies) or creator (shows) from an appended `credits` payload, comma-separated.
-  private static string? GetDirector(JsonElement element, bool isMovie)
+  // Director (movies) or creator (shows) with TMDB person ids, from an appended `credits` payload.
+  private static List<CastMember> GetDirectors(JsonElement element, bool isMovie)
   {
-    var names = new List<string>();
+    var result = new List<CastMember>();
+    var seen = new HashSet<int>();
+
+    void Add(JsonElement person)
+    {
+      var n = GetString(person, "name");
+      var id = GetInt(person, "id");
+      if (!string.IsNullOrWhiteSpace(n) && seen.Add(id))
+      {
+        result.Add(new CastMember { Id = id, Name = n! });
+      }
+    }
 
     // Shows: top-level `created_by`.
     if (!isMovie && element.TryGetProperty("created_by", out var creators) && creators.ValueKind == JsonValueKind.Array)
     {
       foreach (var c in creators.EnumerateArray())
       {
-        var n = GetString(c, "name");
-        if (!string.IsNullOrWhiteSpace(n) && !names.Contains(n!))
-        {
-          names.Add(n!);
-        }
+        Add(c);
       }
     }
 
     // Movies (and as fallback): crew members with job == Director.
-    if (names.Count == 0
+    if (result.Count == 0
         && element.TryGetProperty("credits", out var credits) && credits.ValueKind == JsonValueKind.Object
         && credits.TryGetProperty("crew", out var crew) && crew.ValueKind == JsonValueKind.Array)
     {
@@ -150,16 +157,12 @@ public static class TmdbResponseParser
       {
         if (string.Equals(GetString(member, "job"), "Director", StringComparison.Ordinal))
         {
-          var n = GetString(member, "name");
-          if (!string.IsNullOrWhiteSpace(n) && !names.Contains(n!))
-          {
-            names.Add(n!);
-          }
+          Add(member);
         }
       }
     }
 
-    return names.Count > 0 ? string.Join(", ", names) : null;
+    return result;
   }
 
   // Top billed cast from an appended `credits` payload (empty unless append_to_response=credits).
@@ -183,6 +186,7 @@ public static class TmdbResponseParser
 
       result.Add(new CastMember
       {
+        Id = GetInt(member, "id"),
         Name = name!,
         Character = GetString(member, "character") ?? string.Empty,
         ProfilePath = GetString(member, "profile_path")

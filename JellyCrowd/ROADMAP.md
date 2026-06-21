@@ -444,14 +444,14 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ **Note 3** — écran **My requests** : clic sur titre/jaquette ouvre le **popup** du média (modal du catalogue partagé via `window.jellyCrowdOpenDetail`). *(côté écran admin config : non applicable, pas d'infra modal)*
 - ☑ **Note 4** — requêtes **Unreleased/planifiées** : affichent **Sortie : …** + **Prochaine tentative : …** sous le titre.
 - ☑ **Notes 5/8** — popup : **release date** (méta), **réalisateur** + **titre original** (ligne crédits), liens **TMDB/IMDb entre synopsis et cast**. *(cast déjà fait)*
-- ☐ **Note 6** — **acteurs + réalisateur cliquables** → catalogue filtré (nécessite un filtre « par personne » dans le catalogue).
+- ☑ **Note 6** — **acteurs + réalisateur cliquables** → catalogue filtré par personne (filmographie). Backend : `withPeople` sur Discover (`with_people`), ids TMDB sur cast + réalisateurs ; front : clic cast/réalisateur → `applyPersonFilter` (titre « Filmography of … », Reset efface).
 - ☑ **Note 7** — **curseur pointer** sur le logo/home + **état hover** (brightness + underline) sur le bloc *My library*.
 - ☑ **Note 13** — l'écran **admin Requests** affiche le badge **Downloading** (+ %) via `Requests/All/DownloadStatus`.
 - ☑ **Note 12** — option admin **« Show review author names to everyone »** (`ShowReviewAuthors`, off par défaut) ; sinon les avis restent anonymes pour les non-admins.
 - ☑ **Calendrier** — le bouton **Today** ouvre un **sélecteur de date** (input date natif) pour sauter à n'importe quelle date.
-- ☐ **M25.2** (fiche native) — remplacer le **slider** par les **étoiles** du popup, **textarea multiligne**, repositionner le panneau (sous l'affiche / 2ᵉ colonne au niveau du synopsis).
+- ☑ **M25.2** (fiche native) — **slider → étoiles** (avec survol), **textarea multiligne**, panneau inséré **plus haut** (en tête du contenu de la fiche, près du synopsis).
 - ☑ **M16 (genres)** — champ texte remplacé par un **menu déroulant des genres TMDB** (movie+tv fusionnés) + **pastilles supprimables** ; persiste dans `AutoApproveGenres`.
-- ☐ **Note 14** — **disclaimer** près du titre « Mes demandes » : l'affichage de la progression/disponibilité n'est pas temps réel (techno Jellyfin), le média peut être dispo dans Jellyfin avant que la requête soit marquée *Available*.
+- ☑ **Note 14** — **disclaimer** sous le titre « Mes demandes » expliquant que la progression/disponibilité n'est pas temps réel (un média peut être lisible dans Jellyfin avant d'être marqué *Available* ici).
 
 **Réactivité / temps réel → relève de M28 :**
 

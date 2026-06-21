@@ -126,6 +126,11 @@ public class TmdbClient : ITmdbClient
       builder.Append("&with_origin_country=").Append(Escape(query.OriginCountry));
     }
 
+    if (query.WithPeople is > 0)
+    {
+      builder.Append("&with_people=").Append(query.WithPeople.Value.ToString(CultureInfo.InvariantCulture));
+    }
+
     var json = await GetAsync(builder.ToString(), cancellationToken).ConfigureAwait(false);
     return TmdbResponseParser.ParseResults(json, mediaType);
   }

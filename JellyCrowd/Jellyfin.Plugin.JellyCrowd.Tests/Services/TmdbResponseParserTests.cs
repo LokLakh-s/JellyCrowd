@@ -1,3 +1,4 @@
+using System.Linq;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Xunit;
 
@@ -163,15 +164,16 @@ public class TmdbResponseParserTests
     const string json = """
     { "id": 10, "title": "Localized", "original_title": "Original",
       "credits": { "crew": [
-        { "name": "Jane Doe", "job": "Director" },
-        { "name": "Editor Guy", "job": "Editor" },
-        { "name": "John Roe", "job": "Director" }
+        { "id": 1, "name": "Jane Doe", "job": "Director" },
+        { "id": 2, "name": "Editor Guy", "job": "Editor" },
+        { "id": 3, "name": "John Roe", "job": "Director" }
       ] } }
     """;
 
     var item = TmdbResponseParser.ParseDetails(json, "movie");
 
-    Assert.Equal("Jane Doe, John Roe", item!.Director);
+    Assert.Equal(new[] { "Jane Doe", "John Roe" }, item!.Directors.Select(d => d.Name));
+    Assert.Equal(new[] { 1, 3 }, item.Directors.Select(d => d.Id));
     Assert.Equal("Original", item.OriginalTitle);
   }
 
@@ -187,12 +189,14 @@ public class TmdbResponseParserTests
   public void ParseDetails_Tv_CreatorAsDirector()
   {
     const string json = """
-    { "id": 20, "name": "Show", "created_by": [ { "name": "Vince Gilligan" } ] }
+    { "id": 20, "name": "Show", "created_by": [ { "id": 66, "name": "Vince Gilligan" } ] }
     """;
 
     var item = TmdbResponseParser.ParseDetails(json, "tv");
 
-    Assert.Equal("Vince Gilligan", item!.Director);
+    Assert.Single(item!.Directors);
+    Assert.Equal("Vince Gilligan", item.Directors[0].Name);
+    Assert.Equal(66, item.Directors[0].Id);
   }
 
   [Fact]
