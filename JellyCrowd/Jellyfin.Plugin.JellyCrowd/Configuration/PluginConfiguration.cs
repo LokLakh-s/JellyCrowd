@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using MediaBrowser.Model.Plugins;
 
@@ -173,16 +174,18 @@ public class PluginConfiguration : BasePluginConfiguration
   public int MediaExpiryDays { get; set; }
 
   /// <summary>
-  /// Gets the genre all-list (TMDB English genre names) gating size-based auto-approval: when non-empty,
-  /// a request is only auto-approved by the size rule if at least one of the title's genres is listed.
-  /// Empty disables the genre criterion (size rule applies to all genres). Trusted users bypass this.
+  /// Gets or sets the genre allow-list (TMDB English genre names) gating size-based auto-approval: when
+  /// non-empty, a request is only auto-approved by the size rule if at least one of the title's genres is
+  /// listed. Empty disables the genre criterion (size rule applies to all genres). Trusted users bypass this.
   /// </summary>
-  public Collection<string> AutoApproveGenres { get; } = new();
+  [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
+  public Collection<string> AutoApproveGenres { get; set; } = new();
 
   /// <summary>
-  /// Gets the per-user quota overrides. A user not listed here uses <see cref="DefaultUserQuotaBytes"/>.
+  /// Gets or sets the per-user quota overrides. A user not listed here uses <see cref="DefaultUserQuotaBytes"/>.
   /// </summary>
-  public Collection<UserQuotaOverride> QuotaOverrides { get; } = new();
+  [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
+  public Collection<UserQuotaOverride> QuotaOverrides { get; set; } = new();
 
   /// <summary>
   /// Gets or sets the Discord webhook URL used for request notifications. Empty disables Discord.
