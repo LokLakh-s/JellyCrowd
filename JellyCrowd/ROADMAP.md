@@ -244,12 +244,19 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 > Issu des notes manuelles de Victor + brainstorm, mis en forme en étapes de dev.
 > Tags de version = **estimations** : chaque milestone = un bump **mineur** (`[minor]`) ;
 > la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M29** livré.
-> Version publiée actuelle : **`v0.37.0`**. Milestones ordonnés par **priorité** (valeur + déblocage).
+> Milestones ordonnés par **priorité** (valeur + déblocage).
 >
-> **État (2026-06-20)** : M16→M26 livrés. **Reste : M15** (états d'échec + relance), les
-> **ajouts périmètre 1.0** (M27 quotas adaptatifs & expiration, M28 réactivité UI, M29 avis & notes)
-> et la **stabilisation v1.0** (responsive/a11y, doc, tests e2e, polish). Sous-points reportés :
-> calendrier épisodes (M24), colonne commentaires page native (M25.2), canaux stable/nightly (M26.2).
+> **État (2026-06-21)** : **M15→M26 + M29 livrés**, ainsi que **M27.B** (expiration des médias par âge).
+> Un **gros lot de patches de finition** a suivi (voir « Patches de finition pré-1.0 » plus bas) :
+> refonte du popup catalogue, **responsive/mobile** (overlay, listes, tableaux admin), **calendrier
+> multi-vues** (Mois/Semaine/Jour), **dispatch idempotent** (fin du flapping « Blocked/400 »),
+> **annulation qui stoppe le grab RDT** (file Radarr), **logs** (recherche + entrées admin/user),
+> **Prowlarr** configurable, **accès plugin par utilisateur**, **packaging MailKit**, **persistance
+> config** (genres/quotas), opt-in notifs e-mail par catégorie, avis & notes (M29).
+> **Reste pour la 1.0** : **M27.A** (quotas adaptatifs), **M28** (réactivité/exactitude quota temps réel),
+> le **reliquat de patches** (liste dédiée plus bas + Notes de Victor), et la **stabilisation v1.0**
+> (responsive/a11y final, doc utilisateur, tests e2e/non-régression, polish).
+> Sous-points reportés : calendrier épisodes (M24.B), canaux stable/nightly (M26.2).
 
 ### M15 — Téléchargement : correctifs & échecs  ☑ *(livré)*
 
@@ -345,7 +352,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres** (catégorie / niveau).
 - ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release). *(reporté — M26.2)*
 
-### M27 — Quotas adaptatifs & expiration des médias  ☐ *(périmètre 1.0)*
+### M27 — Quotas adaptatifs & expiration des médias  ◑ *(A: à faire · B: livré)*
 
 > Rien de tel n'existe aujourd'hui (vérifié) : le quota est **fixe** (`DefaultUserQuotaBytes` +
 > surcharges `QuotaOverrides`), aucune notion d'activité/temps de visionnage, aucune expiration par âge.
@@ -367,13 +374,13 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ **Borné (budget stockage)** : ne stocker que des **agrégats** par user (minutes/jour, dernier vu, palier courant, état de sursis + échéance), **jamais** les ticks bruts.
 - ☐ **Visibilité** : palier courant + état « sursis » + compte à rebours dans la **barre de quota** et **Mes médias** ; surfacer côté **admin** (table des quotas) + **logs** (M26).
 
-#### B. Expiration automatique des médias par âge
+#### B. Expiration automatique des médias par âge  ☑ *(livré)*
 
-- ☐ **Délai d'expiration configurable** (global, surchargeable par user/rôle), **`0` = infini** (désactivé).
-- ☐ Le **décompte démarre quand le média devient `Available`** pour l'utilisateur.
-- ☐ À expiration → suppression via le **pipeline existant** (`DeletionTask` + propriété partagée : le fichier n'est supprimé que si **plus aucun propriétaire actif**).
-- ☐ **Avertissements** avant suppression (J-N) + bouton **« Garder »** (réinitialise le compteur) — réutilise le *Keep* de M23.
-- ☐ **Tâche planifiée** idempotente balayant les `Available` dont l'âge dépasse le délai (bornée, comme les autres tâches).
+- ☑ **Délai d'expiration configurable** (global `MediaExpiryDays`, **`0` = infini**). *(Surcharge par user/rôle : non fait — option future.)*
+- ☑ Le **décompte démarre quand le média devient `Available`** (ou au dernier *claim*/renouvellement).
+- ☑ À expiration → l'appartenance **lapse** (libère le quota) via `DeletionTask.ExpireOwnershipsAsync` ; le fichier reste géré par le pipeline de suppression on-demand + propriété partagée (M23).
+- ☑ **Avertissement** : *My library* affiche « Expire dans … » + bouton **« Conserver (renouveler) »** (reset du compteur). À l'expiration effective, **notification** « média expiré » au propriétaire (catégorie quota/expiration).
+- ☑ **Tâche planifiée** idempotente (`DeletionTask`) balayant les `Available` dont l'âge dépasse le délai (bornée).
 
 ### M28 — Réactivité de l'UI & exactitude temps réel du quota  ☐ *(périmètre 1.0)*
 
@@ -406,6 +413,53 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ **Modération admin** conservée (masquer / supprimer), + l'avis masqué **sort de la moyenne**.
 - ☐ **Borné** : réutiliser le plafond existant par titre (M25) ; la moyenne est un **agrégat** recalculé (ou mis en cache borné).
 - ☐ **Anti-réseau-social** : pas de réponses/threads, pas de likes, pas de profils publics — juste note + avis anonyme + moyenne.
+
+### Patches de finition pré-1.0 (lot juin 2026)
+
+> Issu des tests live (ex-`TESTS.TODO.md`) + Notes de Victor. Correctifs & polish sur l'existant
+> (pas de nouveau milestone), à clôturer avant la stabilisation v1.0.
+
+#### A. Livrés *(à revérifier en live)*
+
+- ☑ **Popup catalogue** : refonte (cast, ~980 px, avis vertical, survol des étoiles, **Report** sur la ligne du titre, zone Request **sous l'affiche**, **séries** = sélecteur de saisons pleine largeur) ; **média dispo** ouvre le popup (bouton **Détails** partout) avec **Open in Jellyfin** + **Add to my library** ; **« Demander la saga »** = aperçu + confirmation ; menus déroulants lisibles (fond sombre).
+- ☑ **Dispatch & requêtes** : **dispatch idempotent** (fin du flapping « Blocked / 400 already exists ») ; **annulation** retire le grab de la **file Radarr** (stoppe RDT) puis supprime ; un média **Available** efface l'erreur de dispatch ; **retry-search** admin opt-in (off par défaut) ; **taille de DL** affichée pendant le téléchargement ; polling 3 s → 2 s.
+- ☑ **Notifications** : **opt-in e-mail par catégorie** (dispo released/unreleased, décisions, quota/expiration) ; **emoji de statut** par notif ; **packaging MailKit/MimeKit** (les e-mails repartent).
+- ☑ **Logs** : recherche (**Entrée** + live débounce) ; nouvelles entrées **admin** (config sauvegardée) et **user** (prefs, suppression, claim).
+- ☑ **Diagnostic** : **Radarr/Sonarr** comptés séparément + **Prowlarr** configurable (URL/clé, API v1) ; 1ʳᵉ colonne élargie.
+- ☑ **Admin/config** : **persistance** `AutoApproveGenres` + `QuotaOverrides` (collections rendues settables) ; **accès plugin par utilisateur** (exemption de config mode) ; config mode **rend le bandeau natif** aux non-admins ; **annonce** mise à jour en direct (+ ✓).
+- ☑ **Mobile / responsive** : overlay **verrouille le scroll de fond** ; listes *Mes demandes*/*Ma bibliothèque* **wrappent** ; **tableaux admin** scrollables ; navbar « My library » sur une ligne ; panneau notifs pleine largeur ; annonce sur sa propre ligne ; genres complets ; **calendrier Mois/Semaine/Jour** + barre de nav qui wrappe.
+
+#### B. À faire *(reliquat pré-1.0)*
+
+**Bugs (re-test live KO) :**
+
+- ☐ **Boutons admin noirs** : Approve/Deny **et** boutons *Test* restent noirs → doivent être **bleu Jellyfin** (le style `emby-button` l'emporte sur nos classes — surcharger correctement). *(Notes 1, 2)*
+- ☐ **Tableau User quotas, 1ʳᵉ ligne** toujours différente des autres → re-investiguer la vraie cause (le fallback avatar n'a pas suffi).
+- ☐ **Popup mobile portrait** : s'affiche correctement ~0,25 s puis change de format et **déborde des deux côtés** (paysage OK) — bug responsive du popup à corriger.
+- ☐ **Taille de DL en unités différentes** de RDT (5,1 GiB affiché vs 5,47 GB RDT = même taille) → afficher en **Go décimaux** pour coller à RDT.
+
+**UI / UX (Notes de Victor) :**
+
+- ☐ **Note 2** — boutons *Test* (onglet Notifications) en **bleu Jellyfin**.
+- ☐ **Note 3** — écran **Requests admin** : clic sur titre/jaquette ouvre le **popup** du média.
+- ☐ **Note 4** — requêtes **Unreleased** : afficher la **date de sortie** + la **date de prochaine tentative** de recherche.
+- ☐ **Notes 5/6/8** — popup : afficher **release date**, **réalisateur**, **titre original** (cast déjà fait) ; **acteurs + réalisateur cliquables** → catalogue filtré ; déplacer les liens **TMDB/IMDb entre le synopsis et le cast**.
+- ☐ **Note 7** — **curseur pointer + état hover** sur le logo *Home* et le bloc *My library* du bandeau.
+- ☐ **Note 13** — l'écran **admin Requests** doit afficher le statut **Downloading**.
+- ☐ **Note 12** — option admin pour **afficher/masquer les pseudos** sur les avis (aujourd'hui toujours anonymes côté user).
+- ☐ **Calendrier** — le bouton **Today** ouvre un **sélecteur de période** (date picker) pour sauter à une date.
+- ☐ **M25.2** (fiche native) — remplacer le **slider** par les **étoiles** du popup, **textarea multiligne**, repositionner le panneau (sous l'affiche / 2ᵉ colonne au niveau du synopsis).
+- ☐ **M16 (genres)** — remplacer le champ texte des *auto-approve genres* par un **menu déroulant des genres TMDB** + pastilles supprimables.
+- ☐ **Note 14** — **disclaimer** près du titre « Mes demandes » : l'affichage de la progression/disponibilité n'est pas temps réel (techno Jellyfin), le média peut être dispo dans Jellyfin avant que la requête soit marquée *Available*.
+
+**Réactivité / temps réel → relève de M28 :**
+
+- ☐ **Note 9** — Approved → Available **trop lent** (« Downloaded · dispo dans <2 min » persiste trop longtemps) : reconcile plus agressif après import.
+- ☐ **Note 10** — la **pastille rouge** de notif n'apparaît pas toujours immédiatement au passage *Available*.
+
+**Tests → relève de la stabilisation v1.0 :**
+
+- ☐ **Note 11** — suite de **non-régression** (workflows, boutons, liens, affichages) — voir « Stratégie de tests e2e ».
 
 ### 🏁 v1.0.0 — Stabilisation
 

@@ -13,21 +13,14 @@
 
 ## 0. Prérequis
 
-- ✅ **Mettre à jour** le plugin vers la **dernière version** publiée (Dashboard → Plugins → Jelly Crowd) puis **redémarrer Jellyfin**.
-- ✅ Vérifier la version active : Dashboard → Plugins → *Jelly Crowd* = dernière version, statut **Active**.
-    --> 0.51.0.0
-- ✅ Onglet **Diagnostic** (config admin) → tout vert (TMDB, File Transformation, backend servarr, dossier data).
 - 🟨 Diagnostic → ligne **« Indexers »** : nombre d'indexers activés côté Radarr/Sonarr (warning si 0).
   - Je trouve qu'il faudrait le détail de Prowlarr, Radarr et Sonarr, car actuellement je ne vois que Radarr et "servarr"
   - élargis un peu la première colonne du tableau des Diagnostics
   - 🔧 Corrigé : la ligne Indexers liste maintenant **Radarr ET Sonarr séparément** (« Radarr: N enabled · Sonarr: M enabled »). Première colonne du tableau Diagnostics élargie (15em).
   - 🔧 **Prowlarr configurable** : nouveaux champs **Prowlarr URL + API key** (onglet Download, sous Sonarr). S'ils sont renseignés, la ligne Indexers affiche aussi **« Prowlarr: N enabled »** (interrogé sur son API v1).
-- ✅ Diagnostic → ligne **« Storage growth »** : estimation ~/utilisateur · ~/mois affichée.
 
 ## 1. M15 — Relance de recherche & état « Bloqué »
 
-- ✅ Faire une requête d'un titre **introuvable** par les indexers (ex. un film obscur/inexistant) → elle reste **Approuvée**.
-    Elle est en Approved Missing
 - 🟨 Si le dispatch échoue (backend mal configuré volontairement, ou titre non résolu) → un badge rouge **« Bloqué »** apparaît sur la requête, **raison au survol**.
   Quasi systématiquement, les requêtes se mettent en Bloqué, "400 Bad request", quand je les relance elles passent direct. J'ai fait une demande de Backrooms, qui n'est pas encore sorti, il s'est mis en Unreleased, mais là quand j'ai rouvert mes requêtes, elle s'était mise en bloqué (avec toujours le Unreleased). Il se remet régulièrement en Blocked même après que j'ai cliqué sur Retry et que le blocked ait disparu. Parfois même pendant des downloads, j'ai des 400 Bad request
   - 🔧 Corrigé (cause racine) : le dispatch **ré-ajoutait** systématiquement le film/série ; Radarr/Sonarr renvoient **400 "already exists"** → l'échec ne marquait pas la requête comme dispatchée → la tâche planifiée la ré-ajoutait en boucle (= flapping Blocked, même pendant un download). Le dispatch est maintenant **idempotent** : s'il est déjà dans Radarr/Sonarr → on lance une **recherche** (pas de ré-ajout) ; sinon on l'ajoute. Les requêtes coincées se débloquent toutes seules au prochain cycle (le succès efface l'erreur). À revérifier en live.
@@ -39,9 +32,6 @@
 - ✅ Cliquer **« Relancer la recherche »** sur une requête approuvée → pas d'erreur ; côté Radarr/Sonarr une **nouvelle recherche** est déclenchée (vérifier dans l'Activity/History de Radarr/Sonarr).
     Ca fonctionne nickel à première vue, mais je ne veux pas donner la possibilité aux users de faire la recherche eux même, car Sonarr/Radarr vont le faire eux même. Donne la possibilité à l'admin d'activer l'option, mais elle doit être désactivée par défaut.
     - 🔧 Corrigé : nouvelle option admin **« Let users retry the search themselves »** (OFF par défaut, onglet Settings). Quand OFF, le bouton Retry n'apparaît que pour l'admin et l'endpoint renvoie 403 aux users ; quand ON, les users le retrouvent.
-- ✅ Après une relance réussie, le badge **« Bloqué » disparaît** (erreur effacée).
-- ✅ Vérifier qu'une **requête de saison** lance bien une recherche ciblée (saison monitorée, pas de recherche vide chez Prowlarr).
-- ✅ (Logs) Onglet **Logs** admin → une entrée `download` apparaît pour la relance (succès `info` / échec `error`).
 
 ## 2. M16 — Auto-approbation (taille + genre + confiance)
 
@@ -71,34 +61,29 @@
 - 🟨 Onglet **Logs** : après quelques actions (requête, dispatch), des entrées apparaissent **du plus récent au plus ancien**.
   Je ne vois pas de notif admin quand je change des réglages du plugin, ni system, ni user (j'ai testé de renseigner mon email dans les notifs utilisateur, cela devrait générer un log par exemple, ou les demandes de suppression, etc.)
   - 🔧 Corrigé : nouvelles entrées de log — **admin** : « Plugin configuration saved » (à chaque sauvegarde des réglages, y compris l'annonce) ; **user** : email/préférences mises à jour, demande de suppression / annulation, ajout à la bibliothèque (claim). (Les catégories admin/user/system existaient dans le filtre mais n'étaient jamais écrites.)
-- ✅ Filtres **catégorie** (`request` / `download`) et **niveau** (`info` / `error`) → filtrent correctement.
 - 🟥 Recherche par **terme** (titre) → filtre correctement
   Cela ne fait rien quand je valide la recherche
   - 🔧 Corrigé : la zone de recherche des logs filtre maintenant sur **Entrée** ET en direct (au fil de la frappe, débounce 350 ms). Avant, elle n'était lue qu'au clic sur « Refresh ».
 
 ## 4. Régression — Cycle de requête (M16/M22)
 
-- ✅ Créer une requête film → suivre **En attente → Approuvée → (téléchargement) → Disponible**.
 - 🟨 Le statut **« en téléchargement »** + % se met à jour (polling 3 s) sans rechargement de page.
   Je trouve encore le taux de rafraichissement trop bas, mais le statut est là et se rafraichit. Le temps estimé est rarement bon, et le % est rarement bon également.
   - 🔧 Cadence de polling passée de 3 s → **2 s**. ⚠️ La précision du **%/ETA** vient des valeurs renvoyées par Radarr/Sonarr (calcul `(size-sizeleft)/size`, correct) : avec RDT/debrid ces valeurs sont intrinsèquement approximatives — pas corrigeable côté plugin.
 - 🟨 **Annuler** une requête approuvée → disparaît + (film) retirée de Radarr.
   En effet coté utilisateur ça fonctionne, mais coté admin je vois que le film se télécharge quand même dans RDT (il se retire du monitoring Radarr donc n'apparait pas dans Jellyfin à la fin du téléchargement)
   - 🔧 Corrigé : à l'annulation, on **retire d'abord le téléchargement de la file Radarr** (`DELETE /queue/{id}?removeFromClient=true`) — donc le grab RDT s'arrête — puis on supprime le film. À revérifier en live.
-- ✅ Dates **demande** et **mise à disposition** affichées sur la requête.
 
 ## 5. Régression — Quota & « Mes médias » (M21/M23)
 
 - ✅ Barre de **quota** dans le bandeau : taille utilisée / quota, couleur (vert→rouge).
   - Il faut remonter un peu l'ensemble My Library + quota + barre de quota car ce bloc n'est pas centré en hauteur dans le bandeau
     - 🔧 Bloc quota : `align-self:center` + `height:100%` sur le conteneur (centrage vertical robuste dans le bandeau natif) + line-height resserré. À confirmer visuellement.
-- ✅ **Mes médias** : taille par média + barre de quota.
 - 🟥 **Ajouter un média déjà dispo** (demandé par un autre) → avertissement quota, compté dans mon quota.
   - Je ne peux pas, car dans le catalogue, le bouton Détails n'apparait pas sous les médias présents, je ne peux pas ouvrir le popup. Quand je clique sur la jaquette ça me ramène au média dans Jellyfin, et sur la page Jellyfin du média, pas de bouton pour se l'ajouter.
     - 🔧 Corrigé : tout média (y compris dispo) a un bouton **Détails** et la carte ouvre le **popup** (ne renvoie plus direct dans Jellyfin). Le popup d'un dispo a **Open in Jellyfin** + **Add to my library**.
   - Si possible, il faudrait un bouton pour se l'ajouter sur la page du média Jellyfin également.
     - 🔧 Corrigé : un bouton **« Add to my library »** est injecté sur la **fiche native** (film/série avec TMDB), à côté des boutons d'action ; il claim le média (POST Claim). À revérifier en live.
-- ✅ **Demander la suppression** → compte à rebours affiché ; **annuler** la suppression tant qu'à > 1 min de l'échéance.
 - ❌ Propriété partagée : un média demandé par 2 users n'est **réellement supprimé** que quand **plus personne** ne le possède.
 - 🟨 Liens cliquables : un média/un *Available* ouvre bien la **fiche Jellyfin**.
   Finalement on va retirer ce lien de la jaquette et le mettre sur le popup du média dans le catalogue + l'injecter sur la page du média dans Jellyfin.
@@ -106,14 +91,11 @@
 
 ## 6. Régression — Notifications (M17)
 
-- ✅ **Cloche** dans le bandeau avec **pastille rouge + compteur** quand une notif arrive.
 - ✅ Notifié sur **Approved / Denied / Available**.
   - Mets un petit emoji selon si la notif est 🟥🟨✅
     - 🔧 Corrigé : chaque notif du panneau cloche affiche un emoji de statut — ✅ (Approved/Available), 🟥 (Denied/Failed), 🟨 (quota/expiration), 🔔 (autre).
 - 🟨 **Notif « Échec »** : quand un dispatch échoue (1ʳᵉ fois), le **demandeur** reçoit une notif in-app (+ canal perso) « Request needs attention… ». Pas de doublon aux tentatives suivantes.
   - J'ai eu plusieurs fois la notif de mon film Backrooms qui n'était pas disponible : "The movie request "Backrooms" could not be fulfilled yet (no release found or a backend error). You can retry the search."
-- ✅ **Effacer tout** dans le panneau de notifs fonctionne.
-- ✅ **Bouton « × » par notification** : efface une seule notif ; la liste se met à jour (état vide si c'était la dernière).
 - 🟥 **Préférences perso** (e-mail) : reçoit bien la notif.
   L'email n'arrive pas. Aucun mail ne semble plus partir, quand je fais un Test email depuis le panneau admin :
   "Could not load file or assembly 'MailKit, Version=4.17.0.0, Culture=neutral, PublicKeyToken=4e064fe7c44a8f1b'. The system cannot find the file specified."
@@ -125,11 +107,9 @@
   Le fond du menu déroulant "Sort by" est blanc et la police blanche également. Utilise le même style que les menus déroulants du calendrier.
   Modale détails trop petite mais je crois que je te l'ai déjà dit.
   - 🔧 Corrigé : menus Sort/Lang/Country (+ "act as" admin) fond sombre + options lisibles. Modale agrandie (~980 px), refondue (cast, avis vertical, Request sous l'affiche, report sur la ligne du titre).
-- ✅ **« Voir plus → »** sur une sous-section
 - 🟨 **« Demander toute la saga »** (collection TMDB).
   Ca a l'air de fonctionner, mais je n'ose pas tester car je ne sais pas ce que ça va demander, et je pense que ça sera pareil pour les utilisateurs. Trouve un palliatif (confirmation ? Aperçu de la liste avant ?)
   - 🔧 Corrigé : 1er clic = **aperçu** (liste des films + statut + nb réellement demandés) avec **Confirmer/Annuler** ; rien n'est envoyé sans confirmation.
-- ✅ **Calendrier** des sorties s'affiche.
 - 🟥 **Commentaires** sous le synopsis : poster, voir, (admin) masquer/supprimer.
   Je ne vois pas les commentaires, ni d'option pour les activer. Il me semble qu'on les a désactivé, mais il faut ajouter une option admin pour les activer ou non, en avertissant que les users verront les pseudos des autres (ce que je veux éviter pour ma part).
 - 🟥 **Signalement** d'un souci média → arrive dans la file admin ; admin peut résoudre/supprimer.
@@ -177,36 +157,17 @@
       - Je ne peux pas scroller à droite, donc ne peux pas voir toutes les infos
     - 🔧 Corrigé : les tableaux admin (Requests / User quotas / Reports) ont un **conteneur scrollable horizontalement** + largeur min, donc on accède à toutes les colonnes (et au bouton Approuver) sur mobile.
 
-## 9. Bandeau natif & intégration (custom CSS)
-
-- ✅ Ouvrir un volet du plugin (Catalog/Calendar/My requests/My media) → le **bandeau natif Jellyfin reste affiché en haut** (avec ton custom CSS : couleur `.headerRight`, tailles d'onglets, image de fond…), **pas** de bandeau custom qui le recouvre.
-- ✅ Le contenu du plugin s'affiche **sous** le bandeau (pas par-dessus).
-- ✅ Les liens **Catalog / Calendar / My requests** s'intègrent à la rangée d'onglets native ; **quota** + **cloche** dans `.headerRight`.
-- ✅ Re-cliquer le lien **actif** referme le volet (le bandeau natif seul reste).
-- ✅ Les menus déroulants natifs (compte, recherche…) s'ouvrent **au-dessus** du volet.
-- ✅ Vérifier sur **mobile** que le décalage sous le bandeau est correct (pas de chevauchement).
-
 ## 10. Mode config (cacher le plugin)
 
-- ✅ Config admin → cocher **« Config mode — hide the plugin from regular users »**, sauvegarder.
 - 🟥 Avec un compte **non-admin** : aucun lien/quota/cloche Jelly Crowd dans le bandeau ; appel direct API (ex. `GET /JellyCrowd/Catalog/Trending`) → **403**.
   Le bandeau n'apparait pas. Je pense que le config mode doit réactiver le bandeau natif pour les utilisateur et n'afficher celui du mod qu'à l'admin.
   - 🔧 Corrigé : on ne masque les onglets natifs **que** si le plugin est visible. En config mode, le non-admin retrouve le **bandeau natif** normal.
-- ✅ Avec le compte **admin** : le plugin reste **visible et utilisable** (pour configurer/tester).
-- ✅ Décocher l'option → les utilisateurs revoient le plugin (après rechargement de page).
 
 ## 11. Nouveautés récentes (v0.44 → v0.47+)
 
-- ✅ **Avis & notes (M29)** : activer « Enable ratings & reviews » (admin). Sur un titre du catalogue (popup), noter (1–10 en demi-étoiles) + commentaire optionnel ; la **moyenne interne** + nb de votes s'affichent (et un badge à côté de la note TMDB). Re-noter **met à jour** (pas de doublon). Avis **anonymes** pour les non-admins ; l'admin voit l'auteur + peut masquer/supprimer.
-- ✅ **Bandeau natif** : sur Home + chaque librairie, seuls les liens Jelly Crowd (Home, Catalog, Calendar, My requests) s'affichent ; les onglets natifs sont masqués. Vérifier **Other & Books** (nos liens présents).
-- ✅ **Lien Home** : ferme le volet plugin + va à l'accueil. Cliquer ailleurs (recherche, menu, librairie) **ferme** le volet.
 - 🟨 **Annonce admin** : l'admin édite l'annonce depuis le bandeau (✎) → bandeau coloré vert/jaune/rouge visible par tous.
   Ca fonctionne, l'utilisateur lambda la voit bien, par contre sa mise à jour ne se fait qu'au refresh de la page après avoir cliqué sur Save ou Clear, du coup on ne sait pas que l'opération à réussi.
   - 🔧 Corrigé : l'endpoint renvoyait 204 et le client tentait de parser du JSON (rejet → pas de MAJ). Le bandeau se met à jour **en direct** + un **✓** confirme le succès.
-- ✅ **Calendrier** : titres demandés (par n'importe qui) en **violet** + demandes à date future affichées ; épisodes des séries suivies/demandées.
-- ✅ **Expiration / propriété (M27)** : « My library » montre « Expire dans … » + bouton **Conserver (renouveler)** (reset 90 j). Régler « Media ownership expiry (days) ».
-- ✅ **Cleanup admin** : Diagnostics → « Library cleanup » → **Scan media** (orphelins) → **Delete** (confirmation) supprime du disque.
-- ✅ **Anti-freeze** : naviguer entre pages/volets ne fige plus le navigateur (régression v0.47.0 corrigée en v0.47.1).
 - 🟨 **Notifs e-mail par catégorie (opt-in)** : cloche → ⚙ Réglages. Renseigner une **adresse e-mail** + cocher des catégories (toutes **OFF** par défaut). Avec SMTP admin configuré :
   Les emails ne partant pas, je ne peux pas tester
   - ❌ cocher **« requête classique disponible »** seulement → recevoir l'e-mail quand un titre **déjà sorti** devient dispo, **mais pas** les décisions/quota.
@@ -219,36 +180,27 @@
   - Le slider pour choisir la note doit être remplacé par les mêmes étoiles que sur le popup
   - il faut pouvoir aller à la ligne, le champ de texte est trop petit
   - ce panneau doit apparaitre plus haut, si possible sous l'affiche du film, colonne de gauche, ou bien dans une deuxième colonne au même niveau que le synopsis.
-- 🔧 **Popup catalogue retravaillé** (suite à tes retours §7/§8) — à revérifier :
-  - [ ] **Média déjà disponible** : un clic sur la carte (ou le bouton **Détails**, désormais présent partout) ouvre le **popup** (avant : ça t'envoyait direct dans Jellyfin sans popup). Les **reviews** y sont donc visibles.
-  - [ ] Dans ce popup d'un dispo : un bouton **« Open in Jellyfin »** (lien visible vers la fiche native) + un bouton **« Add to my library »** (= s'approprie le média : démarre le compteur d'expiration, permet la demande de suppression).
-  - [ ] **Popup agrandi** (≈980 px) + **distribution (cast)** affichée (photos + nom + rôle, strip scrollable).
-  - [ ] **Formulaire d'avis vertical** (plus compressé) : « Ta note » + étoiles au-dessus, zone de texte pleine largeur, bouton dessous. Le champ de texte ne déborde plus à droite.
-  - [ ] **Survol des étoiles** : passer la souris sur les étoiles **prévisualise** la note qui sera posée à cet endroit ; sortir du bloc restaure la note courante.
-  - [ ] **« ⚠ Report a problem »** sur la **ligne du titre**, aligné à droite (révèle le formulaire dessous).
-  - [ ] **Films** : la zone Request (date + bouton Demander / saga, ou Open/Add pour un dispo) est **sous l'affiche** (colonne de gauche).
-  - [ ] **Séries** : le sélecteur de **saisons** est dans une **section pleine largeur sous le corps** du popup (plus compact en haut).
+- 🟥 **Popup mobile (portrait)** : depuis le téléphone, le popup s'affiche correctement pendant un quart de seconde, puis tout semble changer de format et sort de l'écran des deux côtés (uniquement en **portrait** ; le **paysage** fonctionne bien).
 
 ## 12. Lot de correctifs récents (à revérifier en live)
 
-- [ ] 🔧 **Activer le plugin par utilisateur** : config mode ON → onglet **User quotas** → colonne **Plugin access**. Cocher un user → il revoit le plugin (bandeau + API 200) ; décoché → masqué + API 403. L'admin reste toujours visible.
-- [ ] 🔧 **Boutons admin Requests colorés** : **Approve** (vert) / **Deny** (rouge) bien visibles.
-- [ ] 🔧 **Tableau User quotas, 1ʳᵉ ligne** : alignée comme les autres (avatar = initiales pour les users sans photo, donc plus de décalage dû à la photo de l'admin).
-- [ ] 🔧 **Available + Dispatch failed** : un média devenu disponible n'affiche plus « Dispatch failed » (l'erreur est effacée quand il devient dispo).
-- [ ] 🔧 **Taille finale pendant le téléchargement** : l'écran **Mes demandes** affiche la taille (connue via RDT) à côté du %/ETA.
-- [ ] 🔧 **Popup** : le bouton **⚠ Report a problem** (ligne du titre) ne chevauche plus la croix de fermeture.
+- 🟥 🔧 **Boutons admin Requests colorés** : **Approve** (vert) / **Deny** (rouge) bien visibles.
+  ils sont toujours noirs, comme les boutons de Test sur l'onglet des notifications.
+- 🟥 🔧 **Tableau User quotas, 1ʳᵉ ligne** : alignée comme les autres (avatar = initiales pour les users sans photo, donc plus de décalage dû à la photo de l'admin).
+  C'est toujours pareil
+- 🟥 🔧 **Taille finale pendant le téléchargement** : l'écran **Mes demandes** affiche la taille (connue via RDT) à côté du %/ETA.
+  Test : la taille affichée sur une requête en cours de téléchargement (5.1 GiB) n'est pas la même que celle de RDT (5.47 GB)
+- 🟨 🔧 **Popup** : le bouton **⚠ Report a problem** (ligne du titre) ne chevauche plus la croix de fermeture.
 - [ ] 🔧 **Calendrier** : vues **Mois / Semaine / Jour** (voir §8).
+  Pas mal, mais je voudrais que sur les différents affichage, un clic sur Today ouvre un popup de calendrier pour choisir la période voulue
 
 ---
 
 ## Notes de Victor
-1. Sur l'écran des requêtes du panel admin, colore les boutons car actuellement on les voit mal. Si tu peux rendre les tableaux Requests et User quotas plus sexy, je prends.
-   - 🔧 Boutons Approve/Deny colorés. (Refonte « plus sexy » des tableaux : optionnel, non fait.)
-2. Colore les boutons de test dans le panneau d'admin car on ne les voit pas.
-3. Le fait que tout soit dans un volet qui recouvre Jellyfin est il obligatoire ? Est possible de tout déplacer sur des pages dédiées ? Ca serait plus fluide pour la navigation (page précédente, pas de scroll fantôme du background). Va t'on perdre des fonctionnalités ? Réponds moi ce avant de bouger sur ce sujet.
-4. Sur l'écran des requêtes, un clic sur le titre ou la jaquette doit ouvrir le popup du média
-5. Les requêtes "Unreleased" doivent afficher la date de sortie et la date de prochaine tentative
-6. Le popup doit afficher la release date, la liste d'acteurs, le réalisateur, le titre original.
-7. La liste d'acteurs et le réalisateur doivent être cliquables et amener sur le catalogue filtré par cet acteur/réalisateur
-8. Le lien Home sur le logo Keeklah.tv dans le bandeau doit avoir le curseur qui change on hover, car actuellement on ne voit pas que c'est un lien. Le lien My library doit réagir on hover aussi
-9. sur le popup, les liens TMDB et IMDb doivent être entre le synopsis et le cast
+
+> Intégrées à la **ROADMAP** → section **« Patches de finition pré-1.0 → B. À faire »**
+> (boutons admin bleus, clic titre→popup sur l'écran Requests, dates Unreleased, popup
+> release/réalisateur/titre original + acteurs cliquables, liens TMDB/IMDb repositionnés,
+> hover Home/My library, statut Downloading côté admin, toggle pseudos sur les avis,
+> disclaimer latence d'affichage, reconcile plus rapide, suite de non-régression).
+> Cette liste de tests ne garde que les points **encore ouverts en live** ci-dessus.
