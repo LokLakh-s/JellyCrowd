@@ -59,4 +59,9 @@ public class DiscoverQuery
   /// Gets or sets the production/origin-country filter (ISO 3166-1, e.g. <c>FR</c>, <c>JP</c>).
   /// </summary>
   public string? OriginCountry { get; set; }
+
+  /// <summary>
+  /// Gets or sets a TMDB person id to filter by (cast or crew); used to show a person's filmography.
+  /// </summary>
+  public int? WithPeople { get; set; }
 }

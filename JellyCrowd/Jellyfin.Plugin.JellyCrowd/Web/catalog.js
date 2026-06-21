@@ -42,7 +42,9 @@
     sortBy: 'popularity',
     watchProviders: '',
     originalLanguage: '',
-    originCountry: ''
+    originCountry: '',
+    personId: 0,
+    personName: ''
   };
 
   // Curated codes for the language / country filters (labels are localized via Intl.DisplayNames).
@@ -460,6 +462,12 @@
     cast.forEach(function (member) {
       var cell = document.createElement('div');
       cell.className = 'jellycrowd-cast-cell';
+      // Click a cast member → filter the catalog by that person.
+      if (member.Id) {
+        cell.classList.add('jellycrowd-link');
+        cell.title = t('see_filmography');
+        cell.addEventListener('click', function () { applyPersonFilter(member.Id, member.Name); });
+      }
       var photo = document.createElement('div');
       photo.className = 'jellycrowd-cast-photo';
       if (member.ProfilePath) {
@@ -1072,11 +1080,28 @@
           links.appendChild(externalLink('https://www.imdb.com/title/' + details.ImdbId, t('view_imdb')));
         }
 
-        // Director / creator + original title, between the synopsis and the links.
-        var creditsParts = [];
-        if (details.Director) { creditsParts.push(t('director') + ' : ' + details.Director); }
-        if (details.OriginalTitle) { creditsParts.push(t('original_title') + ' : ' + details.OriginalTitle); }
-        creditsLine.textContent = creditsParts.join(' · ');
+        // Director / creator (clickable → filmography) + original title, between the synopsis and links.
+        creditsLine.innerHTML = '';
+        if (details.Directors && details.Directors.length) {
+          creditsLine.appendChild(document.createTextNode(t('director') + ' : '));
+          details.Directors.forEach(function (d, i) {
+            if (i > 0) { creditsLine.appendChild(document.createTextNode(', ')); }
+            if (d.Id) {
+              var a = document.createElement('span');
+              a.className = 'jellycrowd-link';
+              a.textContent = d.Name;
+              a.title = t('see_filmography');
+              a.addEventListener('click', function () { applyPersonFilter(d.Id, d.Name); });
+              creditsLine.appendChild(a);
+            } else {
+              creditsLine.appendChild(document.createTextNode(d.Name));
+            }
+          });
+        }
+        if (details.OriginalTitle) {
+          if (creditsLine.childNodes.length) { creditsLine.appendChild(document.createTextNode(' · ')); }
+          creditsLine.appendChild(document.createTextNode(t('original_title') + ' : ' + details.OriginalTitle));
+        }
 
         // "Request whole saga": for a movie that belongs to a TMDB collection, request every part.
         if (item.MediaType === 'movie' && details.CollectionId && !item.Available && !quotaExceeded) {
@@ -1193,7 +1218,8 @@
   function hasActiveFilters() {
     return filters.genres.length > 0 || filters.minYear > MIN_YEAR || filters.maxYear < MAX_YEAR
       || filters.minRating > 0 || filters.maxRating < 10 || filters.sortBy !== 'popularity'
-      || !!filters.watchProviders || !!filters.originalLanguage || !!filters.originCountry;
+      || !!filters.watchProviders || !!filters.originalLanguage || !!filters.originCountry
+      || filters.personId > 0;
   }
 
   function baseDiscover() {
@@ -1217,6 +1243,7 @@
     }
     if (filters.originalLanguage) { p += '&originalLanguage=' + encodeURIComponent(filters.originalLanguage); }
     if (filters.originCountry) { p += '&originCountry=' + encodeURIComponent(filters.originCountry); }
+    if (filters.personId) { p += '&withPeople=' + filters.personId; }
     return p;
   }
 
@@ -1387,6 +1414,9 @@
     var rows;
     if (searchQuery) {
       document.getElementById('jcSectionTitle').textContent = t('results_title');
+      rows = [];
+    } else if (filters.personId) {
+      document.getElementById('jcSectionTitle').textContent = t('filmography_of') + ' ' + filters.personName;
       rows = [];
     } else {
       document.getElementById('jcSectionTitle').textContent = t('browse_title');
@@ -1560,6 +1590,8 @@
     filters.watchProviders = '';
     filters.originalLanguage = '';
     filters.originCountry = '';
+    filters.personId = 0;
+    filters.personName = '';
     searchQuery = '';
     showWatchlist = false;
     document.getElementById('jcMyList').classList.remove('jellycrowd-chip-active');
@@ -1570,6 +1602,25 @@
     setupYearSlider();
     setupRatingSlider();
     loadGenres();
+    resetFeed();
+  }
+
+  // Filter the catalog by a TMDB person (cast/director click): show that person's filmography.
+  function applyPersonFilter(personId, personName) {
+    if (!personId) { return; }
+    filters.personId = personId;
+    filters.personName = personName || '';
+    searchQuery = '';
+    showWatchlist = false;
+    var ml = document.getElementById('jcMyList');
+    if (ml) { ml.classList.remove('jellycrowd-chip-active'); }
+    var input = document.getElementById('jcSearchInput');
+    if (input) { input.value = ''; }
+    // Close any open detail modal, and make sure the catalog view is the one showing (the popup can be
+    // opened from the My requests view too).
+    var ov = document.querySelector('.jellycrowd-modal-overlay');
+    if (ov) { ov.remove(); }
+    if (typeof window.jellyCrowdShowView === 'function') { window.jellyCrowdShowView('catalog'); }
     resetFeed();
   }
 

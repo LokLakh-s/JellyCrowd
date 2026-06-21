@@ -199,7 +199,7 @@ public class CatalogControllerTests
     var items = new List<CatalogItem> { new() { TmdbId = 7, MediaType = "movie", Title = "D" } };
     var controller = CreateController(new FakeTmdbClient { Results = items });
 
-    var result = await controller.Discover("movie", "28", 2000, 2020, 6.0, 9.0, "rating", null, null, null, null, null, null, CancellationToken.None);
+    var result = await controller.Discover("movie", "28", 2000, 2020, 6.0, 9.0, "rating", null, null, null, null, null, null, null, CancellationToken.None);
 
     Assert.IsType<OkObjectResult>(result.Result);
   }

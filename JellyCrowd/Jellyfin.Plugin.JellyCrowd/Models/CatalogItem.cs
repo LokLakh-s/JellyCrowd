@@ -71,9 +71,9 @@ public class CatalogItem
   public IReadOnlyList<CastMember> Cast { get; set; } = Array.Empty<CastMember>();
 
   /// <summary>
-  /// Gets or sets the director(s) / creator(s), comma-separated (populated on detail lookups).
+  /// Gets or sets the director(s) / creator(s) with their TMDB person ids (populated on detail lookups).
   /// </summary>
-  public string? Director { get; set; }
+  public IReadOnlyList<CastMember> Directors { get; set; } = Array.Empty<CastMember>();
 
   /// <summary>
   /// Gets or sets the original-language title when it differs from the localized title.

@@ -203,6 +203,7 @@ public class CatalogController : ControllerBase
   /// <param name="watchRegion">ISO 3166-1 region for watch-provider filtering (e.g. FR, US).</param>
   /// <param name="originalLanguage">Optional original-language filter (ISO 639-1, e.g. fr, es).</param>
   /// <param name="originCountry">Optional production/origin-country filter (ISO 3166-1, e.g. FR, JP).</param>
+  /// <param name="withPeople">Optional TMDB person id to filter by (cast/crew) — a person's filmography.</param>
   /// <param name="language">Optional TMDB language code.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">Matching items returned.</response>
@@ -224,6 +225,7 @@ public class CatalogController : ControllerBase
     [FromQuery] string? watchRegion,
     [FromQuery] string? originalLanguage,
     [FromQuery] string? originCountry,
+    [FromQuery] int? withPeople,
     [FromQuery] string? language,
     CancellationToken cancellationToken)
   {
@@ -240,7 +242,8 @@ public class CatalogController : ControllerBase
       WatchProviders = watchProviders,
       WatchRegion = watchRegion,
       OriginalLanguage = originalLanguage,
-      OriginCountry = originCountry
+      OriginCountry = originCountry,
+      WithPeople = withPeople
     };
 
     return await ExecuteAsync(

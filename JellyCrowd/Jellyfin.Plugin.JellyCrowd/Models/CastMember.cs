@@ -5,6 +5,9 @@ namespace Jellyfin.Plugin.JellyCrowd.Models;
 /// </summary>
 public class CastMember
 {
+  /// <summary>Gets or sets the TMDB person id (used to filter the catalog by this person).</summary>
+  public int Id { get; set; }
+
   /// <summary>Gets or sets the actor's name.</summary>
   public string Name { get; set; } = string.Empty;
 

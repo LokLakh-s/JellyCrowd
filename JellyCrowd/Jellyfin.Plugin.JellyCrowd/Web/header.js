@@ -980,6 +980,42 @@
     return span;
   }
 
+  // Interactive 1–10 star input (5 stars, half-star granularity) with hover preview — same UX as the
+  // catalog popup. getValue() returns the committed 1–10 value (0 = unrated).
+  function reviewStarInput(initial) {
+    var wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;gap:.1em;font-size:1.7em;line-height:1;cursor:pointer;vertical-align:middle;';
+    var value = initial || 0;
+    var fills = [];
+    function render(shown) {
+      var v = (shown === undefined || shown === null) ? value : shown;
+      fills.forEach(function (f, idx) { f.style.width = Math.max(0, Math.min(100, (v - idx * 2) / 2 * 100)) + '%'; });
+    }
+    function valueAt(star, idx, clientX) {
+      var r = star.getBoundingClientRect();
+      return idx * 2 + ((clientX - r.left) < r.width / 2 ? 1 : 2);
+    }
+    for (var i = 0; i < 5; i++) {
+      (function (idx) {
+        var star = document.createElement('span');
+        star.style.cssText = 'position:relative;display:inline-block;width:1em;color:#888;';
+        star.textContent = '★';
+        var fill = document.createElement('span');
+        fill.style.cssText = 'position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#f5c518;width:0;';
+        fill.textContent = '★';
+        star.appendChild(fill);
+        star.addEventListener('mousemove', function (e) { render(valueAt(star, idx, e.clientX)); });
+        star.addEventListener('click', function (e) { value = valueAt(star, idx, e.clientX); render(); });
+        fills.push(fill);
+        wrap.appendChild(star);
+      })(i);
+    }
+    wrap.addEventListener('mouseleave', function () { render(); });
+    render();
+    wrap.getValue = function () { return value; };
+    return wrap;
+  }
+
   function buildDetailReviewsPanel(item, dto) {
     dto = dto || { Average: 0, Count: 0, Reviews: [] };
     var panel = document.createElement('div');
@@ -1007,44 +1043,42 @@
     }
     panel.appendChild(avg);
 
-    // Your rating (1–10) + optional text.
+    // Your review: star rating (1–10, like the popup) + optional multiline text, laid out vertically.
     var form = document.createElement('div');
-    form.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:.6em;margin-bottom:1em;';
+    form.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:.5em;margin-bottom:1em;';
     var mine = (dto.Reviews || []).filter(function (r) { return r.Mine; })[0];
-    var range = document.createElement('input');
-    range.type = 'range';
-    range.min = '1';
-    range.max = '10';
-    range.step = '1';
-    range.value = mine && mine.Rating ? String(mine.Rating) : '8';
-    range.style.cssText = 'vertical-align:middle;';
-    var ratingLabel = document.createElement('span');
-    ratingLabel.style.cssText = 'min-width:3em;font-weight:600;';
-    function syncLabel() { ratingLabel.textContent = range.value + '/10'; }
-    syncLabel();
-    range.addEventListener('input', syncLabel);
-    var text = document.createElement('input');
-    text.type = 'text';
+
+    var rateRow = document.createElement('div');
+    rateRow.style.cssText = 'display:flex;align-items:center;gap:.5em;';
+    var rateLabel = document.createElement('span');
+    rateLabel.textContent = t('your_review') + ' :';
+    var stars = reviewStarInput(mine && mine.Rating ? mine.Rating : 0);
+    rateRow.appendChild(rateLabel);
+    rateRow.appendChild(stars);
+    form.appendChild(rateRow);
+
+    var text = document.createElement('textarea');
+    text.rows = 3;
     text.placeholder = t('review_text_placeholder');
     text.value = mine && mine.Text ? mine.Text : '';
-    text.style.cssText = 'flex:1;min-width:180px;padding:.4em .6em;border-radius:.25em;border:1px solid rgba(255,255,255,.25);background:#000;color:#fff;';
+    text.style.cssText = 'width:100%;max-width:520px;box-sizing:border-box;min-height:4em;resize:vertical;padding:.5em .6em;border-radius:.25em;border:1px solid rgba(255,255,255,.25);background:#000;color:#fff;font-family:inherit;';
+    form.appendChild(text);
+
     var post = document.createElement('button');
     post.type = 'button';
     post.textContent = mine ? t('review_update') : t('review_submit');
     post.style.cssText = 'background:#00a4dc;border:0;color:#fff;padding:.45em 1em;border-radius:.25em;cursor:pointer;';
     post.addEventListener('click', function () {
+      var rating = stars.getValue();
+      if (rating < 1) { post.textContent = t('rating_required'); setTimeout(function () { post.textContent = mine ? t('review_update') : t('review_submit'); }, 1500); return; }
       post.disabled = true;
-      apiAjax('POST', 'JellyCrowd/Comments', { MediaType: item.mediaType, TmdbId: item.tmdbId, Text: text.value.trim(), Rating: parseInt(range.value, 10) })
+      apiAjax('POST', 'JellyCrowd/Comments', { MediaType: item.mediaType, TmdbId: item.tmdbId, Text: text.value.trim(), Rating: rating })
         .then(function () {
           detailReviewsLoadedId = null; // force a re-render with fresh data
           loadDetailReviews(item, panel.parentNode);
         })
         .catch(function () { post.disabled = false; });
     });
-    form.appendChild(document.createTextNode(t('your_review') + ':'));
-    form.appendChild(range);
-    form.appendChild(ratingLabel);
-    form.appendChild(text);
     form.appendChild(post);
     panel.appendChild(form);
 
@@ -1078,7 +1112,10 @@
         if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); }
         // Only attach if we're still on the same detail page.
         if (currentDetailItemId() !== item.jellyfinId || !anchor || !anchor.isConnected) { return; }
-        anchor.appendChild(buildDetailReviewsPanel(item, dto || {}));
+        var panel = buildDetailReviewsPanel(item, dto || {});
+        // Insert near the top of the detail content (just under the poster/synopsis block) rather than
+        // at the very bottom of the page.
+        if (anchor.firstChild) { anchor.insertBefore(panel, anchor.firstChild); } else { anchor.appendChild(panel); }
         detailReviewsLoadedId = item.jellyfinId;
       })
       .catch(function () { detailReviewsPendingId = null; });
