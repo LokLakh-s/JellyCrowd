@@ -404,6 +404,8 @@ public class RequestsControllerTests
 
     public long GetQuotaBytes(Guid userId) => 0;
 
+    public long GetBaseQuotaBytes(Guid userId) => 0;
+
     public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken)
       => Task.FromResult(new QuotaInfo());
 

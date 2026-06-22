@@ -401,6 +401,8 @@
     box.addEventListener('mouseleave', function () { caption.style.filter = ''; caption.style.textDecoration = ''; });
     var label = document.createElement('span');
     label.style.color = '#fff';
+    var tier = document.createElement('span');
+    tier.style.cssText = 'font-weight:700;white-space:nowrap;display:none;';
     var track = document.createElement('span');
     track.style.cssText = 'height:.35em;border-radius:.2em;background:rgba(255,255,255,.2);overflow:hidden;display:block;margin-top:.2em;';
     var fill = document.createElement('span');
@@ -408,6 +410,7 @@
     track.appendChild(fill);
     box.appendChild(caption);
     box.appendChild(label);
+    box.appendChild(tier);
     box.appendChild(track);
 
     if (window.ApiClient && window.ApiClient.ajax) {
@@ -422,6 +425,24 @@
             var p = q.QuotaBytes > 0 ? Math.min(100, q.UsedBytes / q.QuotaBytes * 100) : 0;
             fill.style.width = p + '%';
             fill.style.background = quotaColor(p);
+          }
+          // Adaptive-quota status badge: explains why the quota differs from the base.
+          if (q.AdaptiveEnabled) {
+            if (q.InProbation) {
+              var days = q.ProbationEndsUtc ? Math.max(0, Math.ceil((new Date(q.ProbationEndsUtc) - new Date()) / 86400000)) : 0;
+              tier.textContent = '⏳ ' + t('quota_probation').replace('{n}', days);
+              tier.style.color = '#ffb300';
+              tier.style.display = '';
+              box.title = t('quota_probation_hint');
+            } else if (q.Tier === 'ceiling') {
+              tier.textContent = '★ ' + t('quota_tier_ceiling');
+              tier.style.color = '#4caf50';
+              tier.style.display = '';
+            } else if (q.Tier === 'floor') {
+              tier.textContent = '▼ ' + t('quota_tier_floor');
+              tier.style.color = '#ff7043';
+              tier.style.display = '';
+            }
           }
         })
         .catch(function () { /* ignore */ });

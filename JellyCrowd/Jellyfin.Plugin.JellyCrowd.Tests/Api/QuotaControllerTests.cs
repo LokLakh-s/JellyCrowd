@@ -89,6 +89,8 @@ public sealed class QuotaControllerTests : IDisposable
   {
     public long GetQuotaBytes(Guid userId) => 0;
 
+    public long GetBaseQuotaBytes(Guid userId) => 0;
+
     public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(new QuotaInfo());
 
     public Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken) => Task.FromResult(true);

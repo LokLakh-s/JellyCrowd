@@ -246,15 +246,16 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 > la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M29** livré.
 > Milestones ordonnés par **priorité** (valeur + déblocage).
 >
-> **État (2026-06-21)** : **M15→M26 + M29 livrés**, ainsi que **M27.B** (expiration des médias par âge).
+> **État (2026-06-22)** : **M15→M27 + M29 livrés** (dont **M27.A** quotas adaptatifs, **M27.B** expiration par âge).
 > Un **gros lot de patches de finition** a suivi (voir « Patches de finition pré-1.0 » plus bas) :
 > refonte du popup catalogue, **responsive/mobile** (overlay, listes, tableaux admin), **calendrier
 > multi-vues** (Mois/Semaine/Jour), **dispatch idempotent** (fin du flapping « Blocked/400 »),
 > **annulation qui stoppe le grab RDT** (file Radarr), **logs** (recherche + entrées admin/user),
 > **Prowlarr** configurable, **accès plugin par utilisateur**, **packaging MailKit**, **persistance
 > config** (genres/quotas), opt-in notifs e-mail par catégorie, avis & notes (M29).
-> **Reste pour la 1.0** : **M27.A** (quotas adaptatifs), **M28** (réactivité/exactitude quota temps réel),
-> le **reliquat de patches** (liste dédiée plus bas + Notes de Victor), et la **stabilisation v1.0**
+> **Reste pour la 1.0** : **M28** (réactivité/exactitude quota temps réel), le **reliquat de patches**
+> (liste dédiée plus bas + Notes de Victor + **lot 2 N15–N21** : agrégation saisons, suppression en
+> cascade multi-backends, check d'intégrité, related media, chip de filtre), et la **stabilisation v1.0**
 > (responsive/a11y final, doc utilisateur, tests e2e/non-régression, polish).
 > Sous-points reportés : calendrier épisodes (M24.B), canaux stable/nightly (M26.2).
 
@@ -352,27 +353,26 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ Onglet **Logs** dans le panel admin avec **recherche par terme** + **filtres** (catégorie / niveau).
 - ☐ Logique de canaux **« stable » / « nightly »** (idéalement automatique côté CI/release). *(reporté — M26.2)*
 
-### M27 — Quotas adaptatifs & expiration des médias  ◑ *(A: à faire · B: livré)*
+### M27 — Quotas adaptatifs & expiration des médias  ☑ *(A & B livrés)*
 
-> Rien de tel n'existe aujourd'hui (vérifié) : le quota est **fixe** (`DefaultUserQuotaBytes` +
-> surcharges `QuotaOverrides`), aucune notion d'activité/temps de visionnage, aucune expiration par âge.
+> Le quota fixe (`DefaultUserQuotaBytes` + surcharges `QuotaOverrides`) reste la base ; le pan adaptatif
+> se branche **par-dessus** et est **désactivé par défaut**.
 
-#### A. Quotas adaptatifs (hystérésis) — **option globale désactivable**
+#### A. Quotas adaptatifs (hystérésis) — **option globale désactivable**  ☑ *(livré 2026-06-22)*
 
-- ☐ **Interrupteur global** on/off. Désactivé = comportement actuel (quota fixe).
-- ☐ **Trois paliers configurables** : quota de **base** (déf. 50 Go), **plafond actif** (déf. 100 Go), **plancher inactif** (déf. 20 Go).
-- ☐ **Hystérésis** : montée **rapide** vers le plafond selon l'activité, descente **lente et conditionnelle**.
-- ☐ **Inactivité = pas de sanction immédiate** mais état de **« sursis »** (probation). Le quota cible théorique baisse, mais **n'est appliqué qu'à la reconnexion**.
-- ☐ **Workflow au retour** : à la 1ʳᵉ connexion après longue inactivité → détection du dépassement théorique → **compte à rebours** (déf. 14 j) en **gelant** le quota courant pendant le sursis.
-- ☐ **Notification** au retour : « Ravi de te revoir ! En raison d'une longue période d'inactivité, ton quota va être ajusté. Reprends ton activité pour le conserver. »
-- ☐ **Validation du retour = 2 critères CUMULATIFS** sur la fenêtre de sursis :
-  - **Volume** : minutes cumulées min (déf. **3 h** de visionnage total).
-  - **Régularité** : activité répartie sur **≥ N jours distincts** (déf. **3 jours** sur 14). *(Regarder un média 10 min ne suffit pas.)*
-- ☐ **Récompense historique** : si échec au test après 14 j, le quota cible redescend au quota de **base** (50 Go), **pas** au plancher (20 Go).
-- ☐ **Exemple** (utilisateur à 98 Go après 2 mois) : J1 → sursis + gel à 98 Go + message ; pendant 14 j : succès → redevient actif, quota adaptatif repart ; échec → J15 plafond = 50 Go → **en dépassement (98/50)**, ne peut plus rien **ajouter** (médias existants conservés jusqu'à action/expiration).
-- ⚠️ **Dépendance** : nécessite une **brique de suivi d'activité / temps de visionnage** (minutes + jours distincts par user) — **ABSENTE** aujourd'hui. Pistes : API sessions/lecture Jellyfin (`UserData`/`LastPlayedDate`), base du plugin **Playback Reporting** (présent sur le serveur), ou suivi minimal maison. À cadrer (lien avec le pan stats 2.0 / M30).
-- ☐ **Borné (budget stockage)** : ne stocker que des **agrégats** par user (minutes/jour, dernier vu, palier courant, état de sursis + échéance), **jamais** les ticks bruts.
-- ☐ **Visibilité** : palier courant + état « sursis » + compte à rebours dans la **barre de quota** et **Mes médias** ; surfacer côté **admin** (table des quotas) + **logs** (M26).
+- ☑ **Interrupteur global** on/off (`AdaptiveQuotaEnabled`). Désactivé = comportement actuel (quota fixe) + aucun suivi d'activité collecté.
+- ☑ **Paliers en POURCENTAGES du quota de base** (paramétrables — pas de Go en dur) : **plancher** `AdaptiveFloorPercent` (déf. **40 %**), **base** = **100 %** (le quota override/défaut), **plafond actif** `AdaptiveCeilingPercent` (déf. **200 %**). Changer le quota par défaut **rescale** tout le monde automatiquement.
+- ☑ **Hystérésis** : montée **rapide** au plafond dès qu'actif ; descente **conditionnelle** via sursis (jamais de chute directe au plancher pour un utilisateur récompensé).
+- ☑ **Sursis (probation)** : un utilisateur récompensé devenu inactif (> `AdaptiveInactivityDays`, déf. 30 j) est mis en sursis — son quota courant est **gelé** (`FrozenQuotaBytes`) pendant `AdaptiveProbationDays` (déf. 14 j).
+- ☑ **Notification** aux transitions (déblocage bonus, mise en sursis, bonus restauré, retour au standard) via le centre de notif + canaux opt-in (catégorie quota).
+- ☑ **Validation = 2 critères CUMULATIFS** sur la fenêtre (`AdaptiveWindowDays`, déf. 14 j) : **Volume** (`AdaptiveMinMinutes`, déf. **180 min**) **ET** **Régularité** (`AdaptiveMinActiveDays`, déf. **3 jours** distincts ; un jour compte s'il atteint ≥ 5 min).
+- ☑ **Récompense historique** : échec du sursis → retour au **base** (100 %), **pas** au plancher. Le plancher ne concerne que les utilisateurs **jamais récompensés** et durablement inactifs.
+- ☑ **Brique de suivi d'activité — MAISON** : `PlaybackActivityEntryPoint` s'abonne aux événements `ISessionManager` (start/progress/stopped) et estime les minutes (delta horloge entre pings, plafonné à 5 min). Pas de dépendance externe. Historique à partir de l'activation.
+- ☑ **Borné** : `JsonUserActivityStore` ne stocke que des **agrégats** (minutes/jour sur fenêtre glissante élaguée à 60 j, dernier vu, palier, état de sursis + gel), **jamais** les ticks bruts.
+- ☑ **Cœur pur & testé** : `AdaptiveQuotaCalculator` (scaling octets + machine à états) couvert par 11 tests unitaires (322 tests verts au total). Évaluation périodique horaire en tâche de fond.
+- ☑ **Visibilité utilisateur** : badge palier/sursis (★ bonus / ▼ réduit / ⏳ sursis · Nj) + compte à rebours dans la **barre de quota** (`header.js`), `QuotaInfo` expose `Tier`/`InProbation`/`ProbationEndsUtc`.
+- ☑ **Réglages admin** : section dédiée dans l'onglet *Settings* (interrupteur + 7 champs paramétrables, masqués tant que désactivé).
+- ◻️ *Reste optionnel* : surfacer le palier dans la table des quotas **admin** + une ligne dédiée dans les **logs** (M26) — non bloquant pour la 1.0.
 
 #### B. Expiration automatique des médias par âge  ☑ *(livré)*
 
@@ -452,6 +452,16 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ **M25.2** (fiche native) — **slider → étoiles** (avec survol), **textarea multiligne**, panneau inséré **plus haut** (en tête du contenu de la fiche, près du synopsis).
 - ☑ **M16 (genres)** — champ texte remplacé par un **menu déroulant des genres TMDB** (movie+tv fusionnés) + **pastilles supprimables** ; persiste dans `AutoApproveGenres`.
 - ☑ **Note 14** — **disclaimer** sous le titre « Mes demandes » expliquant que la progression/disponibilité n'est pas temps réel (un média peut être lisible dans Jellyfin avant d'être marqué *Available* ici).
+
+**Nouvelles trouvailles (lot 2 — live 2026-06-22) :**
+
+- ☐ **N15 — Agrégation des demandes de saison en cours.** Demander une saison dont seul l'ép. 1 est sorti génère **1 requête par épisode + autant de notifications** (10 pour HotD S3). → Regrouper en **une seule ligne** « saison en cours » avec **date du prochain épisode** affichée ; l'éclatement par épisode + le suivi restent **backend** (l'utilisateur n'a pas à le voir). Implique une notion de requête-parent « saison » et un dé-bruitage des notifs. *(Lié réactivité/notifs.)*
+- ☐ **N16 — Titres cliquables dans le menu « Demander la saga ».** Le récap des films de la saga doit rendre chaque titre **cliquable** (ouvre le popup média via `window.jellyCrowdOpenDetail`).
+- ☐ **N17 — Section « Related media » en bas du popup média.** Afficher des suggestions : **similaires**, **autres volets de la saga**, recommandations TMDB (`recommendations`/`similar`/collection). Vignettes cliquables.
+- ☐ **N18 — Check d'intégrité périodique de suppression.** Tâche planifiée qui **vérifie** que ce qui doit être supprimé l'a bien été dans **Jellyfin / Sonarr / Radarr / Prowlarr / RDT Client** (réconciliation + alerte/relance si reliquats). *(Borné, idempotent.)*
+- ☐ **N19 — Suppression en cascade multi-backends.** Une suppression doit **purger** le média de **Sonarr, Radarr, Prowlarr, Jellyfin et RDT Client** (pas seulement le fichier), pour qu'une **re-demande** ultérieure reparte proprement sans conflit d'état. *(Étend le pipeline de suppression on-demand M23.)*
+- ☐ **N20 — Bug : sortie du filtre « par acteur » difficile.** Le reset du filtre personne (Note 6) est peu évident / capricieux → **régression** à corriger (rendre le retour au catalogue normal fiable). *(Lié N21.)*
+- ☐ **N21 — Vignette de filtre actif + croix de reset.** Afficher une **pastille** du filtre en cours (personne, watchlist, recherche…) avec une **croix** pour le retirer ; **garder** le bouton *Reset* mais le passer en **rouge**.
 
 **Réactivité / temps réel → relève de M28 :**
 

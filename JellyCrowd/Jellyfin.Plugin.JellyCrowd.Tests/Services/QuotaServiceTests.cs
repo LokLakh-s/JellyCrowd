@@ -39,7 +39,7 @@ public sealed class QuotaServiceTests : IDisposable
     }
   }
 
-  private QuotaService Create(ILibraryMatcher matcher) => new(_store, matcher, () => _config);
+  private QuotaService Create(ILibraryMatcher matcher) => new(_store, matcher, new FakeActivityStore(), () => _config);
 
   [Fact]
   public void GetQuotaBytes_UsesOverrideThenDefault()
@@ -104,6 +104,21 @@ public sealed class QuotaServiceTests : IDisposable
     if (status != RequestStatus.Pending)
     {
       await _store.UpdateStatusAsync(created.Id, status, Guid.NewGuid(), CancellationToken.None);
+    }
+  }
+
+  private sealed class FakeActivityStore : IUserActivityStore
+  {
+    public UserActivity Get(Guid userId) => new() { UserId = userId };
+
+    public System.Collections.Generic.IReadOnlyList<UserActivity> GetAll() => System.Array.Empty<UserActivity>();
+
+    public void RecordPlayback(Guid userId, DateTime nowUtc, double minutes)
+    {
+    }
+
+    public void Update(UserActivity activity)
+    {
     }
   }
 
