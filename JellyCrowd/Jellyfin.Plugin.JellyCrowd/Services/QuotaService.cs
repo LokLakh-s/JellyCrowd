@@ -16,6 +16,7 @@ public sealed class QuotaService : IQuotaService
 {
   private readonly IRequestStore _store;
   private readonly ILibraryMatcher _libraryMatcher;
+  private readonly IUserActivityStore _activityStore;
   private readonly Func<PluginConfiguration> _configurationProvider;
 
   /// <summary>
@@ -23,16 +24,18 @@ public sealed class QuotaService : IQuotaService
   /// </summary>
   /// <param name="store">The request store.</param>
   /// <param name="libraryMatcher">The library matcher (for actual sizes).</param>
+  /// <param name="activityStore">The viewing-activity store (drives the adaptive quota).</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
-  public QuotaService(IRequestStore store, ILibraryMatcher libraryMatcher, Func<PluginConfiguration> configurationProvider)
+  public QuotaService(IRequestStore store, ILibraryMatcher libraryMatcher, IUserActivityStore activityStore, Func<PluginConfiguration> configurationProvider)
   {
     _store = store;
     _libraryMatcher = libraryMatcher;
+    _activityStore = activityStore;
     _configurationProvider = configurationProvider;
   }
 
   /// <inheritdoc />
-  public long GetQuotaBytes(Guid userId)
+  public long GetBaseQuotaBytes(Guid userId)
   {
     var config = _configurationProvider();
     foreach (var over in config.QuotaOverrides)
@@ -47,8 +50,22 @@ public sealed class QuotaService : IQuotaService
   }
 
   /// <inheritdoc />
+  public long GetQuotaBytes(Guid userId)
+  {
+    var config = _configurationProvider();
+    var baseBytes = GetBaseQuotaBytes(userId);
+    if (!config.AdaptiveQuotaEnabled || baseBytes <= 0)
+    {
+      return baseBytes;
+    }
+
+    return AdaptiveQuotaCalculator.ComputeBytes(config, baseBytes, _activityStore.Get(userId));
+  }
+
+  /// <inheritdoc />
   public async Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken)
   {
+    var config = _configurationProvider();
     var quota = GetQuotaBytes(userId);
     var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
 
@@ -62,7 +79,25 @@ public sealed class QuotaService : IQuotaService
       }
     }
 
-    return new QuotaInfo { UsedBytes = used, QuotaBytes = quota, Unlimited = quota <= 0 };
+    var info = new QuotaInfo { UsedBytes = used, QuotaBytes = quota, Unlimited = quota <= 0 };
+    if (config.AdaptiveQuotaEnabled && GetBaseQuotaBytes(userId) > 0)
+    {
+      var activity = _activityStore.Get(userId);
+      info.AdaptiveEnabled = true;
+      info.Tier = activity.Tier switch
+      {
+        Models.AdaptiveTier.Floor => "floor",
+        Models.AdaptiveTier.Ceiling => "ceiling",
+        _ => "base",
+      };
+      if (activity.ProbationStartUtc is { } start)
+      {
+        info.InProbation = true;
+        info.ProbationEndsUtc = start.AddDays(Math.Max(1, config.AdaptiveProbationDays));
+      }
+    }
+
+    return info;
   }
 
   /// <inheritdoc />

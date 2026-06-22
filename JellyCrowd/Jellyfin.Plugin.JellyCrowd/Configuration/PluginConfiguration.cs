@@ -22,6 +22,14 @@ public class PluginConfiguration : BasePluginConfiguration
   {
     TmdbApiKey = string.Empty;
     DefaultUserQuotaBytes = DefaultQuotaBytes;
+    AdaptiveQuotaEnabled = false;
+    AdaptiveFloorPercent = 40;
+    AdaptiveCeilingPercent = 200;
+    AdaptiveWindowDays = 14;
+    AdaptiveMinMinutes = 180;
+    AdaptiveMinActiveDays = 3;
+    AdaptiveInactivityDays = 30;
+    AdaptiveProbationDays = 14;
     RequireApproval = true;
     HiddenFromUsers = false;
     RateLimitPerMinute = 120;
@@ -97,6 +105,48 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the default per-user disk quota in bytes. 0 means unlimited.
   /// </summary>
   public long DefaultUserQuotaBytes { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the adaptive quota is enabled. When off, every user keeps
+  /// their fixed base quota (override or default) — the historical behaviour.
+  /// </summary>
+  public bool AdaptiveQuotaEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the floor tier as a percentage of the base quota (resting quota for inactive users, e.g. 40).
+  /// </summary>
+  public int AdaptiveFloorPercent { get; set; }
+
+  /// <summary>
+  /// Gets or sets the ceiling tier as a percentage of the base quota (reward for active users, e.g. 200).
+  /// </summary>
+  public int AdaptiveCeilingPercent { get; set; }
+
+  /// <summary>
+  /// Gets or sets the rolling window (in days) over which viewing activity is evaluated.
+  /// </summary>
+  public int AdaptiveWindowDays { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum watch minutes within the window required to count as "active" (volume signal).
+  /// </summary>
+  public int AdaptiveMinMinutes { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum number of distinct active days within the window required to count as "active" (regularity signal).
+  /// </summary>
+  public int AdaptiveMinActiveDays { get; set; }
+
+  /// <summary>
+  /// Gets or sets the number of days without activity that puts an elevated (or base) user on notice / decays them.
+  /// </summary>
+  public int AdaptiveInactivityDays { get; set; }
+
+  /// <summary>
+  /// Gets or sets the probation length (in days): a returning, previously-rewarded user keeps their frozen
+  /// quota for this long; if they don't become active again, they drop to the base quota (not the floor).
+  /// </summary>
+  public int AdaptiveProbationDays { get; set; }
 
   /// <summary>
   /// Gets or sets a value indicating whether new requests require admin approval before fulfillment.

@@ -11,11 +11,20 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 public interface IQuotaService
 {
   /// <summary>
-  /// Gets the quota (in bytes) for a user: their override if any, otherwise the global default. 0 means unlimited.
+  /// Gets the effective quota (in bytes) for a user: the base quota adjusted by the adaptive tier when the
+  /// adaptive quota is enabled, otherwise the base quota itself. 0 means unlimited.
   /// </summary>
   /// <param name="userId">The user identifier.</param>
   /// <returns>The quota in bytes.</returns>
   long GetQuotaBytes(Guid userId);
+
+  /// <summary>
+  /// Gets the base quota (in bytes) for a user before any adaptive adjustment: their override if any,
+  /// otherwise the global default. 0 means unlimited.
+  /// </summary>
+  /// <param name="userId">The user identifier.</param>
+  /// <returns>The base quota in bytes.</returns>
+  long GetBaseQuotaBytes(Guid userId);
 
   /// <summary>
   /// Gets the current usage snapshot for a user (actual bytes used by fulfilled requests vs quota).

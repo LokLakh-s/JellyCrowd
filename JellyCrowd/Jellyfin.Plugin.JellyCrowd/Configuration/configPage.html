@@ -130,6 +130,52 @@
 
             <div class="checkboxContainer checkboxContainer-withDescription">
               <label class="emby-checkbox-label">
+                <input id="AdaptiveQuotaEnabled" name="AdaptiveQuotaEnabled" type="checkbox" is="emby-checkbox" />
+                <span>Adaptive quota (reward active users)</span>
+              </label>
+              <div class="fieldDescription">When enabled, each user's quota flexes around their base quota (their override, or the default above) based on how much they actually watch. Active users rise to the ceiling; users who go quiet are put on probation (quota frozen) and, if they stay away, drop back to the base — never straight to the floor. Off by default (everyone keeps their fixed base quota). Tiers are percentages of the base quota, so changing the default rescales everyone.</div>
+            </div>
+
+            <div id="jcAdaptiveOptions" style="display:none; margin: 0 0 1.5em 1.5em; padding-left: 1em; border-left: 2px solid rgba(255,255,255,0.12);">
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="AdaptiveFloorPercent">Floor tier (% of base)</label>
+                <input id="AdaptiveFloorPercent" name="AdaptiveFloorPercent" type="number" is="emby-input" min="0" max="100" step="5" />
+                <div class="fieldDescription">Resting quota for chronically inactive users, as a percentage of their base quota (e.g. 40 = 40%).</div>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="AdaptiveCeilingPercent">Ceiling tier (% of base)</label>
+                <input id="AdaptiveCeilingPercent" name="AdaptiveCeilingPercent" type="number" is="emby-input" min="100" step="5" />
+                <div class="fieldDescription">Reward quota for active users, as a percentage of their base quota (e.g. 200 = 200%). The base tier is always 100%.</div>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="AdaptiveWindowDays">Activity window (days)</label>
+                <input id="AdaptiveWindowDays" name="AdaptiveWindowDays" type="number" is="emby-input" min="1" step="1" />
+                <div class="fieldDescription">Rolling window over which viewing activity is measured.</div>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="AdaptiveMinMinutes">Active: min watch minutes</label>
+                <input id="AdaptiveMinMinutes" name="AdaptiveMinMinutes" type="number" is="emby-input" min="0" step="10" />
+                <div class="fieldDescription">Minimum total minutes watched within the window to count as "active" (the volume signal).</div>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="AdaptiveMinActiveDays">Active: min distinct days</label>
+                <input id="AdaptiveMinActiveDays" name="AdaptiveMinActiveDays" type="number" is="emby-input" min="1" step="1" />
+                <div class="fieldDescription">Minimum number of distinct days with viewing within the window (the regularity signal).</div>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="AdaptiveInactivityDays">Inactivity before probation/decay (days)</label>
+                <input id="AdaptiveInactivityDays" name="AdaptiveInactivityDays" type="number" is="emby-input" min="1" step="1" />
+                <div class="fieldDescription">Days without any activity after which a rewarded user is put on probation, or a never-rewarded user decays toward the floor.</div>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="AdaptiveProbationDays">Probation length (days)</label>
+                <input id="AdaptiveProbationDays" name="AdaptiveProbationDays" type="number" is="emby-input" min="1" step="1" />
+                <div class="fieldDescription">How long a probationary user keeps their frozen quota before dropping to the base, unless they become active again.</div>
+              </div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
                 <input id="RequireApproval" name="RequireApproval" type="checkbox" is="emby-checkbox" />
                 <span>Require admin approval for requests</span>
               </label>
@@ -1010,6 +1056,9 @@ Content-Type: application/json
       document.querySelector('#jcTabDiagnostics').addEventListener('click', function () { jcActivateTab('diagnostics'); });
       document.querySelector('#jcTabLogs').addEventListener('click', function () { jcActivateTab('logs'); });
       document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
+      document.querySelector('#AdaptiveQuotaEnabled').addEventListener('change', function () {
+        document.querySelector('#jcAdaptiveOptions').style.display = this.checked ? '' : 'none';
+      });
       document.querySelector('#jcDiagRun').addEventListener('click', jcRunDiagnostics);
       document.querySelector('#jcDiagBackup').addEventListener('click', jcDownloadBackup);
       document.querySelector('#jcCleanupScan').addEventListener('click', jcScanCleanup);
@@ -1048,6 +1097,15 @@ Content-Type: application/json
             document.querySelector('#Language').value = config.Language || 'auto';
             document.querySelector('#TmdbApiKey').value = config.TmdbApiKey || '';
             document.querySelector('#DefaultUserQuotaGiB').value = (config.DefaultUserQuotaBytes || 0) / gib;
+            document.querySelector('#AdaptiveQuotaEnabled').checked = !!config.AdaptiveQuotaEnabled;
+            document.querySelector('#AdaptiveFloorPercent').value = config.AdaptiveFloorPercent != null ? config.AdaptiveFloorPercent : 40;
+            document.querySelector('#AdaptiveCeilingPercent').value = config.AdaptiveCeilingPercent != null ? config.AdaptiveCeilingPercent : 200;
+            document.querySelector('#AdaptiveWindowDays').value = config.AdaptiveWindowDays != null ? config.AdaptiveWindowDays : 14;
+            document.querySelector('#AdaptiveMinMinutes').value = config.AdaptiveMinMinutes != null ? config.AdaptiveMinMinutes : 180;
+            document.querySelector('#AdaptiveMinActiveDays').value = config.AdaptiveMinActiveDays != null ? config.AdaptiveMinActiveDays : 3;
+            document.querySelector('#AdaptiveInactivityDays').value = config.AdaptiveInactivityDays != null ? config.AdaptiveInactivityDays : 30;
+            document.querySelector('#AdaptiveProbationDays').value = config.AdaptiveProbationDays != null ? config.AdaptiveProbationDays : 14;
+            document.querySelector('#jcAdaptiveOptions').style.display = config.AdaptiveQuotaEnabled ? '' : 'none';
             document.querySelector('#RequireApproval').checked = !!config.RequireApproval;
             document.querySelector('#AllowUserRetrySearch').checked = !!config.AllowUserRetrySearch;
             document.querySelector('#HiddenFromUsers').checked = !!config.HiddenFromUsers;
@@ -1132,6 +1190,14 @@ Content-Type: application/json
             config.Language = document.querySelector('#Language').value;
             config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
             config.DefaultUserQuotaBytes = Math.round(parseFloat(document.querySelector('#DefaultUserQuotaGiB').value || '0') * gib);
+            config.AdaptiveQuotaEnabled = document.querySelector('#AdaptiveQuotaEnabled').checked;
+            config.AdaptiveFloorPercent = parseInt(document.querySelector('#AdaptiveFloorPercent').value || '40', 10);
+            config.AdaptiveCeilingPercent = parseInt(document.querySelector('#AdaptiveCeilingPercent').value || '200', 10);
+            config.AdaptiveWindowDays = parseInt(document.querySelector('#AdaptiveWindowDays').value || '14', 10);
+            config.AdaptiveMinMinutes = parseInt(document.querySelector('#AdaptiveMinMinutes').value || '180', 10);
+            config.AdaptiveMinActiveDays = parseInt(document.querySelector('#AdaptiveMinActiveDays').value || '3', 10);
+            config.AdaptiveInactivityDays = parseInt(document.querySelector('#AdaptiveInactivityDays').value || '30', 10);
+            config.AdaptiveProbationDays = parseInt(document.querySelector('#AdaptiveProbationDays').value || '14', 10);
             config.RequireApproval = document.querySelector('#RequireApproval').checked;
             config.AllowUserRetrySearch = document.querySelector('#AllowUserRetrySearch').checked;
             config.HiddenFromUsers = document.querySelector('#HiddenFromUsers').checked;
