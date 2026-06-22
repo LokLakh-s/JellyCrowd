@@ -45,7 +45,7 @@ public sealed class RequestReconciler : IRequestReconciler
 
       if (request.Status == RequestStatus.Approved)
       {
-        var itemId = _libraryMatcher.FindItemId(request.MediaType, request.TmdbId);
+        var itemId = ResolveItemId(request);
         if (itemId is not null)
         {
           await _store.MarkAvailableAsync(request.Id, itemId, cancellationToken).ConfigureAwait(false);
@@ -55,7 +55,7 @@ public sealed class RequestReconciler : IRequestReconciler
       }
       else if (request.Status == RequestStatus.Available
                && request.DeletionRequestedAt is null
-               && _libraryMatcher.FindItemId(request.MediaType, request.TmdbId) is null)
+               && ResolveItemId(request) is null)
       {
         // The media is gone (e.g. deleted by another user / removed externally): no longer available.
         await _store.UpdateStatusAsync(request.Id, RequestStatus.Approved, request.DecidedBy ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
@@ -69,5 +69,17 @@ public sealed class RequestReconciler : IRequestReconciler
     }
 
     return resolved;
+  }
+
+  // For a per-episode / per-season TV request, availability means that exact episode (or season) is in
+  // the library — not merely the series. Whole-show and movie requests match at the title level.
+  private string? ResolveItemId(RequestRecord request)
+  {
+    if (string.Equals(request.MediaType, "tv", StringComparison.Ordinal) && request.Season.HasValue)
+    {
+      return _libraryMatcher.FindEpisodeItemId(request.TmdbId, request.Season, request.Episode);
+    }
+
+    return _libraryMatcher.FindItemId(request.MediaType, request.TmdbId);
   }
 }

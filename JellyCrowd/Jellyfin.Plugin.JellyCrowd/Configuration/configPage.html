@@ -327,7 +327,27 @@
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="NotificationEmailTo">Notification recipient</label>
               <input id="NotificationEmailTo" type="text" is="emby-input" />
-              <div class="fieldDescription">Email address that receives request notifications (e.g. the admin/ops mailbox).</div>
+              <div class="fieldDescription">Email address that receives request notifications (e.g. the admin/ops mailbox). This is an admin oversight channel — end users get their own notifications via their personal email/ntfy opt-in, including requests you make on their behalf. Choose below which events reach this mailbox.</div>
+            </div>
+
+            <div style="margin: 0 0 1.5em 0;">
+              <label class="emby-checkbox-label" style="display:block;margin-bottom:.4em;">
+                <input id="EmailNotifyCreated" type="checkbox" is="emby-checkbox" />
+                <span>Email the ops mailbox on new requests (created)</span>
+              </label>
+              <label class="emby-checkbox-label" style="display:block;margin-bottom:.4em;">
+                <input id="EmailNotifyApproved" type="checkbox" is="emby-checkbox" />
+                <span>… on approvals</span>
+              </label>
+              <label class="emby-checkbox-label" style="display:block;margin-bottom:.4em;">
+                <input id="EmailNotifyDenied" type="checkbox" is="emby-checkbox" />
+                <span>… on denials / failures</span>
+              </label>
+              <label class="emby-checkbox-label" style="display:block;">
+                <input id="EmailNotifyAvailable" type="checkbox" is="emby-checkbox" />
+                <span>… when titles become available</span>
+              </label>
+              <div class="fieldDescription">Off by default except "created" — so the ops mailbox isn't flooded by every user's availability notices.</div>
             </div>
 
             <div class="checkboxContainer checkboxContainer-withDescription">
@@ -1144,6 +1164,10 @@ Content-Type: application/json
             document.querySelector('#SmtpPassword').value = config.SmtpPassword || '';
             document.querySelector('#SmtpFromAddress').value = config.SmtpFromAddress || '';
             document.querySelector('#NotificationEmailTo').value = config.NotificationEmailTo || '';
+            document.querySelector('#EmailNotifyCreated').checked = config.EmailNotifyCreated !== false;
+            document.querySelector('#EmailNotifyApproved').checked = !!config.EmailNotifyApproved;
+            document.querySelector('#EmailNotifyDenied').checked = !!config.EmailNotifyDenied;
+            document.querySelector('#EmailNotifyAvailable').checked = !!config.EmailNotifyAvailable;
             document.querySelector('#SmtpAllowInvalidCertificate').checked = !!config.SmtpAllowInvalidCertificate;
             document.querySelector('#TelegramBotToken').value = config.TelegramBotToken || '';
             document.querySelector('#TelegramChatId').value = config.TelegramChatId || '';
@@ -1235,6 +1259,10 @@ Content-Type: application/json
             config.SmtpPassword = document.querySelector('#SmtpPassword').value;
             config.SmtpFromAddress = document.querySelector('#SmtpFromAddress').value;
             config.NotificationEmailTo = document.querySelector('#NotificationEmailTo').value;
+            config.EmailNotifyCreated = document.querySelector('#EmailNotifyCreated').checked;
+            config.EmailNotifyApproved = document.querySelector('#EmailNotifyApproved').checked;
+            config.EmailNotifyDenied = document.querySelector('#EmailNotifyDenied').checked;
+            config.EmailNotifyAvailable = document.querySelector('#EmailNotifyAvailable').checked;
             config.SmtpAllowInvalidCertificate = document.querySelector('#SmtpAllowInvalidCertificate').checked;
             config.TelegramBotToken = document.querySelector('#TelegramBotToken').value;
             config.TelegramChatId = document.querySelector('#TelegramChatId').value;

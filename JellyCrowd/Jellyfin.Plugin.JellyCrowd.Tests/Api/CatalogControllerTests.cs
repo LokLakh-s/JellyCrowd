@@ -41,6 +41,8 @@ public class CatalogControllerTests
 
     public string? FindItemId(string mediaType, int tmdbId) => Result ? "abc123" : null;
 
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => Result ? "abc123" : null;
+
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
