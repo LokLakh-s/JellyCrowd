@@ -65,6 +65,10 @@ public class PluginConfiguration : BasePluginConfiguration
     SmtpPassword = string.Empty;
     SmtpFromAddress = string.Empty;
     NotificationEmailTo = string.Empty;
+    EmailNotifyCreated = true;
+    EmailNotifyApproved = false;
+    EmailNotifyDenied = false;
+    EmailNotifyAvailable = false;
     SmtpAllowInvalidCertificate = false;
     TelegramBotToken = string.Empty;
     TelegramChatId = string.Empty;
@@ -338,6 +342,28 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the recipient address for notification emails (typically the admin/ops mailbox).
   /// </summary>
   public string NotificationEmailTo { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the ops mailbox is emailed when a request is created.
+  /// Default on (new requests are admin-actionable). Per-user lifecycle notifications still go to the
+  /// requester's own channels regardless of these flags.
+  /// </summary>
+  public bool EmailNotifyCreated { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the ops mailbox is emailed when a request is approved. Default off.
+  /// </summary>
+  public bool EmailNotifyApproved { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the ops mailbox is emailed when a request is denied/failed. Default off.
+  /// </summary>
+  public bool EmailNotifyDenied { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the ops mailbox is emailed when a request becomes available. Default off.
+  /// </summary>
+  public bool EmailNotifyAvailable { get; set; }
 
   /// <summary>
   /// Gets or sets a value indicating whether to accept self-signed/invalid SMTP TLS certificates (insecure).

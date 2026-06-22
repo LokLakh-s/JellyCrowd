@@ -55,6 +55,43 @@ public sealed class ReconcileTaskTests : IDisposable
     Assert.Equal(RequestStatus.Approved, updated!.Status);
   }
 
+  [Fact]
+  public async Task Execute_LeavesEpisodeApproved_WhenOnlySeriesPresentButEpisodeMissing()
+  {
+    // Regression: a per-episode TV request must not flip to Available just because the series exists
+    // (only ep.1 imported should not make all 10 episode requests Available).
+    var created = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 99, MediaType = "tv", Title = "HotD", Season = 3, Episode = 5 },
+      CancellationToken.None);
+    await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+
+    // Series-level match succeeds, but the specific episode is absent.
+    var matcher = new EpisodeStubMatcher(seriesFound: true, episodeFound: false);
+    var reconciler = new RequestReconciler(_store, matcher, new NoopNotificationService(), NullLogger<RequestReconciler>.Instance);
+
+    await reconciler.ReconcileAsync(CancellationToken.None);
+
+    var updated = await _store.GetByIdAsync(created.Id, CancellationToken.None);
+    Assert.Equal(RequestStatus.Approved, updated!.Status);
+  }
+
+  [Fact]
+  public async Task Execute_MarksEpisodeAvailable_WhenEpisodePresent()
+  {
+    var created = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 99, MediaType = "tv", Title = "HotD", Season = 3, Episode = 1 },
+      CancellationToken.None);
+    await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+
+    var matcher = new EpisodeStubMatcher(seriesFound: true, episodeFound: true);
+    var reconciler = new RequestReconciler(_store, matcher, new NoopNotificationService(), NullLogger<RequestReconciler>.Instance);
+
+    await reconciler.ReconcileAsync(CancellationToken.None);
+
+    var updated = await _store.GetByIdAsync(created.Id, CancellationToken.None);
+    Assert.Equal(RequestStatus.Available, updated!.Status);
+  }
+
   private async Task<Guid> SeedApprovedAsync()
   {
     var created = await _store.CreateAsync(
@@ -73,6 +110,30 @@ public sealed class ReconcileTaskTests : IDisposable
     public bool Exists(string mediaType, int tmdbId) => _result;
 
     public string? FindItemId(string mediaType, int tmdbId) => _result ? "x" : null;
+
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => _result ? "x" : null;
+
+    public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+  }
+
+  private sealed class EpisodeStubMatcher : ILibraryMatcher
+  {
+    private readonly bool _seriesFound;
+    private readonly bool _episodeFound;
+
+    public EpisodeStubMatcher(bool seriesFound, bool episodeFound)
+    {
+      _seriesFound = seriesFound;
+      _episodeFound = episodeFound;
+    }
+
+    public bool Exists(string mediaType, int tmdbId) => _seriesFound;
+
+    public string? FindItemId(string mediaType, int tmdbId) => _seriesFound ? "series" : null;
+
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => _episodeFound ? "episode" : null;
 
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
 

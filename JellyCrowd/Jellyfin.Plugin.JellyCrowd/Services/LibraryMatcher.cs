@@ -54,6 +54,49 @@ public sealed class LibraryMatcher : ILibraryMatcher
   }
 
   /// <inheritdoc />
+  public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode)
+  {
+    // A whole-show request: the series existing is enough.
+    if (season is null)
+    {
+      return FindItemId("tv", seriesTmdbId);
+    }
+
+    var series = _libraryManager.GetItemList(new InternalItemsQuery
+    {
+      IncludeItemTypes = new[] { BaseItemKind.Series },
+      HasAnyProviderId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+      {
+        [MetadataProvider.Tmdb.ToString()] = seriesTmdbId.ToString(CultureInfo.InvariantCulture)
+      },
+      Recursive = true,
+      Limit = 1
+    });
+
+    if (series.Count == 0)
+    {
+      return null;
+    }
+
+    // Match the exact episode, or — when no episode is given — any episode of that season.
+    var query = new InternalItemsQuery
+    {
+      IncludeItemTypes = new[] { BaseItemKind.Episode },
+      AncestorIds = new[] { series[0].Id },
+      ParentIndexNumber = season,
+      Recursive = true,
+      Limit = 1
+    };
+    if (episode is not null)
+    {
+      query.IndexNumber = episode;
+    }
+
+    var episodes = _libraryManager.GetItemList(query);
+    return episodes.Count > 0 ? episodes[0].Id.ToString("N", CultureInfo.InvariantCulture) : null;
+  }
+
+  /// <inheritdoc />
   public long GetSizeBytes(string mediaType, int tmdbId)
   {
     var kind = MediaTypeToKind(mediaType);

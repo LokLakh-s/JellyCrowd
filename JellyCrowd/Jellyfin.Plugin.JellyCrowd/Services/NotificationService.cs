@@ -105,8 +105,11 @@ public sealed class NotificationService : INotificationService
       await SendDiscordAsync(config, embed, cancellationToken).ConfigureAwait(false);
     }
 
-    var emailBody = BuildEmailBody(request, body, details, username);
-    await SendEmailAsync(config, "[Jelly Crowd] " + subject, emailBody, cancellationToken).ConfigureAwait(false);
+    if (EmailEnabledFor(config, notificationEvent))
+    {
+      var emailBody = BuildEmailBody(request, body, details, username);
+      await SendEmailAsync(config, "[Jelly Crowd] " + subject, emailBody, cancellationToken).ConfigureAwait(false);
+    }
 
     var textBody = body + "\nRequested by: " + username;
     foreach (var notifier in _textNotifiers)
@@ -291,6 +294,18 @@ public sealed class NotificationService : INotificationService
     NotificationEvent.Available => config.DiscordNotifyAvailable,
     NotificationEvent.Failed => config.DiscordNotifyDenied,
     _ => true
+  };
+
+  // The global ops mailbox is admin oversight, not a per-user channel: gate it per event so it isn't
+  // flooded by end-user lifecycle notifications (which already reach the requester's own channels).
+  private static bool EmailEnabledFor(PluginConfiguration config, NotificationEvent notificationEvent) => notificationEvent switch
+  {
+    NotificationEvent.Created => config.EmailNotifyCreated,
+    NotificationEvent.Approved => config.EmailNotifyApproved,
+    NotificationEvent.Denied => config.EmailNotifyDenied,
+    NotificationEvent.Available => config.EmailNotifyAvailable,
+    NotificationEvent.Failed => config.EmailNotifyDenied,
+    _ => false
   };
 
   private static DiscordEmbedOptions BuildDiscordOptions(PluginConfiguration config, NotificationEvent notificationEvent)
