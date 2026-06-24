@@ -25,6 +25,9 @@ public class MediaUsageDto
   /// <summary>Gets or sets the requested season number, if any.</summary>
   public int? Season { get; set; }
 
+  /// <summary>Gets or sets the requested episode number, if any.</summary>
+  public int? Episode { get; set; }
+
   /// <summary>Gets or sets the Jellyfin library item id (for the deep-link), if known.</summary>
   public string? JellyfinItemId { get; set; }
 
