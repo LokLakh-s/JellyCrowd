@@ -303,6 +303,16 @@
     (statuses || []).forEach(function (s) {
       var row = list.querySelector('.jellycrowd-request-row[data-req-id="' + s.RequestId + '"]');
       if (!row) {
+        // Aggregated season row: match any of its episode request ids.
+        row = Array.prototype.find.call(list.querySelectorAll('.jellycrowd-request-row[data-req-ids]'), function (el) {
+          return (' ' + el.dataset.reqIds + ' ').indexOf(' ' + s.RequestId + ' ') >= 0;
+        });
+      }
+      if (!row) {
+        return;
+      }
+      // One progress badge per aggregated row (the first matching episode wins this cycle).
+      if (row.dataset.reqIds && row.querySelector('.jellycrowd-dl')) {
         return;
       }
 
@@ -336,6 +346,133 @@
       .catch(function () { /* best-effort */ });
   }
 
+  // N15: collapse the per-episode requests of one season into a single row, so an in-progress season
+  // (which is fulfilled episode-by-episode in the backend) shows as one line instead of flooding the
+  // list. A lone episode request stays a normal row.
+  function isEpisodeRequest(r) {
+    return r.MediaType === 'tv' && r.Season != null && r.Episode != null;
+  }
+
+  function statusInt(r) {
+    if (typeof r.Status === 'number') { return r.Status; }
+    var map = { Pending: 0, Approved: 1, Denied: 2, Available: 3 };
+    return map[r.Status] != null ? map[r.Status] : 0;
+  }
+
+  // Aggregated row for all requested episodes of one season.
+  function renderSeasonGroupRow(group) {
+    var first = group[0];
+    var row = document.createElement('div');
+    row.className = 'jellycrowd-request-row';
+    row.dataset.reqIds = group.map(function (r) { return r.Id; }).join(' ');
+    row.dataset.reqId = first.Id; // representative, for compatibility
+
+    function openDetail() {
+      if (typeof window.jellyCrowdOpenDetail === 'function') {
+        // Open the SERIES popup (no season) → the season picker, so the user can manage all seasons.
+        window.jellyCrowdOpenDetail({
+          TmdbId: first.TmdbId, MediaType: 'tv', Title: first.Title,
+          PosterPath: first.PosterPath, ReleaseDate: first.ReleaseDate,
+          Available: false, JellyfinItemId: first.JellyfinItemId
+        });
+      }
+    }
+
+    var posterEl = document.createElement(first.PosterPath ? 'img' : 'div');
+    posterEl.className = 'jellycrowd-request-poster jellycrowd-link';
+    if (first.PosterPath) { posterEl.loading = 'lazy'; posterEl.alt = first.Title || ''; posterEl.src = POSTER_BASE + first.PosterPath; }
+    posterEl.addEventListener('click', openDetail);
+    row.appendChild(posterEl);
+
+    var main = document.createElement('div');
+    main.className = 'jellycrowd-request-main';
+    var titleEl = document.createElement('div');
+    titleEl.className = 'jellycrowd-request-title jellycrowd-link';
+    titleEl.textContent = lib.formatTitle(first) + ' · ' + t('season_label') + ' ' + first.Season;
+    titleEl.title = t('details_button');
+    titleEl.addEventListener('click', openDetail);
+    main.appendChild(titleEl);
+
+    var total = group.length;
+    var availableCount = group.filter(function (r) { return statusInt(r) === 3; }).length;
+
+    var sub = document.createElement('div');
+    sub.className = 'jellycrowd-request-sub';
+    sub.textContent = t('episodes_available').replace('{a}', availableCount).replace('{b}', total);
+    main.appendChild(sub);
+
+    // Next episode date: the earliest future release/desired date among not-yet-available episodes.
+    var now = Date.now();
+    var nextTs = null;
+    group.forEach(function (r) {
+      if (statusInt(r) === 3) { return; }
+      var d = r.ReleaseDate ? new Date(r.ReleaseDate) : (r.DesiredAt ? new Date(r.DesiredAt) : null);
+      if (d && !isNaN(d.getTime()) && d.getTime() > now && (nextTs === null || d.getTime() < nextTs)) {
+        nextTs = d.getTime();
+      }
+    });
+    if (nextTs !== null) {
+      var nextSub = document.createElement('div');
+      nextSub.className = 'jellycrowd-request-sub';
+      nextSub.textContent = t('next_episode') + ' ' + new Date(nextTs).toLocaleDateString();
+      main.appendChild(nextSub);
+    }
+    row.appendChild(main);
+
+    // Aggregate status badge.
+    var allDeletion = group.every(function (r) { return r.DeletionRequestedAt; });
+    var status = document.createElement('span');
+    if (allDeletion) {
+      status.className = 'jellycrowd-status jellycrowd-status-denied';
+      status.textContent = t('deletion_requested');
+    } else if (availableCount === total) {
+      status.className = 'jellycrowd-status jellycrowd-status-available';
+      status.textContent = t('status_available');
+    } else if (availableCount > 0) {
+      status.className = 'jellycrowd-status jellycrowd-status-scheduled';
+      status.textContent = availableCount + '/' + total;
+    } else {
+      var key = lib.statusLabelKey(first.Status);
+      status.className = 'jellycrowd-status jellycrowd-status-' + key.replace('status_', '');
+      status.textContent = t(key);
+    }
+    row.appendChild(status);
+
+    // Cancel every still-active episode of the season at once.
+    var cancellable = group.filter(function (r) {
+      return !r.DeletionRequestedAt && (statusInt(r) === 0 || statusInt(r) === 1);
+    });
+    if (cancellable.length) {
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'jellycrowd-request';
+      cancel.textContent = t('cancel');
+      cancel.addEventListener('click', function () {
+        cancel.disabled = true;
+        Promise.all(cancellable.map(function (r) { return apiPost('JellyCrowd/Requests/' + r.Id + '/Cancel').catch(function () {}); }))
+          .then(function () { lastSignature = ''; tick(); });
+      });
+      row.appendChild(cancel);
+    }
+
+    // Retry every approved episode of the season at once (admin / opted-in users).
+    var retriable = group.filter(function (r) { return statusInt(r) === 1 && !r.DeletionRequestedAt; });
+    if (retriable.length && (allowRetry || isAdmin)) {
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'jellycrowd-request';
+      retry.textContent = t('retry_search');
+      retry.addEventListener('click', function () {
+        retry.disabled = true;
+        Promise.all(retriable.map(function (r) { return apiPost('JellyCrowd/Requests/' + r.Id + '/Retry').catch(function () {}); }))
+          .then(function () { lastSignature = ''; tick(); });
+      });
+      row.appendChild(retry);
+    }
+
+    return row;
+  }
+
   function render(requests) {
     var list = document.getElementById('jcReqList');
     list.innerHTML = '';
@@ -346,7 +483,24 @@
     }
 
     setMessage('');
-    requests.forEach(function (request) { list.appendChild(renderRow(request)); });
+
+    // Pre-group episode requests by (TmdbId, Season); only collapse when there's more than one.
+    var groups = {};
+    requests.forEach(function (r) {
+      if (!isEpisodeRequest(r)) { return; }
+      var key = r.TmdbId + ':' + r.Season;
+      (groups[key] = groups[key] || []).push(r);
+    });
+
+    var renderedGroups = {};
+    requests.forEach(function (request) {
+      if (!isEpisodeRequest(request)) { list.appendChild(renderRow(request)); return; }
+      var key = request.TmdbId + ':' + request.Season;
+      if (groups[key].length < 2) { list.appendChild(renderRow(request)); return; }
+      if (renderedGroups[key]) { return; }
+      renderedGroups[key] = true;
+      list.appendChild(renderSeasonGroupRow(groups[key]));
+    });
   }
 
   // Compact fingerprint of the list so the live tick only re-renders when something actually changed
