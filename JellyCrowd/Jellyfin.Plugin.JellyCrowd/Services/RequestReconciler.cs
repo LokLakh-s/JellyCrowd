@@ -43,7 +43,11 @@ public sealed class RequestReconciler : IRequestReconciler
     {
       cancellationToken.ThrowIfCancellationRequested();
 
-      if (request.Status == RequestStatus.Approved)
+      // Grant ownership to EVERY active requester once the media is present: not just Approved
+      // requests but also still-Pending ones (e.g. several people requested the same unreleased title
+      // — each must own it on release, without waiting for individual approval, since it's already
+      // in the library and shared ownership adds no new download).
+      if (request.Status is RequestStatus.Approved or RequestStatus.Pending)
       {
         var itemId = ResolveItemId(request);
         if (itemId is not null)

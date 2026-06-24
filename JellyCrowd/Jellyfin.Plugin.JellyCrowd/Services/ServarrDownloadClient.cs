@@ -95,9 +95,16 @@ public sealed class ServarrDownloadClient : IDownloadClient
       var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)}.");
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
-      if (series?["id"] is JsonValue seriesIdValue && seriesIdValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
+      if (series is not null && series["id"] is JsonValue seriesIdValue && seriesIdValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
       {
-        // Already in Sonarr — search the requested season (or the whole series) rather than re-adding.
+        // Already in Sonarr — but a series added for an earlier season leaves later seasons
+        // UNMONITORED, and a season search on an unmonitored season grabs nothing. So monitor the
+        // requested season first (persist the change), then search it (or the whole series).
+        if (ServarrPayload.EnsureSeasonsMonitored(series, dispatch.Season))
+        {
+          await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
+        }
+
         var command = dispatch.Season is int season
           ? new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season }
           : new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };

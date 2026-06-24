@@ -43,6 +43,9 @@ public sealed class DownloadDispatchTask : IScheduledTask
     ArgumentNullException.ThrowIfNull(progress);
     progress.Report(0);
     await _dispatcher.DispatchDueAsync(cancellationToken).ConfigureAwait(false);
+    progress.Report(50);
+    // Backstop: re-search approved requests that dispatched but never arrived (indexers down, grab failed).
+    await _dispatcher.RetryStuckAsync(cancellationToken).ConfigureAwait(false);
     progress.Report(100);
   }
 
