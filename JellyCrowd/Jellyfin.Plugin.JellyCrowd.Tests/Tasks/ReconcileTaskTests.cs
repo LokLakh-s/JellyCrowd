@@ -92,6 +92,26 @@ public sealed class ReconcileTaskTests : IDisposable
     Assert.Equal(RequestStatus.Available, updated!.Status);
   }
 
+  [Fact]
+  public async Task Execute_GrantsOwnershipToAllRequesters_IncludingPending()
+  {
+    // Two people requested the same title; one approved, one still pending. Once it's in the library
+    // both must own it (N31) — the pending requester shouldn't be left out.
+    var approved = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 5, MediaType = "movie", Title = "X" },
+      CancellationToken.None);
+    await _store.UpdateStatusAsync(approved.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+    var pending = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 5, MediaType = "movie", Title = "X" },
+      CancellationToken.None); // stays Pending
+
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), NullLogger<RequestReconciler>.Instance);
+    await reconciler.ReconcileAsync(CancellationToken.None);
+
+    Assert.Equal(RequestStatus.Available, (await _store.GetByIdAsync(approved.Id, CancellationToken.None))!.Status);
+    Assert.Equal(RequestStatus.Available, (await _store.GetByIdAsync(pending.Id, CancellationToken.None))!.Status);
+  }
+
   private async Task<Guid> SeedApprovedAsync()
   {
     var created = await _store.CreateAsync(

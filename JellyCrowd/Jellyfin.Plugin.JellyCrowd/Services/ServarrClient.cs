@@ -103,6 +103,10 @@ public sealed class ServarrClient : IServarrClient
     => PostAsync(baseUrl, apiKey, "/series", body, cancellationToken);
 
   /// <inheritdoc />
+  public Task UpdateSeriesAsync(string baseUrl, string apiKey, int seriesId, JsonObject body, CancellationToken cancellationToken)
+    => PutAsync(baseUrl, apiKey, "/series/" + seriesId.ToString(CultureInfo.InvariantCulture), body, cancellationToken);
+
+  /// <inheritdoc />
   public Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken)
   {
     var path = forSonarr
@@ -203,6 +207,16 @@ public sealed class ServarrClient : IServarrClient
   {
     ArgumentNullException.ThrowIfNull(body);
     using var request = CreateRequest(HttpMethod.Post, baseUrl, apiKey, path);
+    request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+    var client = _httpClientFactory.CreateClient(NamedClient.Default);
+    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    response.EnsureSuccessStatusCode();
+  }
+
+  private async Task PutAsync(string baseUrl, string apiKey, string path, JsonObject body, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(body);
+    using var request = CreateRequest(HttpMethod.Put, baseUrl, apiKey, path);
     request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
     using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);

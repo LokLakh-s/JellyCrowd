@@ -52,4 +52,13 @@ public interface IDownloadDispatcher
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns><c>true</c> when the retry was attempted successfully.</returns>
   Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Backstop that automatically re-searches approved requests that were dispatched but never became
+  /// available (e.g. indexers were down, or the grab failed), throttled by a back-off and bounded by a
+  /// max age so it gives up on genuinely-unavailable media. Never throws.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when stuck requests have been re-searched.</returns>
+  Task RetryStuckAsync(CancellationToken cancellationToken);
 }

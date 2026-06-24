@@ -74,6 +74,8 @@ public class DownloadControllerTests
 
     public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
   }
 
@@ -93,6 +95,8 @@ public class DownloadControllerTests
     public Task AddMovieAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task AddSeriesAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task UpdateSeriesAsync(string baseUrl, string apiKey, int seriesId, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken) => Task.FromResult("[]");
 

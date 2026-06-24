@@ -179,6 +179,41 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   [Fact]
+  public async Task RetryStuckAsync_ReSearchesDispatchedButNotAvailable_AfterBackoff()
+  {
+    var request = await SeedApprovedAsync();
+    await CreateDispatcher().DispatchAsync(request, CancellationToken.None); // sets DispatchedAt + attempt = now
+    // Push the last attempt back beyond the back-off window so it's eligible for an auto re-search.
+    await _store.SetDispatchErrorAsync(request.Id, null, DateTime.UtcNow.AddHours(-7), CancellationToken.None);
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.Single(_client.Retried);
+    Assert.Equal(603, _client.Retried[0].TmdbId);
+  }
+
+  [Fact]
+  public async Task RetryStuckAsync_SkipsRecentlyDispatched()
+  {
+    var request = await SeedApprovedAsync();
+    await CreateDispatcher().DispatchAsync(request, CancellationToken.None); // attempt = now → within back-off
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.Empty(_client.Retried);
+  }
+
+  [Fact]
+  public async Task RetryStuckAsync_SkipsNotYetDispatched()
+  {
+    await SeedApprovedAsync(); // approved but DispatchedAt == null → DispatchDueAsync handles it, not the retry backstop
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.Empty(_client.Retried);
+  }
+
+  [Fact]
   public async Task TestActiveAsync_NoneBackend_Throws()
   {
     _config.DownloadBackend = "none";

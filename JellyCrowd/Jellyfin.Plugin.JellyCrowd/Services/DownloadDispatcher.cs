@@ -17,6 +17,11 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </summary>
 public sealed class DownloadDispatcher : IDownloadDispatcher
 {
+  // Auto-retry back-off for approved requests that dispatched but never became available (indexers
+  // down, grab failed): re-search at most this often, and stop trying past this age.
+  private static readonly TimeSpan RetryStuckInterval = TimeSpan.FromHours(6);
+  private static readonly TimeSpan RetryStuckMaxAge = TimeSpan.FromDays(14);
+
   private readonly IReadOnlyList<IDownloadClient> _clients;
   private readonly IRequestStore _store;
   private readonly Func<Guid, string> _resolveUserName;
@@ -168,6 +173,45 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       _logger.LogWarning(ex, "Retry failed for request {RequestId}.", request.Id.ToString("N", CultureInfo.InvariantCulture));
       _ = _activityLog.LogAsync("error", "download", "Retry failed for " + request.Title + ": " + message, CancellationToken.None);
       return false;
+    }
+  }
+
+  /// <inheritdoc />
+  public async Task RetryStuckAsync(CancellationToken cancellationToken)
+  {
+    var client = ActiveClient(_config());
+    if (client is null)
+    {
+      return;
+    }
+
+    var now = DateTime.UtcNow;
+    var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    foreach (var request in all)
+    {
+      cancellationToken.ThrowIfCancellationRequested();
+
+      // Only approved requests that already dispatched but haven't materialised. (Not-yet-dispatched
+      // ones are handled by DispatchDueAsync; Available/Pending/Denied are out of scope.)
+      if (request.Status != RequestStatus.Approved || request.DispatchedAt is null)
+      {
+        continue;
+      }
+
+      // Give up on genuinely-unavailable media after the window — manual retry only past that point.
+      if (now - request.RequestedAt > RetryStuckMaxAge)
+      {
+        continue;
+      }
+
+      // Back-off: only re-search when the last attempt is older than the interval.
+      var lastAttempt = request.DispatchAttemptedAt ?? request.DispatchedAt.Value;
+      if (now - lastAttempt < RetryStuckInterval)
+      {
+        continue;
+      }
+
+      await RetryAsync(request, cancellationToken).ConfigureAwait(false);
     }
   }
 

@@ -76,6 +76,56 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task DispatchAsync_Show_AlreadyInSonarr_MonitorsRequestedSeasonThenSearches()
+  {
+    // Series exists from an earlier season; season 2 is present but UNMONITORED.
+    var series = new JsonObject
+    {
+      ["id"] = 7,
+      ["monitored"] = true,
+      ["seasons"] = new JsonArray(
+        new JsonObject { ["seasonNumber"] = 1, ["monitored"] = true },
+        new JsonObject { ["seasonNumber"] = 2, ["monitored"] = false })
+    };
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(series);
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.DispatchAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 2 }, CancellationToken.None);
+
+    // Season 2 must be monitored (persisted) before the search, otherwise nothing downloads.
+    servarr.Verify(s => s.UpdateSeriesAsync("http://localhost:8989", "sk", 7, It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.CommandAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.AddSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+    Assert.True(series["seasons"]![1]!["monitored"]!.GetValue<bool>());
+  }
+
+  [Fact]
+  public async Task DispatchAsync_Show_AlreadyInSonarr_SeasonAlreadyMonitored_SkipsUpdate()
+  {
+    var series = new JsonObject
+    {
+      ["id"] = 7,
+      ["monitored"] = true,
+      ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 2, ["monitored"] = true })
+    };
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(series);
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.DispatchAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 2 }, CancellationToken.None);
+
+    servarr.Verify(s => s.UpdateSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.CommandAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
   public async Task DispatchAsync_Movie_RadarrNotConfigured_Throws()
   {
     var client = new ServarrDownloadClient(Mock.Of<IServarrClient>(), Mock.Of<ITmdbClient>(), () => new PluginConfiguration());

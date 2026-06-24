@@ -72,6 +72,17 @@ public interface IServarrClient
   Task AddSeriesAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Updates an existing series (<c>PUT /api/v3/series/{id}</c>), e.g. to monitor an additional season.
+  /// </summary>
+  /// <param name="baseUrl">The Sonarr base URL.</param>
+  /// <param name="apiKey">The Sonarr API key.</param>
+  /// <param name="seriesId">The Sonarr series id.</param>
+  /// <param name="body">The full series body to persist.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the series is updated.</returns>
+  Task UpdateSeriesAsync(string baseUrl, string apiKey, int seriesId, JsonObject body, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Fetches the current download queue (<c>GET /api/v3/queue</c>), including the linked movie
   /// (Radarr) or series + episode (Sonarr) so records can be matched back to a request.
   /// </summary>

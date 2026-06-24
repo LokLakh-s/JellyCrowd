@@ -78,4 +78,49 @@ public static class ServarrPayload
     };
     return body;
   }
+
+  /// <summary>
+  /// Mutates an existing Sonarr series body so the requested season (or every real season when
+  /// <paramref name="season"/> is <c>null</c>) is monitored, and the series itself is monitored.
+  /// Needed when a show is already in Sonarr from an earlier season: later seasons start unmonitored,
+  /// so a season search wouldn't grab anything. Returns <c>true</c> if any flag was changed.
+  /// </summary>
+  /// <param name="series">The full series resource fetched from Sonarr.</param>
+  /// <param name="season">The season to monitor, or <c>null</c> for all real seasons.</param>
+  /// <returns><c>true</c> when a monitoring flag was changed (and the series should be persisted).</returns>
+  public static bool EnsureSeasonsMonitored(JsonObject series, int? season)
+  {
+    ArgumentNullException.ThrowIfNull(series);
+    var changed = false;
+
+    if (series["monitored"] is not JsonValue rootValue || !rootValue.TryGetValue<bool>(out var rootMonitored) || !rootMonitored)
+    {
+      series["monitored"] = true;
+      changed = true;
+    }
+
+    if (series["seasons"] is JsonArray seasons)
+    {
+      foreach (var node in seasons)
+      {
+        if (node is not JsonObject seasonObj
+            || seasonObj["seasonNumber"] is not JsonValue numberValue
+            || !numberValue.TryGetValue<int>(out var number)
+            || number <= 0
+            || (season is not null && number != season.Value))
+        {
+          continue;
+        }
+
+        var already = seasonObj["monitored"] is JsonValue sv && sv.TryGetValue<bool>(out var b) && b;
+        if (!already)
+        {
+          seasonObj["monitored"] = true;
+          changed = true;
+        }
+      }
+    }
+
+    return changed;
+  }
 }
