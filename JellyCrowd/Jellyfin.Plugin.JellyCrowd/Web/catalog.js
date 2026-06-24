@@ -47,6 +47,9 @@
     personName: ''
   };
 
+  // Last-loaded genre list (id+name), kept so the active-filter bar can label genre chips by name.
+  var loadedGenres = [];
+
   // Curated codes for the language / country filters (labels are localized via Intl.DisplayNames).
   var FILTER_LANGUAGES = ['en', 'fr', 'es', 'it', 'de', 'pt', 'ja', 'ko', 'zh', 'hi'];
   var FILTER_COUNTRIES = ['US', 'FR', 'ES', 'IT', 'GB', 'DE', 'JP', 'KR', 'CA', 'IN'];
@@ -1393,6 +1396,7 @@
     feedExhausted = false;
     gridPage = 0;
     feedEl().innerHTML = '';
+    renderActiveFilters();
 
     // "My list" mode: render the user's watchlist entries (no TMDB query / infinite scroll).
     if (showWatchlist) {
@@ -1439,8 +1443,109 @@
     searchQuery = query || '';
     if (!searchQuery) {
       filters.watchProviders = '';
+    } else {
+      // A search is a fresh intent: leave any active person/filmography filter.
+      filters.personId = 0;
+      filters.personName = '';
     }
     resetFeed();
+  }
+
+  // Renders a removable chip per active filter above the feed, so the user can always see what's
+  // narrowing the catalog and clear any single one (the X) — the Reset chip clears everything at once.
+  function renderActiveFilters() {
+    var bar = document.getElementById('jcActiveFilters');
+    if (!bar) { return; }
+    bar.innerHTML = '';
+    var chips = [];
+
+    if (showWatchlist) {
+      chips.push({ label: '★ ' + t('watchlist_title'), clear: function () {
+        showWatchlist = false;
+        var ml = document.getElementById('jcMyList');
+        if (ml) { ml.classList.remove('jellycrowd-chip-active'); }
+      } });
+    }
+    if (searchQuery) {
+      chips.push({ label: '“' + searchQuery + '”', clear: function () {
+        searchQuery = '';
+        var input = document.getElementById('jcSearchInput');
+        if (input) { input.value = ''; }
+      } });
+    }
+    if (filters.personId) {
+      chips.push({ label: '👤 ' + (filters.personName || t('filmography_of')), clear: function () {
+        filters.personId = 0;
+        filters.personName = '';
+      } });
+    }
+    filters.genres.forEach(function (gid) {
+      var match = loadedGenres.filter(function (g) { return String(g.Id) === String(gid); })[0];
+      chips.push({ label: match ? match.Name : ('#' + gid), clear: function () {
+        var idx = filters.genres.indexOf(gid);
+        if (idx >= 0) { filters.genres.splice(idx, 1); }
+        renderGenres(loadedGenres);
+      } });
+    });
+    if (filters.minYear > MIN_YEAR || filters.maxYear < MAX_YEAR) {
+      chips.push({ label: filters.minYear + '–' + filters.maxYear, clear: function () {
+        filters.minYear = MIN_YEAR;
+        filters.maxYear = MAX_YEAR;
+        setupYearSlider();
+      } });
+    }
+    if (filters.minRating > 0 || filters.maxRating < 10) {
+      chips.push({ label: '★ ' + filters.minRating + '–' + filters.maxRating, clear: function () {
+        filters.minRating = 0;
+        filters.maxRating = 10;
+        setupRatingSlider();
+      } });
+    }
+    if (filters.sortBy && filters.sortBy !== 'popularity') {
+      chips.push({ label: t('filters_sort'), clear: function () {
+        filters.sortBy = 'popularity';
+        var sort = document.getElementById('jcSort');
+        if (sort) { sort.value = 'popularity'; }
+      } });
+    }
+    if (filters.watchProviders) {
+      chips.push({ label: t('streaming_platforms'), clear: function () { filters.watchProviders = ''; } });
+    }
+    if (filters.originalLanguage) {
+      chips.push({ label: t('filters_language'), clear: function () {
+        filters.originalLanguage = '';
+        var lang = document.getElementById('jcLang');
+        if (lang) { lang.value = ''; }
+      } });
+    }
+    if (filters.originCountry) {
+      chips.push({ label: t('filters_country'), clear: function () {
+        filters.originCountry = '';
+        var country = document.getElementById('jcCountry');
+        if (country) { country.value = ''; }
+      } });
+    }
+
+    if (!chips.length) {
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
+    chips.forEach(function (c) {
+      var chip = document.createElement('span');
+      chip.className = 'jellycrowd-active-chip';
+      var label = document.createElement('span');
+      label.textContent = c.label;
+      chip.appendChild(label);
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'jellycrowd-active-chip-x';
+      x.textContent = '✕';
+      x.setAttribute('aria-label', t('filters_reset') + ': ' + c.label);
+      x.addEventListener('click', function () { c.clear(); resetFeed(); });
+      chip.appendChild(x);
+      bar.appendChild(chip);
+    });
   }
 
   // ---------- filters UI ----------
@@ -1538,12 +1643,14 @@
   }
 
   function renderGenres(genres) {
+    loadedGenres = genres || [];
     var container = document.getElementById('jcGenres');
     container.innerHTML = '';
     (genres || []).forEach(function (genre) {
       var chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'jellycrowd-chip';
+      if (filters.genres.indexOf(String(genre.Id)) >= 0) { chip.classList.add('jellycrowd-chip-active'); }
       chip.textContent = genre.Name;
       chip.addEventListener('click', function () {
         var id = String(genre.Id);
