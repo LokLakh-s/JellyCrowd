@@ -67,6 +67,21 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
+  public async Task GetUsageAsync_CountsInFlightEstimates()
+  {
+    var user = Guid.NewGuid();
+    // A pending movie request has no on-disk size yet, but must show its estimate (4 GiB here).
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 7, MediaType = "movie", Title = "P" },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    var info = await service.GetUsageAsync(user, CancellationToken.None);
+
+    Assert.Equal(4 * Gib, info.UsedBytes);
+  }
+
+  [Fact]
   public async Task CanRequestAsync_FalseWhenEstimateExceedsQuota()
   {
     var user = Guid.NewGuid();

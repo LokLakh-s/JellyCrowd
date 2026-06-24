@@ -465,6 +465,22 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ **N20 — Sortie du filtre « par acteur ».** Corrigé via N21 (barre de filtres actifs visible avec croix) + une **recherche efface désormais le filtre personne** (intention neuve). Le retour au catalogue normal est fiable.
 - ☑ **N21 — Vignette de filtre actif + croix de reset.** Barre `#jcActiveFilters` au-dessus du feed : **une pastille par filtre actif** (personne 👤, recherche, watchlist ★, genres, années, note, tri, plateforme, langue, pays) avec une **croix** qui retire ce filtre-là ; le bouton *Reset* (efface tout) passe en **rouge** (`jellycrowd-chip-danger`).
 
+**Nouvelles trouvailles (lot 3 — tests v0.57.1, live 2026-06-24) :**
+
+- ☐ **N22 — Bandeau annonce multi-lignes.** L'annonce admin s'affiche sur **une seule ligne** et rogne Home/Catalog/Calendar. → S'adapter à l'espace entre Home et le logo, **wrapper sur 2–3 lignes** si trop large (la hauteur du bandeau le permet), sans empiéter sur les liens nav.
+- ☐ **N23 — Accès config dans la section « Server ».** Mettre l'accès aux options Jelly Crowd **en haut (Server/Dashboard)** plutôt qu'en bas (Plugins). *(À cadrer : dépend de ce que Jellyfin autorise — éventuel lien de menu custom.)*
+- ☐ **N24 — Quota visible par utilisateur (admin).** L'onglet *User quotas* doit afficher le **quota courant** (et idéalement l'usage) de chaque utilisateur. *(Recoupe le « surfacer côté admin » optionnel de M27.A.)*
+- ☐ **N25 — Bouton Retry par requête (admin).** Dans l'onglet *Requests* admin, un **Retry** par requête pour **relancer le dispatch** backend (Prowlarr/Sonarr/Radarr). *(Pendant admin de `AllowUserRetrySearch`.)*
+- ☐ **N26 — Auto-retry des dispatches en échec/bloqués.** « Orange Mécanique » affichait *Problème de téléchargement* jusqu'à relance manuelle ; idem indexeurs temporairement morts (Hannibal) → **relance automatique** périodique des requêtes `Approved` non satisfaites / en échec (back-off borné), au lieu d'exiger une action manuelle. *(Pilier de fiabilité ; lien N18/M28.)*
+- ☐ **N27 — Requête multi-saisons : monitorer TOUTES les saisons.** Hannibal 3 saisons on-behalf → seule **S1 Monitored** dans Sonarr. Le dispatch doit ajouter/monitorer **chaque saison demandée** (et déclencher la recherche), pas seulement la première.
+- ☑ **N28 — Quota théorique à la demande.** `GetUsageAsync` compte désormais les requêtes **en vol** (`Pending`/`Approved`) à l'estimation (film **5 Go** — défaut relevé —, **1 Go/épisode**, saison = somme des épisodes créés), en plus de la taille réelle des `Available` ; la barre de quota reflète donc le provisoire immédiatement et se recale sur la taille réelle à l'arrivée du fichier. Test ajouté.
+- ☐ **N29 — *Ma bibliothèque* arborescente (série → saison → épisode).** Affichage **dépliable** : série › saisons › épisodes, avec un **bouton supprimer à chaque niveau** (série entière / une saison / un épisode) pour une suppression granulaire côté utilisateur.
+- ☐ **N30 (= N19) — Cascade de suppression complète.** Quand un média supprimé n'appartient **plus à personne** → le purger de **Sonarr/Radarr/Prowlarr + disque + Jellyfin** (+ RDT). *(Doublon consolidé avec N19.)*
+- ☐ **N31 — Unreleased multi-demandeurs : appartenance à tous.** Si un titre *Unreleased* est demandé par **plusieurs** personnes, à la mise à dispo l'**appartenance est accordée à tous les demandeurs** (pas seulement le premier).
+- ☑ **N32 — « Add to my library » conditionnel.** La fiche Jellyfin n'injecte le bouton *Add to my library* **que si l'utilisateur ne possède pas déjà** le titre (vérif via `Requests/Mine` : aucune requête `Available` non en suppression sur ce TMDB id/type) ; sinon le bouton est masqué. Repli sûr (affiché) si la vérif échoue, le 409 du claim restant le garde-fou.
+- ☐ **N33 — Fond ramené sur Home à l'ouverture d'un volet.** Quel que soit le volet ouvert, mettre la page de fond sur **Home**, pour qu'à la fermeture on retombe sur Home à chaque fois.
+- ☐ **N34 — Popup série après disponibilité partielle.** Après avoir demandé/regardé la S1, rouvrir le popup catalogue de la série se comporte comme un **film déjà dispo** : il faut toujours proposer les **boutons de demande des autres saisons** (état par saison, pas un simple « disponible »).
+
 **Réactivité / temps réel → relève de M28 :**
 
 - ☐ **Note 9** — Approved → Available **trop lent** (« Downloaded · dispo dans <2 min » persiste trop longtemps) : reconcile plus agressif après import.
