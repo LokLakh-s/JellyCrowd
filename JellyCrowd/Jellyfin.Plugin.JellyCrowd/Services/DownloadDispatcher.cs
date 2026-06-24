@@ -140,31 +140,41 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   }
 
   /// <inheritdoc />
-  public async Task PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
+  public async Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
   {
     ArgumentNullException.ThrowIfNull(request);
     var client = ActiveClient(_config());
     if (client is null)
     {
-      return;
+      return true; // no backend to purge from — nothing blocks the deletion.
     }
 
     try
     {
       var name = _resolveUserName(request.UserId);
       var payload = DownloadPayloadBuilder.Build(request, name);
-      await client.PurgeAsync(payload, cancellationToken).ConfigureAwait(false);
-      _logger.LogInformation(
-        "Purged request {RequestId} ({Title}) from the {Backend} backend.",
-        request.Id.ToString("N", CultureInfo.InvariantCulture),
-        request.Title,
-        client.Backend);
+      var ok = await client.PurgeAsync(payload, cancellationToken).ConfigureAwait(false);
+      if (ok)
+      {
+        _logger.LogInformation(
+          "Purged request {RequestId} ({Title}) from the {Backend} backend.",
+          request.Id.ToString("N", CultureInfo.InvariantCulture),
+          request.Title,
+          client.Backend);
+      }
+      else
+      {
+        _logger.LogWarning("Upstream purge incomplete for request {RequestId}; will retry.", request.Id.ToString("N", CultureInfo.InvariantCulture));
+      }
+
+      return ok;
     }
-#pragma warning disable CA1031 // Upstream purge is best-effort; the local deletion still proceeds.
+#pragma warning disable CA1031 // Report the failure so the caller can retry the deletion next cycle.
     catch (Exception ex)
 #pragma warning restore CA1031
     {
       _logger.LogWarning(ex, "Upstream purge failed for request {RequestId}.", request.Id.ToString("N", CultureInfo.InvariantCulture));
+      return false;
     }
   }
 

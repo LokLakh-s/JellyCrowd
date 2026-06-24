@@ -14,6 +14,10 @@ namespace Jellyfin.Plugin.JellyCrowd.Tasks;
 /// </summary>
 public sealed class DeletionTask : IScheduledTask
 {
+  // How long to keep retrying a failed backend purge before giving up and deleting locally anyway, so a
+  // permanently-removed/misconfigured backend can never strand a flagged request forever.
+  private static readonly TimeSpan PurgeRetryGrace = TimeSpan.FromDays(7);
+
   private readonly IRequestStore _store;
   private readonly IMediaDeleter _mediaDeleter;
   private readonly IDownloadDispatcher _downloadDispatcher;
@@ -78,8 +82,17 @@ public sealed class DeletionTask : IScheduledTask
       if (!sharedWithOthers)
       {
         // Purge from the download backend (Radarr movie / whole Sonarr series + active downloads) so a
-        // future re-request starts clean, then delete the Jellyfin library item and its files.
-        await _downloadDispatcher.PurgeAsync(request, cancellationToken).ConfigureAwait(false);
+        // future re-request starts clean. If the backend can't be reached, the purge reports failure:
+        // keep the request flagged and retry next run (N18 integrity), unless we've waited past the grace.
+        var purged = await _downloadDispatcher.PurgeAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!purged && !PurgeGraceElapsed(request, retentionHours))
+        {
+          _logger.LogWarning(
+            "Jelly Crowd deletion: backend purge failed for {Title}; leaving it flagged to retry.",
+            request.Title);
+          continue;
+        }
+
         if (!string.IsNullOrEmpty(request.JellyfinItemId))
         {
           _mediaDeleter.Delete(request.JellyfinItemId);
@@ -121,6 +134,16 @@ public sealed class DeletionTask : IScheduledTask
     }
 
     progress.Report(100);
+  }
+
+  private static bool PurgeGraceElapsed(Models.RequestRecord request, int retentionHours)
+  {
+    if (request.DeletionRequestedAt is not { } requestedAt)
+    {
+      return true; // no timestamp to reason about — don't get stuck.
+    }
+
+    return DateTime.UtcNow - requestedAt > TimeSpan.FromHours(retentionHours) + PurgeRetryGrace;
   }
 
   /// <inheritdoc />

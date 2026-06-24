@@ -267,10 +267,10 @@ public sealed class DownloadDispatcherTests : IDisposable
       return Task.CompletedTask;
     }
 
-    public Task PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+    public Task<bool> PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
     {
       Purged.Add(dispatch);
-      return Task.CompletedTask;
+      return Task.FromResult(true);
     }
 
     public Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)

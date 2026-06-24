@@ -63,6 +63,23 @@ public sealed class DeletionTaskTests : IDisposable
     Assert.NotNull(await _store.GetByIdAsync(id, CancellationToken.None));
   }
 
+  [Fact]
+  public async Task Execute_KeepsRequest_WhenBackendPurgeFails()
+  {
+    // N18: a failed backend purge (e.g. backend down) must not finalize the deletion — keep the
+    // request flagged and the media in place so it retries next run.
+    var id = await SeedFlaggedAsync("item-fail");
+    var deleter = new RecordingDeleter();
+    var dispatcher = new RecordingDispatcher(purgeSucceeds: false);
+    var task = new DeletionTask(_store, deleter, dispatcher, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Contains(id, dispatcher.Purged);       // purge was attempted
+    Assert.Empty(deleter.Deleted);                // media left in place
+    Assert.NotNull(await _store.GetByIdAsync(id, CancellationToken.None)); // request kept for retry
+  }
+
   private async Task<Guid> SeedFlaggedAsync(string itemId)
   {
     var user = Guid.NewGuid();
@@ -87,6 +104,10 @@ public sealed class DeletionTaskTests : IDisposable
 
   private sealed class RecordingDispatcher : IDownloadDispatcher
   {
+    private readonly bool _purgeSucceeds;
+
+    public RecordingDispatcher(bool purgeSucceeds = true) => _purgeSucceeds = purgeSucceeds;
+
     public List<Guid> Purged { get; } = new();
 
     public Task<bool> DispatchAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(false);
@@ -97,10 +118,10 @@ public sealed class DeletionTaskTests : IDisposable
 
     public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
+    public Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
     {
       Purged.Add(request.Id);
-      return Task.CompletedTask;
+      return Task.FromResult(_purgeSucceeds);
     }
 
     public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
