@@ -160,6 +160,20 @@ public sealed class ServarrClient : IServarrClient
   }
 
   /// <inheritdoc />
+  public async Task DeleteSeriesAsync(string baseUrl, string apiKey, int seriesId, bool deleteFiles, CancellationToken cancellationToken)
+  {
+    var path = string.Format(
+      CultureInfo.InvariantCulture,
+      "/series/{0}?deleteFiles={1}&addImportListExclusion=false",
+      seriesId,
+      deleteFiles ? "true" : "false");
+    using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
+    var client = _httpClientFactory.CreateClient(NamedClient.Default);
+    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    response.EnsureSuccessStatusCode();
+  }
+
+  /// <inheritdoc />
   public async Task DeleteQueueItemAsync(string baseUrl, string apiKey, int queueItemId, bool removeFromClient, bool blocklist, CancellationToken cancellationToken)
   {
     var path = string.Format(

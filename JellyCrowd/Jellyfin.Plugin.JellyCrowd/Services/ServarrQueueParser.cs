@@ -64,6 +64,33 @@ public static class ServarrQueueParser
   }
 
   /// <summary>
+  /// Finds the Sonarr queue record ids for a given series (by TVDB id), so active downloads can be
+  /// removed from the download client when the whole series is purged.
+  /// </summary>
+  /// <param name="json">The raw Sonarr <c>/queue?includeSeries=true</c> payload.</param>
+  /// <param name="tvdbId">The series TVDB id to match.</param>
+  /// <returns>The matching queue record ids.</returns>
+  public static IReadOnlyList<int> ParseSeriesQueueRecordIds(string json, int tvdbId)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+    var ids = new List<int>();
+    using var doc = JsonDocument.Parse(json);
+    foreach (var record in Records(doc))
+    {
+      if (record.TryGetProperty("series", out var series)
+          && series.ValueKind == JsonValueKind.Object
+          && TryGetInt(series, "tvdbId", out var t)
+          && t == tvdbId
+          && TryGetInt(record, "id", out var recordId))
+      {
+        ids.Add(recordId);
+      }
+    }
+
+    return ids;
+  }
+
+  /// <summary>
   /// Parses a Sonarr queue payload into per-episode progress items carrying their series TVDB id.
   /// </summary>
   /// <param name="json">The raw <c>/queue?includeSeries=true&amp;includeEpisode=true</c> payload.</param>

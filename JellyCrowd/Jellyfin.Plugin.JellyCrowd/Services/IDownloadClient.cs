@@ -49,6 +49,18 @@ public interface IDownloadClient
   Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Fully removes a title from the backend when it is permanently deleted and no longer owned by
+  /// anyone: deletes the movie (Radarr) or the whole series (Sonarr) — including downloaded files — and
+  /// removes any active downloads from the client (e.g. RDT). Unlike <see cref="CancelAsync"/>, this
+  /// also removes Sonarr series, so re-requesting later starts from a clean slate. No-op for
+  /// fire-and-forget backends. Never throws.
+  /// </summary>
+  /// <param name="dispatch">The original request payload.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the purge has been attempted.</returns>
+  Task PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Re-triggers fulfillment for a request that was dispatched but never found a release ("blocked").
   /// For Radarr/Sonarr this runs a fresh search command on the already-added item (or adds it if it is
   /// missing); for fire-and-forget backends (webhook/script) it simply re-sends the dispatch. Throws on

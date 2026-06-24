@@ -16,6 +16,7 @@ public sealed class DeletionTask : IScheduledTask
 {
   private readonly IRequestStore _store;
   private readonly IMediaDeleter _mediaDeleter;
+  private readonly IDownloadDispatcher _downloadDispatcher;
   private readonly INotificationService _notificationService;
   private readonly Func<PluginConfiguration> _configurationProvider;
   private readonly ILogger<DeletionTask> _logger;
@@ -25,13 +26,15 @@ public sealed class DeletionTask : IScheduledTask
   /// </summary>
   /// <param name="store">The request store.</param>
   /// <param name="mediaDeleter">The media deleter.</param>
+  /// <param name="downloadDispatcher">The download dispatcher (to purge the backend on full deletion).</param>
   /// <param name="notificationService">The notification service, used to warn owners on expiry.</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, INotificationService notificationService, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
+  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, INotificationService notificationService, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
   {
     _store = store;
     _mediaDeleter = mediaDeleter;
+    _downloadDispatcher = downloadDispatcher;
     _notificationService = notificationService;
     _configurationProvider = configurationProvider;
     _logger = logger;
@@ -70,11 +73,17 @@ public sealed class DeletionTask : IScheduledTask
 
       var request = due[i];
 
-      // Only remove the file when no other active request still wants this title (shared media).
+      // Only remove the media when no other active request still wants this title (shared media).
       var sharedWithOthers = await _store.AnyActiveReferenceAsync(request.Id, request.TmdbId, request.MediaType, cancellationToken).ConfigureAwait(false);
-      if (!sharedWithOthers && !string.IsNullOrEmpty(request.JellyfinItemId))
+      if (!sharedWithOthers)
       {
-        _mediaDeleter.Delete(request.JellyfinItemId);
+        // Purge from the download backend (Radarr movie / whole Sonarr series + active downloads) so a
+        // future re-request starts clean, then delete the Jellyfin library item and its files.
+        await _downloadDispatcher.PurgeAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(request.JellyfinItemId))
+        {
+          _mediaDeleter.Delete(request.JellyfinItemId);
+        }
       }
 
       await _store.DeleteAsync(request.Id, cancellationToken).ConfigureAwait(false);

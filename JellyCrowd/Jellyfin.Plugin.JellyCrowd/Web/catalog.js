@@ -954,9 +954,12 @@
 
     // Request controls live under the poster (left column) to keep the popup short — except a TV
     // season picker, which needs full width: it goes in its own section spanning under the body.
+    // TV availability is per-season, so a series ALWAYS uses the full-width season picker — even when
+    // some seasons are already in the library — so the other seasons stay requestable (N34). Only movies
+    // use the whole-title available/claim flow.
     var seasonsSection = null;
     var reqTarget = requestHost;
-    if (!item.Available && item.MediaType === 'tv') {
+    if (item.MediaType === 'tv') {
       seasonsSection = document.createElement('div');
       seasonsSection.className = 'jellycrowd-modal-seasons-section';
       reqTarget = seasonsSection;
@@ -986,25 +989,45 @@
       reqTarget.appendChild(adminRow);
     }
 
-    if (!item.Available) {
-      var dateInput = null;
+    var dateInput = null;
+    if (item.MediaType === 'tv') {
+      // A series is always season-driven. If it's already (partly) in the library, still offer a quick
+      // Jellyfin link, then list every season so the missing ones can be requested.
+      if (item.Available && item.JellyfinItemId) {
+        var openRow = document.createElement('div');
+        openRow.className = 'jellycrowd-modal-actions';
+        var openSeriesBtn = document.createElement('button');
+        openSeriesBtn.className = 'jellycrowd-request jellycrowd-open-jellyfin';
+        openSeriesBtn.type = 'button';
+        openSeriesBtn.textContent = t('open_in_jellyfin');
+        openSeriesBtn.addEventListener('click', function () { navigateToItem(item.JellyfinItemId); });
+        openRow.appendChild(openSeriesBtn);
+        reqTarget.appendChild(openRow);
+      }
+
+      if (!quotaExceeded) {
+        var tvDateRow = buildDesiredDateRow();
+        dateInput = tvDateRow.input;
+        reqTarget.appendChild(tvDateRow.row);
+      }
+
+      var seasonsEl = document.createElement('div');
+      seasonsEl.className = 'jellycrowd-seasons';
+      reqTarget.appendChild(seasonsEl);
+      Promise.all([
+        apiGet('JellyCrowd/Catalog/Seasons/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale())),
+        loadRequestedKeys(item.TmdbId)
+      ])
+        .then(function (res) { renderSeasonRequests(seasonsEl, item, res[0], dateInput, res[1]); })
+        .catch(function () { /* seasons are best-effort */ });
+    } else if (!item.Available) {
       if (!quotaExceeded) {
         var dateRow = buildDesiredDateRow();
         dateInput = dateRow.input;
         reqTarget.appendChild(dateRow.row);
       }
 
-      if (item.MediaType === 'tv') {
-        var seasonsEl = document.createElement('div');
-        seasonsEl.className = 'jellycrowd-seasons';
-        reqTarget.appendChild(seasonsEl);
-        Promise.all([
-          apiGet('JellyCrowd/Catalog/Seasons/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale())),
-          loadRequestedKeys(item.TmdbId)
-        ])
-          .then(function (res) { renderSeasonRequests(seasonsEl, item, res[0], dateInput, res[1]); })
-          .catch(function () { /* seasons are best-effort */ });
-      } else if (quotaExceeded) {
+      if (quotaExceeded) {
         reqTarget.appendChild(blockedRequestButton());
       } else {
         var requestButton = document.createElement('button');
