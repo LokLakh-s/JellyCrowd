@@ -519,6 +519,12 @@
       name.className = 'jellycrowd-saga-name';
       var year = lib.yearOf(p);
       name.textContent = (p.Title || '') + (year ? ' (' + year + ')' : '');
+      // N16: each saga entry is clickable → opens that film's own popup.
+      if (p.TmdbId) {
+        name.classList.add('jellycrowd-link');
+        name.title = t('details_button');
+        name.addEventListener('click', function () { openModal(p); });
+      }
       var status = document.createElement('span');
       status.className = 'jellycrowd-saga-status';
       if (p.Available) { status.textContent = t('available_badge'); status.classList.add('jellycrowd-saga-have'); }
