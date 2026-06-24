@@ -776,7 +776,9 @@
     }
     var wrap = document.createElement('span');
     wrap.className = 'jcHeaderBell';
-    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;';
+    // align-self:center so the bell is vertically centred in the header bar like the nav tabs (it sat
+    // slightly low otherwise, not inheriting the row's centering).
+    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;align-self:center;';
 
     var btn = document.createElement('button');
     btn.type = 'button';
@@ -960,7 +962,7 @@
     if (!host) { return; }
     var box = document.createElement('span');
     box.className = 'jcHeaderAnnounce';
-    box.style.cssText = 'display:inline-flex;align-items:center;gap:.3em;margin:0 .8em;padding:.15em .7em;border-radius:.4em;font-size:.82em;font-weight:600;max-width:40vw;overflow:hidden;';
+    box.style.cssText = 'display:inline-flex;align-items:center;align-self:center;gap:.3em;margin:0 .8em;padding:.15em .7em;border-radius:.4em;font-size:.82em;font-weight:600;max-width:40vw;overflow:hidden;';
     host.appendChild(box);
     renderAnnouncementInner(box);
   }
