@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Jellyfin.Plugin.JellyCrowd.Models;
 
@@ -106,6 +107,7 @@ public static class TmdbResponseParser
       Genres = GetGenreNames(element),
       Cast = GetCast(element),
       Directors = GetDirectors(element, isMovie),
+      Writers = GetWriters(element),
       OriginalTitle = GetOriginalTitle(element, isMovie),
       Runtime = GetRuntime(element, isMovie),
       ImdbId = GetImdbId(element),
@@ -165,7 +167,50 @@ public static class TmdbResponseParser
     return result;
   }
 
-  // Top billed cast from an appended `credits` payload (empty unless append_to_response=credits).
+  // Writers with TMDB person ids, from an appended `credits` payload (crew in the Writing department,
+  // or job Writer/Screenplay/Story). Deduped, capped to keep the credits line short.
+  private static List<CastMember> GetWriters(JsonElement element)
+  {
+    const int MaxWriters = 3;
+    var result = new List<CastMember>();
+    var seen = new HashSet<int>();
+
+    if (!element.TryGetProperty("credits", out var credits) || credits.ValueKind != JsonValueKind.Object
+        || !credits.TryGetProperty("crew", out var crew) || crew.ValueKind != JsonValueKind.Array)
+    {
+      return result;
+    }
+
+    foreach (var member in crew.EnumerateArray())
+    {
+      var job = GetString(member, "job");
+      var department = GetString(member, "department");
+      var isWriter = string.Equals(department, "Writing", StringComparison.Ordinal)
+        || string.Equals(job, "Writer", StringComparison.Ordinal)
+        || string.Equals(job, "Screenplay", StringComparison.Ordinal)
+        || string.Equals(job, "Story", StringComparison.Ordinal);
+      if (!isWriter)
+      {
+        continue;
+      }
+
+      var name = GetString(member, "name");
+      var id = GetInt(member, "id");
+      if (!string.IsNullOrWhiteSpace(name) && seen.Add(id))
+      {
+        result.Add(new CastMember { Id = id, Name = name! });
+        if (result.Count >= MaxWriters)
+        {
+          break;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  // Top billed cast from an appended `credits` payload (empty unless append_to_response=credits),
+  // sorted by TMDB's `order` (the billing order shown on IMDb), then capped.
   private static IReadOnlyList<CastMember> GetCast(JsonElement element)
   {
     const int MaxCast = 15;
@@ -175,7 +220,7 @@ public static class TmdbResponseParser
       return Array.Empty<CastMember>();
     }
 
-    var result = new List<CastMember>();
+    var ordered = new List<(int Order, CastMember Member)>();
     foreach (var member in cast.EnumerateArray())
     {
       var name = GetString(member, "name");
@@ -184,14 +229,21 @@ public static class TmdbResponseParser
         continue;
       }
 
-      result.Add(new CastMember
-      {
-        Id = GetInt(member, "id"),
-        Name = name!,
-        Character = GetString(member, "character") ?? string.Empty,
-        ProfilePath = GetString(member, "profile_path")
-      });
+      ordered.Add((
+        GetInt(member, "order"),
+        new CastMember
+        {
+          Id = GetInt(member, "id"),
+          Name = name!,
+          Character = GetString(member, "character") ?? string.Empty,
+          ProfilePath = GetString(member, "profile_path")
+        }));
+    }
 
+    var result = new List<CastMember>();
+    foreach (var entry in ordered.OrderBy(e => e.Order))
+    {
+      result.Add(entry.Member);
       if (result.Count >= MaxCast)
       {
         break;

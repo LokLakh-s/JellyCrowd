@@ -1112,24 +1112,28 @@
           links.appendChild(externalLink('https://www.imdb.com/title/' + details.ImdbId, t('view_imdb')));
         }
 
-        // Director / creator (clickable → filmography) + original title, between the synopsis and links.
+        // Director / creator + writer (clickable → filmography) + original title, between synopsis and links.
         creditsLine.innerHTML = '';
-        if (details.Directors && details.Directors.length) {
-          creditsLine.appendChild(document.createTextNode(t('director') + ' : '));
-          details.Directors.forEach(function (d, i) {
+        function appendPeople(label, people) {
+          if (!people || !people.length) { return; }
+          if (creditsLine.childNodes.length) { creditsLine.appendChild(document.createTextNode(' · ')); }
+          creditsLine.appendChild(document.createTextNode(label + ' : '));
+          people.forEach(function (p, i) {
             if (i > 0) { creditsLine.appendChild(document.createTextNode(', ')); }
-            if (d.Id) {
+            if (p.Id) {
               var a = document.createElement('span');
               a.className = 'jellycrowd-link';
-              a.textContent = d.Name;
+              a.textContent = p.Name;
               a.title = t('see_filmography');
-              a.addEventListener('click', function () { applyPersonFilter(d.Id, d.Name); });
+              a.addEventListener('click', function () { applyPersonFilter(p.Id, p.Name); });
               creditsLine.appendChild(a);
             } else {
-              creditsLine.appendChild(document.createTextNode(d.Name));
+              creditsLine.appendChild(document.createTextNode(p.Name));
             }
           });
         }
+        appendPeople(t('director'), details.Directors);
+        appendPeople(t('writer'), details.Writers);
         if (details.OriginalTitle) {
           if (creditsLine.childNodes.length) { creditsLine.appendChild(document.createTextNode(' · ')); }
           creditsLine.appendChild(document.createTextNode(t('original_title') + ' : ' + details.OriginalTitle));

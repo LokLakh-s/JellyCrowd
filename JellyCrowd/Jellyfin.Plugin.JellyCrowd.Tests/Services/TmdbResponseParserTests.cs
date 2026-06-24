@@ -178,6 +178,42 @@ public class TmdbResponseParserTests
   }
 
   [Fact]
+  public void ParseDetails_Movie_WritersFromCrew()
+  {
+    const string json = """
+    { "id": 10, "title": "M",
+      "credits": { "crew": [
+        { "id": 1, "name": "Jane Doe", "job": "Director" },
+        { "id": 2, "name": "Penn Smith", "job": "Screenplay", "department": "Writing" },
+        { "id": 3, "name": "Story Teller", "job": "Story", "department": "Writing" },
+        { "id": 4, "name": "Editor Guy", "job": "Editor", "department": "Editing" }
+      ] } }
+    """;
+
+    var item = TmdbResponseParser.ParseDetails(json, "movie");
+
+    Assert.Equal(new[] { "Penn Smith", "Story Teller" }, item!.Writers.Select(w => w.Name));
+    Assert.Equal(new[] { 2, 3 }, item.Writers.Select(w => w.Id));
+  }
+
+  [Fact]
+  public void ParseDetails_SortsCastByBillingOrder()
+  {
+    const string json = """
+    { "id": 10, "title": "M",
+      "credits": { "cast": [
+        { "id": 1, "name": "Third", "order": 2 },
+        { "id": 2, "name": "First", "order": 0 },
+        { "id": 3, "name": "Second", "order": 1 }
+      ] } }
+    """;
+
+    var item = TmdbResponseParser.ParseDetails(json, "movie");
+
+    Assert.Equal(new[] { "First", "Second", "Third" }, item!.Cast.Select(c => c.Name));
+  }
+
+  [Fact]
   public void ParseDetails_OriginalTitle_NullWhenSameAsTitle()
   {
     var item = TmdbResponseParser.ParseDetails("""{ "id": 10, "title": "Same", "original_title": "Same" }""", "movie");
