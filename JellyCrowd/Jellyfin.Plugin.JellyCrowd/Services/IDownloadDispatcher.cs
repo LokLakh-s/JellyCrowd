@@ -50,8 +50,9 @@ public interface IDownloadDispatcher
   /// </summary>
   /// <param name="request">The request whose media is being purged.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <returns>A task that completes when the purge has been attempted.</returns>
-  Task PurgeAsync(RequestRecord request, CancellationToken cancellationToken);
+  /// <returns><c>true</c> when the backend confirms the title is gone (or there's nothing/no backend to
+  /// purge); <c>false</c> when the purge failed so the deletion can be retried later.</returns>
+  Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken);
 
   /// <summary>
   /// Re-triggers a release search for an approved-but-blocked request (one that dispatched but never

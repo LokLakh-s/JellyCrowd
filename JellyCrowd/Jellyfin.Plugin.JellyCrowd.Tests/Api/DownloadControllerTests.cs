@@ -74,7 +74,7 @@ public class DownloadControllerTests
 
     public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task PurgeAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
 
     public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

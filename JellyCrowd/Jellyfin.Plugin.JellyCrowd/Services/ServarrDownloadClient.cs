@@ -141,53 +141,64 @@ public sealed class ServarrDownloadClient : IDownloadClient
   }
 
   /// <inheritdoc />
-  public async Task PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+  public async Task<bool> PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
   {
     ArgumentNullException.ThrowIfNull(dispatch);
     var config = _config();
 
-    if (string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal))
-    {
-      if (RadarrConfigured(config))
-      {
-        await RemoveMovieAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
-      }
-
-      return;
-    }
-
-    if (!string.Equals(dispatch.MediaType, "tv", StringComparison.Ordinal) || !SonarrConfigured(config))
-    {
-      return;
-    }
-
-    // Permanent deletion of an unowned show: remove the whole series from Sonarr (with its files) and
-    // any active downloads from the client, so a future re-request starts clean.
-    var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
-    if (tvdbId is null)
-    {
-      return;
-    }
-
     try
     {
-      var queueJson = await _servarr.GetQueueAsync(config.SonarrUrl, config.SonarrApiKey, forSonarr: true, cancellationToken).ConfigureAwait(false);
-      foreach (var queueId in ServarrQueueParser.ParseSeriesQueueRecordIds(queueJson, tvdbId.Value))
+      if (string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal))
       {
-        await _servarr.DeleteQueueItemAsync(config.SonarrUrl, config.SonarrApiKey, queueId, removeFromClient: true, blocklist: false, cancellationToken).ConfigureAwait(false);
+        if (RadarrConfigured(config))
+        {
+          await RemoveMovieAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+        }
+
+        return true; // removed, or Radarr not configured (nothing this backend put there).
       }
-    }
+
+      if (!string.Equals(dispatch.MediaType, "tv", StringComparison.Ordinal) || !SonarrConfigured(config))
+      {
+        return true;
+      }
+
+      // Permanent deletion of an unowned show: remove the whole series from Sonarr (with its files) and
+      // any active downloads from the client, so a future re-request starts clean.
+      var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+      if (tvdbId is null)
+      {
+        return true; // can't resolve it → nothing actionable to purge.
+      }
+
+      try
+      {
+        var queueJson = await _servarr.GetQueueAsync(config.SonarrUrl, config.SonarrApiKey, forSonarr: true, cancellationToken).ConfigureAwait(false);
+        foreach (var queueId in ServarrQueueParser.ParseSeriesQueueRecordIds(queueJson, tvdbId.Value))
+        {
+          await _servarr.DeleteQueueItemAsync(config.SonarrUrl, config.SonarrApiKey, queueId, removeFromClient: true, blocklist: false, cancellationToken).ConfigureAwait(false);
+        }
+      }
 #pragma warning disable CA1031 // Queue cleanup is best-effort; still delete the series below.
+      catch (Exception)
+#pragma warning restore CA1031
+      {
+        // Ignore — fall through to deleting the series.
+      }
+
+      var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId.Value, cancellationToken).ConfigureAwait(false);
+      if (series?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
+      {
+        await _servarr.DeleteSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, deleteFiles: true, cancellationToken).ConfigureAwait(false);
+      }
+
+      return true;
+    }
+#pragma warning disable CA1031 // A purge failure (e.g. backend down) is reported so the caller can retry.
     catch (Exception)
 #pragma warning restore CA1031
     {
-      // Ignore — fall through to deleting the series.
-    }
-
-    var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId.Value, cancellationToken).ConfigureAwait(false);
-    if (series?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
-    {
-      await _servarr.DeleteSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, deleteFiles: true, cancellationToken).ConfigureAwait(false);
+      return false;
     }
   }
 

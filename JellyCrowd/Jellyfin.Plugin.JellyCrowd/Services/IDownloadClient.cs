@@ -57,8 +57,9 @@ public interface IDownloadClient
   /// </summary>
   /// <param name="dispatch">The original request payload.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <returns>A task that completes when the purge has been attempted.</returns>
-  Task PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
+  /// <returns><c>true</c> when the title is confirmed gone from the backend (or there was nothing to
+  /// remove); <c>false</c> when the purge failed (e.g. the backend was unreachable) so the caller can retry.</returns>
+  Task<bool> PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
 
   /// <summary>
   /// Re-triggers fulfillment for a request that was dispatched but never found a release ("blocked").
