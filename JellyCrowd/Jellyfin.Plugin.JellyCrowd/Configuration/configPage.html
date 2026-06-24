@@ -915,12 +915,29 @@ Content-Type: application/json
         var container = document.querySelector('#jcQuotaOverrides');
         container.innerHTML = '';
         var overrides = config.QuotaOverrides || [];
-        ApiClient.getUsers().then(function (users) {
+        var gib = JellyCrowdConfig.bytesPerGiB;
+        Promise.all([
+          ApiClient.getUsers(),
+          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Quota/All'), dataType: 'json' }).catch(function () { return []; })
+        ]).then(function (res) {
+          var users = res[0];
+          var usageMap = {};
+          (res[1] || []).forEach(function (u) { usageMap[u.UserId] = u; });
+
+          function usageText(uid) {
+            var u = usageMap[uid];
+            if (!u) { return '—'; }
+            var used = (u.UsedBytes / gib).toFixed(1);
+            if (u.Unlimited || u.QuotaBytes <= 0) { return used + ' / ∞ GiB'; }
+            return used + ' / ' + (u.QuotaBytes / gib).toFixed(1) + ' GiB'
+              + (u.Tier && u.Tier !== 'base' ? ' (' + u.Tier + ')' : '');
+          }
+
           var table = document.createElement('table');
           table.className = 'jcTable';
           var thead = document.createElement('thead');
           var htr = document.createElement('tr');
-          ['', 'User', 'Quota (GiB)', 'Can request', 'Auto-approve', 'Req/period', 'Plugin access'].forEach(function (h) {
+          ['', 'User', 'Usage', 'Quota (GiB)', 'Can request', 'Auto-approve', 'Req/period', 'Plugin access'].forEach(function (h) {
             var th = document.createElement('th');
             th.textContent = h;
             htr.appendChild(th);
@@ -946,6 +963,11 @@ Content-Type: application/json
             var tdName = document.createElement('td');
             tdName.textContent = user.Name;
             tr.appendChild(tdName);
+
+            var tdUsage = document.createElement('td');
+            tdUsage.style.whiteSpace = 'nowrap';
+            tdUsage.textContent = usageText(user.Id);
+            tr.appendChild(tdUsage);
 
             var tdQuota = document.createElement('td');
             var input = document.createElement('input');
@@ -1508,6 +1530,17 @@ Content-Type: application/json
               deny.textContent = t('admin_deny');
               deny.addEventListener('click', function () { decide(request.Id, 'Deny'); });
               tdActions.appendChild(deny);
+            }
+
+            // Retry: re-trigger the backend search for an approved request that hasn't arrived
+            // (e.g. dispatch error, or it's stuck). Works for on-behalf requests too.
+            if (request.Status === 1 || request.Status === 'Approved') {
+              var retry = document.createElement('button');
+              retry.type = 'button';
+              retry.className = 'raised emby-button';
+              retry.textContent = t('retry_search');
+              retry.addEventListener('click', function () { decide(request.Id, 'Retry'); });
+              tdActions.appendChild(retry);
             }
 
             // Force-set status.

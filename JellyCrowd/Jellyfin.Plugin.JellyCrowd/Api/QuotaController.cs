@@ -59,6 +59,37 @@ public class QuotaController : ControllerBase
   }
 
   /// <summary>
+  /// Lists every user's quota usage (admins only), for the per-user quota view in the config page.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The per-user usage snapshots.</response>
+  /// <returns>Each requesting user's used/quota bytes.</returns>
+  [HttpGet("All")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<IReadOnlyList<UserQuotaInfoDto>>> All(CancellationToken cancellationToken)
+  {
+    var requests = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    var userIds = requests.Select(r => r.UserId).Distinct().ToList();
+
+    var result = new List<UserQuotaInfoDto>();
+    foreach (var userId in userIds)
+    {
+      var info = await _quotaService.GetUsageAsync(userId, cancellationToken).ConfigureAwait(false);
+      result.Add(new UserQuotaInfoDto
+      {
+        UserId = userId,
+        UsedBytes = info.UsedBytes,
+        QuotaBytes = info.QuotaBytes,
+        Unlimited = info.Unlimited,
+        Tier = info.Tier
+      });
+    }
+
+    return Ok(result);
+  }
+
+  /// <summary>
   /// Lists the current user's available titles enriched with their on-disk size, for the "My media" view.
   /// </summary>
   /// <param name="cancellationToken">The cancellation token.</param>

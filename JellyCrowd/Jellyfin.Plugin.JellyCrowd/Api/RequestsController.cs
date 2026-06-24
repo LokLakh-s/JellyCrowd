@@ -476,7 +476,8 @@ public class RequestsController : ControllerBase
     }
 
     var existing = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
-    if (existing is null || existing.UserId != userId)
+    // An admin can retry any request (incl. ones made on behalf of others); a user only their own.
+    if (existing is null || (!isAdmin && existing.UserId != userId))
     {
       return NotFound();
     }
