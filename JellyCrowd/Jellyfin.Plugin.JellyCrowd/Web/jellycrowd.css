@@ -1176,6 +1176,36 @@ body.jellycrowd-overlay-open {
   }
 }
 
+/* N17: "Related media" strip at the bottom of the detail popup. */
+.jellycrowd-modal-related-section {
+  padding: 0.6em 1.5em 1.4em;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.jellycrowd-modal-related-heading {
+  font-weight: 700;
+  margin: 0.2em 0 0.7em;
+}
+
+.jellycrowd-related-strip {
+  display: flex;
+  gap: 0.6em;
+  overflow-x: auto;
+  padding-bottom: 0.4em;
+  -webkit-overflow-scrolling: touch;
+}
+
+.jellycrowd-related-strip .jellycrowd-card {
+  flex: 0 0 7.5em;
+  width: 7.5em;
+}
+
+@media (max-width: 600px) {
+  .jellycrowd-modal-related-section {
+    padding: 0.6em 1em 1em;
+  }
+}
+
 .jellycrowd-modal-links {
   display: flex;
   gap: 0.6em;

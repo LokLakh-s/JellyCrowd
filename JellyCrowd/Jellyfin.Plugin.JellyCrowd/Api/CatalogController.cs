@@ -189,6 +189,38 @@ public class CatalogController : ControllerBase
   }
 
   /// <summary>
+  /// Gets titles related to a given title (TMDB recommendations) for the "Related media" strip on the
+  /// detail popup. Each item is flagged for availability.
+  /// </summary>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="tmdbId">The TMDB id of the seed title.</param>
+  /// <param name="language">Optional TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The related titles.</response>
+  /// <response code="400">Invalid media type.</response>
+  /// <response code="503">TMDB is not configured or unreachable.</response>
+  /// <returns>The related catalog items, with availability flags.</returns>
+  [HttpGet("Related/{mediaType}/{tmdbId:int}")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+  public async Task<ActionResult<IReadOnlyList<CatalogItem>>> Related(
+    string mediaType,
+    int tmdbId,
+    [FromQuery] string? language,
+    CancellationToken cancellationToken)
+  {
+    if (!string.Equals(mediaType, "movie", StringComparison.Ordinal)
+        && !string.Equals(mediaType, "tv", StringComparison.Ordinal))
+    {
+      return BadRequest("The 'mediaType' must be 'movie' or 'tv'.");
+    }
+
+    return await ExecuteAsync(
+      () => _tmdbClient.GetRecommendationsAsync(mediaType, tmdbId, Normalize(language), cancellationToken)).ConfigureAwait(false);
+  }
+
+  /// <summary>
   /// Discovers movies or shows matching genre/year/rating filters.
   /// </summary>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>); defaults to movie.</param>

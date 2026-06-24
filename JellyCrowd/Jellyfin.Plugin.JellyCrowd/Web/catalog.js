@@ -1186,8 +1186,34 @@
     modal.appendChild(close);
     modal.appendChild(body);
     if (seasonsSection) { modal.appendChild(seasonsSection); } // full-width TV season picker under the body
+
+    // N17: "Related media" strip at the very bottom (TMDB recommendations), each poster clickable.
+    var relatedSection = document.createElement('div');
+    relatedSection.className = 'jellycrowd-modal-related-section';
+    relatedSection.style.display = 'none';
+    modal.appendChild(relatedSection);
+
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+
+    apiGet('JellyCrowd/Catalog/Related/' + item.MediaType + '/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale()))
+      .then(function (related) {
+        if (!related || !related.length) { return; }
+        var heading = document.createElement('div');
+        heading.className = 'jellycrowd-modal-related-heading';
+        heading.textContent = t('related_media');
+        relatedSection.appendChild(heading);
+        var strip = document.createElement('div');
+        strip.className = 'jellycrowd-related-strip';
+        related.slice(0, 12).forEach(function (r) {
+          var card = renderCard(r);            // clicking opens its modal…
+          card.addEventListener('click', dismiss); // …and closes the current one (no stacked overlays).
+          strip.appendChild(card);
+        });
+        relatedSection.appendChild(strip);
+        relatedSection.style.display = '';
+      })
+      .catch(function () { /* related is best-effort */ });
 
     function dismiss() {
       overlay.remove();
