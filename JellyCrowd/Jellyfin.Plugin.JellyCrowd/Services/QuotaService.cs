@@ -69,13 +69,23 @@ public sealed class QuotaService : IQuotaService
     var quota = GetQuotaBytes(userId);
     var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
 
+    // Usage is provisional: fulfilled requests count their real on-disk size, while in-flight
+    // (Pending/Approved) requests count a per-type estimate so a freshly-made request immediately
+    // shows against the quota (the figure self-corrects to the real size once the media lands).
     long used = 0;
     var counted = new HashSet<string>(StringComparer.Ordinal);
     foreach (var request in requests)
     {
-      if (request.Status == RequestStatus.Available && counted.Add(TitleKey(request)))
+      if (request.Status == RequestStatus.Available)
       {
-        used += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId);
+        if (counted.Add(TitleKey(request)))
+        {
+          used += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId);
+        }
+      }
+      else if (request.Status is RequestStatus.Pending or RequestStatus.Approved)
+      {
+        used += EstimateBytes(request.MediaType);
       }
     }
 

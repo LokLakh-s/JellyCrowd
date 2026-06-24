@@ -1236,11 +1236,33 @@
         var tmdb = it && it.ProviderIds && (it.ProviderIds.Tmdb || it.ProviderIds.tmdb);
         var mediaType = type === 'Movie' ? 'movie' : (type === 'Series' ? 'tv' : null);
         if (!mediaType || !tmdb) { detailClaimPendingId = null; return; } // not a claimable title
-        var old = document.getElementById('jcDetailClaim');
-        if (old && old.parentNode) { old.parentNode.removeChild(old); }
-        if (!anchor.isConnected) { detailClaimPendingId = null; return; }
-        anchor.appendChild(buildDetailClaim({ mediaType: mediaType, tmdbId: parseInt(tmdb, 10), title: it.Name || '' }));
-        detailClaimLoadedId = id;
+        var tmdbId = parseInt(tmdb, 10);
+
+        function injectClaim() {
+          if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
+          var old = document.getElementById('jcDetailClaim');
+          if (old && old.parentNode) { old.parentNode.removeChild(old); }
+          if (!anchor.isConnected) { detailClaimPendingId = null; return; }
+          anchor.appendChild(buildDetailClaim({ mediaType: mediaType, tmdbId: tmdbId, title: it.Name || '' }));
+          detailClaimLoadedId = id;
+        }
+
+        // N32: only offer "Add to my library" if the user doesn't already own this title.
+        window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Requests/Mine'), dataType: 'json' })
+          .then(function (mine) {
+            if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
+            var owned = (mine || []).some(function (r) {
+              return r.TmdbId === tmdbId && r.MediaType === mediaType
+                && (r.Status === 3 || r.Status === 'Available') && !r.DeletionRequestedAt;
+            });
+            if (owned) {
+              removeDetailClaim();
+              detailClaimLoadedId = id;
+              return;
+            }
+            injectClaim();
+          })
+          .catch(injectClaim); // ownership check failed: show it anyway (the 409 still guards the claim).
       })
       .catch(function () { detailClaimPendingId = null; });
   }

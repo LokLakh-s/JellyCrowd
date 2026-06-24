@@ -18,7 +18,7 @@ public class PluginConfigurationTests
     Assert.Equal(string.Empty, config.TmdbApiKey);
     Assert.True(config.RequireApproval);
     Assert.Equal(50 * Gib, config.DefaultUserQuotaBytes);
-    Assert.Equal(4 * Gib, config.EstimatedMovieSizeBytes);
+    Assert.Equal(5 * Gib, config.EstimatedMovieSizeBytes);
     Assert.Equal(1 * Gib, config.EstimatedEpisodeSizeBytes);
   }
 

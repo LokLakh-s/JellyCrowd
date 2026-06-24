@@ -37,7 +37,7 @@ public class PluginConfiguration : BasePluginConfiguration
     AnnouncementText = string.Empty;
     AnnouncementLevel = "green";
     MediaExpiryDays = 90;
-    EstimatedMovieSizeBytes = 4L * 1024 * 1024 * 1024; // 4 GiB
+    EstimatedMovieSizeBytes = 5L * 1024 * 1024 * 1024; // 5 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
     MaxRequestsPerPeriod = 0;
     RequestPeriod = RequestPeriod.Week;
