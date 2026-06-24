@@ -1228,6 +1228,34 @@ body.jellycrowd-overlay-open {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* My-library series tree (N29): caret toggles + indented season/episode rows. */
+.jellycrowd-tree-caret {
+  flex: 0 0 auto;
+  width: 1.9em;
+  min-width: 1.9em;
+  text-align: center;
+  padding: 0.35em 0;
+  background: none;
+}
+
+.jellycrowd-tree-caret:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.jellycrowd-tree-season {
+  margin-left: 1.5em;
+}
+
+.jellycrowd-tree-episode {
+  margin-left: 3em;
+  opacity: 0.92;
+}
+
+.jellycrowd-tree-children {
+  display: flex;
+  flex-direction: column;
+}
+
 .jellycrowd-episodes {
   display: flex;
   flex-direction: column;

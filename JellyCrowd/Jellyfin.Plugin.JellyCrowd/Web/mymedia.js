@@ -215,6 +215,175 @@
     }
   }
 
+  // ---------- N29: expandable series → season → episode tree with per-level deletion ----------
+
+  function postAll(ids, action) {
+    return Promise.all(ids.map(function (id) { return apiPost('JellyCrowd/Requests/' + id + '/' + action); }));
+  }
+
+  // Builds the right-hand action cell for a tree node covering `items`: a Keep button + countdown when
+  // every covered request is already flagged for deletion, otherwise a Delete button (label per level).
+  function nodeActions(items, deleteLabel) {
+    var wrap = document.createElement('span');
+    wrap.className = 'jellycrowd-season-actions';
+    var ids = items.map(function (i) { return i.RequestId; });
+    var allFlagged = items.length > 0 && items.every(function (i) { return i.DeletionRequestedAt; });
+
+    if (allFlagged) {
+      var flaggedItem = items.find(function (i) { return i.DeletionAt; }) || items[0];
+      wrap.appendChild(flaggedBadge(deletionText(flaggedItem)));
+      var keep = document.createElement('button');
+      keep.className = 'jellycrowd-request';
+      keep.type = 'button';
+      keep.textContent = t('keep_media');
+      keep.addEventListener('click', function () {
+        keep.disabled = true;
+        postAll(ids, 'CancelDeletion').then(reloadMedia).catch(function () { keep.disabled = false; });
+      });
+      wrap.appendChild(keep);
+    } else {
+      var del = document.createElement('button');
+      del.className = 'jellycrowd-request';
+      del.type = 'button';
+      del.textContent = deleteLabel;
+      del.addEventListener('click', function () {
+        del.disabled = true;
+        // Only flag the still-active (not-already-flagged) requests under this node.
+        var active = items.filter(function (i) { return !i.DeletionRequestedAt; }).map(function (i) { return i.RequestId; });
+        postAll(active.length ? active : ids, 'RequestDeletion').then(reloadMedia).catch(function () { del.disabled = false; });
+      });
+      wrap.appendChild(del);
+    }
+
+    return wrap;
+  }
+
+  function caretToggle(onToggle) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jellycrowd-ep-toggle jellycrowd-tree-caret';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.textContent = '▶';
+    btn.addEventListener('click', function () {
+      var open = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+      btn.textContent = open ? '▶' : '▼';
+      onToggle(!open);
+    });
+    return btn;
+  }
+
+  // A series: header (poster, title, total size, delete-series) + collapsible season rows, each with
+  // collapsible episode rows. Deletion at any level flags every request it covers.
+  function renderSeriesNode(group) {
+    var node = document.createElement('div');
+    node.className = 'jellycrowd-tree-series';
+
+    var header = document.createElement('div');
+    header.className = 'jellycrowd-request-row';
+
+    var childrenBox = document.createElement('div');
+    childrenBox.className = 'jellycrowd-tree-children';
+    childrenBox.style.display = 'none';
+    header.appendChild(caretToggle(function (open) { childrenBox.style.display = open ? '' : 'none'; }));
+
+    if (group.poster) {
+      var poster = document.createElement('img');
+      poster.className = 'jellycrowd-request-poster';
+      poster.loading = 'lazy';
+      poster.alt = group.title;
+      poster.src = POSTER_BASE + group.poster;
+      header.appendChild(poster);
+    }
+
+    var main = document.createElement('div');
+    main.className = 'jellycrowd-request-main';
+    var titleEl = document.createElement('div');
+    titleEl.className = 'jellycrowd-request-title';
+    titleEl.textContent = group.title;
+    if (group.jellyfinItemId) {
+      titleEl.classList.add('jellycrowd-link');
+      titleEl.title = t('open_in_jellyfin');
+      titleEl.addEventListener('click', function () { openInJellyfin(group.jellyfinItemId); });
+    }
+    main.appendChild(titleEl);
+    header.appendChild(main);
+
+    var size = document.createElement('span');
+    size.className = 'jellycrowd-status jellycrowd-size';
+    size.textContent = lib.formatBytes(group.totalSize || 0);
+    header.appendChild(size);
+
+    header.appendChild(nodeActions(group.items, t('delete_series')));
+    node.appendChild(header);
+
+    // Season rows (sorted), then episodes under each.
+    group.seasons.forEach(function (season) {
+      var seasonRow = document.createElement('div');
+      seasonRow.className = 'jellycrowd-request-row jellycrowd-tree-season';
+
+      var epBox = document.createElement('div');
+      epBox.className = 'jellycrowd-tree-children';
+      epBox.style.display = 'none';
+
+      var hasEpisodes = season.episodes.length > 0;
+      if (hasEpisodes) {
+        seasonRow.appendChild(caretToggle(function (open) { epBox.style.display = open ? '' : 'none'; }));
+      } else {
+        var spacer = document.createElement('span');
+        spacer.className = 'jellycrowd-tree-caret';
+        seasonRow.appendChild(spacer);
+      }
+
+      var seasonMain = document.createElement('div');
+      seasonMain.className = 'jellycrowd-request-main';
+      var seasonLabel = document.createElement('div');
+      seasonLabel.className = 'jellycrowd-request-title';
+      seasonLabel.textContent = t('season_label') + ' ' + season.number;
+      seasonMain.appendChild(seasonLabel);
+      seasonRow.appendChild(seasonMain);
+      seasonRow.appendChild(nodeActions(season.items, t('delete_season')));
+      childrenBox.appendChild(seasonRow);
+
+      season.episodes.forEach(function (ep) {
+        var epRow = document.createElement('div');
+        epRow.className = 'jellycrowd-request-row jellycrowd-tree-episode';
+        var epMain = document.createElement('div');
+        epMain.className = 'jellycrowd-request-main';
+        var epLabel = document.createElement('div');
+        epLabel.className = 'jellycrowd-request-title';
+        epLabel.textContent = t('episode_label') + ' ' + ep.Episode;
+        epMain.appendChild(epLabel);
+        epRow.appendChild(epMain);
+        epRow.appendChild(nodeActions([ep], t('request_deletion')));
+        epBox.appendChild(epRow);
+      });
+
+      childrenBox.appendChild(epBox);
+    });
+
+    node.appendChild(childrenBox);
+    return node;
+  }
+
+  // Groups a series' flat request list into { number, items, episodes }[] sorted by season number.
+  function groupSeasons(items) {
+    var map = {};
+    items.forEach(function (i) {
+      var key = (i.Season == null) ? 0 : i.Season;
+      if (!map[key]) { map[key] = { number: key, items: [], episodes: [] }; }
+      map[key].items.push(i);
+      if (i.Episode != null) { map[key].episodes.push(i); }
+    });
+    return Object.keys(map)
+      .map(function (k) {
+        var s = map[k];
+        s.episodes.sort(function (a, b) { return (a.Episode || 0) - (b.Episode || 0); });
+        return s;
+      })
+      .sort(function (a, b) { return a.number - b.number; });
+  }
+
   function render(media) {
     var list = document.getElementById('jcMediaList');
     list.innerHTML = '';
@@ -225,7 +394,36 @@
     }
 
     setMessage('');
-    media.forEach(function (item) { list.appendChild(renderRow(item)); });
+
+    // Movies render as flat rows; TV is grouped into a series → season → episode tree.
+    var seriesGroups = {};
+    var order = [];
+    media.forEach(function (item) {
+      if (item.MediaType !== 'tv') {
+        list.appendChild(renderRow(item));
+        return;
+      }
+      var key = String(item.TmdbId);
+      if (!seriesGroups[key]) {
+        seriesGroups[key] = { title: lib.formatTitle(item), poster: item.PosterPath, jellyfinItemId: item.JellyfinItemId, items: [], sizeByTmdb: item.SizeBytes || 0 };
+        order.push(key);
+      }
+      seriesGroups[key].items.push(item);
+      if (item.JellyfinItemId && !seriesGroups[key].jellyfinItemId) { seriesGroups[key].jellyfinItemId = item.JellyfinItemId; }
+    });
+
+    order.forEach(function (key) {
+      var g = seriesGroups[key];
+      list.appendChild(renderSeriesNode({
+        title: g.title,
+        poster: g.poster,
+        jellyfinItemId: g.jellyfinItemId,
+        items: g.items,
+        // SizeBytes is the whole-series size (same on every row), so take it once — don't sum.
+        totalSize: g.sizeByTmdb,
+        seasons: groupSeasons(g.items)
+      }));
+    });
   }
 
   function reloadMedia() {

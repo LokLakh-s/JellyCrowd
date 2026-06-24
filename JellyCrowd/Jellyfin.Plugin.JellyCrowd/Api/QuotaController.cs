@@ -84,6 +84,7 @@ public class QuotaController : ControllerBase
         Title = r.Title,
         PosterPath = r.PosterPath,
         Season = r.Season,
+        Episode = r.Episode,
         JellyfinItemId = r.JellyfinItemId,
         SizeBytes = _libraryMatcher.GetSizeBytes(r.MediaType, r.TmdbId),
         DeletionRequestedAt = r.DeletionRequestedAt,
