@@ -462,8 +462,8 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☐ **N17 — Section « Related media » en bas du popup média.** Afficher des suggestions : **similaires**, **autres volets de la saga**, recommandations TMDB (`recommendations`/`similar`/collection). Vignettes cliquables.
 - ☐ **N18 — Check d'intégrité périodique de suppression.** Tâche planifiée qui **vérifie** que ce qui doit être supprimé l'a bien été dans **Jellyfin / Sonarr / Radarr / Prowlarr / RDT Client** (réconciliation + alerte/relance si reliquats). *(Borné, idempotent.)*
 - ☐ **N19 — Suppression en cascade multi-backends.** Une suppression doit **purger** le média de **Sonarr, Radarr, Prowlarr, Jellyfin et RDT Client** (pas seulement le fichier), pour qu'une **re-demande** ultérieure reparte proprement sans conflit d'état. *(Étend le pipeline de suppression on-demand M23.)*
-- ☐ **N20 — Bug : sortie du filtre « par acteur » difficile.** Le reset du filtre personne (Note 6) est peu évident / capricieux → **régression** à corriger (rendre le retour au catalogue normal fiable). *(Lié N21.)*
-- ☐ **N21 — Vignette de filtre actif + croix de reset.** Afficher une **pastille** du filtre en cours (personne, watchlist, recherche…) avec une **croix** pour le retirer ; **garder** le bouton *Reset* mais le passer en **rouge**.
+- ☑ **N20 — Sortie du filtre « par acteur ».** Corrigé via N21 (barre de filtres actifs visible avec croix) + une **recherche efface désormais le filtre personne** (intention neuve). Le retour au catalogue normal est fiable.
+- ☑ **N21 — Vignette de filtre actif + croix de reset.** Barre `#jcActiveFilters` au-dessus du feed : **une pastille par filtre actif** (personne 👤, recherche, watchlist ★, genres, années, note, tri, plateforme, langue, pays) avec une **croix** qui retire ce filtre-là ; le bouton *Reset* (efface tout) passe en **rouge** (`jellycrowd-chip-danger`).
 
 **Réactivité / temps réel → relève de M28 :**
 

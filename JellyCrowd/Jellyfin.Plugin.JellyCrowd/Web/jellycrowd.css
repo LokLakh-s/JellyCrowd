@@ -927,6 +927,60 @@ body.jellycrowd-overlay-open {
   color: #fff;
 }
 
+/* Reset chip: destructive accent so it reads as "clear everything". */
+.jellycrowd-chip.jellycrowd-chip-danger {
+  background: rgba(255, 107, 107, 0.18);
+  color: #ff8a8a;
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.5);
+}
+
+.jellycrowd-chip.jellycrowd-chip-danger:hover {
+  background: rgba(255, 107, 107, 0.3);
+  color: #fff;
+}
+
+/* Active-filter bar: one removable chip per active filter, above the feed. */
+.jellycrowd-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin: 0.25em 0 1em;
+}
+
+.jellycrowd-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.25em 0.4em 0.25em 0.75em;
+  border-radius: 1em;
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.jellycrowd-active-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.85em;
+  line-height: 1;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 0.75;
+}
+
+.jellycrowd-active-chip-x:hover {
+  opacity: 1;
+  background: rgba(255, 107, 107, 0.85);
+  color: #fff;
+}
+
 .jellycrowd-genres {
   max-width: 36em;
   max-height: 6.5em;
