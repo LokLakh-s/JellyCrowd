@@ -265,15 +265,16 @@ public class RequestsControllerTests
   }
 
   [Fact]
-  public async Task Retry_NotOwner_ReturnsNotFound()
+  public async Task Retry_AdminCanRetryOtherUsersRequest()
   {
+    // N25: an admin retries a request made by/for another user (e.g. on-behalf) — must succeed, not 404.
     var store = new FakeRequestStore();
     var created = (RequestRecord)((OkObjectResult)(await CreateController(store, User).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
     await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
 
     var result = await CreateController(store, Guid.NewGuid(), isAdmin: true).Retry(created.Id, CancellationToken.None);
 
-    Assert.IsType<NotFoundResult>(result.Result);
+    Assert.IsType<OkObjectResult>(result.Result);
   }
 
   [Fact]
