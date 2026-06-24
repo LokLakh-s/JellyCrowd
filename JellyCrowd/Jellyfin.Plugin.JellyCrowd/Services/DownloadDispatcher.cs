@@ -140,6 +140,35 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   }
 
   /// <inheritdoc />
+  public async Task PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    var client = ActiveClient(_config());
+    if (client is null)
+    {
+      return;
+    }
+
+    try
+    {
+      var name = _resolveUserName(request.UserId);
+      var payload = DownloadPayloadBuilder.Build(request, name);
+      await client.PurgeAsync(payload, cancellationToken).ConfigureAwait(false);
+      _logger.LogInformation(
+        "Purged request {RequestId} ({Title}) from the {Backend} backend.",
+        request.Id.ToString("N", CultureInfo.InvariantCulture),
+        request.Title,
+        client.Backend);
+    }
+#pragma warning disable CA1031 // Upstream purge is best-effort; the local deletion still proceeds.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogWarning(ex, "Upstream purge failed for request {RequestId}.", request.Id.ToString("N", CultureInfo.InvariantCulture));
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken)
   {
     ArgumentNullException.ThrowIfNull(request);

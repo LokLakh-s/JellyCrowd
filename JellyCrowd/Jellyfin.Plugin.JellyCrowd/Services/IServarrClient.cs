@@ -158,6 +158,17 @@ public interface IServarrClient
   Task DeleteMovieAsync(string baseUrl, string apiKey, int movieId, bool deleteFiles, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Removes a series from Sonarr (<c>DELETE /api/v3/series/{id}</c>), stopping its search/download.
+  /// </summary>
+  /// <param name="baseUrl">The Sonarr base URL.</param>
+  /// <param name="apiKey">The Sonarr API key.</param>
+  /// <param name="seriesId">The Sonarr series id.</param>
+  /// <param name="deleteFiles">Whether to also delete any downloaded files.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the series is removed.</returns>
+  Task DeleteSeriesAsync(string baseUrl, string apiKey, int seriesId, bool deleteFiles, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Removes a queue item (<c>DELETE /api/v3/queue/{id}</c>), optionally also removing the active
   /// download from the download client — needed so a cancel actually stops the grab (e.g. in RDT).
   /// </summary>

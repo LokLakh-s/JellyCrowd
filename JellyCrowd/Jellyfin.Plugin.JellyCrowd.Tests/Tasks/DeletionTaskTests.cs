@@ -39,11 +39,14 @@ public sealed class DeletionTaskTests : IDisposable
   {
     var id = await SeedFlaggedAsync("item-abc");
     var deleter = new RecordingDeleter();
-    var task = new DeletionTask(_store, deleter, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var dispatcher = new RecordingDispatcher();
+    var task = new DeletionTask(_store, deleter, dispatcher, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
     Assert.Contains("item-abc", deleter.Deleted);
+    // Unowned deletion must also purge the download backend (Radarr/Sonarr) so a re-request is clean.
+    Assert.Contains(id, dispatcher.Purged);
     Assert.Null(await _store.GetByIdAsync(id, CancellationToken.None));
   }
 
@@ -52,7 +55,7 @@ public sealed class DeletionTaskTests : IDisposable
   {
     var id = await SeedFlaggedAsync("item-xyz");
     var deleter = new RecordingDeleter();
-    var task = new DeletionTask(_store, deleter, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -80,5 +83,28 @@ public sealed class DeletionTaskTests : IDisposable
       Deleted.Add(jellyfinItemId);
       return true;
     }
+  }
+
+  private sealed class RecordingDispatcher : IDownloadDispatcher
+  {
+    public List<Guid> Purged { get; } = new();
+
+    public Task<bool> DispatchAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(false);
+
+    public Task DispatchDueAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task TestActiveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
+    {
+      Purged.Add(request.Id);
+      return Task.CompletedTask;
+    }
+
+    public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
   }
 }

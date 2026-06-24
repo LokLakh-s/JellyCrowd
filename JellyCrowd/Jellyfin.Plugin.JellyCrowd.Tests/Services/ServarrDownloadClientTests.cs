@@ -190,6 +190,36 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task PurgeAsync_Show_DeletesWholeSeriesFromSonarr()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>()))
+      .ReturnsAsync("{ \"records\": [] }");
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["id"] = 7 });
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    // A single-season request, but a permanent purge removes the entire (unowned) series.
+    await client.PurgeAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 1 }, CancellationToken.None);
+
+    servarr.Verify(s => s.DeleteSeriesAsync("http://localhost:8989", "sk", 7, true, It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task CancelAsync_Show_StillDoesNotDeleteSeries()
+  {
+    // A user cancel of a single season must NOT nuke the whole series (only Purge does).
+    var servarr = new Mock<IServarrClient>();
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), SonarrConfig);
+
+    await client.CancelAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 1 }, CancellationToken.None);
+
+    servarr.Verify(s => s.DeleteSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
   public void IsConfigured_TrueWhenEitherSideConfigured()
   {
     var client = new ServarrDownloadClient(Mock.Of<IServarrClient>(), Mock.Of<ITmdbClient>(), RadarrConfig);

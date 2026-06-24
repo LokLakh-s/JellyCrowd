@@ -44,6 +44,16 @@ public interface IDownloadDispatcher
   Task CancelAsync(RequestRecord request, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Best-effort full removal of a permanently-deleted, no-longer-owned title from the backend (movie
+  /// from Radarr, whole series from Sonarr, including files + active downloads), so a future re-request
+  /// starts clean. Never throws.
+  /// </summary>
+  /// <param name="request">The request whose media is being purged.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the purge has been attempted.</returns>
+  Task PurgeAsync(RequestRecord request, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Re-triggers a release search for an approved-but-blocked request (one that dispatched but never
   /// became available). Clears the stored dispatch error on success, records it again on failure.
   /// Never throws.
