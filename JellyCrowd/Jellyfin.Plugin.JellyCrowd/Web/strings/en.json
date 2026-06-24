@@ -139,6 +139,8 @@
   "scheduled_for": "Scheduled for",
   "release_date": "Release:",
   "next_attempt": "Next attempt:",
+  "next_episode": "Next episode:",
+  "episodes_available": "{a}/{b} episodes available",
   "status_pending": "Pending",
   "status_approved": "Approved",
   "status_denied": "Denied",
