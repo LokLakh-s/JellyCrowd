@@ -35,6 +35,9 @@
   // closes, activeNavId is null so all are grey.
   var headerNavButtons = {};
   var activeNavId = null;
+  // Set true around a programmatic navigation we trigger ourselves (sending the page behind the overlay
+  // to Home on open), so the hashchange listener doesn't mistake it for the user leaving and close us.
+  var suppressHashClose = false;
   var bellBadgeEl = null;          // the red unread-count badge on the header bell
   var NAV_GREY = 'rgba(255,255,255,0.6)';
   var NAV_WHITE = '#fff';
@@ -228,6 +231,11 @@
       return;
     }
 
+    // On a fresh open (overlay was closed), send the background page to Home so closing returns there.
+    if (overlay.style.display === 'none') {
+      sendBackgroundHome();
+    }
+
     overlay.style.display = '';
     // Lock the page behind the overlay so it doesn't scroll under it (phantom scroll on mobile, where
     // the native header also hides on scroll). Restored in hideOverlay().
@@ -354,6 +362,25 @@
     hideOverlay();
     var hb = document.querySelector('.headerHomeButton');
     if (hb) { hb.click(); } else { window.location.hash = '#/home.html'; }
+  }
+
+  function isOnHome() {
+    var h = (window.location.hash || '').toLowerCase();
+    return h === '' || h === '#' || h === '#/' || h === '#!/' || h.indexOf('home') >= 0;
+  }
+
+  // N33: send the page *behind* the overlay to Home (without closing the overlay), so that whenever the
+  // user closes the panel — however they close it — they land back on Home, not some deep page.
+  function sendBackgroundHome() {
+    if (isOnHome()) {
+      return; // already home: nothing to navigate, and no hashchange would fire to clear the flag.
+    }
+    suppressHashClose = true; // the resulting nav event(s) are ours — ignored by the close listener.
+    var hb = document.querySelector('.headerHomeButton');
+    if (hb) { hb.click(); } else { window.location.hash = '#/home.html'; }
+    // Clear shortly after so the whole navigation burst (hashchange and/or popstate) is covered, then
+    // normal "navigation closes the overlay" behaviour resumes.
+    setTimeout(function () { suppressHashClose = false; }, 200);
   }
 
   // A "Home" link styled like our other nav tabs but acting as a real Home navigation (and closing
@@ -829,7 +856,10 @@
       box.style.color = c.fg;
       box.style.border = '0';
       var txt = document.createElement('span');
-      txt.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      // N22: wrap onto up to 3 lines (clamped) instead of a single truncated line, so longer
+      // announcements stay readable in the space between Home and the logo.
+      txt.style.cssText = 'overflow:hidden;white-space:normal;word-break:break-word;line-height:1.2;'
+        + 'display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;';
       txt.textContent = announcement.text;
       txt.title = announcement.text;
       box.appendChild(txt);
@@ -1275,9 +1305,16 @@
     observer.observe(document.body, { childList: true, subtree: true });
     tryInsert();
     setInterval(refreshBellBadge, 30000);
-    // Any real navigation (Jellyfin menu, opening a library item) closes our overlay.
-    window.addEventListener('hashchange', hideOverlay);
-    window.addEventListener('popstate', hideOverlay);
+    // Any real navigation (Jellyfin menu, opening a library item) closes our overlay — except the
+    // home navigation we trigger ourselves when opening a panel (N33), which must leave it open.
+    function onNavClose() {
+      if (suppressHashClose) {
+        return; // our own open-time home navigation; the flag clears on a timer.
+      }
+      hideOverlay();
+    }
+    window.addEventListener('hashchange', onNavClose);
+    window.addEventListener('popstate', onNavClose);
     // On every navigation, (re)inject internal reviews when landing on a detail page.
     function onDetailNav() {
       removeDetailReviews(); maybeInjectDetailReviews(0);
