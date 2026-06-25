@@ -505,9 +505,9 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 
 Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
-- ☐ **Responsive / mobile + accessibilité** de l'overlay (Jellyfin très utilisé sur mobile/TV : tailles tactiles, nav clavier, ARIA).
-- ☐ **Doc utilisateur** (*Getting started* avec captures), en plus de `CONFIGURATION.md` (admin).
-- ☐ **Tests e2e & non-régression** (voir stratégie ci-dessous).
+- ◐ **Responsive / mobile + accessibilité** de l'overlay : 1ʳᵉ passe a11y livrée (overlay `role=dialog`/`aria-modal`/`aria-label`, Échap ferme déjà, croix `aria-label`). *(Reste : audit tailles tactiles TV/mobile + nav clavier complète.)*
+- ☑ **Doc utilisateur** — [`GETTING_STARTED.md`](GETTING_STARTED.md) (anglais), en plus de `CONFIGURATION.md` (admin). *(Captures à ajouter par l'utilisateur.)*
+- ◐ **Tests e2e & non-régression** : logique JS critique extraite vers `catalog.lib.js` et **testée** (autosort `requestSortRank`, statuts, parsers) — 26 tests JS. *(Reste : DOM jsdom complet + golden payloads + smoke Playwright — voir stratégie ci-dessous.)*
 - ☐ Passe de **polish** finale, puis **release `v1.0.0`** (commit `[major]`).
 
 #### Principe transversal — budget de stockage & rétention
