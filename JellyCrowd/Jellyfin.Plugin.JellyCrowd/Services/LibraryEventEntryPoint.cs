@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </summary>
 public sealed class LibraryEventEntryPoint : IHostedService
 {
-  private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(20);
+  private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(5);
 
   private readonly ILibraryManager _libraryManager;
   private readonly IRequestReconciler _reconciler;

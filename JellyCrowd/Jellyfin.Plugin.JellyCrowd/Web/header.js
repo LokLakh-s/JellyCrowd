@@ -242,6 +242,8 @@
     document.body.classList.add('jellycrowd-overlay-open');
     positionOverlay();
     setActiveNav(id);
+    refreshQuota();      // M28: usage/notifs reflect any change since last view, without a force-refresh
+    refreshBellBadge();
     VIEWS.forEach(function (v) {
       if (v.container) {
         v.container.style.display = (v.id === id) ? '' : 'none';
@@ -415,6 +417,50 @@
     return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
   }
 
+  var quotaBox = null; // the current header quota element, so it can be refreshed in place (M28)
+
+  // Re-fetch the quota and update the bar in place (no rebuild) — called after any create/cancel/claim/
+  // delete and on view changes so usage reflects without a force-refresh.
+  function refreshQuota() {
+    var box = quotaBox;
+    if (!box || !box._jc || !(window.ApiClient && window.ApiClient.ajax)) { return; }
+    var els = box._jc;
+    window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Quota/Me'), dataType: 'json' })
+      .then(function (q) {
+        if (!q) { return; }
+        els.tier.style.display = 'none';
+        box.title = t('my_media_title');
+        if (q.Unlimited || q.QuotaBytes <= 0) {
+          els.label.textContent = t('quota_storage') + ': ' + bytes(q.UsedBytes) + ' / ' + t('quota_unlimited');
+          els.track.style.display = 'none';
+        } else {
+          els.label.textContent = bytes(q.UsedBytes) + ' / ' + bytes(q.QuotaBytes);
+          els.track.style.display = '';
+          var p = q.QuotaBytes > 0 ? Math.min(100, q.UsedBytes / q.QuotaBytes * 100) : 0;
+          els.fill.style.width = p + '%';
+          els.fill.style.background = quotaColor(p);
+        }
+        if (q.AdaptiveEnabled) {
+          if (q.InProbation) {
+            var days = q.ProbationEndsUtc ? Math.max(0, Math.ceil((new Date(q.ProbationEndsUtc) - new Date()) / 86400000)) : 0;
+            els.tier.textContent = '⏳ ' + t('quota_probation').replace('{n}', days);
+            els.tier.style.color = '#ffb300';
+            els.tier.style.display = '';
+            box.title = t('quota_probation_hint');
+          } else if (q.Tier === 'ceiling') {
+            els.tier.textContent = '★ ' + t('quota_tier_ceiling');
+            els.tier.style.color = '#4caf50';
+            els.tier.style.display = '';
+          } else if (q.Tier === 'floor') {
+            els.tier.textContent = '▼ ' + t('quota_tier_floor');
+            els.tier.style.color = '#ff7043';
+            els.tier.style.display = '';
+          }
+        }
+      })
+      .catch(function () { /* ignore */ });
+  }
+
   function buildQuota() {
     var box = document.createElement('span');
     box.style.cssText = 'display:inline-flex;flex-direction:column;justify-content:center;min-width:8em;margin:0 .6em;font-size:.7em;cursor:pointer;line-height:1.05;';
@@ -440,43 +486,14 @@
     box.appendChild(tier);
     box.appendChild(track);
 
-    if (window.ApiClient && window.ApiClient.ajax) {
-      window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Quota/Me'), dataType: 'json' })
-        .then(function (q) {
-          if (!q) { return; }
-          if (q.Unlimited || q.QuotaBytes <= 0) {
-            label.textContent = t('quota_storage') + ': ' + bytes(q.UsedBytes) + ' / ' + t('quota_unlimited');
-            track.style.display = 'none';
-          } else {
-            label.textContent = bytes(q.UsedBytes) + ' / ' + bytes(q.QuotaBytes);
-            var p = q.QuotaBytes > 0 ? Math.min(100, q.UsedBytes / q.QuotaBytes * 100) : 0;
-            fill.style.width = p + '%';
-            fill.style.background = quotaColor(p);
-          }
-          // Adaptive-quota status badge: explains why the quota differs from the base.
-          if (q.AdaptiveEnabled) {
-            if (q.InProbation) {
-              var days = q.ProbationEndsUtc ? Math.max(0, Math.ceil((new Date(q.ProbationEndsUtc) - new Date()) / 86400000)) : 0;
-              tier.textContent = '⏳ ' + t('quota_probation').replace('{n}', days);
-              tier.style.color = '#ffb300';
-              tier.style.display = '';
-              box.title = t('quota_probation_hint');
-            } else if (q.Tier === 'ceiling') {
-              tier.textContent = '★ ' + t('quota_tier_ceiling');
-              tier.style.color = '#4caf50';
-              tier.style.display = '';
-            } else if (q.Tier === 'floor') {
-              tier.textContent = '▼ ' + t('quota_tier_floor');
-              tier.style.color = '#ff7043';
-              tier.style.display = '';
-            }
-          }
-        })
-        .catch(function () { /* ignore */ });
-    }
-
+    box._jc = { label: label, tier: tier, track: track, fill: fill };
+    quotaBox = box;
+    refreshQuota();
     return box;
   }
+
+  // Let the hosted views refresh the header quota bar after a mutating action (M28 reactivity).
+  window.jellyCrowdRefreshQuota = refreshQuota;
 
   // Catalog / My requests render as extra tabs right next to Jellyfin's own Home / Favorites, inside
   // the centered .headerTabs row. That row is page-specific (shown on Home / library pages, hidden on
@@ -1323,7 +1340,8 @@
     });
     observer.observe(document.body, { childList: true, subtree: true });
     tryInsert();
-    setInterval(refreshBellBadge, 30000);
+    setInterval(refreshBellBadge, 15000); // M28: notif badge appears faster (Note 10)
+    window.jellyCrowdRefreshBell = refreshBellBadge;
     // Any real navigation (Jellyfin menu, opening a library item) closes our overlay — except the
     // home navigation we trigger ourselves when opening a panel (N33), which must leave it open.
     function onNavClose() {

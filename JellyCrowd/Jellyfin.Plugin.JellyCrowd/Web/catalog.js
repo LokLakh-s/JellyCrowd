@@ -301,14 +301,21 @@
   }
 
   // Route a request payload: to ForUser (admin acting as someone), else the normal endpoint.
+  function refreshHeaderQuota() {
+    if (typeof window.jellyCrowdRefreshQuota === 'function') { window.jellyCrowdRefreshQuota(); }
+  }
+
   function submitRequest(payload) {
-    if (actAsUserId) {
-      var forUser = {};
-      Object.keys(payload).forEach(function (k) { forUser[k] = payload[k]; });
-      forUser.UserId = actAsUserId;
-      return apiPost('JellyCrowd/Requests/ForUser', forUser);
-    }
-    return apiPost('JellyCrowd/Requests', payload);
+    // A new request pre-charges the quota (provisional estimate) — refresh the header bar so it shows.
+    var p = actAsUserId
+      ? (function () {
+        var forUser = {};
+        Object.keys(payload).forEach(function (k) { forUser[k] = payload[k]; });
+        forUser.UserId = actAsUserId;
+        return apiPost('JellyCrowd/Requests/ForUser', forUser);
+      })()
+      : apiPost('JellyCrowd/Requests', payload);
+    return p.then(function (r) { refreshHeaderQuota(); return r; });
   }
 
   function requestItem(item, button, season, dateInput, episode, releaseDate) {
@@ -1073,6 +1080,7 @@
           ReleaseDate: item.ReleaseDate
         }).then(function () {
           claimBtn.textContent = t('added');
+          refreshHeaderQuota();
         }).catch(function (error) {
           if (error && error.status === 409) { claimBtn.textContent = t('already_yours'); }
           else { claimBtn.disabled = false; }

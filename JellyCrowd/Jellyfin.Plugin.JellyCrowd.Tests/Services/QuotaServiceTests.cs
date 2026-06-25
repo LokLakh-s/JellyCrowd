@@ -39,7 +39,9 @@ public sealed class QuotaServiceTests : IDisposable
     }
   }
 
-  private QuotaService Create(ILibraryMatcher matcher) => new(_store, matcher, new FakeActivityStore(), () => _config);
+  private QuotaService Create(ILibraryMatcher matcher) => Create(matcher, new FakeActivityStore());
+
+  private QuotaService Create(ILibraryMatcher matcher, IUserActivityStore activityStore) => new(_store, matcher, activityStore, () => _config);
 
   [Fact]
   public void GetQuotaBytes_UsesOverrideThenDefault()
@@ -79,6 +81,59 @@ public sealed class QuotaServiceTests : IDisposable
     var info = await service.GetUsageAsync(user, CancellationToken.None);
 
     Assert.Equal(4 * Gib, info.UsedBytes);
+  }
+
+  [Fact]
+  public async Task GetUsageAsync_CountsSharedTitleOnce()
+  {
+    var user = Guid.NewGuid();
+    // Two available requests for the same title (shared ownership / re-claim) must count its size once.
+    var a = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "X" }, CancellationToken.None);
+    await _store.UpdateStatusAsync(a.Id, RequestStatus.Available, Guid.NewGuid(), CancellationToken.None);
+    var b = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "X" }, CancellationToken.None);
+    await _store.UpdateStatusAsync(b.Id, RequestStatus.Available, Guid.NewGuid(), CancellationToken.None);
+    var service = Create(new SizeMatcher(3 * Gib));
+
+    var info = await service.GetUsageAsync(user, CancellationToken.None);
+
+    Assert.Equal(3 * Gib, info.UsedBytes); // counted once, not 6 GiB
+  }
+
+  [Fact]
+  public async Task AdaptiveQuota_ScalesQuotaAndSurfacesTier()
+  {
+    var user = Guid.NewGuid();
+    _config.AdaptiveQuotaEnabled = true;
+    _config.AdaptiveCeilingPercent = 200;
+    _config.AdaptiveFloorPercent = 40;
+    var store = new FakeActivityStore { Preset = new UserActivity { UserId = user, Tier = AdaptiveTier.Ceiling } };
+    var service = Create(new SizeMatcher(0), store);
+
+    Assert.Equal(20 * Gib, service.GetQuotaBytes(user)); // 200% of the 10 GiB default
+
+    var info = await service.GetUsageAsync(user, CancellationToken.None);
+    Assert.True(info.AdaptiveEnabled);
+    Assert.Equal("ceiling", info.Tier);
+    Assert.False(info.InProbation);
+  }
+
+  [Fact]
+  public async Task AdaptiveQuota_Probation_FreezesQuotaAndReportsProbation()
+  {
+    var user = Guid.NewGuid();
+    _config.AdaptiveQuotaEnabled = true;
+    _config.AdaptiveProbationDays = 14;
+    var frozen = 7 * Gib;
+    var store = new FakeActivityStore
+    {
+      Preset = new UserActivity { UserId = user, Tier = AdaptiveTier.Ceiling, ProbationStartUtc = DateTime.UtcNow, FrozenQuotaBytes = frozen }
+    };
+    var service = Create(new SizeMatcher(0), store);
+
+    Assert.Equal(frozen, service.GetQuotaBytes(user)); // frozen value, not a tier %
+    var info = await service.GetUsageAsync(user, CancellationToken.None);
+    Assert.True(info.InProbation);
+    Assert.NotNull(info.ProbationEndsUtc);
   }
 
   [Fact]
@@ -124,7 +179,9 @@ public sealed class QuotaServiceTests : IDisposable
 
   private sealed class FakeActivityStore : IUserActivityStore
   {
-    public UserActivity Get(Guid userId) => new() { UserId = userId };
+    public UserActivity? Preset { get; set; }
+
+    public UserActivity Get(Guid userId) => Preset ?? new UserActivity { UserId = userId };
 
     public System.Collections.Generic.IReadOnlyList<UserActivity> GetAll() => System.Array.Empty<UserActivity>();
 
