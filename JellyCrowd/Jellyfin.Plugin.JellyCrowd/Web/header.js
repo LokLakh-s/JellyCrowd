@@ -1300,9 +1300,23 @@
   }
 
   function start() {
+    // Detail pages (and their review/claim anchors) render asynchronously and SPA route changes don't
+    // always fire hashchange reliably — so besides the nav listeners, retry injection on DOM mutations,
+    // debounced. The injectors self-guard (no-op once rendered for the current item), so this is cheap.
+    var detailInjectTimer = null;
+    function scheduleDetailInject() {
+      if (detailInjectTimer) { return; }
+      detailInjectTimer = setTimeout(function () {
+        detailInjectTimer = null;
+        maybeInjectDetailReviews(0);
+        maybeInjectClaimButton(0);
+      }, 200);
+    }
+
     var observer = new MutationObserver(function () {
       tryInsert();
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
+      scheduleDetailInject();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     tryInsert();
