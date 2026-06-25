@@ -372,11 +372,15 @@
     button.textContent = t('requesting');
     apiGet('JellyCrowd/Catalog/Episodes/' + item.TmdbId + '/' + season.SeasonNumber + '?language=' + encodeURIComponent(fullLocale()))
       .then(function (episodes) {
-        var hasFuture = (episodes || []).some(function (e) {
+        // Only real, numbered episodes can be requested per-episode. An entry with no/0 episode number
+        // (an unnumbered/announced placeholder) would otherwise create a stray Episode-less request that
+        // shows as a separate "· Sn" row next to the aggregated season.
+        var valid = (episodes || []).filter(function (e) { return e.EpisodeNumber != null && e.EpisodeNumber > 0; });
+        var hasFuture = valid.some(function (e) {
           return e.AirDate && new Date(e.AirDate + 'T00:00:00').getTime() > Date.now();
         });
-        if (episodes && episodes.length && hasFuture) {
-          return Promise.all(episodes.map(function (e) { return postEpisode(item, season.SeasonNumber, e).catch(function () { /* skip dups */ }); }))
+        if (valid.length && hasFuture) {
+          return Promise.all(valid.map(function (e) { return postEpisode(item, season.SeasonNumber, e).catch(function () { /* skip dups */ }); }))
             .then(function () { button.textContent = t('requested'); });
         }
         requestItem(item, button, season.SeasonNumber, dateInput);

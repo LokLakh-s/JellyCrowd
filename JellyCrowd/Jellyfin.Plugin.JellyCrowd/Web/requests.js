@@ -367,6 +367,12 @@
     return r.MediaType === 'tv' && r.Season != null && r.Episode != null;
   }
 
+  // Any TV request scoped to a season (a season-level request OR a per-episode one). These collapse into
+  // a single "Season N" row, so a stray season-level request never shows beside its episodes.
+  function isSeasonScoped(r) {
+    return r.MediaType === 'tv' && r.Season != null;
+  }
+
   function statusInt(r) {
     if (typeof r.Status === 'number') { return r.Status; }
     var map = { Pending: 0, Approved: 1, Denied: 2, Available: 3 };
@@ -431,8 +437,11 @@
     titleEl.addEventListener('click', openDetail);
     main.appendChild(titleEl);
 
-    var total = group.length;
-    var availableCount = group.filter(function (r) { return statusInt(r) === 3; }).length;
+    // Count only real episodes (ignore a season-level Episode-less member that may share the group).
+    var episodes = group.filter(function (r) { return r.Episode != null; });
+    var counted = episodes.length ? episodes : group;
+    var total = counted.length;
+    var availableCount = counted.filter(function (r) { return statusInt(r) === 3; }).length;
 
     var sub = document.createElement('div');
     sub.className = 'jellycrowd-request-sub';
@@ -522,17 +531,18 @@
 
     setMessage('');
 
-    // Pre-group episode requests by (TmdbId, Season); only collapse when there's more than one.
+    // Pre-group season-scoped requests by (TmdbId, Season); only collapse when there's more than one
+    // (so a season-level request and its per-episode requests render as a single "Season N" row).
     var groups = {};
     requests.forEach(function (r) {
-      if (!isEpisodeRequest(r)) { return; }
+      if (!isSeasonScoped(r)) { return; }
       var key = r.TmdbId + ':' + r.Season;
       (groups[key] = groups[key] || []).push(r);
     });
 
     var renderedGroups = {};
     requests.forEach(function (request) {
-      if (!isEpisodeRequest(request)) { list.appendChild(renderRow(request)); return; }
+      if (!isSeasonScoped(request)) { list.appendChild(renderRow(request)); return; }
       var key = request.TmdbId + ':' + request.Season;
       if (groups[key].length < 2) { list.appendChild(renderRow(request)); return; }
       if (renderedGroups[key]) { return; }
