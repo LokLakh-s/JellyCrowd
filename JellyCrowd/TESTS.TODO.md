@@ -2,7 +2,7 @@
 
 > À exécuter quand tu peux (utilisateurs en ligne → tu groupes tout d'un coup).
 > Coche au fur et à mesure. Ordre conseillé : **Prérequis → nouveautés → régression**.
-> Les tests unitaires/intégration automatiques passent déjà (282 C# + 24 JS) ; cette liste couvre
+> Les tests unitaires/intégration automatiques passent déjà (343 C# + 24 JS) ; cette liste couvre
 > uniquement ce qui ne se vérifie qu'**en live** (vraie chaîne Jellyfin + Radarr/Sonarr/RDT).
 
 ✅ - Test OK
@@ -199,6 +199,55 @@
   Pas mal, mais je voudrais que sur les différents affichage, un clic sur Today ouvre un popup de calendrier pour choisir la période voulue
 
 ---
+
+## 13. Lot juin 2026 — N15→N36, quotas adaptatifs & suppression (à vérifier en live)
+
+> Tout ci-dessous est **livré + couvert par des tests auto** mais demande une **vérif live** (vraie
+> chaîne Jellyfin + Radarr/Sonarr/RDT) avant la 1.0. Réinstalle la dernière version d'abord.
+
+### Suppression & quota (gros correctif — à tester en priorité)
+
+- [ ] 🔧 **Suppression d'une saison** (le bug For All Mankind S1) : demander la suppression d'une saison → après la rétention, la saison disparaît **de Ma bibliothèque ET de Jellyfin** (dossier `Season 0X` supprimé du disque), **et de Sonarr** (saison plus monitorée, fichiers supprimés), **et le quota se libère** de la taille de cette saison.
+- [ ] 🔧 **Suppression d'un film** : retiré de Radarr + dossier `Titre (année) [imdbid-…]` supprimé du disque + Jellyfin + quota libéré.
+- [ ] 🔧 **Suppression d'un épisode** (depuis *Ma bibliothèque* → arbre série › saison › épisode) : seul cet épisode part (fichier supprimé, épisode démonitoré dans Sonarr), le reste de la saison reste.
+- [ ] 🔧 **Suppression série entière** (demande au niveau série) : toute la série retirée de Sonarr + dossier supprimé.
+- [ ] 🔧 **Taille par saison/épisode** : le quota d'une série reflète la somme **par saison/épisode possédé** (plus la série entière) ; *Ma bibliothèque* affiche la taille par saison, et le total série = somme.
+- [ ] 🔧 **Purge vérifiée (N18)** : si un backend (Radarr/Sonarr) est **injoignable** au moment de la purge, la requête **reste flaggée** et la suppression se **réessaie** au passage horaire suivant (rien n'est supprimé localement tant que la purge n'a pas réussi).
+
+### Quotas adaptatifs (M27.A)
+
+- [ ] **Activation** : onglet *Settings* → activer « Adaptive quota » + régler plancher/plafond (% du quota par défaut) et seuils. Désactivé = comportement fixe inchangé.
+- [ ] **Montée** : un utilisateur qui regarde assez (volume + jours distincts) voit son quota monter vers le **plafond** (badge ★ « Bonus storage » sur la barre).
+- [ ] **Sursis** : un utilisateur récompensé puis inactif passe en **sursis** (badge ⏳ + compte à rebours), puis retombe au **base** s'il ne revient pas (notif).
+- [ ] **Suivi d'activité** : la lecture dans Jellyfin alimente bien les agrégats (pas de collecte si l'option est OFF).
+
+### Requêtes & téléchargement
+
+- [ ] 🔧 **Saison en cours** : demander une saison dont seuls quelques épisodes sont sortis → **une seule ligne** « … · Saison N » dans *Mes demandes* (compteur X/Y + date du prochain épisode), pas une ligne par épisode ni un flot de notifs ; seuls les épisodes réellement présents passent *Available*.
+- [ ] 🔧 **Multi-saisons (le bug Hannibal)** : demander plusieurs saisons → **toutes** sont monitorées + recherchées dans Sonarr (pas seulement la S1).
+- [ ] 🔧 **Auto-retry** : si les indexeurs sont morts au moment de la demande, la recherche se **relance toute seule** (≤ 6 h) sans action manuelle ; abandon après 14 j.
+- [ ] 🔧 **Unreleased multi-demandeurs** : un titre non sorti demandé par plusieurs personnes → à la sortie, **tous** les demandeurs le possèdent.
+- [ ] 🔧 **Autosort *Mes demandes*** : ordre Approved → Downloading → Deletion requested → Unreleased → Available (le tier Downloading suit la file Sonarr en direct).
+- [ ] 🔧 **Quota provisoire** : à la demande, le quota se pré-incrémente (5 Go/film, 1 Go/épisode) puis se recale sur la taille réelle à l'arrivée.
+
+### UI / popup / navigation
+
+- [ ] 🔧 **Suppression granulaire** : *Ma bibliothèque* → série dépliable (saisons › épisodes) avec bouton supprimer à chaque niveau.
+- [ ] 🔧 **Popup série** : une série partiellement en biblio propose toujours les **autres saisons** (plus de comportement « film déjà dispo »).
+- [ ] 🔧 **Add to my library** n'apparaît **que** si le média n'est pas déjà possédé (fiche native).
+- [ ] 🔧 **Fond → Home** : ouvrir un volet puis le fermer (×, Échap, nav) ramène toujours sur **Home**.
+- [ ] 🔧 **Filtre acteur** : clic sur un acteur/réalisateur/**scénariste** → filmographie ; **vignette de filtre** avec croix + bouton Reset rouge ; on en sort facilement.
+- [ ] 🔧 **Casting** trié comme IMDb ; **Réalisateur + Scénariste** affichés et cliquables.
+- [ ] 🔧 **Related media** : bande de suggestions cliquables en bas du popup.
+- [ ] 🔧 **Titres cliquables** dans le menu « Demander la saga ».
+- [ ] 🔧 **Bandeau annonce** : s'affiche sur **jusqu'à 3 lignes** (plus tronqué).
+- [ ] 🔧 **Alignement navbar (N36)** : cloche + annonce centrées verticalement comme les onglets (sinon capture).
+
+### Admin & notifications
+
+- [ ] 🔧 **Quota par utilisateur** visible dans l'onglet *User quotas* (colonne Usage : utilisé / quota + palier).
+- [ ] 🔧 **Retry par requête** dans l'onglet *Requests* admin (relance le backend, marche aussi sur les requêtes on-behalf).
+- [ ] 🔧 **Boîte ops e-mail** : ne reçoit plus tous les événements de tous les users — seulement « Created » par défaut (toggles par événement). Vérifier qu'une demande on-behalf n'inonde plus l'admin.
 
 ## Notes de Victor
 
