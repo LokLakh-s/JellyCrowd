@@ -69,10 +69,11 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
-  public async Task GetUsageAsync_CountsInFlightEstimates()
+  public async Task GetUsageAsync_IgnoresInFlightRequests()
   {
     var user = Guid.NewGuid();
-    // A pending movie request has no on-disk size yet, but must show its estimate (4 GiB here).
+    // A pending request has no on-disk size yet; displayed usage must stay at 0 until it lands.
+    // Its theoretical footprint only gates CanRequestAsync, never the displayed figure.
     await _store.CreateAsync(
       new RequestRecord { UserId = user, TmdbId = 7, MediaType = "movie", Title = "P" },
       CancellationToken.None);
@@ -80,7 +81,7 @@ public sealed class QuotaServiceTests : IDisposable
 
     var info = await service.GetUsageAsync(user, CancellationToken.None);
 
-    Assert.Equal(4 * Gib, info.UsedBytes);
+    Assert.Equal(0, info.UsedBytes);
   }
 
   [Fact]
@@ -144,6 +145,21 @@ public sealed class QuotaServiceTests : IDisposable
     var service = Create(new SizeMatcher(0));
 
     // A movie estimate (4 GiB) alone exceeds the 2 GiB quota.
+    Assert.False(await service.CanRequestAsync(user, "movie", CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task CanRequestAsync_CountsInFlightFootprintEvenThoughUsageHidesIt()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 6 * Gib });
+    // Two in-flight movie requests (2 x 4 GiB estimate) already commit 8 GiB against the 6 GiB quota,
+    // so a third must be held — even though displayed usage stays at 0 until anything lands.
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "A" }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "B" }, CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(0, (await service.GetUsageAsync(user, CancellationToken.None)).UsedBytes);
     Assert.False(await service.CanRequestAsync(user, "movie", CancellationToken.None));
   }
 

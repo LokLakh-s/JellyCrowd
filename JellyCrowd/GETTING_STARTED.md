@@ -24,7 +24,9 @@ Once signed in to Jellyfin, a Jelly Crowd navigation bar appears at the top, nex
    - **Request whole saga**: for a movie that belongs to a collection, request every missing part at once.
 4. Depending on the configuration, your request is **auto-approved** or held **pending** an administrator.
 
-The request shows up immediately in **My requests** and pre-reserves the matching space in your quota.
+The request shows up immediately in **My requests**. Your quota only goes up once the media actually
+becomes **available** (counted at its real file size) — a pending request doesn't use any quota yet. If a
+new request *would* push you over your quota, it's held until space frees up.
 
 ## Tracking your requests
 
