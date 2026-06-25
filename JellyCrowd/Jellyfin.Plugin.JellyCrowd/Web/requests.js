@@ -13,6 +13,7 @@
   var statusTimer = null;        // live status polling interval
   var STATUS_POLL_MS = 2000;
   var lastSignature = null;      // fingerprint of the rendered list, to re-render only on change
+  var downloadingIds = {};       // requestId -> true for actively downloading/importing/queued items (for sort)
   var allowRetry = false;        // admin opt-in: regular users may trigger a manual retry-search
   var isAdmin = false;           // current user is an administrator
 
@@ -103,6 +104,7 @@
     var row = document.createElement('div');
     row.className = 'jellycrowd-request-row';
     row.dataset.reqId = request.Id;
+    row._jcRequests = [request]; // for autosort
 
     var available = (request.Status === 3 || request.Status === 'Available');
     // Clicking the title or poster opens the media detail popup (shared from the catalog view).
@@ -300,6 +302,15 @@
     }
 
     Array.prototype.forEach.call(list.querySelectorAll('.jellycrowd-dl'), function (el) { el.remove(); });
+
+    // Track which requests are actively downloading (for the "Downloading" sort tier).
+    downloadingIds = {};
+    (statuses || []).forEach(function (s) {
+      if (s.State === 'downloading' || s.State === 'importing' || s.State === 'queued') {
+        downloadingIds[s.RequestId] = true;
+      }
+    });
+
     (statuses || []).forEach(function (s) {
       var row = list.querySelector('.jellycrowd-request-row[data-req-id="' + s.RequestId + '"]');
       if (!row) {
@@ -336,6 +347,9 @@
       var cancelBtn = row.querySelector('button.jellycrowd-request');
       row.insertBefore(badge, cancelBtn || null);
     });
+
+    // Re-sort now that we know which rows are downloading (the "Downloading" tier).
+    sortRows();
   }
 
   function pollDownloadStatus() {
@@ -359,6 +373,36 @@
     return map[r.Status] != null ? map[r.Status] : 0;
   }
 
+  // Sort tier for a request — lower sorts higher. Order: Pending, Approved, Downloading, Deletion
+  // requested, Unreleased (scheduled), Available, Denied.
+  function rankOf(r) {
+    if (r.DeletionRequestedAt) { return 3; }
+    var st = statusInt(r);
+    if (st === 3) { return 5; } // available
+    if (st === 2) { return 6; } // denied
+    if (r.DesiredAt && new Date(r.DesiredAt).getTime() > Date.now()) { return 4; } // unreleased / scheduled
+    if (downloadingIds[r.Id]) { return 2; } // downloading
+    if (st === 1) { return 1; } // approved
+    return 0; // pending
+  }
+
+  // A row's tier is the highest-priority (lowest) tier among its request(s) — an aggregated season row
+  // carries several episode requests.
+  function rowRank(row) {
+    var reqs = row._jcRequests || [];
+    var min = 99;
+    reqs.forEach(function (r) { var k = rankOf(r); if (k < min) { min = k; } });
+    return min;
+  }
+
+  function sortRows() {
+    var list = document.getElementById('jcReqList');
+    if (!list) { return; }
+    var rows = Array.prototype.slice.call(list.querySelectorAll('.jellycrowd-request-row'));
+    rows.sort(function (a, b) { return rowRank(a) - rowRank(b); }); // Array.sort is stable → ties keep order
+    rows.forEach(function (row) { list.appendChild(row); });
+  }
+
   // Aggregated row for all requested episodes of one season.
   function renderSeasonGroupRow(group) {
     var first = group[0];
@@ -366,6 +410,7 @@
     row.className = 'jellycrowd-request-row';
     row.dataset.reqIds = group.map(function (r) { return r.Id; }).join(' ');
     row.dataset.reqId = first.Id; // representative, for compatibility
+    row._jcRequests = group; // for autosort
 
     function openDetail() {
       if (typeof window.jellyCrowdOpenDetail === 'function') {
@@ -501,6 +546,8 @@
       renderedGroups[key] = true;
       list.appendChild(renderSeasonGroupRow(groups[key]));
     });
+
+    sortRows();
   }
 
   // Compact fingerprint of the list so the live tick only re-renders when something actually changed
