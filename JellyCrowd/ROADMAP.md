@@ -123,7 +123,9 @@ Objectif : un catalogue « Netflix-like » plus riche.
 - ☑ Endpoints/contrats : `with_watch_providers`, `watch_region`, `GET /JellyCrowd/Catalog/Providers` ; UI en grille continue + rangées.
 - ☐ **Vérif (instance live)** : scroll infini fluide, rangées peuplées, filtre par plateforme.
 
-## M7 — Téléchargement automatique des requêtes (Servarr / scripts custom)  ☐ ← PROCHAINE ÉTAPE
+## M7 — Téléchargement automatique des requêtes (Servarr / scripts custom)  ☑ *(livré)*
+
+> **Livré** (tous les points ci-dessous) : `IDownloadClient` + `DownloadDispatcher` (idempotent, `DispatchedAt`) ; backends `ServarrDownloadClient` (Radarr/Sonarr, par saison, monitoring N27), `ScriptDownloadClient`, `WebhookDownloadClient` ; onglet admin *Download* ; `DownloadDispatchTask` (dispatch différé + auto-retry N26) ; erreurs surfacées (`DispatchError`) ; purge en cascade (N19) + purge vérifiée (N18). Builders de payload purs et testés.
 
 Objectif : déclencher **automatiquement le téléchargement** d'une requête une fois **approuvée** (et à partir de sa **date souhaitée** `DesiredAt`), via un backend configurable — **Radarr/Sonarr** ou un **script/webhook custom** — puis laisser la réconciliation existante basculer la requête en `Available` quand le média arrive en biblio.
 
@@ -246,18 +248,23 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 > la **`v1.0.0`** sera coupée (`[major]`) une fois l'ensemble **M15→M29** livré.
 > Milestones ordonnés par **priorité** (valeur + déblocage).
 >
-> **État (2026-06-22)** : **M15→M27 + M29 livrés** (dont **M27.A** quotas adaptatifs, **M27.B** expiration par âge).
-> Un **gros lot de patches de finition** a suivi (voir « Patches de finition pré-1.0 » plus bas) :
-> refonte du popup catalogue, **responsive/mobile** (overlay, listes, tableaux admin), **calendrier
-> multi-vues** (Mois/Semaine/Jour), **dispatch idempotent** (fin du flapping « Blocked/400 »),
-> **annulation qui stoppe le grab RDT** (file Radarr), **logs** (recherche + entrées admin/user),
-> **Prowlarr** configurable, **accès plugin par utilisateur**, **packaging MailKit**, **persistance
-> config** (genres/quotas), opt-in notifs e-mail par catégorie, avis & notes (M29).
-> **Reste pour la 1.0** : **M28** (réactivité/exactitude quota temps réel), le **reliquat de patches**
-> (liste dédiée plus bas + Notes de Victor + **lot 2 N15–N21** : agrégation saisons, suppression en
-> cascade multi-backends, check d'intégrité, related media, chip de filtre), et la **stabilisation v1.0**
-> (responsive/a11y final, doc utilisateur, tests e2e/non-régression, polish).
+> **État (2026-06-25)** : **M1→M27 + M29 livrés** (dont **M7** dl automatique Servarr/script/webhook,
+> **M27.A** quotas adaptatifs, **M27.B** expiration par âge). Les **lots 1, 2 et 3** de patches de finition
+> sont **bouclés** (Notes de Victor + **N15–N36**) : agrégation des saisons, suppression en cascade
+> multi-backends + purge vérifiée/retry, auto-retry des dispatches bloqués, monitoring multi-saisons
+> Sonarr, quota provisoire, *Ma bibliothèque* arborescente, related media, chips de filtre, casting trié
+> IMDb + réalisateur/scénariste cliquables, quota par user & Retry admin, etc.
+> **Reste pour la 1.0** : **M28** (réactivité/exactitude quota temps réel ; Notes 9/10), la **suite de
+> tests e2e/non-régression** (Note 11) et la **stabilisation v1.0** (responsive/a11y final, doc utilisateur,
+> polish). **N23** (config dans « Server ») classé **non faisable** via l'API plugin.
 > Sous-points reportés : calendrier épisodes (M24.B), canaux stable/nightly (M26.2).
+>
+> **Audit 2026-06-25** : traductions EN/FR complètes (198 clés ⇄, 0 `t()` orpheline) ; **routes** OK (aucune
+> route cassée ; 1 endpoint mort `GET Catalog/Trending` — non câblé front) ; **bugs** : aucun critique repéré
+> (faux positif « conflit de route Notifications » : préfixes partagés mais templates distincts = valide) ;
+> **tests manquants** (priorité) : `PlaybackActivityEntryPoint` (0 test), `DeletionTask` (branches média
+> partagé + expiry), `QuotaService` (dédup titre + champs adaptatifs de `QuotaInfo`), `RequestReconciler`
+> (branche revert). 337 tests verts.
 
 ### M15 — Téléchargement : correctifs & échecs  ☑ *(livré)*
 
@@ -405,14 +412,14 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 > `CommentsController` / `buildCommentsSection`) en **système d'avis noté**, interne. Principe directeur :
 > **ne pas se transformer en réseau social** — pas de fil social, pas de pseudos exposés.
 
-- ☐ **Note par avis** : chaque utilisateur attribue une **note** (échelle à fixer, ex. 1–10 ou 1–5) en plus du texte (le texte devient **optionnel**).
-- ☐ **Moyenne interne** affichée sur chaque média : **moyenne des notes utilisateurs du serveur** + **nombre de votes** (popup catalogue, et page native via M25.2 le moment venu).
-- ☐ **Anonymat** : les utilisateurs **non-admin ne voient PAS** le pseudo de l'auteur d'un avis ; seul l'**admin** voit qui a posté quoi (modération). Les avis s'affichent de façon **anonyme** côté public.
-- ☐ **Un seul avis par user et par média** (modifiable), pour une moyenne honnête.
-- ☐ **Migration** des commentaires existants (texte sans note) — note vide / exclus de la moyenne.
-- ☐ **Modération admin** conservée (masquer / supprimer), + l'avis masqué **sort de la moyenne**.
-- ☐ **Borné** : réutiliser le plafond existant par titre (M25) ; la moyenne est un **agrégat** recalculé (ou mis en cache borné).
-- ☐ **Anti-réseau-social** : pas de réponses/threads, pas de likes, pas de profils publics — juste note + avis anonyme + moyenne.
+- ☑ **Note par avis** : note 1–10 (étoiles) + texte optionnel.
+- ☑ **Moyenne interne** affichée sur chaque média : moyenne des notes serveur + nombre de votes (popup catalogue + fiche native via M25.2).
+- ☑ **Anonymat** : les non-admins ne voient pas l'auteur ; l'admin peut l'exposer via `ShowReviewAuthors` (sinon anonyme).
+- ☑ **Un seul avis par user et par média** (modifiable).
+- ☑ **Migration** des commentaires existants (texte sans note → exclus de la moyenne).
+- ☑ **Modération admin** (masquer / supprimer) ; l'avis masqué sort de la moyenne.
+- ☑ **Borné** : plafond par titre (M25) ; moyenne = agrégat recalculé.
+- ☑ **Anti-réseau-social** : pas de threads/likes/profils — note + avis anonyme + moyenne.
 
 ### Patches de finition pré-1.0 (lot juin 2026)
 
