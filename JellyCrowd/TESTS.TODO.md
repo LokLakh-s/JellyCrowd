@@ -229,7 +229,7 @@
 - [ ] 🔧 **Récupération stall (N37)** : activer *Auto-recover stalled downloads* (onglet Download) ; un torrent qui **stall** (RDT, 0 % de progression) est, après le seuil (déf. 60 min), **blocklisté + retiré du client** et la recherche relancée → un **autre release** est pris automatiquement.
 - [ ] 🔧 **Unreleased multi-demandeurs** : un titre non sorti demandé par plusieurs personnes → à la sortie, **tous** les demandeurs le possèdent.
 - [ ] 🔧 **Autosort *Mes demandes*** : ordre Approved → Downloading → Deletion requested → Unreleased → Available (le tier Downloading suit la file Sonarr en direct).
-- [ ] 🔧 **Quota provisoire** : à la demande, le quota se pré-incrémente (5 Go/film, 1 Go/épisode) puis se recale sur la taille réelle à l'arrivée.
+- [ ] 🔧 **Quota à la mise à dispo (N38)** : la barre de quota **ne bouge pas** à la demande ; elle ne s'incrémente **qu'à la mise à dispo** (`Available`), à la **taille réelle** du fichier. Si une demande ferait dépasser le quota (empreinte théorique 5 Go/film, 1 Go/épisode), elle part **en attente** (held) jusqu'à libération — vérifier ce cas limite.
 
 ### UI / popup / navigation
 

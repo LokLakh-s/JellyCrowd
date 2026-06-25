@@ -9,8 +9,9 @@ using Jellyfin.Plugin.JellyCrowd.Models;
 namespace Jellyfin.Plugin.JellyCrowd.Services;
 
 /// <summary>
-/// Default <see cref="IQuotaService"/>. Usage is the on-disk size of the user's fulfilled
-/// (<see cref="RequestStatus.Available"/>) requests; in-flight requests count via configured estimates.
+/// Default <see cref="IQuotaService"/>. Displayed usage is the on-disk size of the user's fulfilled
+/// (<see cref="RequestStatus.Available"/>) requests only; in-flight requests count via configured
+/// estimates solely inside <see cref="CanRequestAsync"/> to gate (and hold) over-quota requests.
 /// </summary>
 public sealed class QuotaService : IQuotaService
 {
@@ -69,23 +70,16 @@ public sealed class QuotaService : IQuotaService
     var quota = GetQuotaBytes(userId);
     var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
 
-    // Usage is provisional: fulfilled requests count their real on-disk size, while in-flight
-    // (Pending/Approved) requests count a per-type estimate so a freshly-made request immediately
-    // shows against the quota (the figure self-corrects to the real size once the media lands).
+    // Displayed usage counts only fulfilled (Available) requests at their real on-disk size. In-flight
+    // requests do not count against the displayed figure; their theoretical footprint lives only in
+    // CanRequestAsync, where it gates whether a new request would exceed the quota (held pending if so).
     long used = 0;
     var counted = new HashSet<string>(StringComparer.Ordinal);
     foreach (var request in requests)
     {
-      if (request.Status == RequestStatus.Available)
+      if (request.Status == RequestStatus.Available && counted.Add(TitleKey(request)))
       {
-        if (counted.Add(TitleKey(request)))
-        {
-          used += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
-        }
-      }
-      else if (request.Status is RequestStatus.Pending or RequestStatus.Approved)
-      {
-        used += EstimateBytes(request.MediaType);
+        used += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
       }
     }
 

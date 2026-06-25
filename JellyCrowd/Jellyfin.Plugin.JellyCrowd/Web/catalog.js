@@ -368,6 +368,11 @@
   // "Request whole season": when the season has unreleased episodes, create one request per episode
   // (each scheduled at its air date); otherwise a single season request.
   function requestSeason(item, season, button, dateInput) {
+    // Guard: a season with no usable number must never fall through to a Season-less request, which the
+    // backend would treat as a whole-series add (monitoring every season in Sonarr). Refuse instead.
+    if (!season || typeof season.SeasonNumber !== 'number') {
+      return;
+    }
     button.disabled = true;
     button.textContent = t('requesting');
     apiGet('JellyCrowd/Catalog/Episodes/' + item.TmdbId + '/' + season.SeasonNumber + '?language=' + encodeURIComponent(fullLocale()))
