@@ -170,7 +170,14 @@
     card.className = 'jellycrowd-card jellycrowd-card-clickable';
     // Both available and not-yet-available titles open the details popup (available media gets a
     // "Add to my library" action + a visible link into Jellyfin from there).
+    // Keyboard-accessible: it's a clickable card acting as a button.
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', item.Title || '');
     card.addEventListener('click', function () { openModal(item); });
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(item); }
+    });
 
     var posterWrap = document.createElement('div');
     posterWrap.className = 'jellycrowd-poster-wrap';
@@ -868,6 +875,9 @@
 
     var modal = document.createElement('div');
     modal.className = 'jellycrowd-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', item.Title || t('details_button'));
     if (item.BackdropPath) {
       modal.style.backgroundImage = 'url("' + BACKDROP_BASE + item.BackdropPath + '")';
     }
@@ -1203,6 +1213,8 @@
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+    // Move keyboard focus into the dialog (the close button) so Esc / Tab work from here.
+    try { close.focus(); } catch (e) { /* focus is best-effort */ }
 
     apiGet('JellyCrowd/Catalog/Related/' + item.MediaType + '/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale()))
       .then(function (related) {

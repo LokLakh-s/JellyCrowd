@@ -469,7 +469,14 @@
     var box = document.createElement('span');
     box.style.cssText = 'display:inline-flex;flex-direction:column;justify-content:center;min-width:8em;margin:0 .6em;font-size:.7em;cursor:pointer;line-height:1.05;';
     box.title = t('my_media_title');
+    // Keyboard-accessible (it's a clickable span acting as a button).
+    box.setAttribute('role', 'button');
+    box.setAttribute('tabindex', '0');
+    box.setAttribute('aria-label', t('my_media_title'));
     box.addEventListener('click', function () { toggleView('mymedia'); });
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleView('mymedia'); }
+    });
     var caption = document.createElement('span');
     caption.textContent = t('my_media_title');
     caption.style.cssText = 'color:#4caf50;font-weight:700;font-size:1.25em;line-height:1.1;white-space:nowrap;transition:filter .1s;';
