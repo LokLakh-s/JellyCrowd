@@ -69,22 +69,35 @@ public static class ServarrQueueParser
   /// </summary>
   /// <param name="json">The raw Sonarr <c>/queue?includeSeries=true</c> payload.</param>
   /// <param name="tvdbId">The series TVDB id to match.</param>
+  /// <param name="season">When set, only match queue records for that season's episode.</param>
   /// <returns>The matching queue record ids.</returns>
-  public static IReadOnlyList<int> ParseSeriesQueueRecordIds(string json, int tvdbId)
+  public static IReadOnlyList<int> ParseSeriesQueueRecordIds(string json, int tvdbId, int? season = null)
   {
     ArgumentNullException.ThrowIfNull(json);
     var ids = new List<int>();
     using var doc = JsonDocument.Parse(json);
     foreach (var record in Records(doc))
     {
-      if (record.TryGetProperty("series", out var series)
-          && series.ValueKind == JsonValueKind.Object
-          && TryGetInt(series, "tvdbId", out var t)
-          && t == tvdbId
-          && TryGetInt(record, "id", out var recordId))
+      if (!record.TryGetProperty("series", out var series)
+          || series.ValueKind != JsonValueKind.Object
+          || !TryGetInt(series, "tvdbId", out var t)
+          || t != tvdbId
+          || !TryGetInt(record, "id", out var recordId))
       {
-        ids.Add(recordId);
+        continue;
       }
+
+      // When a season is given, only match queue records for that season's episode.
+      if (season is not null
+          && (!record.TryGetProperty("episode", out var episode)
+              || episode.ValueKind != JsonValueKind.Object
+              || !TryGetInt(episode, "seasonNumber", out var s)
+              || s != season.Value))
+      {
+        continue;
+      }
+
+      ids.Add(recordId);
     }
 
     return ids;

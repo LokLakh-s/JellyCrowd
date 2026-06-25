@@ -539,6 +539,20 @@ Content-Type: application/json
                 <label class="inputLabel inputLabelUnfocused" for="ProwlarrApiKey">Prowlarr API key</label>
                 <input id="ProwlarrApiKey" type="password" is="emby-input" />
               </div>
+
+              <h3 class="sectionTitle">Stalled downloads</h3>
+              <div class="checkboxContainer checkboxContainer-withDescription">
+                <label class="emby-checkbox-label">
+                  <input id="RecoverStalledDownloads" name="RecoverStalledDownloads" type="checkbox" is="emby-checkbox" />
+                  <span>Auto-recover stalled downloads</span>
+                </label>
+                <div class="fieldDescription">When a grab makes no progress for the time below (e.g. a stalled torrent / dead debrid cache), Jelly Crowd blocklists that release in Radarr/Sonarr and triggers a fresh search, so a different release is grabbed automatically. Off by default.</div>
+              </div>
+              <div class="inputContainer">
+                <label class="inputLabel inputLabelUnfocused" for="StalledRecoveryMinutes">Stalled threshold (minutes)</label>
+                <input id="StalledRecoveryMinutes" name="StalledRecoveryMinutes" type="number" is="emby-input" min="5" step="5" />
+                <div class="fieldDescription">How long a download may sit without progress before it's recovered. Checked every ~5 minutes.</div>
+              </div>
             </div>
 
             <div id="jcScriptFields">
@@ -1207,6 +1221,8 @@ Content-Type: application/json
             document.querySelector('#DownloadWebhookHeaders').value = config.DownloadWebhookHeaders || '';
             document.querySelector('#RadarrUrl').value = config.RadarrUrl || '';
             document.querySelector('#RadarrApiKey').value = config.RadarrApiKey || '';
+            document.querySelector('#RecoverStalledDownloads').checked = !!config.RecoverStalledDownloads;
+            document.querySelector('#StalledRecoveryMinutes').value = config.StalledRecoveryMinutes != null ? config.StalledRecoveryMinutes : 60;
             document.querySelector('#SonarrUrl').value = config.SonarrUrl || '';
             document.querySelector('#SonarrApiKey').value = config.SonarrApiKey || '';
             document.querySelector('#ProwlarrUrl').value = config.ProwlarrUrl || '';
@@ -1304,6 +1320,8 @@ Content-Type: application/json
             config.RadarrApiKey = document.querySelector('#RadarrApiKey').value;
             config.RadarrRootFolderPath = document.querySelector('#RadarrRootFolder').value;
             config.RadarrQualityProfileId = parseInt(document.querySelector('#RadarrQualityProfile').value || '0', 10);
+            config.RecoverStalledDownloads = document.querySelector('#RecoverStalledDownloads').checked;
+            config.StalledRecoveryMinutes = parseInt(document.querySelector('#StalledRecoveryMinutes').value || '60', 10);
             config.SonarrUrl = document.querySelector('#SonarrUrl').value;
             config.SonarrApiKey = document.querySelector('#SonarrApiKey').value;
             config.SonarrRootFolderPath = document.querySelector('#SonarrRootFolder').value;

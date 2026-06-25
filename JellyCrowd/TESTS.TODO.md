@@ -226,6 +226,7 @@
 - [ ] 🔧 **Saison en cours** : demander une saison dont seuls quelques épisodes sont sortis → **une seule ligne** « … · Saison N » dans *Mes demandes* (compteur X/Y + date du prochain épisode), pas une ligne par épisode ni un flot de notifs ; seuls les épisodes réellement présents passent *Available*.
 - [ ] 🔧 **Multi-saisons (le bug Hannibal)** : demander plusieurs saisons → **toutes** sont monitorées + recherchées dans Sonarr (pas seulement la S1).
 - [ ] 🔧 **Auto-retry** : si les indexeurs sont morts au moment de la demande, la recherche se **relance toute seule** (≤ 6 h) sans action manuelle ; abandon après 14 j.
+- [ ] 🔧 **Récupération stall (N37)** : activer *Auto-recover stalled downloads* (onglet Download) ; un torrent qui **stall** (RDT, 0 % de progression) est, après le seuil (déf. 60 min), **blocklisté + retiré du client** et la recherche relancée → un **autre release** est pris automatiquement.
 - [ ] 🔧 **Unreleased multi-demandeurs** : un titre non sorti demandé par plusieurs personnes → à la sortie, **tous** les demandeurs le possèdent.
 - [ ] 🔧 **Autosort *Mes demandes*** : ordre Approved → Downloading → Deletion requested → Unreleased → Available (le tier Downloading suit la file Sonarr en direct).
 - [ ] 🔧 **Quota provisoire** : à la demande, le quota se pré-incrémente (5 Go/film, 1 Go/épisode) puis se recale sur la taille réelle à l'arrivée.
@@ -240,7 +241,7 @@
 - [ ] 🔧 **Casting** trié comme IMDb ; **Réalisateur + Scénariste** affichés et cliquables.
 - [ ] 🔧 **Related media** : bande de suggestions cliquables en bas du popup.
 - [ ] 🔧 **Titres cliquables** dans le menu « Demander la saga ».
-- [ ] 🔧 **Bandeau annonce** : s'affiche sur **jusqu'à 3 lignes** (plus tronqué).
+- [ ] 🔧 **Annonce = icône 📣 + popover** : plus de bandeau inline rogné ; l'icône ouvre un popover (markdown rendu : gras/italique/souligné/barré/listes), **point rouge** si nouvelle annonce, en-tête coloré par niveau, édition admin dans le popover. À vérifier en plein écran (plus de coupure).
 - [ ] 🔧 **Alignement navbar (N36)** : cloche + annonce centrées verticalement comme les onglets (sinon capture).
 
 ### Admin & notifications
