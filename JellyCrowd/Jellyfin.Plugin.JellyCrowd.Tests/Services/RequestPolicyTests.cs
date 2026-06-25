@@ -132,4 +132,23 @@ public class RequestPolicyTests
     Assert.True(RequestPolicy.IsVisibleTo(config, granted, isAdmin: false));    // granted access
     Assert.False(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));      // regular, no access
   }
+
+  [Fact]
+  public void IsVisibleTo_DisablingConfigMode_GivesEveryoneAccess_EvenWithLeftoverGrant()
+  {
+    // Scenario: a user was granted per-user access in config mode; later config mode is turned OFF
+    // (open to all) WITHOUT unchecking that user's PluginAccess. There must be no conflict — the leftover
+    // grant is simply ignored and everyone (granted user included) sees the plugin.
+    var config = Config(); // HiddenFromUsers == false (config mode off)
+    var granted = Guid.NewGuid();
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = granted, PluginAccess = true });
+
+    Assert.True(RequestPolicy.IsVisibleTo(config, granted, isAdmin: false)); // still visible (leftover grant is a no-op)
+    Assert.True(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));    // and so is everyone else
+
+    // Re-enabling config mode keeps the granted user in (their PluginAccess still applies), others out.
+    config.HiddenFromUsers = true;
+    Assert.True(RequestPolicy.IsVisibleTo(config, granted, isAdmin: false));
+    Assert.False(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));
+  }
 }
