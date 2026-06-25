@@ -39,6 +39,7 @@
   // to Home on open), so the hashchange listener doesn't mistake it for the user leaving and close us.
   var suppressHashClose = false;
   var bellBadgeEl = null;          // the red unread-count badge on the header bell
+  var announcementEls = null;      // { wrap, btn, icon, dot, panel } for the header announcement icon
   var NAV_GREY = 'rgba(255,255,255,0.6)';
   var NAV_WHITE = '#fff';
   var NAV_BLUE = '#00a4dc';
@@ -898,42 +899,60 @@
     return segments.join('<br>').replace(/<br>(<ul>)/g, '$1').replace(/(<\/ul>)<br>/g, '$1');
   }
 
-  function renderAnnouncementInner(box) {
-    box.innerHTML = '';
+  // The announcement the local user has already opened (so a new one shows a red dot until viewed).
+  function lastSeenAnnouncement() {
+    try { return window.localStorage.getItem('jcCrowdAnnouncementSeen') || ''; } catch (e) { return ''; }
+  }
+
+  function markAnnouncementSeen() {
+    try { window.localStorage.setItem('jcCrowdAnnouncementSeen', (announcement.text || '').trim()); } catch (e) { /* ignore */ }
+  }
+
+  // Fill the announcement popover: a level-coloured header (+ admin edit/clear) and the markdown body.
+  function renderAnnouncementPanel(panel) {
+    panel.innerHTML = '';
     var hasText = !!(announcement.text && announcement.text.trim());
-    if (!hasText && !isAdmin) { box.style.display = 'none'; return; }
-    box.style.display = 'inline-flex';
-    if (hasText) {
-      var c = announcementColors(announcement.level);
-      box.style.background = c.bg;
-      box.style.color = c.fg;
-      box.style.border = '0';
-      var txt = document.createElement('span');
-      // Render the announcement as light markdown (bold/italic/underline/strikethrough, line breaks,
-      // bullet lists). Bounded height with scroll so a long announcement never pushes the header layout.
-      txt.className = 'jcAnnounceText';
-      txt.style.cssText = 'overflow-y:auto;white-space:normal;word-break:break-word;line-height:1.3;max-height:4.5em;';
-      txt.innerHTML = renderAnnouncementMarkdown(announcement.text);
-      txt.title = announcement.text;
-      box.appendChild(txt);
-    } else {
-      box.style.background = 'transparent';
-      box.style.color = 'inherit';
-      box.style.border = '1px dashed rgba(255,255,255,.4)';
-      var add = document.createElement('span');
-      add.textContent = t('announcement_add');
-      add.style.opacity = '.8';
-      box.appendChild(add);
-    }
+    var c = announcementColors(announcement.level);
+
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:.5em;padding:.55em .8em;font-weight:700;'
+      + (hasText ? ('background:' + c.bg + ';color:' + c.fg + ';') : 'border-bottom:1px solid rgba(255,255,255,.12);');
+    var title = document.createElement('span');
+    title.textContent = t('announcement_title');
+    head.appendChild(title);
     if (isAdmin) {
       var edit = document.createElement('button');
       edit.type = 'button';
-      edit.textContent = '✎';
+      edit.textContent = hasText ? '✎' : t('announcement_add');
       edit.title = t('announcement_edit');
-      edit.style.cssText = 'margin-left:.4em;background:none;border:0;color:inherit;cursor:pointer;font-size:1em;flex:0 0 auto;';
-      edit.addEventListener('click', function (e) { e.stopPropagation(); openAnnouncementEditor(); });
-      box.appendChild(edit);
+      edit.style.cssText = 'background:none;border:0;color:inherit;cursor:pointer;font-size:1em;flex:0 0 auto;';
+      edit.addEventListener('click', function (e) { e.stopPropagation(); panel.style.display = 'none'; openAnnouncementEditor(); });
+      head.appendChild(edit);
     }
+    panel.appendChild(head);
+
+    var body = document.createElement('div');
+    body.className = 'jcAnnounceText';
+    body.style.cssText = 'padding:.7em .8em;line-height:1.45;word-break:break-word;';
+    if (hasText) {
+      body.innerHTML = renderAnnouncementMarkdown(announcement.text);
+    } else {
+      body.style.opacity = '.7';
+      body.textContent = isAdmin ? t('announcement_placeholder') : '';
+    }
+    panel.appendChild(body);
+  }
+
+  // Refresh the header icon: visibility, level tint, and the red "new" dot; keep the panel content fresh.
+  function updateAnnouncementUi() {
+    if (!announcementEls) { return; }
+    var els = announcementEls;
+    var hasText = !!(announcement.text && announcement.text.trim());
+    els.wrap.style.display = (!hasText && !isAdmin) ? 'none' : 'inline-flex';
+    els.icon.style.color = hasText ? announcementColors(announcement.level).bg : '';
+    var isNew = hasText && (announcement.text.trim() !== lastSeenAnnouncement());
+    els.dot.style.display = isNew ? '' : 'none';
+    renderAnnouncementPanel(els.panel);
   }
 
   function openAnnouncementEditor() {
@@ -997,25 +1016,76 @@
   }
 
   function refreshAnnouncement() {
-    var box = document.querySelector('.jcHeaderAnnounce');
-    if (box) { renderAnnouncementInner(box); }
+    updateAnnouncementUi();
   }
 
-  // Announcement banner sits in the header's left area, just after the logo/home button.
-  // IMPORTANT: only build it once. Re-rendering here on every MutationObserver tick would mutate the
-  // DOM and re-trigger the observer in an infinite loop (froze the browser). Content refreshes happen
-  // explicitly via refreshAnnouncement() when the announcement or admin state changes.
+  // The announcement is a header ICON with a popover (like the bell): an inline multi-line banner was
+  // cramped and clipped in the header. A red dot marks a new (unseen) announcement; the icon is tinted by
+  // level. Built once; content refreshes via refreshAnnouncement().
   function insertAnnouncement() {
-    if (document.querySelector('.jcHeaderAnnounce')) {
-      return;
+    var host = document.querySelector('.headerRight');
+    if (!host || document.querySelector('.jcHeaderAnnounce')) { return; }
+
+    var wrap = document.createElement('span');
+    wrap.className = 'jcHeaderAnnounce';
+    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;align-self:center;';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'paper-icon-button-light headerButton';
+    btn.title = t('announcement_title');
+    btn.style.cssText = 'position:relative;overflow:visible;';
+    var icon = document.createElement('span');
+    icon.className = 'material-icons';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = 'campaign';
+    btn.appendChild(icon);
+
+    var dot = document.createElement('span');
+    dot.className = 'jcAnnounceDot';
+    dot.style.cssText = 'position:absolute;top:-.05em;right:-.05em;width:.7em;height:.7em;border-radius:50%;background:#e53935;display:none;box-sizing:border-box;z-index:1;pointer-events:none;';
+    btn.appendChild(dot);
+
+    // Wider than the bell panel so announcements display nicely; fixed-position on <body> so it's never
+    // clipped by the header's overflow/stacking context.
+    var panel = document.createElement('div');
+    panel.className = 'jcAnnouncePanel';
+    panel.style.cssText = 'position:fixed;width:28em;max-width:92vw;max-height:70vh;overflow-y:auto;background:#1c1c1c;border:1px solid rgba(255,255,255,.15);border-radius:.4em;box-shadow:0 6px 22px rgba(0,0,0,.55);z-index:100000;display:none;';
+
+    function positionPanel() {
+      var r = btn.getBoundingClientRect();
+      panel.style.top = Math.round(r.bottom + 4) + 'px';
+      if (window.innerWidth <= 600) {
+        panel.style.left = '0.5em';
+        panel.style.right = '0.5em';
+        panel.style.width = 'auto';
+      } else {
+        panel.style.left = 'auto';
+        panel.style.width = '28em';
+        panel.style.right = Math.round(window.innerWidth - r.right) + 'px';
+      }
     }
-    var host = document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
-    if (!host) { return; }
-    var box = document.createElement('span');
-    box.className = 'jcHeaderAnnounce';
-    box.style.cssText = 'display:inline-flex;align-items:center;align-self:center;gap:.3em;margin:0 .8em;padding:.15em .7em;border-radius:.4em;font-size:.82em;font-weight:600;max-width:40vw;overflow:hidden;';
-    host.appendChild(box);
-    renderAnnouncementInner(box);
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+      renderAnnouncementPanel(panel);
+      positionPanel();
+      panel.style.display = '';
+      markAnnouncementSeen();
+      dot.style.display = 'none';
+    });
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.addEventListener('click', function () { panel.style.display = 'none'; });
+
+    wrap.appendChild(btn);
+    document.body.appendChild(panel);
+    // Sit just left of the bell, within the header's icon cluster.
+    var bell = host.querySelector('.jcHeaderBell');
+    host.insertBefore(wrap, bell || host.querySelector('.jcHeaderQuota') || host.querySelector('.headerUserButton') || null);
+
+    announcementEls = { wrap: wrap, btn: btn, icon: icon, dot: dot, panel: panel };
+    updateAnnouncementUi();
   }
 
   // Hide Jellyfin's native section tabs (Home/Favorites, Movies/Suggestions/…, Shows/…): Jelly Crowd
@@ -1402,7 +1472,7 @@
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).
     document.addEventListener('click', function (e) {
       if (!overlay || overlay.style.display === 'none') { return; }
-      var keep = '.jellycrowd-overlay,.jellycrowd-modal-overlay,.jcHeaderNav,.jcHeaderQuota,.jcHeaderBell,.jcBellPanel,.jcHeaderAnnounce,#jcAnnEditor';
+      var keep = '.jellycrowd-overlay,.jellycrowd-modal-overlay,.jcHeaderNav,.jcHeaderQuota,.jcHeaderBell,.jcBellPanel,.jcHeaderAnnounce,.jcAnnouncePanel,#jcAnnEditor';
       if (e.target && e.target.closest && e.target.closest(keep)) { return; }
       hideOverlay();
     }, true);

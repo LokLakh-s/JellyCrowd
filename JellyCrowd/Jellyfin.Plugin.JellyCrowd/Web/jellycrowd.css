@@ -662,21 +662,6 @@ body.jellycrowd-overlay-open {
     max-width: 260px;
   }
 
-  /* Announcement gets its own full line under the logo (it's too cramped squeezed into the header). */
-  .skinHeader .headerLeft {
-    flex-wrap: wrap;
-  }
-
-  .jcHeaderAnnounce {
-    order: 10;
-    flex-basis: 100%;
-    max-width: 100% !important;
-    margin: 0.2em 0 !important;
-  }
-
-  .jcHeaderAnnounce span {
-    white-space: normal !important;
-  }
 }
 
 .jellycrowd-modal-close {

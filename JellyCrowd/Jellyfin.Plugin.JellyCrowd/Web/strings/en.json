@@ -96,6 +96,7 @@
   "no_requests": "You haven't requested anything yet.",
   "my_media_title": "My library",
   "notifications": "Notifications",
+  "announcement_title": "Announcement",
   "announcement_add": "+ Announcement",
   "announcement_edit": "Edit announcement",
   "announcement_placeholder": "Announcement shown to all users (leave empty to clear)",
