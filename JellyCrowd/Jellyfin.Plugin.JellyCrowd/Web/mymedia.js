@@ -342,6 +342,10 @@
       seasonLabel.textContent = t('season_label') + ' ' + season.number;
       seasonMain.appendChild(seasonLabel);
       seasonRow.appendChild(seasonMain);
+      var seasonSize = document.createElement('span');
+      seasonSize.className = 'jellycrowd-status jellycrowd-size';
+      seasonSize.textContent = lib.formatBytes(season.items.reduce(function (s, r) { return s + (r.SizeBytes || 0); }, 0));
+      seasonRow.appendChild(seasonSize);
       seasonRow.appendChild(nodeActions(season.items, t('delete_season')));
       childrenBox.appendChild(seasonRow);
 

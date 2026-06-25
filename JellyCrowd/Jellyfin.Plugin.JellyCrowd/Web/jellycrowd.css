@@ -1272,18 +1272,28 @@ body.jellycrowd-overlay-open {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.jellycrowd-tree-series {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
 .jellycrowd-tree-season {
   margin-left: 1.5em;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .jellycrowd-tree-episode {
   margin-left: 3em;
   opacity: 0.92;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .jellycrowd-tree-children {
   display: flex;
   flex-direction: column;
+  gap: 0.3em;
+  margin-top: 0.3em;
 }
 
 .jellycrowd-episodes {
