@@ -96,6 +96,8 @@ public class PluginConfiguration : BasePluginConfiguration
     SonarrRootFolderPath = string.Empty;
     SonarrQualityProfileId = 0;
     SonarrLanguageProfileId = 1;
+    RecoverStalledDownloads = false;
+    StalledRecoveryMinutes = 60;
     ScriptPath = string.Empty;
     ScriptArguments = string.Empty;
   }
@@ -503,6 +505,18 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the Sonarr language profile id (Sonarr v3 requires one; ignored by v4). Defaults to 1.
   /// </summary>
   public int SonarrLanguageProfileId { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether to auto-recover stalled downloads: a grab stuck without
+  /// progress past <see cref="StalledRecoveryMinutes"/> is blocklisted and re-searched so Radarr/Sonarr
+  /// grab a different release. Off by default. Only applies to the Radarr/Sonarr backend.
+  /// </summary>
+  public bool RecoverStalledDownloads { get; set; }
+
+  /// <summary>
+  /// Gets or sets how many minutes a download may be stalled (no progress) before it is recovered.
+  /// </summary>
+  public int StalledRecoveryMinutes { get; set; }
 
   /// <summary>
   /// Gets or sets the executable/script run by the <c>"script"</c> download backend. The request is

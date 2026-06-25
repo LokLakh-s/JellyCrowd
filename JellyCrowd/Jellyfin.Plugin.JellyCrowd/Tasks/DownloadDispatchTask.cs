@@ -15,14 +15,17 @@ namespace Jellyfin.Plugin.JellyCrowd.Tasks;
 public sealed class DownloadDispatchTask : IScheduledTask
 {
   private readonly IDownloadDispatcher _dispatcher;
+  private readonly IStalledDownloadRecovery _stalledRecovery;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="DownloadDispatchTask"/> class.
   /// </summary>
   /// <param name="dispatcher">The download dispatcher.</param>
-  public DownloadDispatchTask(IDownloadDispatcher dispatcher)
+  /// <param name="stalledRecovery">The stalled-download recovery service.</param>
+  public DownloadDispatchTask(IDownloadDispatcher dispatcher, IStalledDownloadRecovery stalledRecovery)
   {
     _dispatcher = dispatcher;
+    _stalledRecovery = stalledRecovery;
   }
 
   /// <inheritdoc />
@@ -43,9 +46,12 @@ public sealed class DownloadDispatchTask : IScheduledTask
     ArgumentNullException.ThrowIfNull(progress);
     progress.Report(0);
     await _dispatcher.DispatchDueAsync(cancellationToken).ConfigureAwait(false);
-    progress.Report(50);
+    progress.Report(40);
     // Backstop: re-search approved requests that dispatched but never arrived (indexers down, grab failed).
     await _dispatcher.RetryStuckAsync(cancellationToken).ConfigureAwait(false);
+    progress.Report(70);
+    // Recover stalled downloads: blocklist a dead grab + re-search so a different release is fetched.
+    await _stalledRecovery.RecoverAsync(cancellationToken).ConfigureAwait(false);
     progress.Report(100);
   }
 
