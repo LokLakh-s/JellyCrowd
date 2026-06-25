@@ -112,6 +112,23 @@ public sealed class ReconcileTaskTests : IDisposable
     Assert.Equal(RequestStatus.Available, (await _store.GetByIdAsync(pending.Id, CancellationToken.None))!.Status);
   }
 
+  [Fact]
+  public async Task Execute_RevertsAvailableToApproved_WhenMediaDisappears()
+  {
+    // An Available request whose media is no longer in the library (deleted externally) and isn't flagged
+    // for deletion is reverted to Approved so it gets re-fetched.
+    var created = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 5, MediaType = "movie", Title = "X" },
+      CancellationToken.None);
+    await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+    await _store.MarkAvailableAsync(created.Id, "item-x", CancellationToken.None);
+
+    var reconciler = new RequestReconciler(_store, new StubMatcher(false), new NoopNotificationService(), NullLogger<RequestReconciler>.Instance);
+    await reconciler.ReconcileAsync(CancellationToken.None);
+
+    Assert.Equal(RequestStatus.Approved, (await _store.GetByIdAsync(created.Id, CancellationToken.None))!.Status);
+  }
+
   private async Task<Guid> SeedApprovedAsync()
   {
     var created = await _store.CreateAsync(

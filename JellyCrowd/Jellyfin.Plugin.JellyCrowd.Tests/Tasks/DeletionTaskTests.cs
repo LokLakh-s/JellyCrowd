@@ -80,6 +80,30 @@ public sealed class DeletionTaskTests : IDisposable
     Assert.NotNull(await _store.GetByIdAsync(id, CancellationToken.None)); // request kept for retry
   }
 
+  [Fact]
+  public async Task Execute_SharedMedia_RemovesOwnRequestButKeepsMediaAndBackend()
+  {
+    // Title still wanted by another active request → don't delete the file or purge the backend; just
+    // drop this user's ownership row.
+    var owner = Guid.NewGuid();
+    var flagged = await _store.CreateAsync(new RequestRecord { UserId = owner, TmdbId = 42, MediaType = "movie", Title = "Shared" }, CancellationToken.None);
+    await _store.MarkAvailableAsync(flagged.Id, "item-shared", CancellationToken.None);
+    await _store.RequestDeletionAsync(flagged.Id, owner, CancellationToken.None);
+    var other = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 42, MediaType = "movie", Title = "Shared" }, CancellationToken.None);
+    await _store.MarkAvailableAsync(other.Id, "item-shared", CancellationToken.None);
+
+    var deleter = new RecordingDeleter();
+    var dispatcher = new RecordingDispatcher();
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Empty(deleter.Deleted);   // media kept (still owned by another user)
+    Assert.Empty(dispatcher.Purged); // backend not purged
+    Assert.Null(await _store.GetByIdAsync(flagged.Id, CancellationToken.None)); // this ownership removed
+    Assert.NotNull(await _store.GetByIdAsync(other.Id, CancellationToken.None)); // other owner intact
+  }
+
   private async Task<Guid> SeedFlaggedAsync(string itemId)
   {
     var user = Guid.NewGuid();

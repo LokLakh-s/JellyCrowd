@@ -434,6 +434,8 @@
     apiGet('JellyCrowd/Quota/Me')
       .then(renderQuota)
       .catch(function () { /* quota bar is best-effort */ });
+    // Keep the header quota bar in sync after a deletion/keep/renew (M28).
+    if (typeof window.jellyCrowdRefreshQuota === 'function') { window.jellyCrowdRefreshQuota(); }
 
     apiGet('JellyCrowd/Quota/MyMedia')
       .then(render)

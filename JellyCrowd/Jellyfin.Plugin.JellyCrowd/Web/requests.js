@@ -219,7 +219,7 @@
       cancel.addEventListener('click', function () {
         cancel.disabled = true;
         apiPost('JellyCrowd/Requests/' + request.Id + '/Cancel')
-          .then(function () { row.remove(); })
+          .then(function () { row.remove(); refreshQuota(); })
           .catch(function () { cancel.disabled = false; });
       });
       row.appendChild(cancel);
@@ -562,6 +562,8 @@
     apiGet('JellyCrowd/Quota/Me?ts=' + Date.now())
       .then(renderQuota)
       .catch(function () { /* quota bar is best-effort */ });
+    // Keep the header quota bar in sync too (M28).
+    if (typeof window.jellyCrowdRefreshQuota === 'function') { window.jellyCrowdRefreshQuota(); }
   }
 
   // Live tick: pick up status transitions (e.g. Approved -> Available) without a page reload and

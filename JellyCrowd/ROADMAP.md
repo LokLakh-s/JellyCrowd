@@ -262,9 +262,10 @@ Objectif : demander un **épisode** seul, garder le bouton **saison entière** (
 > **Audit 2026-06-25** : traductions EN/FR complètes (198 clés ⇄, 0 `t()` orpheline) ; **routes** OK (aucune
 > route cassée ; 1 endpoint mort `GET Catalog/Trending` — non câblé front) ; **bugs** : aucun critique repéré
 > (faux positif « conflit de route Notifications » : préfixes partagés mais templates distincts = valide) ;
-> **tests manquants** (priorité) : `PlaybackActivityEntryPoint` (0 test), `DeletionTask` (branches média
-> partagé + expiry), `QuotaService` (dédup titre + champs adaptatifs de `QuotaInfo`), `RequestReconciler`
-> (branche revert). 337 tests verts.
+> **tests manquants** (priorité) : `PlaybackActivityEntryPoint` (0 test — reste, nécessite un mock lourd
+> d'`ISessionManager`/`SessionInfo` ; son cœur pur `AdaptiveQuotaCalculator` est couvert). Comblés depuis :
+> `DeletionTask` (média partagé), `QuotaService` (dédup titre + champs adaptatifs), `RequestReconciler`
+> (revert). **348 tests verts.**
 
 ### M15 — Téléchargement : correctifs & échecs  ☑ *(livré)*
 
@@ -389,7 +390,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ **Avertissement** : *My library* affiche « Expire dans … » + bouton **« Conserver (renouveler) »** (reset du compteur). À l'expiration effective, **notification** « média expiré » au propriétaire (catégorie quota/expiration).
 - ☑ **Tâche planifiée** idempotente (`DeletionTask`) balayant les `Available` dont l'âge dépasse le délai (bornée).
 
-### M28 — Réactivité de l'UI & exactitude temps réel du quota  ☐ *(périmètre 1.0)*
+### M28 — Réactivité de l'UI & exactitude temps réel du quota  ◐ *(périmètre 1.0 — réactivité front livrée)*
 
 > Investigation (2026-06-20) : l'enforcement est **déjà** raisonnablement sûr — `CanRequestAsync`
 > compte les requêtes **en vol** (Pending/Approved) via des **estimations** (`EstimateBytes`), donc
@@ -400,11 +401,12 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 > **scan Jellyfin** (`item.Size`) + reconcile (debounce 20 s, fallback 15 min) — borné par la
 > cadence de scan de Jellyfin, **pas** par un cache du plugin (il n'y en a aucun).
 
-- ☐ **Rafraîchir la barre de quota** immédiatement après chaque **création / annulation / claim** de requête, et au **changement de vue** (catalog / requests / mymedia).
-- ☐ **Léger polling** de la barre tant qu'une requête est **en vol** (réutiliser le polling de statut DL déjà à 3 s).
-- ☐ **Enforcement** : toujours utiliser `max(estimation, taille partielle connue)` ; rendre les **estimations conservatrices + configurables** ; *(option)* déclencher un **scan ciblé** de la bibliothèque après import pour réduire la latence de la taille réelle.
-- ☐ **Anti-exploit** : recompute atomique du *committed* à chaque création (déjà via mutex du store) + cap requêtes/période (M16) comme garde-fou ; documenter le modèle (estimation en vol → taille réelle à l'import).
-- ☐ **Objectif transversal** : **UI optimiste** + invalidation ciblée pour que tout changement (requête, quota, statut) se reflète **sans force-refresh**.
+- ☑ **Rafraîchir la barre de quota** immédiatement après chaque **création / annulation / claim / suppression** et au **changement de vue** : `header.js` expose `window.jellyCrowdRefreshQuota` (refetch + maj en place), appelé par catalog/requests/mymedia après chaque action et par `showView`.
+- ☑ **Léger polling** : le tick de *Mes demandes* (2 s) rafraîchit le quota à chaque transition de statut (signature) → la barre suit les requêtes en vol sans force-refresh.
+- ☑ **Reconcile plus rapide (Note 9)** : debounce `LibraryEventEntryPoint` ramené **20 s → 5 s** → Approved→Available bascule plus vite après l'import.
+- ☑ **Pastille notif plus rapide (Note 10)** : `refreshBellBadge` passe **30 s → 15 s** + rafraîchie au changement de vue (`window.jellyCrowdRefreshBell`).
+- ☑ **Anti-exploit / enforcement** : recompute atomique du *committed* via le mutex du store + estimations en vol (`CanRequestAsync`) + cap requêtes/période (M16) ; estimations configurables (film 5 Go / épisode 1 Go). *(Déjà en place ; documenté.)*
+- ◻️ *Reste* : scan ciblé optionnel de la bibliothèque après import (réduire la latence de la taille réelle) — non bloquant 1.0.
 
 ### M29 — Avis & notes (style IMDb) — évolution des commentaires  ☑ *(livré)*
 
@@ -492,8 +494,8 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 
 **Réactivité / temps réel → relève de M28 :**
 
-- ☐ **Note 9** — Approved → Available **trop lent** (« Downloaded · dispo dans <2 min » persiste trop longtemps) : reconcile plus agressif après import.
-- ☐ **Note 10** — la **pastille rouge** de notif n'apparaît pas toujours immédiatement au passage *Available*.
+- ☑ **Note 9** — reconcile plus rapide après import (debounce 20 s → 5 s) + barre de quota rafraîchie sur transition de statut (M28).
+- ☑ **Note 10** — pastille notif rafraîchie plus souvent (15 s) + au changement de vue (M28).
 
 **Tests → relève de la stabilisation v1.0 :**
 
