@@ -195,3 +195,21 @@ test('requestedKeys collects active seasons/episodes for a title, ignoring denie
   assert.deepStrictEqual(keys.seasons, { 1: true });
   assert.deepStrictEqual(keys.episodes, { '2:3': true });
 });
+
+test('requestSortRank orders requests by lifecycle tier', () => {
+  const future = new Date(Date.now() + 7 * 86400000).toISOString();
+  // Pending(0) < Approved(1) < Downloading(2) < DeletionRequested(3) < Unreleased(4) < Available(5) < Denied(6)
+  assert.strictEqual(lib.requestSortRank({ Status: 'Pending' }, false), 0);
+  assert.strictEqual(lib.requestSortRank({ Status: 'Approved' }, false), 1);
+  assert.strictEqual(lib.requestSortRank({ Status: 'Approved' }, true), 2);   // downloading
+  assert.strictEqual(lib.requestSortRank({ Status: 'Available', DeletionRequestedAt: '2026-01-01' }, false), 3);
+  assert.strictEqual(lib.requestSortRank({ Status: 'Approved', DesiredAt: future }, false), 4); // unreleased
+  assert.strictEqual(lib.requestSortRank({ Status: 'Available' }, false), 5);
+  assert.strictEqual(lib.requestSortRank({ Status: 'Denied' }, false), 6);
+});
+
+test('requestSortRank: deletion-requested wins over available; numeric statuses work', () => {
+  assert.strictEqual(lib.requestSortRank({ Status: 3, DeletionRequestedAt: 'x' }, false), 3);
+  assert.strictEqual(lib.requestSortRank({ Status: 3 }, false), 5);
+  assert.strictEqual(lib.requestSortRank({ Status: 1 }, true), 2);
+});

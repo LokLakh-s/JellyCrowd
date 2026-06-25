@@ -94,6 +94,21 @@
     return Object.prototype.hasOwnProperty.call(order, key) ? order[key] : 99;
   }
 
+  // "My requests" autosort tier (lower = higher in the list): Pending, Approved, Downloading,
+  // Deletion-requested, Unreleased (future desired date), Available, Denied. `isDownloading` comes from
+  // the live Servarr queue. Pure so it can be unit-tested.
+  function requestSortRank(request, isDownloading) {
+    var r = request || {};
+    if (r.DeletionRequestedAt) { return 3; }
+    var st = String(r.Status).toLowerCase();
+    if (st === '3' || st === 'available') { return 5; }
+    if (st === '2' || st === 'denied') { return 6; }
+    if (r.DesiredAt && new Date(r.DesiredAt).getTime() > Date.now()) { return 4; } // unreleased / scheduled
+    if (isDownloading) { return 2; }
+    if (st === '1' || st === 'approved') { return 1; }
+    return 0; // pending
+  }
+
   // Return [min, max] from two numbers (used to keep dual-slider bounds ordered).
   function orderPair(a, b) {
     var x = Number(a);
@@ -262,6 +277,7 @@
     errorKey: errorKey,
     statusLabelKey: statusLabelKey,
     statusRank: statusRank,
+    requestSortRank: requestSortRank,
     downloadStateKey: downloadStateKey,
     jellyfinDetailsHash: jellyfinDetailsHash,
     deletionCountdown: deletionCountdown,

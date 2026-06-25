@@ -197,6 +197,9 @@
     overlay = document.createElement('div');
     overlay.className = 'jellycrowd-overlay';
     overlay.style.display = 'none';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', t('app_title'));
 
     viewHost = document.createElement('div');
     viewHost.className = 'jellycrowd-overlay-views';
@@ -864,6 +867,37 @@
     return { bg: '#2e7d32', fg: '#fff' }; // green
   }
 
+  // Minimal, safe markdown for the admin announcement: HTML-escape first, then bold (**), underline (__),
+  // italic (* or _), strikethrough (~~), bullet lists (- / *), and line breaks. The author is the admin
+  // (trusted), but we escape anyway to avoid accidental HTML injection.
+  function mdInline(s) {
+    s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    s = s.replace(/~~(.+?)~~/g, '<s>$1</s>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__(.+?)__/g, '<u>$1</u>');
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    s = s.replace(/_(.+?)_/g, '<em>$1</em>');
+    return s;
+  }
+
+  function renderAnnouncementMarkdown(text) {
+    var segments = [];
+    var listItems = null;
+    String(text || '').split(/\r?\n/).forEach(function (line) {
+      var bullet = line.match(/^\s*[-*]\s+(.*)$/);
+      if (bullet) {
+        listItems = listItems || [];
+        listItems.push('<li>' + mdInline(bullet[1]) + '</li>');
+        return;
+      }
+      if (listItems) { segments.push('<ul>' + listItems.join('') + '</ul>'); listItems = null; }
+      segments.push(mdInline(line));
+    });
+    if (listItems) { segments.push('<ul>' + listItems.join('') + '</ul>'); }
+    // Join with <br>, but don't add breaks directly around list blocks.
+    return segments.join('<br>').replace(/<br>(<ul>)/g, '$1').replace(/(<\/ul>)<br>/g, '$1');
+  }
+
   function renderAnnouncementInner(box) {
     box.innerHTML = '';
     var hasText = !!(announcement.text && announcement.text.trim());
@@ -875,11 +909,11 @@
       box.style.color = c.fg;
       box.style.border = '0';
       var txt = document.createElement('span');
-      // N22: wrap onto up to 3 lines (clamped) instead of a single truncated line, so longer
-      // announcements stay readable in the space between Home and the logo.
-      txt.style.cssText = 'overflow:hidden;white-space:normal;word-break:break-word;line-height:1.2;'
-        + 'display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;';
-      txt.textContent = announcement.text;
+      // Render the announcement as light markdown (bold/italic/underline/strikethrough, line breaks,
+      // bullet lists). Bounded height with scroll so a long announcement never pushes the header layout.
+      txt.className = 'jcAnnounceText';
+      txt.style.cssText = 'overflow-y:auto;white-space:normal;word-break:break-word;line-height:1.3;max-height:4.5em;';
+      txt.innerHTML = renderAnnouncementMarkdown(announcement.text);
       txt.title = announcement.text;
       box.appendChild(txt);
     } else {
@@ -1000,7 +1034,9 @@
       '.skinHeader .headerHomeButton,.skinHeader .pageTitleWithLogo,.skinHeader .pageTitle{cursor:pointer;}' +
       // The nav tabs row sits a few px higher than the rest of the bar; nudge our injected elements
       // (announcement, bell, quota) up to line up with it.
-      '.skinHeader .jcHeaderAnnounce,.skinHeader .jcHeaderBell,.skinHeader .jcHeaderQuota{position:relative;top:-4px;}';
+      '.skinHeader .jcHeaderAnnounce,.skinHeader .jcHeaderBell,.skinHeader .jcHeaderQuota{position:relative;top:-4px;}' +
+      // Compact bullet lists inside the (markdown) announcement.
+      '.jcAnnounceText ul{margin:.15em 0;padding-left:1.1em;}.jcAnnounceText li{margin:0;}';
     document.head.appendChild(style);
   }
 

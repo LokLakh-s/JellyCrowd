@@ -373,17 +373,10 @@
     return map[r.Status] != null ? map[r.Status] : 0;
   }
 
-  // Sort tier for a request — lower sorts higher. Order: Pending, Approved, Downloading, Deletion
-  // requested, Unreleased (scheduled), Available, Denied.
+  // Sort tier for a request (delegated to the shared lib so it's unit-tested): Pending, Approved,
+  // Downloading, Deletion-requested, Unreleased, Available, Denied.
   function rankOf(r) {
-    if (r.DeletionRequestedAt) { return 3; }
-    var st = statusInt(r);
-    if (st === 3) { return 5; } // available
-    if (st === 2) { return 6; } // denied
-    if (r.DesiredAt && new Date(r.DesiredAt).getTime() > Date.now()) { return 4; } // unreleased / scheduled
-    if (downloadingIds[r.Id]) { return 2; } // downloading
-    if (st === 1) { return 1; } // approved
-    return 0; // pending
+    return lib.requestSortRank(r, !!downloadingIds[r.Id]);
   }
 
   // A row's tier is the highest-priority (lowest) tier among its request(s) — an aggregated season row
