@@ -117,7 +117,7 @@ public class QuotaController : ControllerBase
         Season = r.Season,
         Episode = r.Episode,
         JellyfinItemId = r.JellyfinItemId,
-        SizeBytes = _libraryMatcher.GetSizeBytes(r.MediaType, r.TmdbId),
+        SizeBytes = _libraryMatcher.GetSizeBytes(r.MediaType, r.TmdbId, r.Season, r.Episode),
         DeletionRequestedAt = r.DeletionRequestedAt,
         DeletionAt = r.DeletionRequestedAt?.AddHours(retentionHours),
         ExpiresAt = (expiryDays > 0 && r.AvailableAt is { } at) ? at.AddDays(expiryDays) : null

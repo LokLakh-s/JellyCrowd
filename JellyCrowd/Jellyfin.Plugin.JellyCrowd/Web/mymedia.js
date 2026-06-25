@@ -405,7 +405,7 @@
       }
       var key = String(item.TmdbId);
       if (!seriesGroups[key]) {
-        seriesGroups[key] = { title: lib.formatTitle(item), poster: item.PosterPath, jellyfinItemId: item.JellyfinItemId, items: [], sizeByTmdb: item.SizeBytes || 0 };
+        seriesGroups[key] = { title: lib.formatTitle(item), poster: item.PosterPath, jellyfinItemId: item.JellyfinItemId, items: [] };
         order.push(key);
       }
       seriesGroups[key].items.push(item);
@@ -419,8 +419,8 @@
         poster: g.poster,
         jellyfinItemId: g.jellyfinItemId,
         items: g.items,
-        // SizeBytes is the whole-series size (same on every row), so take it once — don't sum.
-        totalSize: g.sizeByTmdb,
+        // SizeBytes is now per-season/episode, so the series total is the sum of its rows.
+        totalSize: g.items.reduce(function (sum, r) { return sum + (r.SizeBytes || 0); }, 0),
         seasons: groupSeasons(g.items)
       }));
     });

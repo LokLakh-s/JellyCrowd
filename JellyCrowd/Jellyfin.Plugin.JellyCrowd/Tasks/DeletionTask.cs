@@ -21,6 +21,7 @@ public sealed class DeletionTask : IScheduledTask
   private readonly IRequestStore _store;
   private readonly IMediaDeleter _mediaDeleter;
   private readonly IDownloadDispatcher _downloadDispatcher;
+  private readonly ILibraryMatcher _libraryMatcher;
   private readonly INotificationService _notificationService;
   private readonly Func<PluginConfiguration> _configurationProvider;
   private readonly ILogger<DeletionTask> _logger;
@@ -31,14 +32,16 @@ public sealed class DeletionTask : IScheduledTask
   /// <param name="store">The request store.</param>
   /// <param name="mediaDeleter">The media deleter.</param>
   /// <param name="downloadDispatcher">The download dispatcher (to purge the backend on full deletion).</param>
+  /// <param name="libraryMatcher">The library matcher (to resolve the season/episode item to delete).</param>
   /// <param name="notificationService">The notification service, used to warn owners on expiry.</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, INotificationService notificationService, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
+  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, ILibraryMatcher libraryMatcher, INotificationService notificationService, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
   {
     _store = store;
     _mediaDeleter = mediaDeleter;
     _downloadDispatcher = downloadDispatcher;
+    _libraryMatcher = libraryMatcher;
     _notificationService = notificationService;
     _configurationProvider = configurationProvider;
     _logger = logger;
@@ -93,9 +96,12 @@ public sealed class DeletionTask : IScheduledTask
           continue;
         }
 
-        if (!string.IsNullOrEmpty(request.JellyfinItemId))
+        // Delete the right Jellyfin item: a season request removes the whole Season folder, an episode
+        // request just that episode, a movie/whole-series request the stored item.
+        var itemId = ResolveDeletionItemId(request);
+        if (!string.IsNullOrEmpty(itemId))
         {
-          _mediaDeleter.Delete(request.JellyfinItemId);
+          _mediaDeleter.Delete(itemId);
         }
       }
 
@@ -134,6 +140,24 @@ public sealed class DeletionTask : IScheduledTask
     }
 
     progress.Report(100);
+  }
+
+  // The Jellyfin item to delete: a season folder for a per-season request, the episode for a per-episode
+  // request, otherwise the stored item (movie / whole series). Falls back to the stored id when the
+  // season/episode item can't be resolved.
+  private string? ResolveDeletionItemId(Models.RequestRecord request)
+  {
+    if (string.Equals(request.MediaType, "tv", StringComparison.Ordinal) && request.Season is int season)
+    {
+      if (request.Episode is int episode)
+      {
+        return _libraryMatcher.FindEpisodeItemId(request.TmdbId, season, episode) ?? request.JellyfinItemId;
+      }
+
+      return _libraryMatcher.FindSeasonItemId(request.TmdbId, season) ?? request.JellyfinItemId;
+    }
+
+    return request.JellyfinItemId;
   }
 
   private static bool PurgeGraceElapsed(Models.RequestRecord request, int retentionHours)

@@ -123,4 +123,36 @@ public static class ServarrPayload
 
     return changed;
   }
+
+  /// <summary>
+  /// Mutates an existing Sonarr series body so the given season is <b>unmonitored</b> (so Sonarr won't
+  /// re-grab it after its files are deleted). Leaves the series and other seasons untouched. Returns
+  /// <c>true</c> if the season's flag changed.
+  /// </summary>
+  /// <param name="series">The full series resource fetched from Sonarr.</param>
+  /// <param name="season">The season to unmonitor.</param>
+  /// <returns><c>true</c> when the season's monitored flag was changed.</returns>
+  public static bool UnmonitorSeason(JsonObject series, int season)
+  {
+    ArgumentNullException.ThrowIfNull(series);
+    if (series["seasons"] is not JsonArray seasons)
+    {
+      return false;
+    }
+
+    foreach (var node in seasons)
+    {
+      if (node is JsonObject seasonObj
+          && seasonObj["seasonNumber"] is JsonValue numberValue
+          && numberValue.TryGetValue<int>(out var number)
+          && number == season)
+      {
+        var wasMonitored = seasonObj["monitored"] is not JsonValue sv || !sv.TryGetValue<bool>(out var b) || b;
+        seasonObj["monitored"] = false;
+        return wasMonitored;
+      }
+    }
+
+    return false;
+  }
 }

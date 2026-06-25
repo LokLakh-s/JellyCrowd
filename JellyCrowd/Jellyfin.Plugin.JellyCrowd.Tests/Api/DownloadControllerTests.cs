@@ -102,6 +102,10 @@ public class DownloadControllerTests
 
     public Task DeleteSeriesAsync(string baseUrl, string apiKey, int seriesId, bool deleteFiles, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task DeleteEpisodeFileAsync(string baseUrl, string apiKey, int episodeFileId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task SetEpisodesMonitoredAsync(string baseUrl, string apiKey, System.Collections.Generic.IReadOnlyList<int> episodeIds, bool monitored, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken) => Task.FromResult("[]");
 
     public Task<JsonObject?> GetMovieByTmdbAsync(string baseUrl, string apiKey, int tmdbId, CancellationToken cancellationToken) => Task.FromResult<JsonObject?>(null);

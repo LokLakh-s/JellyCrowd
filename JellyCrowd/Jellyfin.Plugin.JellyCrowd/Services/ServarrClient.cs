@@ -174,6 +174,30 @@ public sealed class ServarrClient : IServarrClient
   }
 
   /// <inheritdoc />
+  public async Task DeleteEpisodeFileAsync(string baseUrl, string apiKey, int episodeFileId, CancellationToken cancellationToken)
+  {
+    var path = "/episodefile/" + episodeFileId.ToString(CultureInfo.InvariantCulture);
+    using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
+    var client = _httpClientFactory.CreateClient(NamedClient.Default);
+    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    response.EnsureSuccessStatusCode();
+  }
+
+  /// <inheritdoc />
+  public Task SetEpisodesMonitoredAsync(string baseUrl, string apiKey, System.Collections.Generic.IReadOnlyList<int> episodeIds, bool monitored, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(episodeIds);
+    var ids = new JsonArray();
+    foreach (var id in episodeIds)
+    {
+      ids.Add(id);
+    }
+
+    var body = new JsonObject { ["episodeIds"] = ids, ["monitored"] = monitored };
+    return PutAsync(baseUrl, apiKey, "/episode/monitor", body, cancellationToken);
+  }
+
+  /// <inheritdoc />
   public async Task DeleteQueueItemAsync(string baseUrl, string apiKey, int queueItemId, bool removeFromClient, bool blocklist, CancellationToken cancellationToken)
   {
     var path = string.Format(

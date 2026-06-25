@@ -169,6 +169,28 @@ public interface IServarrClient
   Task DeleteSeriesAsync(string baseUrl, string apiKey, int seriesId, bool deleteFiles, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Deletes a single episode file from Sonarr and disk (<c>DELETE /api/v3/episodefile/{id}</c>).
+  /// </summary>
+  /// <param name="baseUrl">The Sonarr base URL.</param>
+  /// <param name="apiKey">The Sonarr API key.</param>
+  /// <param name="episodeFileId">The Sonarr episode-file id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the file is removed.</returns>
+  Task DeleteEpisodeFileAsync(string baseUrl, string apiKey, int episodeFileId, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Sets the monitored flag on specific episodes (<c>PUT /api/v3/episode/monitor</c>), e.g. to stop
+  /// Sonarr re-grabbing an episode that was deleted.
+  /// </summary>
+  /// <param name="baseUrl">The Sonarr base URL.</param>
+  /// <param name="apiKey">The Sonarr API key.</param>
+  /// <param name="episodeIds">The Sonarr episode ids.</param>
+  /// <param name="monitored">The monitored value to set.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the episodes are updated.</returns>
+  Task SetEpisodesMonitoredAsync(string baseUrl, string apiKey, System.Collections.Generic.IReadOnlyList<int> episodeIds, bool monitored, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Removes a queue item (<c>DELETE /api/v3/queue/{id}</c>), optionally also removing the active
   /// download from the download client — needed so a cancel actually stops the grab (e.g. in RDT).
   /// </summary>
