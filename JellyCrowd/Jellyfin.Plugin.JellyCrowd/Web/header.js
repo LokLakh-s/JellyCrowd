@@ -980,7 +980,10 @@
       // Some library types (Other/Books) hide the empty tab row — keep it shown when it hosts our nav.
       '.headerTabs:has(.jcHeaderNav){display:flex !important;justify-content:center;}' +
       // The header logo / home button is a link to Home — show it as one (pointer cursor on hover).
-      '.skinHeader .headerHomeButton,.skinHeader .pageTitleWithLogo,.skinHeader .pageTitle{cursor:pointer;}';
+      '.skinHeader .headerHomeButton,.skinHeader .pageTitleWithLogo,.skinHeader .pageTitle{cursor:pointer;}' +
+      // The nav tabs row sits a few px higher than the rest of the bar; nudge our injected elements
+      // (announcement, bell, quota) up to line up with it.
+      '.skinHeader .jcHeaderAnnounce,.skinHeader .jcHeaderBell,.skinHeader .jcHeaderQuota{position:relative;top:-4px;}';
     document.head.appendChild(style);
   }
 
