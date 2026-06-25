@@ -37,12 +37,31 @@ public interface ILibraryMatcher
   string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode);
 
   /// <summary>
+  /// Finds the Jellyfin item id of a show's season (for deleting just that season's folder), or <c>null</c>.
+  /// </summary>
+  /// <param name="seriesTmdbId">The show's TMDB identifier.</param>
+  /// <param name="season">The season number.</param>
+  /// <returns>The season item id, or <c>null</c> when not present.</returns>
+  string? FindSeasonItemId(int seriesTmdbId, int season);
+
+  /// <summary>
   /// Gets the on-disk size (in bytes) of the matching library item(s), summing episodes for shows.
   /// </summary>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
   /// <param name="tmdbId">The TMDB identifier.</param>
   /// <returns>The total size in bytes, or 0 when nothing matches.</returns>
   long GetSizeBytes(string mediaType, int tmdbId);
+
+  /// <summary>
+  /// Gets the on-disk size (in bytes) of a specific season/episode of a show (or the whole title when
+  /// <paramref name="season"/> is <c>null</c>), so per-season/episode requests count only their own space.
+  /// </summary>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="tmdbId">The TMDB identifier.</param>
+  /// <param name="season">The season number, or <c>null</c> for the whole title.</param>
+  /// <param name="episode">The episode number, or <c>null</c> for the whole season.</param>
+  /// <returns>The size in bytes, or 0 when nothing matches.</returns>
+  long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode);
 
   /// <summary>
   /// Lists every movie/show in the library that carries a TMDB id (id, type, title, size), for the

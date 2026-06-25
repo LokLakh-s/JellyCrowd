@@ -149,6 +149,10 @@ public sealed class QuotaServiceTests : IDisposable
 
     public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => _size > 0 ? "x" : null;
 
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => _size > 0 ? "x" : null;
+
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => _size;
+
     public long GetSizeBytes(string mediaType, int tmdbId) => _size;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();

@@ -97,7 +97,10 @@ public sealed class LibraryMatcher : ILibraryMatcher
   }
 
   /// <inheritdoc />
-  public long GetSizeBytes(string mediaType, int tmdbId)
+  public long GetSizeBytes(string mediaType, int tmdbId) => GetSizeBytes(mediaType, tmdbId, null, null);
+
+  /// <inheritdoc />
+  public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode)
   {
     var kind = MediaTypeToKind(mediaType);
     if (kind is null)
@@ -118,10 +121,49 @@ public sealed class LibraryMatcher : ILibraryMatcher
     long total = 0;
     foreach (var item in matches)
     {
-      total += kind.Value == BaseItemKind.Series ? SumEpisodeSizes(item) : item.Size ?? 0;
+      // For shows, count only the requested season/episode's files (so quota frees the right space on
+      // a per-season/episode deletion); a whole-series request (season == null) sums everything.
+      total += kind.Value == BaseItemKind.Series ? SumEpisodeSizes(item, season, episode) : item.Size ?? 0;
     }
 
     return total;
+  }
+
+  /// <inheritdoc />
+  public string? FindSeasonItemId(int seriesTmdbId, int season)
+  {
+    var series = _libraryManager.GetItemList(new InternalItemsQuery
+    {
+      IncludeItemTypes = new[] { BaseItemKind.Series },
+      HasAnyProviderId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+      {
+        [MetadataProvider.Tmdb.ToString()] = seriesTmdbId.ToString(CultureInfo.InvariantCulture)
+      },
+      Recursive = true,
+      Limit = 1
+    });
+
+    if (series.Count == 0)
+    {
+      return null;
+    }
+
+    var seasons = _libraryManager.GetItemList(new InternalItemsQuery
+    {
+      IncludeItemTypes = new[] { BaseItemKind.Season },
+      AncestorIds = new[] { series[0].Id },
+      Recursive = true
+    });
+
+    foreach (var item in seasons)
+    {
+      if (item.IndexNumber == season)
+      {
+        return item.Id.ToString("N", CultureInfo.InvariantCulture);
+      }
+    }
+
+    return null;
   }
 
   /// <inheritdoc />
@@ -159,19 +201,30 @@ public sealed class LibraryMatcher : ILibraryMatcher
     return result;
   }
 
-  private long SumEpisodeSizes(BaseItem series)
+  private long SumEpisodeSizes(BaseItem series, int? season = null, int? episode = null)
   {
-    var episodes = _libraryManager.GetItemList(new InternalItemsQuery
+    var query = new InternalItemsQuery
     {
       IncludeItemTypes = new[] { BaseItemKind.Episode },
       AncestorIds = new[] { series.Id },
       Recursive = true
-    });
+    };
+    if (season is not null)
+    {
+      query.ParentIndexNumber = season;
+    }
+
+    if (episode is not null)
+    {
+      query.IndexNumber = episode;
+    }
+
+    var episodes = _libraryManager.GetItemList(query);
 
     long total = 0;
-    foreach (var episode in episodes)
+    foreach (var item in episodes)
     {
-      total += episode.Size ?? 0;
+      total += item.Size ?? 0;
     }
 
     return total;

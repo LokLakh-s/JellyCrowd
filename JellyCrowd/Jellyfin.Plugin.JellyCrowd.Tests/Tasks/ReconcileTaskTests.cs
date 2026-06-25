@@ -133,7 +133,11 @@ public sealed class ReconcileTaskTests : IDisposable
 
     public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => _result ? "x" : null;
 
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => _result ? "x" : null;
+
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }
@@ -155,7 +159,11 @@ public sealed class ReconcileTaskTests : IDisposable
 
     public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => _episodeFound ? "episode" : null;
 
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => _seriesFound ? "season" : null;
+
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }

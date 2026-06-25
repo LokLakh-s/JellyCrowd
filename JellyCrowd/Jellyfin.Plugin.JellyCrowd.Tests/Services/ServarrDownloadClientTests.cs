@@ -190,7 +190,7 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
-  public async Task PurgeAsync_Show_DeletesWholeSeriesFromSonarr()
+  public async Task PurgeAsync_WholeShow_DeletesEntireSeriesFromSonarr()
   {
     var servarr = new Mock<IServarrClient>();
     servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>()))
@@ -201,10 +201,61 @@ public class ServarrDownloadClientTests
     tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
     var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
 
-    // A single-season request, but a permanent purge removes the entire (unowned) series.
-    await client.PurgeAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 1 }, CancellationToken.None);
+    // A whole-show request (no season) → remove the entire series.
+    await client.PurgeAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB" }, CancellationToken.None);
 
     servarr.Verify(s => s.DeleteSeriesAsync("http://localhost:8989", "sk", 7, true, It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task PurgeAsync_Season_UnmonitorsSeasonAndDeletesItsFiles_NotWholeSeries()
+  {
+    var series = new JsonObject
+    {
+      ["id"] = 7,
+      ["monitored"] = true,
+      ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 1, ["monitored"] = true })
+    };
+    var episodes = "[ { \"id\": 11, \"seasonNumber\": 1, \"episodeNumber\": 1, \"episodeFileId\": 101 },"
+      + " { \"id\": 12, \"seasonNumber\": 1, \"episodeNumber\": 2, \"episodeFileId\": 102 },"
+      + " { \"id\": 21, \"seasonNumber\": 2, \"episodeNumber\": 1, \"episodeFileId\": 201 } ]";
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>())).ReturnsAsync("{ \"records\": [] }");
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>())).ReturnsAsync(series);
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 7, It.IsAny<CancellationToken>())).ReturnsAsync(episodes);
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.PurgeAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 1 }, CancellationToken.None);
+
+    servarr.Verify(s => s.DeleteSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.UpdateSeriesAsync("http://localhost:8989", "sk", 7, It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.DeleteEpisodeFileAsync("http://localhost:8989", "sk", 101, It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.DeleteEpisodeFileAsync("http://localhost:8989", "sk", 102, It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.DeleteEpisodeFileAsync("http://localhost:8989", "sk", 201, It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task PurgeAsync_Episode_DeletesOnlyThatEpisodeFile_AndUnmonitorsEpisode()
+  {
+    var series = new JsonObject { ["id"] = 7, ["seasons"] = new JsonArray() };
+    var episodes = "[ { \"id\": 11, \"seasonNumber\": 1, \"episodeNumber\": 1, \"episodeFileId\": 101 },"
+      + " { \"id\": 12, \"seasonNumber\": 1, \"episodeNumber\": 2, \"episodeFileId\": 102 } ]";
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>())).ReturnsAsync("{ \"records\": [] }");
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>())).ReturnsAsync(series);
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 7, It.IsAny<CancellationToken>())).ReturnsAsync(episodes);
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.PurgeAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 1, Episode = 2 }, CancellationToken.None);
+
+    servarr.Verify(s => s.DeleteEpisodeFileAsync("http://localhost:8989", "sk", 102, It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.DeleteEpisodeFileAsync("http://localhost:8989", "sk", 101, It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.SetEpisodesMonitoredAsync("http://localhost:8989", "sk", It.Is<System.Collections.Generic.IReadOnlyList<int>>(l => l.Count == 1 && l[0] == 12), false, It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.DeleteSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
   }
 
   [Fact]

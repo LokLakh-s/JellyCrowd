@@ -462,6 +462,10 @@ public class RequestsControllerTests
 
     public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => "item-" + seriesTmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => "season-" + seriesTmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
+
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();

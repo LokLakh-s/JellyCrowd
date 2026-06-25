@@ -80,7 +80,7 @@ public sealed class QuotaService : IQuotaService
       {
         if (counted.Add(TitleKey(request)))
         {
-          used += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId);
+          used += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
         }
       }
       else if (request.Status is RequestStatus.Pending or RequestStatus.Approved)
@@ -129,7 +129,7 @@ public sealed class QuotaService : IQuotaService
       {
         if (counted.Add(TitleKey(request)))
         {
-          committed += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId);
+          committed += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
         }
       }
       else if (request.Status is RequestStatus.Pending or RequestStatus.Approved)
@@ -142,7 +142,9 @@ public sealed class QuotaService : IQuotaService
   }
 
   private static string TitleKey(RequestRecord request)
-    => request.MediaType + ":" + request.TmdbId.ToString(CultureInfo.InvariantCulture);
+    => request.MediaType + ":" + request.TmdbId.ToString(CultureInfo.InvariantCulture)
+      + ":" + (request.Season?.ToString(CultureInfo.InvariantCulture) ?? "*")
+      + ":" + (request.Episode?.ToString(CultureInfo.InvariantCulture) ?? "*");
 
   private long EstimateBytes(string mediaType)
   {

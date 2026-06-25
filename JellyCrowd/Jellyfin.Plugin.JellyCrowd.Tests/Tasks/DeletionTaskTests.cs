@@ -40,7 +40,7 @@ public sealed class DeletionTaskTests : IDisposable
     var id = await SeedFlaggedAsync("item-abc");
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher();
-    var task = new DeletionTask(_store, deleter, dispatcher, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -55,7 +55,7 @@ public sealed class DeletionTaskTests : IDisposable
   {
     var id = await SeedFlaggedAsync("item-xyz");
     var deleter = new RecordingDeleter();
-    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -71,7 +71,7 @@ public sealed class DeletionTaskTests : IDisposable
     var id = await SeedFlaggedAsync("item-fail");
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher(purgeSucceeds: false);
-    var task = new DeletionTask(_store, deleter, dispatcher, new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -89,6 +89,23 @@ public sealed class DeletionTaskTests : IDisposable
     await _store.MarkAvailableAsync(created.Id, itemId, CancellationToken.None);
     await _store.RequestDeletionAsync(created.Id, user, CancellationToken.None);
     return created.Id;
+  }
+
+  private sealed class StubMatcher : ILibraryMatcher
+  {
+    public bool Exists(string mediaType, int tmdbId) => false;
+
+    public string? FindItemId(string mediaType, int tmdbId) => null;
+
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => null;
+
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => null;
+
+    public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }
 
   private sealed class RecordingDeleter : IMediaDeleter
