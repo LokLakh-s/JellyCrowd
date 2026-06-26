@@ -423,6 +423,18 @@
     content.appendChild(links);
 
     actAsUserId = null;
+
+    // Request controls go in a flex host (gap) so the date picker and the button aren't glued together.
+    // A movie's host sits under the poster (left column, like the catalog modal); a series keeps its
+    // full-width season list in the content column.
+    var requestHost = document.createElement('div');
+    requestHost.className = 'jellycrowd-modal-request';
+    var reqTarget = content;
+    if (item.MediaType !== 'tv' && !item.Available) {
+      leftCol.appendChild(requestHost);
+      reqTarget = requestHost;
+    }
+
     if (isAdmin) {
       var adminRow = document.createElement('div');
       adminRow.className = 'jellycrowd-admin-actas';
@@ -442,7 +454,7 @@
       adminSelect.addEventListener('change', function () { actAsUserId = adminSelect.value || null; });
       adminRow.appendChild(adminLabel);
       adminRow.appendChild(adminSelect);
-      content.appendChild(adminRow);
+      reqTarget.appendChild(adminRow);
     }
 
     if (!item.Available) {
@@ -450,7 +462,7 @@
       if (!quotaExceeded) {
         var dateRow = buildDesiredDateRow();
         dateInput = dateRow.input;
-        content.appendChild(dateRow.row);
+        reqTarget.appendChild(dateRow.row);
       }
 
       if (item.MediaType === 'tv') {
@@ -464,14 +476,14 @@
           .then(function (res) { renderSeasonRequests(seasonsEl, item, res[0], dateInput, res[1]); })
           .catch(function () { /* best-effort */ });
       } else if (quotaExceeded) {
-        content.appendChild(blockedRequestButton());
+        reqTarget.appendChild(blockedRequestButton());
       } else {
         var requestButton = document.createElement('button');
         requestButton.className = 'jellycrowd-request';
         requestButton.type = 'button';
         requestButton.textContent = t('request_button');
         requestButton.addEventListener('click', function () { requestItem(item, requestButton, null, dateInput); });
-        content.appendChild(requestButton);
+        reqTarget.appendChild(requestButton);
       }
     }
 
