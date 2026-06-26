@@ -116,6 +116,34 @@
               <div class="fieldDescription">When enabled, regular users also see who wrote each review. Off by default — reviews stay anonymous to non-admins (admins always see the author).</div>
             </div>
 
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="DiscordInviteEnabled" name="DiscordInviteEnabled" type="checkbox" is="emby-checkbox" />
+                <span>Show a Discord icon in the header</span>
+              </label>
+              <div class="fieldDescription">Adds a Discord icon on the left of the header (just after your logo) linking to the invite below. Off by default.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="DiscordInviteUrl">Discord invite URL</label>
+              <input id="DiscordInviteUrl" name="DiscordInviteUrl" type="text" is="emby-input" />
+              <div class="fieldDescription">The invite link the Discord icon opens, e.g. https://discord.gg/xxxxxxx.</div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="SupportLinkEnabled" name="SupportLinkEnabled" type="checkbox" is="emby-checkbox" />
+                <span>Show a support / donation icon in the header</span>
+              </label>
+              <div class="fieldDescription">Adds a coins icon in the header (after the Discord icon, or after your logo if Discord is off) linking to the support page below. Off by default.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="SupportLinkUrl">Support / donation URL</label>
+              <input id="SupportLinkUrl" name="SupportLinkUrl" type="text" is="emby-input" />
+              <div class="fieldDescription">The page the support icon opens (Ko-fi, Patreon, PayPal, Liberapay, etc.).</div>
+            </div>
+
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key</label>
               <input id="TmdbApiKey" name="TmdbApiKey" type="text" is="emby-input" />
@@ -1168,6 +1196,10 @@ Content-Type: application/json
             document.querySelector('#RateLimitPerMinute').value = config.RateLimitPerMinute != null ? config.RateLimitPerMinute : 120;
             document.querySelector('#CommentsEnabled').checked = !!config.CommentsEnabled;
             document.querySelector('#ShowReviewAuthors').checked = !!config.ShowReviewAuthors;
+            document.querySelector('#DiscordInviteEnabled').checked = !!config.DiscordInviteEnabled;
+            document.querySelector('#DiscordInviteUrl').value = config.DiscordInviteUrl || '';
+            document.querySelector('#SupportLinkEnabled').checked = !!config.SupportLinkEnabled;
+            document.querySelector('#SupportLinkUrl').value = config.SupportLinkUrl || '';
             document.querySelector('#EstimatedMovieSizeGiB').value = (config.EstimatedMovieSizeBytes || 0) / gib;
             document.querySelector('#EstimatedEpisodeSizeGiB').value = (config.EstimatedEpisodeSizeBytes || 0) / gib;
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
@@ -1266,6 +1298,10 @@ Content-Type: application/json
             config.RateLimitPerMinute = parseInt(document.querySelector('#RateLimitPerMinute').value || '0', 10);
             config.CommentsEnabled = document.querySelector('#CommentsEnabled').checked;
             config.ShowReviewAuthors = document.querySelector('#ShowReviewAuthors').checked;
+            config.DiscordInviteEnabled = document.querySelector('#DiscordInviteEnabled').checked;
+            config.DiscordInviteUrl = document.querySelector('#DiscordInviteUrl').value.trim();
+            config.SupportLinkEnabled = document.querySelector('#SupportLinkEnabled').checked;
+            config.SupportLinkUrl = document.querySelector('#SupportLinkUrl').value.trim();
             config.EstimatedMovieSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedMovieSizeGiB').value || '0') * gib);
             config.EstimatedEpisodeSizeBytes = Math.round(parseFloat(document.querySelector('#EstimatedEpisodeSizeGiB').value || '0') * gib);
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);

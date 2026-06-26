@@ -11,6 +11,9 @@ public class CommentDto
   /// <summary>Gets or sets the TMDB identifier.</summary>
   public int TmdbId { get; set; }
 
+  /// <summary>Gets or sets the title's display name (stored for the moderation list).</summary>
+  public string Title { get; set; } = string.Empty;
+
   /// <summary>Gets or sets the review text (optional when a rating is given).</summary>
   public string Text { get; set; } = string.Empty;
 

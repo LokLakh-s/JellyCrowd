@@ -41,11 +41,12 @@ public sealed class CommentsControllerTests : IDisposable
   [Fact]
   public async Task Post_CreatesReviewWithRatingAndResolvedName()
   {
-    var result = await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 1, Text = "  hello  ", Rating = 8 }, CancellationToken.None);
+    var result = await CreateController().Post(new CommentDto { MediaType = "movie", TmdbId = 1, Title = "  Dune  ", Text = "  hello  ", Rating = 8 }, CancellationToken.None);
 
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     var review = Assert.IsType<MediaComment>(ok.Value);
     Assert.Equal("hello", review.Text);
+    Assert.Equal("Dune", review.Title); // captured + trimmed at post time
     Assert.Equal(8, review.Rating);
     Assert.Equal("tester", review.UserName);
     Assert.Equal(User, review.UserId);
@@ -98,7 +99,7 @@ public sealed class CommentsControllerTests : IDisposable
   [Fact]
   public async Task GetAll_ReturnsEveryReviewWithHiddenFlagAndAuthor()
   {
-    var a = await _store.AddAsync(new MediaComment { MediaType = "movie", TmdbId = 1, UserId = Guid.NewGuid(), UserName = "alice", Text = "x", Rating = 7 }, CancellationToken.None);
+    var a = await _store.AddAsync(new MediaComment { MediaType = "movie", TmdbId = 1, Title = "Heat", UserId = Guid.NewGuid(), UserName = "alice", Text = "x", Rating = 7 }, CancellationToken.None);
     await _store.AddAsync(new MediaComment { MediaType = "tv", TmdbId = 2, UserId = Guid.NewGuid(), UserName = "bob", Text = "y", Rating = 3 }, CancellationToken.None);
     await CreateController().Hide(a.Id, CancellationToken.None);
 
@@ -108,6 +109,7 @@ public sealed class CommentsControllerTests : IDisposable
     Assert.Equal(2, all.Count);
     var hidden = Assert.Single(all, r => r.TmdbId == 1);
     Assert.True(hidden.Hidden);
+    Assert.Equal("Heat", hidden.Title); // title captured at post time, surfaced for moderation
     Assert.Equal("alice", hidden.UserName); // admins always see authors
   }
 

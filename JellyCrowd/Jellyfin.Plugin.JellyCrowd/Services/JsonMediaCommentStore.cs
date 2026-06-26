@@ -68,6 +68,11 @@ public sealed class JsonMediaCommentStore : IMediaCommentStore, IDisposable
         existing.Text = review.Text;
         existing.Rating = review.Rating;
         existing.UserName = review.UserName;
+        if (!string.IsNullOrEmpty(review.Title))
+        {
+          existing.Title = review.Title; // backfill the title for reviews stored before it was captured
+        }
+
         existing.CreatedAt = DateTime.UtcNow;
         existing.Hidden = false; // a fresh edit un-hides; admin can re-hide
         await SaveAsync(cancellationToken).ConfigureAwait(false);

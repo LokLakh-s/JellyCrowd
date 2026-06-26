@@ -809,7 +809,7 @@
       var rating = stars.getValue();
       if (rating < 1) { post.textContent = t('rating_required'); setTimeout(function () { post.textContent = t('review_submit'); }, 1500); return; }
       post.disabled = true;
-      apiPost('JellyCrowd/Comments', { MediaType: item.MediaType, TmdbId: item.TmdbId, Text: input.value.trim(), Rating: rating })
+      apiPost('JellyCrowd/Comments', { MediaType: item.MediaType, TmdbId: item.TmdbId, Title: item.Title || '', Text: input.value.trim(), Rating: rating })
         .then(function () { post.disabled = false; reload(); })
         .catch(function () { post.disabled = false; });
     });

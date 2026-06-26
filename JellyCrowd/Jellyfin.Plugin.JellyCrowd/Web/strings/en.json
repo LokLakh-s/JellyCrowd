@@ -5,6 +5,8 @@
   "nav_calendar": "Calendar",
   "nav_requests": "My requests",
   "nav_moderation": "Moderation",
+  "discord_link_title": "Join our Discord",
+  "support_link_title": "Support the platform",
   "moderation_subtitle": "All internal reviews — hide, show or delete any of them.",
   "moderation_empty": "No reviews to moderate.",
   "moderation_hidden": "Hidden",

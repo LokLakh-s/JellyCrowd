@@ -32,4 +32,10 @@ public class LanguageSettingDto
 
   /// <summary>Gets or sets the announcement severity colour (<c>green</c>/<c>yellow</c>/<c>red</c>).</summary>
   public string AnnouncementLevel { get; set; } = "green";
+
+  /// <summary>Gets or sets the Discord invite URL for the header icon (empty = icon hidden).</summary>
+  public string DiscordInviteUrl { get; set; } = string.Empty;
+
+  /// <summary>Gets or sets the support/donation URL for the header icon (empty = icon hidden).</summary>
+  public string SupportLinkUrl { get; set; } = string.Empty;
 }
