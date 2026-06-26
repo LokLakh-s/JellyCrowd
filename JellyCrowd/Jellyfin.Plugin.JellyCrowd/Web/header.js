@@ -875,17 +875,33 @@
     return { bg: '#2e7d32', fg: '#fff' }; // green
   }
 
-  // Minimal, safe markdown for the admin announcement: HTML-escape first, then bold (**), underline (__),
-  // italic (* or _), strikethrough (~~), bullet lists (- / *), and line breaks. The author is the admin
-  // (trusted), but we escape anyway to avoid accidental HTML injection.
-  function mdInline(s) {
-    s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Inline emphasis: strikethrough (~~), bold (**), underline (__), italic (* or _). Runs on
+  // already-escaped text and never sees link URLs (those are pulled out first), so it can't mangle them.
+  function mdEmphasis(s) {
     s = s.replace(/~~(.+?)~~/g, '<s>$1</s>');
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/__(.+?)__/g, '<u>$1</u>');
     s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
     s = s.replace(/_(.+?)_/g, '<em>$1</em>');
     return s;
+  }
+
+  // Minimal, safe markdown for the admin announcement: HTML-escape first, then [text](url) links, bold
+  // (**), underline (__), italic (* or _), strikethrough (~~), bullet lists (- / *), and line breaks.
+  // The author is the admin (trusted), but we escape anyway to avoid accidental HTML injection, and only
+  // allow http(s)/mailto URLs so a [x](javascript:…) link can't run script.
+  function mdInline(s) {
+    s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Pull links out to placeholders so the emphasis pass below can't corrupt a URL (e.g. a/b_c_d).
+    var links = [];
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, label, url) {
+      if (!/^(https?:\/\/|mailto:)/i.test(url)) { return m; }
+      var href = url.replace(/"/g, '%22');
+      links.push('<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + mdEmphasis(label) + '</a>');
+      return '@@JCLINK' + (links.length - 1) + '@@';
+    });
+    s = mdEmphasis(s);
+    return s.replace(/@@JCLINK(\d+)@@/g, function (m, i) { return links[Number(i)]; });
   }
 
   function renderAnnouncementMarkdown(text) {
