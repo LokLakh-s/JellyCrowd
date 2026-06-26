@@ -379,14 +379,19 @@
     var body = document.createElement('div');
     body.className = 'jellycrowd-modal-body';
 
+    // Poster lives in the left column (capped at ~230px) like the catalog modal — appending it straight
+    // into the flex body let `.jellycrowd-modal-poster { width:100% }` blow it up to fill the popup.
+    var leftCol = document.createElement('div');
+    leftCol.className = 'jellycrowd-modal-left';
     if (item.PosterPath) {
       var poster = document.createElement('img');
       poster.className = 'jellycrowd-modal-poster';
       poster.loading = 'lazy';
       poster.alt = item.Title || '';
       poster.src = POSTER_BASE + item.PosterPath;
-      body.appendChild(poster);
+      leftCol.appendChild(poster);
     }
+    body.appendChild(leftCol);
 
     var content = document.createElement('div');
     content.className = 'jellycrowd-modal-content';
