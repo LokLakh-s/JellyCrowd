@@ -600,8 +600,10 @@
       group = document.createElement('span');
       group.className = 'jcHeaderLinks';
       group.style.cssText = 'display:inline-flex;align-items:center;align-self:center;';
-      // Sit right after the logo / home button so the icons hug the brand on the left.
-      var anchor = left.querySelector('.pageTitleWithLogo') || left.querySelector('.headerHomeButton') || left.querySelector('.pageTitle');
+      // Sit right AFTER the logo (the page-title element) so the icons hug the brand on its right side.
+      // Note: the home button sits to the LEFT of the logo, so we must not anchor on it (that put the
+      // icons on the wrong side); fall back to the end of the left cluster (still right of the logo).
+      var anchor = left.querySelector('.pageTitleWithLogo') || left.querySelector('.pageTitle');
       if (anchor) { anchor.insertAdjacentElement('afterend', group); } else { left.appendChild(group); }
     }
     if (discordUrl && !group.querySelector('.jcHeaderLink-discord')) {
