@@ -306,6 +306,54 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
+  /// Lists who currently owns which media (administrators only): every available title grouped by its
+  /// exact scope (movie, or a TV season/episode), with the owning users.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">Media ownerships, by title.</response>
+  /// <returns>The ownership map.</returns>
+  [HttpGet("Ownerships")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<IReadOnlyList<MediaOwnershipDto>>> Ownerships(CancellationToken cancellationToken)
+  {
+    var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+
+    var result = all
+      .Where(r => r.Status == RequestStatus.Available)
+      .GroupBy(r => r.MediaType + ":" + r.TmdbId + ":" + (r.Season?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*")
+        + ":" + (r.Episode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "*"))
+      .Select(g =>
+      {
+        var first = g.First();
+        var dto = new MediaOwnershipDto
+        {
+          MediaType = first.MediaType,
+          TmdbId = first.TmdbId,
+          Title = first.Title,
+          PosterPath = first.PosterPath,
+          Season = first.Season,
+          Episode = first.Episode
+        };
+        foreach (var owner in g
+          .GroupBy(r => r.UserId)
+          .Select(u => new OwnerDto { Name = _resolveUserName(u.Key), SinceUtc = u.Max(r => r.AvailableAt) })
+          .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase))
+        {
+          dto.Owners.Add(owner);
+        }
+
+        return dto;
+      })
+      .OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+      .ThenBy(d => d.Season ?? 0)
+      .ThenBy(d => d.Episode ?? 0)
+      .ToList();
+
+    return Ok(result);
+  }
+
+  /// <summary>
   /// Live download status (Radarr/Sonarr queue) for every request (administrators only) — lets the
   /// admin requests table show a "Downloading" badge.
   /// </summary>

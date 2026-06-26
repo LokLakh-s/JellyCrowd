@@ -309,6 +309,71 @@ body.jellycrowd-overlay-open {
   gap: 0.5em;
 }
 
+/* Ownership page: filter box + one card per owned title with its owner chips. */
+.jellycrowd-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.8em;
+  padding: 0.45em 0.7em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+}
+
+.jellycrowd-own-row {
+  display: flex;
+  gap: 0.7em;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.4em;
+  padding: 0.6em 0.8em;
+  margin-bottom: 0.6em;
+}
+
+.jellycrowd-own-poster {
+  width: 46px;
+  height: 69px;
+  object-fit: cover;
+  border-radius: 0.25em;
+  flex: 0 0 auto;
+}
+
+.jellycrowd-own-body { flex: 1; min-width: 0; }
+
+.jellycrowd-own-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin-bottom: 0.4em;
+}
+
+.jellycrowd-own-title { font-weight: 600; }
+
+.jellycrowd-own-scope {
+  background: rgba(0, 164, 220, 0.85);
+  color: #fff;
+  border-radius: 0.3em;
+  padding: 0 0.4em;
+  font-size: 0.8em;
+}
+
+.jellycrowd-own-count { opacity: 0.6; font-size: 0.85em; }
+
+.jellycrowd-own-owners {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+}
+
+.jellycrowd-own-owner {
+  background: rgba(76, 175, 80, 0.2);
+  border: 1px solid rgba(76, 175, 80, 0.5);
+  border-radius: 0.9em;
+  padding: 0.1em 0.6em;
+  font-size: 0.85em;
+}
+
 .jellycrowd-comment-form {
   display: flex;
   flex-direction: column;
