@@ -104,6 +104,30 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Ownerships_GroupsAvailableByTitleWithOwners()
+  {
+    var store = new FakeRequestStore();
+    var u1 = Guid.NewGuid();
+    var u2 = Guid.NewGuid();
+    // Two users own the same movie; a pending request must NOT count; a TV season is its own group.
+    await store.CreateAsync(new RequestRecord { UserId = u1, TmdbId = 1, MediaType = "movie", Title = "Dune", Status = RequestStatus.Available }, CancellationToken.None);
+    await store.CreateAsync(new RequestRecord { UserId = u2, TmdbId = 1, MediaType = "movie", Title = "Dune", Status = RequestStatus.Available }, CancellationToken.None);
+    await store.CreateAsync(new RequestRecord { UserId = u1, TmdbId = 1, MediaType = "movie", Title = "Dune", Status = RequestStatus.Pending }, CancellationToken.None);
+    await store.CreateAsync(new RequestRecord { UserId = u2, TmdbId = 9, MediaType = "tv", Title = "Show", Season = 2, Status = RequestStatus.Available }, CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>((await CreateController(store).Ownerships(CancellationToken.None)).Result);
+    var list = Assert.IsAssignableFrom<IReadOnlyList<MediaOwnershipDto>>(ok.Value);
+
+    Assert.Equal(2, list.Count);
+    var movie = Assert.Single(list, d => d.TmdbId == 1);
+    Assert.Equal(2, movie.Owners.Count); // two distinct owners, pending excluded
+    Assert.Null(movie.Season);
+    var season = Assert.Single(list, d => d.TmdbId == 9);
+    Assert.Equal(2, season.Season);
+    Assert.Single(season.Owners);
+  }
+
+  [Fact]
   public async Task Create_InvalidMediaType_ReturnsBadRequest()
   {
     var controller = CreateController(new FakeRequestStore());

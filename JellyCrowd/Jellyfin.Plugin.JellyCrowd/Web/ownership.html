@@ -1,0 +1,50 @@
+<!--
+  Jelly Crowd "Ownership" page (admin only). Shows who currently owns which media. Fetched and injected
+  as a fragment like the other views, so it carries no <html>/<head>/<body> and loads assets via
+  absolute URLs.
+-->
+<div id="jellyCrowdOwnership" class="jellycrowd">
+  <header class="jellycrowd-header">
+    <div class="jellycrowd-brand">
+      <img id="jcOwnLogo" class="jellycrowd-logo" alt="" />
+      <h1 id="jcOwnTitle" class="jellycrowd-title"></h1>
+    </div>
+  </header>
+  <p id="jcOwnSubtitle" class="jellycrowd-disclaimer"></p>
+  <section class="jellycrowd-section">
+    <input id="jcOwnFilter" class="jellycrowd-search-input" type="search" />
+    <p id="jcOwnMessage" class="jellycrowd-message" hidden></p>
+    <div id="jcOwnList" class="jellycrowd-list" aria-live="polite"></div>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var get = (window.ApiClient && window.ApiClient.getUrl)
+      ? function (p) { return window.ApiClient.getUrl(p); }
+      : function (p) { return '/' + p; };
+
+    if (!document.getElementById('jellycrowd-css')) {
+      var css = document.createElement('link');
+      css.id = 'jellycrowd-css';
+      css.rel = 'stylesheet';
+      css.href = get('JellyCrowd/Web/jellycrowd.css');
+      document.head.appendChild(css);
+    }
+
+    function start() {
+      var s = document.createElement('script');
+      s.src = get('JellyCrowd/Web/ownership.js');
+      document.head.appendChild(s);
+    }
+
+    if (window.JellyCrowdLib) {
+      start();
+    } else {
+      var lib = document.createElement('script');
+      lib.src = get('JellyCrowd/Web/catalog.lib.js');
+      lib.onload = start;
+      document.head.appendChild(lib);
+    }
+  })();
+</script>
