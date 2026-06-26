@@ -20,7 +20,8 @@
     { id: 'catalog', file: 'catalog.html', labelKey: 'nav_catalog' },
     { id: 'calendar', file: 'calendar.html', labelKey: 'nav_calendar' },
     { id: 'requests', file: 'requests.html', labelKey: 'nav_requests' },
-    { id: 'mymedia', file: 'mymedia.html', labelKey: 'my_media_title' }
+    { id: 'mymedia', file: 'mymedia.html', labelKey: 'my_media_title' },
+    { id: 'moderation', file: 'moderation.html', labelKey: 'nav_moderation' }
   ];
 
   var overlay = null;
@@ -510,8 +511,19 @@
   // the centered .headerTabs row. That row is page-specific (shown on Home / library pages, hidden on
   // detail / search / settings), so these links follow the same visibility — by design. Jellyfin
   // rebuilds the tab bar on navigation, so the MutationObserver re-inserts us whenever it's wiped.
+  // The admin-only "Moderation" tab is added last and only once admin status is known. It can resolve
+  // after the first insertNav, so this runs again from tryInsert() to top up an already-built nav.
+  function ensureModerationTab(nav) {
+    if (!isAdmin || headerNavButtons.moderation) {
+      return;
+    }
+    nav.appendChild(navButton('nav_moderation', 'moderation'));
+  }
+
   function insertNav() {
-    if (document.querySelector('.jcHeaderNav')) {
+    var existingNav = document.querySelector('.jcHeaderNav');
+    if (existingNav) {
+      ensureModerationTab(existingNav); // admin status may have resolved since the first insert
       return;
     }
     // Prefer the native tabs row (centered). Fall back to the header's left area for library types
@@ -528,6 +540,7 @@
     nav.appendChild(navButton('nav_catalog', 'catalog'));
     nav.appendChild(navButton('nav_calendar', 'calendar'));
     nav.appendChild(navButton('nav_requests', 'requests'));
+    ensureModerationTab(nav);
     // Sit on the same line as the real tabs when the slider exists, else in the row/host itself.
     var slider = tabs ? tabs.querySelector('.emby-tabs-slider') : null;
     (slider || host).appendChild(nav);

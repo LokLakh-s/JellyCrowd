@@ -268,6 +268,47 @@ body.jellycrowd-overlay-open {
 
 .jellycrowd-comment-text { white-space: pre-wrap; }
 
+/* Moderation page: one card per review across all titles, with hide/show + delete actions. */
+.jellycrowd-mod-row {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.4em;
+  padding: 0.6em 0.8em;
+  margin-bottom: 0.6em;
+}
+
+.jellycrowd-mod-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  font-size: 0.85em;
+  margin-bottom: 0.3em;
+}
+
+.jellycrowd-mod-rating { color: #f5c518; }
+
+.jellycrowd-mod-author { font-weight: 600; }
+
+.jellycrowd-mod-date { opacity: 0.7; }
+
+.jellycrowd-mod-hidden-badge {
+  background: rgba(198, 40, 40, 0.85);
+  color: #fff;
+  border-radius: 0.3em;
+  padding: 0 0.4em;
+  font-size: 0.85em;
+}
+
+.jellycrowd-mod-text {
+  white-space: pre-wrap;
+  margin-bottom: 0.5em;
+}
+
+.jellycrowd-mod-actions {
+  display: flex;
+  gap: 0.5em;
+}
+
 .jellycrowd-comment-form {
   display: flex;
   flex-direction: column;
