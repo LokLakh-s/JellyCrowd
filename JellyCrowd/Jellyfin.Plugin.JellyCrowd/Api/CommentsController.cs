@@ -173,6 +173,33 @@ public class CommentsController : ControllerBase
   }
 
   /// <summary>
+  /// Gets every review across all titles for the admin Moderation page, newest first (administrators only).
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">All reviews, including hidden ones, with author names.</response>
+  /// <returns>The full list of reviews.</returns>
+  [HttpGet("All")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<IReadOnlyList<ModeratedReviewDto>>> GetAll(CancellationToken cancellationToken)
+  {
+    var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    var result = all.Select(r => new ModeratedReviewDto
+    {
+      Id = r.Id,
+      MediaType = r.MediaType,
+      TmdbId = r.TmdbId,
+      UserName = r.UserName,
+      Rating = r.Rating,
+      Text = r.Text,
+      CreatedAt = r.CreatedAt,
+      Hidden = r.Hidden
+    }).ToList();
+
+    return Ok(result);
+  }
+
+  /// <summary>
   /// Hides a comment from the public list (administrators only).
   /// </summary>
   /// <param name="id">The comment id.</param>
@@ -187,6 +214,24 @@ public class CommentsController : ControllerBase
   public async Task<IActionResult> Hide(Guid id, CancellationToken cancellationToken)
   {
     var updated = await _store.SetHiddenAsync(id, hidden: true, cancellationToken).ConfigureAwait(false);
+    return updated is null ? NotFound() : NoContent();
+  }
+
+  /// <summary>
+  /// Restores a hidden comment to the public list (administrators only).
+  /// </summary>
+  /// <param name="id">The comment id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="204">The comment was un-hidden.</response>
+  /// <response code="404">No such comment.</response>
+  /// <returns>No content on success; 404 otherwise.</returns>
+  [HttpPost("{id:guid}/Show")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  public async Task<IActionResult> Show(Guid id, CancellationToken cancellationToken)
+  {
+    var updated = await _store.SetHiddenAsync(id, hidden: false, cancellationToken).ConfigureAwait(false);
     return updated is null ? NotFound() : NoContent();
   }
 

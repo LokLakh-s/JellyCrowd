@@ -95,6 +95,35 @@ public sealed class CommentsControllerTests : IDisposable
     Assert.IsType<NotFoundResult>(result); // not the caller's comment
   }
 
+  [Fact]
+  public async Task GetAll_ReturnsEveryReviewWithHiddenFlagAndAuthor()
+  {
+    var a = await _store.AddAsync(new MediaComment { MediaType = "movie", TmdbId = 1, UserId = Guid.NewGuid(), UserName = "alice", Text = "x", Rating = 7 }, CancellationToken.None);
+    await _store.AddAsync(new MediaComment { MediaType = "tv", TmdbId = 2, UserId = Guid.NewGuid(), UserName = "bob", Text = "y", Rating = 3 }, CancellationToken.None);
+    await CreateController().Hide(a.Id, CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>((await CreateController().GetAll(CancellationToken.None)).Result);
+    var all = Assert.IsAssignableFrom<IReadOnlyList<ModeratedReviewDto>>(ok.Value);
+
+    Assert.Equal(2, all.Count);
+    var hidden = Assert.Single(all, r => r.TmdbId == 1);
+    Assert.True(hidden.Hidden);
+    Assert.Equal("alice", hidden.UserName); // admins always see authors
+  }
+
+  [Fact]
+  public async Task Show_UnhidesAHiddenReview()
+  {
+    var a = await _store.AddAsync(new MediaComment { MediaType = "movie", TmdbId = 5, UserId = Guid.NewGuid(), UserName = "a", Text = "x", Rating = 5 }, CancellationToken.None);
+    await CreateController().Hide(a.Id, CancellationToken.None);
+
+    var result = await CreateController().Show(a.Id, CancellationToken.None);
+
+    Assert.IsType<NoContentResult>(result);
+    var refreshed = await _store.GetByIdAsync(a.Id, CancellationToken.None);
+    Assert.False(refreshed!.Hidden);
+  }
+
   private sealed class FakeUserAccessor : ICurrentUserAccessor
   {
     public Task<Guid> GetUserIdAsync(HttpRequest request) => Task.FromResult(User);

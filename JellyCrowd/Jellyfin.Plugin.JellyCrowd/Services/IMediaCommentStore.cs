@@ -62,4 +62,11 @@ public interface IMediaCommentStore
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The comment, or <c>null</c>.</returns>
   Task<MediaComment?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets every stored review across all titles, newest first (admin moderation).
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>All reviews, including hidden ones.</returns>
+  Task<IReadOnlyList<MediaComment>> GetAllAsync(CancellationToken cancellationToken);
 }

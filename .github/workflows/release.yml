@@ -1,9 +1,10 @@
 name: Release
 
-# Automatic semantic versioning driven by a keyword in the commit message:
-#   [major] / #major  -> bump MAJOR (x+1.0.0)
-#   [minor] / #minor  -> bump MINOR (x.y+1.0)
-#   anything else     -> bump PATCH (x.y.z+1)
+# Automatic 4-part versioning (major.minor.patch.revision) driven by a keyword in the commit message:
+#   [major]    / #major                   -> bump MAJOR    (x+1.0.0.0)
+#   [minor]    / #minor                    -> bump MINOR    (x.y+1.0.0)
+#   [revision] / #revision / [hotfix] / [build] -> bump REVISION (x.y.z.w+1) — stay on the x.y.z line
+#   anything else                          -> bump PATCH    (x.y.z+1.0)
 # Skip a release entirely with [skip release] in the commit message.
 
 on:
@@ -58,21 +59,25 @@ jobs:
         run: |
           set -euo pipefail
           latest=$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)
-          if [ -z "$latest" ]; then base="0.1.0"; else base="${latest#v}"; fi
-          IFS='.' read -r major minor patch <<< "$base"
+          if [ -z "$latest" ]; then base="0.1.0.0"; else base="${latest#v}"; fi
+          # Parse up to 4 cells; default any missing (e.g. a legacy 3-part tag) to 0.
+          IFS='.' read -r major minor patch revision <<< "$base"
+          major=${major:-0}; minor=${minor:-0}; patch=${patch:-0}; revision=${revision:-0}
           if printf '%s' "$COMMIT_MSG" | grep -qiE '\[major\]|#major'; then
-            major=$((major+1)); minor=0; patch=0
+            major=$((major+1)); minor=0; patch=0; revision=0
           elif printf '%s' "$COMMIT_MSG" | grep -qiE '\[minor\]|#minor'; then
-            minor=$((minor+1)); patch=0
+            minor=$((minor+1)); patch=0; revision=0
+          elif printf '%s' "$COMMIT_MSG" | grep -qiE '\[revision\]|#revision|\[hotfix\]|\[build\]'; then
+            revision=$((revision+1))
           else
-            patch=$((patch+1))
+            patch=$((patch+1)); revision=0
           fi
-          version="${major}.${minor}.${patch}"
-          assembly="${version}.0"
+          # Version is the full 4-part value (Jellyfin assembly versions are 4-part anyway).
+          version="${major}.${minor}.${patch}.${revision}"
           echo "version=$version"   >> "$GITHUB_OUTPUT"
-          echo "assembly=$assembly" >> "$GITHUB_OUTPUT"
+          echo "assembly=$version"  >> "$GITHUB_OUTPUT"
           echo "tag=v$version"      >> "$GITHUB_OUTPUT"
-          echo "Next version: $version (assembly $assembly)"
+          echo "Next version: $version"
 
       - name: Abort if tag already exists
         run: |

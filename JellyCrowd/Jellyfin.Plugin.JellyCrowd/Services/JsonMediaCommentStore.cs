@@ -167,6 +167,21 @@ public sealed class JsonMediaCommentStore : IMediaCommentStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<IReadOnlyList<MediaComment>> GetAllAsync(CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      return items.OrderByDescending(c => c.CreatedAt).ToList();
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public void Dispose()
   {
     _mutex.Dispose();

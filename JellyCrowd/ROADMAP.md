@@ -494,6 +494,9 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 - ☑ **N37 — Récupération des téléchargements bloqués (stall).** Option admin **« Auto-recover stalled downloads »** (off par défaut, onglet *Download*) : `ServarrStalledRecovery` (via `DownloadDispatchTask`, ~5 min) repère les grabs sans progression depuis `StalledRecoveryMinutes` (déf. **60**) avec `StallTracker`, les **blocklist + retire du client** (RDT) puis **relance la recherche** → Radarr/Sonarr prennent un **autre release**. 5 tests. *(Cas signalé : torrent RDT en stall, jamais téléchargé après 2 h.)*
 - ☑ **N38 — Le quota ne s'incrémente qu'à la mise à dispo (taille réelle).** `GetUsageAsync` ne compte plus que les requêtes **`Available`** à leur **taille réelle** sur disque ; les requêtes en vol (`Pending`/`Approved`) ne pèsent **plus** sur l'affichage (annule N28). L'**empreinte théorique** (5 Go/film, 1 Go/épisode) reste **uniquement dans le code**, dans `CanRequestAsync`, où elle sert toujours de garde-fou : si une nouvelle requête ferait dépasser le quota, elle est **mise en attente** (held pending) jusqu'à libération. Tests mis à jour (affichage ignore l'en-vol ; le garde-fou compte toujours l'en-vol). **Bonus** : `catalog.js requestSeason` refuse une saison sans numéro exploitable (évitait une requête « série entière » Season=null → monitorage de toutes les saisons dans Sonarr).
 - ☑ **Bandeau annonce → icône + popover + markdown.** Le bandeau inline (rogné/coupé) est remplacé par une **icône 📣** dans le header ouvrant un **popover** (28em) qui rend le **markdown** (gras/italique/souligné/barré/listes/retours), en-tête coloré par niveau, **point rouge** si annonce non lue (localStorage), édition admin dans le popover.
+- ☑ **N39a — Liens hypertexte markdown dans l'annonce.** `mdInline` rend aussi `[texte](url)` : liens extraits en sentinelles **avant** la passe d'emphase (un `_`/`*` dans l'URL n'est plus cassé), **seuls** `http(s)`/`mailto` autorisés (un `[x](javascript:…)` reste du texte), href avec guillemets neutralisés, `target=_blank rel=noopener`. L'emphase fonctionne dans le libellé.
+- ☑ **N39b — Onglet « Modération » (admin).** Nouvel onglet admin (ajouté à la navbar dès que le statut admin est résolu, via `ensureModerationTab`) → page `moderation.html`/`moderation.js` listant **toutes** les critiques internes (lien TMDB, auteur, note, texte, date, badge « masquée ») avec **Masquer/Afficher** (toggle) et **Supprimer**. Backend : `GET JellyCrowd/Comments/All` + `POST .../{id}/Show` (admin), `IMediaCommentStore.GetAllAsync`, DTO `ModeratedReviewDto`. 2 tests.
+- ☑ **N39c — CI : versioning 4 cellules.** `release.yml` gère désormais `major.minor.patch.revision` ; mot-clé **`[revision]`** (ou `[hotfix]`/`[build]`) → bump de la **4ᵉ** cellule en restant sur la ligne `x.y.z` ; `[patch]`/défaut → 3ᵉ cellule (4ᵉ remise à 0). La version n'est plus forcée à `.0`. (Avant : seule la 3ᵉ cellule bougeait, la 4ᵉ toujours `.0`.)
 
 **Réactivité / temps réel → relève de M28 :**
 
@@ -562,11 +565,3 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 - ☐ **Ouverture de tickets** : les utilisateurs peuvent ouvrir des tickets pour signaler des bugs/problèmes avec des médias/sous titres/mauvaise langue audio, etc.)
 - ☐ **Onglet admin dédié** : l'admin a une interface adaptée pour gérer cela.
 - ☐ **Notifications et logs** : ce système génère des notifications pour les concernés (configurables par l'admin), ainsi que des logs.
-
----
-
-## Encore plus loin  *(prévu : `v3.0.0`)*
-
-### M34 — Bot bidirectionnel  ☐
-
-- ☐ **Approuver/refuser depuis Discord/Telegram** (notifications interactives à double sens).
