@@ -51,7 +51,10 @@ public class SettingsController : ControllerBase
       CommentsEnabled = config.CommentsEnabled,
       AllowUserRetrySearch = config.AllowUserRetrySearch,
       AnnouncementText = config.AnnouncementText ?? string.Empty,
-      AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel
+      AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel,
+      // Only surface a link URL when the admin enabled it (a disabled, configured URL stays private).
+      DiscordInviteUrl = config.DiscordInviteEnabled ? (config.DiscordInviteUrl ?? string.Empty) : string.Empty,
+      SupportLinkUrl = config.SupportLinkEnabled ? (config.SupportLinkUrl ?? string.Empty) : string.Empty
     });
   }
 

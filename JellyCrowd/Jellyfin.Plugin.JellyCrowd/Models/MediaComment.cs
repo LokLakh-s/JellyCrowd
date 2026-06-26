@@ -16,6 +16,9 @@ public class MediaComment
   /// <summary>Gets or sets the TMDB identifier of the commented title.</summary>
   public int TmdbId { get; set; }
 
+  /// <summary>Gets or sets the title's display name, captured at post time (for the moderation list).</summary>
+  public string Title { get; set; } = string.Empty;
+
   /// <summary>Gets or sets the author's user id.</summary>
   public Guid UserId { get; set; }
 

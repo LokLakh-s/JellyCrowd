@@ -138,6 +138,7 @@ public class CommentsController : ControllerBase
       {
         MediaType = dto.MediaType,
         TmdbId = dto.TmdbId,
+        Title = (dto.Title ?? string.Empty).Trim(),
         UserId = userId,
         UserName = _resolveUserName(userId),
         Text = text,
@@ -189,6 +190,7 @@ public class CommentsController : ControllerBase
       Id = r.Id,
       MediaType = r.MediaType,
       TmdbId = r.TmdbId,
+      Title = r.Title,
       UserName = r.UserName,
       Rating = r.Rating,
       Text = r.Text,

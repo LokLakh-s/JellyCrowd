@@ -87,6 +87,8 @@
   var isAdmin = false;        // current user is an administrator (resolved server-side)
   var commentsEnabled = false; // admin opt-in: show internal reviews on the native detail page
   var announcement = { text: '', level: 'green' };
+  var discordUrl = '';        // admin opt-in: Discord invite link shown as a header icon ('' = hidden)
+  var supportUrl = '';        // admin opt-in: support/donation link shown as a header icon ('' = hidden)
 
   function loadConfigLang() {
     // Token-free request (works before ApiClient is ready): gives us the language, the raw config-mode
@@ -100,6 +102,8 @@
         pluginHidden = configMode; // fail closed while config mode is on
         commentsEnabled = !!(d && d.CommentsEnabled === true);
         if (d) { announcement = { text: d.AnnouncementText || '', level: d.AnnouncementLevel || 'green' }; }
+        discordUrl = (d && d.DiscordInviteUrl) ? String(d.DiscordInviteUrl) : '';
+        supportUrl = (d && d.SupportLinkUrl) ? String(d.SupportLinkUrl) : '';
       })
       .catch(function () { /* keep defaults on failure */ });
   }
@@ -544,6 +548,43 @@
     // Sit on the same line as the real tabs when the slider exists, else in the row/host itself.
     var slider = tabs ? tabs.querySelector('.emby-tabs-slider') : null;
     (slider || host).appendChild(nav);
+  }
+
+  // Brand SVGs for the optional header links. Inline (the base page can't load external assets, and a
+  // strict CSP would block remote images anyway). `currentColor` so they inherit the header text colour.
+  var DISCORD_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.21.375-.45.88-.617 1.28a18.27 18.27 0 0 0-5.535 0A12.6 12.6 0 0 0 9.11 3 19.7 19.7 0 0 0 4.677 4.37C1.99 8.38 1.26 12.29 1.62 16.14a19.9 19.9 0 0 0 6.07 3.06c.49-.67.93-1.38 1.3-2.13-.71-.27-1.39-.6-2.03-.99.17-.13.34-.26.5-.4 3.93 1.84 8.18 1.84 12.06 0 .16.14.33.27.5.4-.65.39-1.33.72-2.04.99.37.75.81 1.46 1.3 2.13a19.84 19.84 0 0 0 6.07-3.06c.42-4.46-.73-8.34-3.05-11.77ZM8.52 13.79c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.21 0 2.18 1.09 2.16 2.42 0 1.33-.95 2.41-2.16 2.41Zm6.96 0c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.21 0 2.18 1.09 2.16 2.42 0 1.33-.95 2.41-2.16 2.41Z"/></svg>';
+  var SUPPORT_SVG = '<svg viewBox="0 0 16 16" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M5.5 9.511c.076.954.83 1.697 2.182 1.785V12h.6v-.709c1.4-.098 2.218-.846 2.218-1.932 0-.987-.626-1.496-1.745-1.76l-.473-.112V5.57c.6.068.982.396 1.074.85h1.052c-.076-.919-.864-1.638-2.126-1.716V4h-.6v.719c-1.195.117-2.01.836-2.01 1.853 0 .9.606 1.472 1.613 1.707l.397.098v2.034c-.615-.093-1.022-.43-1.114-.9H5.5zm2.177-2.166c-.59-.137-.91-.416-.91-.836 0-.47.345-.822.915-.925v1.76h-.005zm.692 1.193c.717.166 1.048.435 1.048.91 0 .542-.412.914-1.135.982V8.518l.087.02z"/><path d="M8 13.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11zm0 .5A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg>';
+
+  function brandLinkIcon(svg, href, title, cls) {
+    var a = document.createElement('a');
+    a.className = 'jcHeaderLink ' + cls;
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.title = title;
+    a.setAttribute('aria-label', title);
+    // align-self:center → vertically centred against the native header row, like the right-side buttons.
+    a.style.cssText = 'display:inline-flex;align-items:center;align-self:center;justify-content:center;width:2.1em;height:2.1em;color:#fff;opacity:.82;text-decoration:none;';
+    a.innerHTML = svg;
+    a.addEventListener('mouseenter', function () { a.style.opacity = '1'; });
+    a.addEventListener('mouseleave', function () { a.style.opacity = '.82'; });
+    a.addEventListener('click', function (e) { e.stopPropagation(); });
+    return a;
+  }
+
+  // Optional admin-configured links, on the LEFT just after the brand logo (Discord, then Support).
+  // Idempotent (admin config can resolve after the first insert) and gated on a configured URL.
+  function insertHeaderLinks() {
+    var host = document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
+    if (!host) {
+      return;
+    }
+    if (discordUrl && !host.querySelector('.jcHeaderLink-discord')) {
+      host.appendChild(brandLinkIcon(DISCORD_SVG, discordUrl, t('discord_link_title'), 'jcHeaderLink-discord'));
+    }
+    if (supportUrl && !host.querySelector('.jcHeaderLink-support')) {
+      host.appendChild(brandLinkIcon(SUPPORT_SVG, supportUrl, t('support_link_title'), 'jcHeaderLink-support'));
+    }
   }
 
   // Quota bar lives in .headerRight, placed between the search icon and the user avatar
@@ -1160,6 +1201,7 @@
     }
     injectHeaderStyle();
     insertNav();
+    insertHeaderLinks();
     insertQuota();
     insertBell();
     insertAnnouncement();
@@ -1287,7 +1329,7 @@
       var rating = stars.getValue();
       if (rating < 1) { post.textContent = t('rating_required'); setTimeout(function () { post.textContent = mine ? t('review_update') : t('review_submit'); }, 1500); return; }
       post.disabled = true;
-      apiAjax('POST', 'JellyCrowd/Comments', { MediaType: item.mediaType, TmdbId: item.tmdbId, Text: text.value.trim(), Rating: rating })
+      apiAjax('POST', 'JellyCrowd/Comments', { MediaType: item.mediaType, TmdbId: item.tmdbId, Title: item.title || '', Text: text.value.trim(), Rating: rating })
         .then(function () {
           detailReviewsLoadedId = null; // force a re-render with fresh data
           loadDetailReviews(item, panel.parentNode);

@@ -17,6 +17,9 @@ public class ModeratedReviewDto
   /// <summary>Gets or sets the TMDB identifier of the reviewed title.</summary>
   public int TmdbId { get; set; }
 
+  /// <summary>Gets or sets the title's display name (captured at post time; may be empty for legacy reviews).</summary>
+  public string Title { get; set; } = string.Empty;
+
   /// <summary>Gets or sets the author's display name.</summary>
   public string UserName { get; set; } = string.Empty;
 

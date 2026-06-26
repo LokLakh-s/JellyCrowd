@@ -5,6 +5,8 @@
   "nav_calendar": "Calendrier",
   "nav_requests": "Mes demandes",
   "nav_moderation": "Modération",
+  "discord_link_title": "Rejoindre notre Discord",
+  "support_link_title": "Soutenir la plateforme",
   "moderation_subtitle": "Toutes les critiques internes — masquer, afficher ou supprimer.",
   "moderation_empty": "Aucune critique à modérer.",
   "moderation_hidden": "Masquée",

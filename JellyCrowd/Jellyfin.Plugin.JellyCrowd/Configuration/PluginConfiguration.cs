@@ -36,6 +36,10 @@ public class PluginConfiguration : BasePluginConfiguration
     CommentsEnabled = false;
     AnnouncementText = string.Empty;
     AnnouncementLevel = "green";
+    DiscordInviteEnabled = false;
+    DiscordInviteUrl = string.Empty;
+    SupportLinkEnabled = false;
+    SupportLinkUrl = string.Empty;
     MediaExpiryDays = 90;
     EstimatedMovieSizeBytes = 5L * 1024 * 1024 * 1024; // 5 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
@@ -235,6 +239,28 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the announcement severity colour: <c>green</c>, <c>yellow</c> or <c>red</c>.
   /// </summary>
   public string AnnouncementLevel { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether a Discord invite icon is shown in the header (admin opt-in,
+  /// off by default). Only rendered when enabled and <see cref="DiscordInviteUrl"/> is set.
+  /// </summary>
+  public bool DiscordInviteEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Discord invite URL the header icon links to.
+  /// </summary>
+  public string DiscordInviteUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether a "support the platform" icon is shown in the header
+  /// (admin opt-in, off by default). Only rendered when enabled and <see cref="SupportLinkUrl"/> is set.
+  /// </summary>
+  public bool SupportLinkEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the support/donation URL the header icon links to.
+  /// </summary>
+  public string SupportLinkUrl { get; set; }
 
   /// <summary>
   /// Gets or sets the media ownership expiry window in days. A user's ownership of an available title

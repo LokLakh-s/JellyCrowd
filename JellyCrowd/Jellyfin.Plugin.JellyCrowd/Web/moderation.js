@@ -65,15 +65,16 @@
     if (text) { el.textContent = text; el.hidden = false; } else { el.hidden = true; }
   }
 
-  // A clickable TMDB link for a review's title (we only store the type + id, not the name).
+  // A clickable TMDB link for a review's title. Uses the stored title when present (captured at post
+  // time); older reviews without one fall back to "Movie/Show #<tmdbId>".
   function titleLink(review) {
     var a = document.createElement('a');
     a.href = 'https://www.themoviedb.org/' + review.MediaType + '/' + review.TmdbId;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.className = 'jellycrowd-link';
-    var label = (review.MediaType === 'tv' ? t('media_type_tv') : t('media_type_movie'));
-    a.textContent = label + ' #' + review.TmdbId;
+    var typeLabel = (review.MediaType === 'tv' ? t('media_type_tv') : t('media_type_movie'));
+    a.textContent = review.Title ? (review.Title + ' (' + typeLabel + ')') : (typeLabel + ' #' + review.TmdbId);
     return a;
   }
 
