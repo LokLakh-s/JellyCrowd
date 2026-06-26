@@ -584,6 +584,42 @@
     return a;
   }
 
+  // The logo element (.pageTitleWithLogo / .pageTitle) reserves a fixed/grown width with the logo image
+  // contained inside it — usually left-aligned, leaving empty space on its right. Inserting our icons
+  // after that element therefore leaves a big gap. Measure the logo's actual rendered right edge and pull
+  // the icon group left so it hugs the brand. Best-effort: any failure leaves the (gapped) default.
+  function hugLogo(group, logoEl) {
+    try {
+      // If the logo is a real child image, measure it directly.
+      var inner = logoEl.querySelector('img,svg');
+      if (inner) {
+        var er = logoEl.getBoundingClientRect();
+        var ir = inner.getBoundingClientRect();
+        var gap = er.right - ir.right;
+        if (gap > 4) { group.style.marginLeft = '-' + Math.round(gap) + 'px'; }
+        return;
+      }
+      // Otherwise it's a background-image; load it to compute its contained size and free space.
+      var cs = window.getComputedStyle(logoEl);
+      var bg = cs.backgroundImage || '';
+      var m = bg.match(/url\(["']?(.*?)["']?\)/);
+      if (!m) { return; }
+      var posRaw = (cs.backgroundPositionX || (cs.backgroundPosition || '').split(' ')[0] || '0%').trim().toLowerCase();
+      var img = new Image();
+      img.onload = function () {
+        var r = logoEl.getBoundingClientRect();
+        if (!img.naturalWidth || !r.width || !r.height) { return; }
+        var scale = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+        var freeW = Math.max(0, r.width - img.naturalWidth * scale); // empty space around the contained logo
+        var rightGap = (posRaw === '0%' || posRaw === '0px' || posRaw === 'left') ? freeW
+          : (posRaw === '100%' || posRaw === 'right') ? 0
+            : freeW / 2; // centred
+        if (rightGap > 4) { group.style.marginLeft = '-' + Math.round(rightGap) + 'px'; }
+      };
+      img.src = m[1];
+    } catch (e) { /* best effort */ }
+  }
+
   // Optional admin-configured links, on the LEFT immediately after the brand logo / home button
   // (Discord, then Support). Idempotent (admin config can resolve after the first insert) and gated on
   // a configured URL.
@@ -604,7 +640,7 @@
       // Note: the home button sits to the LEFT of the logo, so we must not anchor on it (that put the
       // icons on the wrong side); fall back to the end of the left cluster (still right of the logo).
       var anchor = left.querySelector('.pageTitleWithLogo') || left.querySelector('.pageTitle');
-      if (anchor) { anchor.insertAdjacentElement('afterend', group); } else { left.appendChild(group); }
+      if (anchor) { anchor.insertAdjacentElement('afterend', group); hugLogo(group, anchor); } else { left.appendChild(group); }
     }
     if (discordUrl && !group.querySelector('.jcHeaderLink-discord')) {
       group.appendChild(brandLinkIcon(DISCORD_SVG, discordUrl, t('discord_link_title'), 'jcHeaderLink-discord'));
