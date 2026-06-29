@@ -366,6 +366,7 @@ body.jellycrowd-overlay-open {
 .jellycrowd-status-approved { background: #6366f1; color: #fff; }
 .jellycrowd-status-denied { background: #ef4444; color: #fff; }
 .jellycrowd-status-available { background: #10b981; color: #fff; }
+.jellycrowd-status-held { background: #64748b; color: #fff; }
 .jellycrowd-dl { background: #00a4dc; color: #fff; }
 
 .jellycrowd-request-danger { background: #c62828; }
@@ -749,6 +750,7 @@ body.jellycrowd-overlay-open {
 .jellycrowd-status-available { background: #2e7d32; color: #fff; }
 .jellycrowd-status-denied { background: #c0392b; color: #fff; }
 .jellycrowd-status-scheduled { background: #6c4ab6; color: #fff; }
+.jellycrowd-status-held { background: #586e75; color: #fff; }
 
 /* Live download status (Radarr/Sonarr queue) */
 .jellycrowd-dl-queued { background: #555; color: #fff; }

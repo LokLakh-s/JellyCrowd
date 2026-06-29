@@ -85,6 +85,18 @@ test('statusLabelKey handles numeric and string statuses', () => {
   assert.strictEqual(lib.statusLabelKey('weird'), 'status_pending');
 });
 
+test('requestStatusLabelKey flags a quota-held pending request distinctly', () => {
+  // Pending + held by quota reads as "on hold (quota)", not the generic pending.
+  assert.strictEqual(lib.requestStatusLabelKey({ Status: 0, HeldForQuota: true }), 'status_held');
+  assert.strictEqual(lib.requestStatusLabelKey({ Status: 'Pending', HeldForQuota: true }), 'status_held');
+  // A normal pending (awaiting admin) request keeps the generic label.
+  assert.strictEqual(lib.requestStatusLabelKey({ Status: 0, HeldForQuota: false }), 'status_pending');
+  assert.strictEqual(lib.requestStatusLabelKey({ Status: 0 }), 'status_pending');
+  // The flag only matters while pending — other statuses are unaffected even if it lingers.
+  assert.strictEqual(lib.requestStatusLabelKey({ Status: 1, HeldForQuota: true }), 'status_approved');
+  assert.strictEqual(lib.requestStatusLabelKey({ Status: 3, HeldForQuota: true }), 'status_available');
+});
+
 test('statusRank orders pending < approved < available < denied', () => {
   assert.strictEqual(lib.statusRank(0), 0);
   assert.strictEqual(lib.statusRank('Pending'), 0);

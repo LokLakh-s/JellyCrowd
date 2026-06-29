@@ -82,6 +82,18 @@
     return map[String(status).toLowerCase()] || 'status_pending';
   }
 
+  // Status i18n key for a whole request: a pending request held back only by the requester's disk quota
+  // (HeldForQuota) reads as "on hold (quota)" rather than the generic "pending (awaiting admin)", since it
+  // is not awaiting an admin and resumes automatically once space frees up.
+  function requestStatusLabelKey(request) {
+    var r = request || {};
+    var st = String(r.Status).toLowerCase();
+    if ((st === '0' || st === 'pending') && r.HeldForQuota) {
+      return 'status_held';
+    }
+    return statusLabelKey(r.Status);
+  }
+
   // Admin sort order for a request status: Pending, then Approved, then Available, then Denied.
   function statusRank(status) {
     var order = {
@@ -276,6 +288,7 @@
     formatRating: formatRating,
     errorKey: errorKey,
     statusLabelKey: statusLabelKey,
+    requestStatusLabelKey: requestStatusLabelKey,
     statusRank: statusRank,
     requestSortRank: requestSortRank,
     downloadStateKey: downloadStateKey,

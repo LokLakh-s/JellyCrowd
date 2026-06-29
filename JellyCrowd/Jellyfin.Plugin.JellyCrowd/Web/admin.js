@@ -391,10 +391,14 @@
 
     var tdS = document.createElement('td');
     tdS.className = 'jellycrowd-admin-statuscell';
-    var statusKey = lib.statusLabelKey(request.Status);
+    var statusKey = lib.requestStatusLabelKey(request);
     var status = document.createElement('span');
     status.className = 'jellycrowd-status jellycrowd-status-' + statusKey.replace('status_', '');
     status.textContent = t(statusKey);
+    if (statusKey === 'status_held') {
+      // A quota-held request isn't actually waiting on the admin — it resumes on its own.
+      status.title = t('status_held_hint_admin');
+    }
     tdS.appendChild(status);
     var isAvailable = request.Status === 3 || request.Status === 'Available';
     if (request.DispatchError && !isAvailable) {
