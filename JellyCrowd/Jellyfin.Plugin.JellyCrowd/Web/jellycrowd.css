@@ -359,6 +359,19 @@ body.jellycrowd-overlay-open {
 .jellycrowd-request-danger { background: #c62828; }
 .jellycrowd-request-ok { background: #2e7d32; }
 
+/* Admin overlay: Logs. */
+.jellycrowd-log-row {
+  display: flex;
+  gap: 0.6em;
+  padding: 0.4em 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: baseline;
+  font-size: 0.9em;
+}
+
+.jellycrowd-log-time { opacity: 0.6; min-width: 12em; font-variant-numeric: tabular-nums; }
+.jellycrowd-log-cat { opacity: 0.75; min-width: 7em; }
+
 /* Moderation page: one card per review across all titles, with hide/show + delete actions. */
 .jellycrowd-mod-row {
   background: rgba(255, 255, 255, 0.05);

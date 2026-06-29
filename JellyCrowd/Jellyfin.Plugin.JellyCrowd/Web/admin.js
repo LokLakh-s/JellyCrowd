@@ -80,8 +80,67 @@
     { id: 'requests', labelKey: 'tab_requests', render: renderRequests },
     { id: 'reports', labelKey: 'admin_reports_title', render: renderReports },
     { id: 'moderation', labelKey: 'nav_moderation', render: renderModeration },
-    { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership }
+    { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership },
+    { id: 'logs', labelKey: 'tab_logs', render: renderLogs }
   ];
+
+  // ---------- Logs ----------
+  function renderLogs(container) {
+    container.innerHTML = '';
+    setMessage('');
+    var bar = document.createElement('div');
+    bar.className = 'jellycrowd-admin-filter';
+    var search = document.createElement('input');
+    search.type = 'search';
+    search.placeholder = t('log_search');
+    var cat = document.createElement('select');
+    [['', t('admin_filter_all')], ['request', 'request'], ['download', 'download'], ['admin', 'admin'], ['user', 'user'], ['system', 'system']]
+      .forEach(function (o) { var x = document.createElement('option'); x.value = o[0]; x.textContent = o[1]; cat.appendChild(x); });
+    var level = document.createElement('select');
+    [['', t('admin_filter_all')], ['info', 'info'], ['warning', 'warning'], ['error', 'error']]
+      .forEach(function (o) { var x = document.createElement('option'); x.value = o[0]; x.textContent = o[1]; level.appendChild(x); });
+    bar.appendChild(search);
+    bar.appendChild(cat);
+    bar.appendChild(level);
+    container.appendChild(bar);
+
+    var box = document.createElement('div');
+    box.className = 'jellycrowd-logs';
+    container.appendChild(box);
+
+    function load() {
+      box.textContent = t('loading');
+      var qs = 'term=' + encodeURIComponent(search.value || '') + '&category=' + encodeURIComponent(cat.value || '')
+        + '&level=' + encodeURIComponent(level.value || '') + '&limit=200';
+      apiGet('JellyCrowd/Logs?' + qs).then(function (rows) {
+        box.innerHTML = '';
+        if (!rows || !rows.length) { box.textContent = t('log_empty'); return; }
+        var icons = { info: 'ℹ️', warning: '⚠️', error: '❌' };
+        rows.forEach(function (r) {
+          var row = document.createElement('div');
+          row.className = 'jellycrowd-log-row';
+          var when = document.createElement('span');
+          when.className = 'jellycrowd-log-time';
+          when.textContent = new Date(r.Timestamp).toLocaleString();
+          var c = document.createElement('span');
+          c.className = 'jellycrowd-log-cat';
+          c.textContent = (icons[r.Level] || '•') + ' ' + r.Category;
+          var m = document.createElement('span');
+          m.textContent = r.Message;
+          row.appendChild(when);
+          row.appendChild(c);
+          row.appendChild(m);
+          box.appendChild(row);
+        });
+      }).catch(function () { box.textContent = t('error_generic'); });
+    }
+
+    var deb;
+    search.addEventListener('input', function () { clearTimeout(deb); deb = setTimeout(load, 250); });
+    cat.addEventListener('change', load);
+    level.addEventListener('change', load);
+    load();
+  }
 
   // ---------- Requests (admin approval queue) ----------
   function statusToInt(s) {

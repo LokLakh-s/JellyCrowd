@@ -1,6 +1,8 @@
 # Runtime data created by the test stack — never commit these.
 jellyfin/config/
 jellyfin/cache/
+jellyfin-1011/config/
+jellyfin-1011/cache/
 radarr/config/
 sonarr/config/
 prowlarr/config/
