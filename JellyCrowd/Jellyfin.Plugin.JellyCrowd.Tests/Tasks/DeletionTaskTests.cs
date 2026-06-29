@@ -40,7 +40,8 @@ public sealed class DeletionTaskTests : IDisposable
     var id = await SeedFlaggedAsync("item-abc");
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher();
-    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var promoter = new RecordingPromoter();
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), promoter, () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -48,6 +49,8 @@ public sealed class DeletionTaskTests : IDisposable
     // Unowned deletion must also purge the download backend (Radarr/Sonarr) so a re-request is clean.
     Assert.Contains(id, dispatcher.Purged);
     Assert.Null(await _store.GetByIdAsync(id, CancellationToken.None));
+    // Freeing space must trigger a quota-hold re-evaluation so held requests can resume.
+    Assert.Equal(1, promoter.Calls);
   }
 
   [Fact]
@@ -55,7 +58,7 @@ public sealed class DeletionTaskTests : IDisposable
   {
     var id = await SeedFlaggedAsync("item-xyz");
     var deleter = new RecordingDeleter();
-    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -71,7 +74,7 @@ public sealed class DeletionTaskTests : IDisposable
     var id = await SeedFlaggedAsync("item-fail");
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher(purgeSucceeds: false);
-    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -94,7 +97,7 @@ public sealed class DeletionTaskTests : IDisposable
 
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher();
-    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -130,6 +133,17 @@ public sealed class DeletionTaskTests : IDisposable
     public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+  }
+
+  private sealed class RecordingPromoter : IQuotaHoldPromoter
+  {
+    public int Calls { get; private set; }
+
+    public Task<int> PromoteAsync(CancellationToken cancellationToken)
+    {
+      Calls++;
+      return Task.FromResult(0);
+    }
   }
 
   private sealed class RecordingDeleter : IMediaDeleter

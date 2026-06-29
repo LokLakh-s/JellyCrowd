@@ -113,6 +113,27 @@ public sealed class QuotaService : IQuotaService
       return true;
     }
 
+    var committed = await ComputeCommittedAsync(userId, cancellationToken).ConfigureAwait(false);
+    return committed + EstimateBytes(mediaType) <= quota;
+  }
+
+  /// <inheritdoc />
+  public async Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken)
+  {
+    var quota = GetQuotaBytes(userId);
+    if (quota <= 0)
+    {
+      return true;
+    }
+
+    var committed = await ComputeCommittedAsync(userId, cancellationToken).ConfigureAwait(false);
+    return committed <= quota;
+  }
+
+  // The user's committed footprint: in-flight requests (Pending/Approved) at the configured estimate,
+  // fulfilled (Available) requests at their real on-disk size, de-duplicated by title for the latter.
+  private async Task<long> ComputeCommittedAsync(Guid userId, CancellationToken cancellationToken)
+  {
     var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
 
     long committed = 0;
@@ -132,7 +153,7 @@ public sealed class QuotaService : IQuotaService
       }
     }
 
-    return committed + EstimateBytes(mediaType) <= quota;
+    return committed;
   }
 
   private static string TitleKey(RequestRecord request)

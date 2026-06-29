@@ -14,14 +14,17 @@ namespace Jellyfin.Plugin.JellyCrowd.Tasks;
 public sealed class ReconcileTask : IScheduledTask
 {
   private readonly IRequestReconciler _reconciler;
+  private readonly IQuotaHoldPromoter _quotaHoldPromoter;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ReconcileTask"/> class.
   /// </summary>
   /// <param name="reconciler">The request reconciler.</param>
-  public ReconcileTask(IRequestReconciler reconciler)
+  /// <param name="quotaHoldPromoter">The quota-hold promoter (resumes requests held by a freed quota).</param>
+  public ReconcileTask(IRequestReconciler reconciler, IQuotaHoldPromoter quotaHoldPromoter)
   {
     _reconciler = reconciler;
+    _quotaHoldPromoter = quotaHoldPromoter;
   }
 
   /// <inheritdoc />
@@ -42,6 +45,10 @@ public sealed class ReconcileTask : IScheduledTask
     ArgumentNullException.ThrowIfNull(progress);
     progress.Report(0);
     await _reconciler.ReconcileAsync(cancellationToken).ConfigureAwait(false);
+    progress.Report(70);
+    // Reconciliation can shrink a user's footprint (a fulfilled title's real size is often below its
+    // estimate), so re-check quota holds here too — a backstop for the immediate promotion done elsewhere.
+    await _quotaHoldPromoter.PromoteAsync(cancellationToken).ConfigureAwait(false);
     progress.Report(100);
   }
 

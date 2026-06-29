@@ -149,6 +149,10 @@ public class RequestsController : ControllerBase
     var withinQuota = await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false);
     var status = (requireApproval || !withinQuota) ? RequestStatus.Pending : RequestStatus.Approved;
 
+    // Held purely by the quota (it did not need an admin): flag it so it resumes automatically — i.e. is
+    // promoted to Approved without an admin decision — once the user's quota frees up.
+    var heldForQuota = !withinQuota && !requireApproval;
+
     var created = await _store.CreateAsync(
       new RequestRecord
       {
@@ -161,7 +165,8 @@ public class RequestsController : ControllerBase
         Season = dto.Season,
         Episode = dto.Episode,
         DesiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, dto.DesiredAt, DateTime.UtcNow),
-        Status = status
+        Status = status,
+        HeldForQuota = heldForQuota
       },
       cancellationToken).ConfigureAwait(false);
 
@@ -169,7 +174,7 @@ public class RequestsController : ControllerBase
 
     // Warn the requester when their request is held purely because they are at their disk quota
     // (not the normal "awaiting admin approval" case), so they understand why it is not progressing.
-    if (!withinQuota && !requireApproval)
+    if (heldForQuota)
     {
       _ = _notificationService.NotifyPersonalAsync(
         userId,

@@ -64,6 +64,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       sp.GetRequiredService<IUserActivityStore>(),
       sp.GetRequiredService<Func<PluginConfiguration>>()));
     serviceCollection.AddSingleton<IRequestReconciler, RequestReconciler>();
+    serviceCollection.AddSingleton<IQuotaHoldPromoter, QuotaHoldPromoter>();
 
     // Download backends (request fulfillment). Jelly Crowd only emits requests; the backend searches/downloads.
     serviceCollection.AddSingleton<IServarrClient, ServarrClient>();

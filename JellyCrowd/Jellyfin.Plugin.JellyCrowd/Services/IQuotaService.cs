@@ -43,4 +43,14 @@ public interface IQuotaService
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns><c>true</c> when the request fits within the quota.</returns>
   Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Determines whether the user's current committed footprint (their existing in-flight estimates plus
+  /// the real size of fulfilled requests) is within their quota — i.e. nothing new is added. Used to
+  /// decide whether requests held back purely by the quota can now resume.
+  /// </summary>
+  /// <param name="userId">The user identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns><c>true</c> when the existing footprint fits within the quota (or the quota is unlimited).</returns>
+  Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken);
 }

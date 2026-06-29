@@ -100,5 +100,7 @@ public sealed class QuotaControllerTests : IDisposable
     public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(new QuotaInfo());
 
     public Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken) => Task.FromResult(true);
+
+    public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(true);
   }
 }

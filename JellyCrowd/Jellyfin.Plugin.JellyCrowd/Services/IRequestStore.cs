@@ -53,6 +53,17 @@ public interface IRequestStore
   Task<RequestRecord?> UpdateStatusAsync(Guid id, RequestStatus status, Guid decidedBy, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Promotes a request that is still <see cref="RequestStatus.Pending"/> and flagged
+  /// <see cref="RequestRecord.HeldForQuota"/> to <see cref="RequestStatus.Approved"/>, clearing the flag.
+  /// A no-op (returns <c>null</c>) if the request no longer exists, is no longer pending, or is no longer
+  /// quota-held — so concurrent admin decisions are never overwritten.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The promoted request, or <c>null</c> when it was not eligible.</returns>
+  Task<RequestRecord?> PromoteFromQuotaHoldAsync(Guid id, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Determines whether the user already has a non-denied request for the same title.
   /// </summary>
   /// <param name="userId">The user identifier.</param>
