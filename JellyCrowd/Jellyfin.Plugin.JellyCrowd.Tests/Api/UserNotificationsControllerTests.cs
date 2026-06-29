@@ -17,8 +17,8 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
 public sealed class UserNotificationsControllerTests : IDisposable
 {
   private static readonly Guid User = Guid.NewGuid();
-  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
-  private readonly string _prefsPath = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
+  private readonly string _prefsPath = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
   private readonly JsonUserNotificationStore _store;
   private readonly JsonUserPrefsStore _prefs;
 

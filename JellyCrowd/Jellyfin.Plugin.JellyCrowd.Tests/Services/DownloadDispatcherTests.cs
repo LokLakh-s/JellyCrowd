@@ -16,7 +16,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 /// </summary>
 public sealed class DownloadDispatcherTests : IDisposable
 {
-  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
   private readonly JsonRequestStore _store;
   private readonly FakeDownloadClient _client = new();
   private readonly RecordingNotificationService _notifier = new();
