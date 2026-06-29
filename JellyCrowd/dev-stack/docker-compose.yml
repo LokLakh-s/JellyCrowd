@@ -27,6 +27,22 @@ services:
       - TZ=Europe/Paris
     restart: unless-stopped
 
+  # Backward-compat check: the SAME plugin build must keep working on Jellyfin 10.11 (prod stays here).
+  # http://localhost:8097 — install File Transformation from the official repo on this one (it ships a
+  # 10.11-compatible build), then verify the classic header/overlay still work.
+  jellyfin-1011:
+    image: jellyfin/jellyfin:10.11
+    container_name: jellycrowd-jellyfin-1011
+    ports:
+      - "8097:8096"
+    volumes:
+      - ./jellyfin-1011/config:/config   # deploy script writes /config/plugins/JellyCrowd here too
+      - ./jellyfin-1011/cache:/cache
+      - ./media:/media
+    environment:
+      - TZ=Europe/Paris
+    restart: unless-stopped
+
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: jellycrowd-radarr

@@ -362,6 +362,7 @@
     // NOT reuse the .emby-tab-button class: inside Jellyfin's emby-tabs, that made our buttons get
     // treated as real tabs (Jellyfin would navigate on click, closing the overlay / blanking the page).
     a.style.cssText = 'box-sizing:border-box;margin:0;padding:1.5em 1.5em;border:0;outline:none;box-shadow:none;background:transparent;font-family:inherit;font-size:0.92em;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
+    a.setAttribute('data-jc-view', viewId);
     headerNavButtons[viewId] = a;
     a.style.color = (viewId === activeNavId) ? NAV_WHITE : NAV_GREY;
     // Hover turns blue (Jellyfin accent); on leave restore the selected/unselected colour.
@@ -523,7 +524,10 @@
   // The admin-only "Admin" tab is added once admin status is known (it can resolve after the first
   // insertNav), so this runs again from tryInsert() to top up an already-built nav.
   function ensureAdminNav(nav) {
-    if (isAdmin && !headerNavButtons.admin) {
+    // Guard on the live nav DOM, not the global headerNavButtons map: on 10.11 Jellyfin re-renders the
+    // tabs row and our nav is rebuilt fresh, but the map still holds a stale (detached) admin button —
+    // which previously made the rebuilt nav skip the Admin tab.
+    if (isAdmin && !nav.querySelector('[data-jc-view="admin"]')) {
       nav.appendChild(navButton('nav_admin', 'admin'));
     }
   }
