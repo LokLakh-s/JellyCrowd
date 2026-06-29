@@ -978,10 +978,12 @@
     castEl.style.display = 'none';
     content.appendChild(castEl);
 
-    // Reviews section, under the cast (admin opt-in). Passes meta so the internal
-    // average rating can also appear next to the TMDB rating.
-    if (commentsEnabled) {
-      content.appendChild(buildCommentsSection(item, meta));
+    // Reviews section (admin opt-in). Passes meta so the internal average rating can also appear next to
+    // the TMDB rating. For a movie it sits in the right column under the cast; for a series it is moved
+    // below the full-width season picker (appended further down) so the requestable seasons come first.
+    var commentsSection = commentsEnabled ? buildCommentsSection(item, meta) : null;
+    if (commentsSection && item.MediaType !== 'tv') {
+      content.appendChild(commentsSection);
     }
 
     // Request controls live under the poster (left column) to keep the popup short — except a TV
@@ -1213,6 +1215,14 @@
     modal.appendChild(close);
     modal.appendChild(body);
     if (seasonsSection) { modal.appendChild(seasonsSection); } // full-width TV season picker under the body
+    if (commentsSection && item.MediaType === 'tv') {
+      // For a series, reviews go under the seasons (so the requestable seasons come first) — full width,
+      // on the same solid dark background that now runs to the bottom of the popup.
+      var reviewsSection = document.createElement('div');
+      reviewsSection.className = 'jellycrowd-modal-reviews-section';
+      reviewsSection.appendChild(commentsSection);
+      modal.appendChild(reviewsSection);
+    }
 
     // N17: "Related media" strip at the very bottom (TMDB recommendations), each poster clickable.
     var relatedSection = document.createElement('div');

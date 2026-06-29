@@ -1375,13 +1375,28 @@ body.jellycrowd-overlay-open {
 }
 
 /* Full-width TV season picker, spanning under the poster + content columns. */
+/* Full-width sections below the body carry the same solid dark background as the body gradient's foot,
+   so the popup stays legibly dark all the way down (rather than letting the bare backdrop show through). */
 .jellycrowd-modal-seasons-section {
   padding: 0 1.5em 1.5em;
+  background: #101010;
+  display: flow-root; /* contain children's top margins so the dark backing stays flush with the body */
+}
+
+/* For a series, reviews live under the seasons — full width, same dark backing and side padding. */
+.jellycrowd-modal-reviews-section {
+  padding: 0 1.5em 0.5em;
+  background: #101010;
+  display: flow-root;
 }
 
 @media (max-width: 600px) {
   .jellycrowd-modal-seasons-section {
     padding: 0 1em 1em;
+  }
+
+  .jellycrowd-modal-reviews-section {
+    padding: 0 1em 0.5em;
   }
 }
 
@@ -1389,6 +1404,7 @@ body.jellycrowd-overlay-open {
 .jellycrowd-modal-related-section {
   padding: 0.6em 1.5em 1.4em;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: #101010;
 }
 
 .jellycrowd-modal-related-heading {
