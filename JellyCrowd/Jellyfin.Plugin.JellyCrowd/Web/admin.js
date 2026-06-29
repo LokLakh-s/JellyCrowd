@@ -9,6 +9,8 @@
 
   var SUPPORTED_LANGS = ['en', 'fr'];
   var POSTER_BASE = 'https://image.tmdb.org/t/p/w92';
+  var PLUGIN_GUID = 'a1994160-4ea2-4d81-bd3c-ffe825700d98';
+  var GIB = 1024 * 1024 * 1024;
   var lib = window.JellyCrowdLib;
   var strings = {};
   var cfgLang = 'auto';
@@ -79,10 +81,138 @@
   var TABS = [
     { id: 'requests', labelKey: 'tab_requests', render: renderRequests },
     { id: 'reports', labelKey: 'admin_reports_title', render: renderReports },
+    { id: 'quotas', labelKey: 'tab_quotas', render: renderQuotas },
     { id: 'moderation', labelKey: 'nav_moderation', render: renderModeration },
     { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership },
     { id: 'logs', labelKey: 'tab_logs', render: renderLogs }
   ];
+
+  // ---------- User quotas (per-user quota + policy, saved into the plugin configuration) ----------
+  function renderQuotas(container) {
+    container.innerHTML = '';
+    setMessage(t('loading'));
+    if (!(window.ApiClient && window.ApiClient.getPluginConfiguration && window.ApiClient.getUsers)) {
+      setMessage(t('error_generic'));
+      return;
+    }
+    Promise.all([
+      window.ApiClient.getUsers(),
+      apiGet('JellyCrowd/Quota/All').catch(function () { return []; }),
+      window.ApiClient.getPluginConfiguration(PLUGIN_GUID)
+    ]).then(function (res) {
+      var users = res[0] || [];
+      var usage = {};
+      (res[1] || []).forEach(function (u) { usage[u.UserId] = u; });
+      var overrides = (res[2] && res[2].QuotaOverrides) || [];
+      setMessage('');
+
+      var sub = document.createElement('p');
+      sub.className = 'jellycrowd-disclaimer';
+      sub.textContent = t('admin_quota_hint');
+      container.appendChild(sub);
+
+      function usageText(uid) {
+        var u = usage[uid];
+        if (!u) { return '—'; }
+        var used = (u.UsedBytes / GIB).toFixed(1);
+        if (u.Unlimited || u.QuotaBytes <= 0) { return used + ' / ∞ GiB'; }
+        return used + ' / ' + (u.QuotaBytes / GIB).toFixed(1) + ' GiB' + (u.Tier && u.Tier !== 'base' ? ' (' + u.Tier + ')' : '');
+      }
+
+      var table = document.createElement('table');
+      table.className = 'jellycrowd-admin-table';
+      table.innerHTML = '<thead><tr><th>User</th><th>Usage</th><th>Quota (GiB)</th><th>Can request</th><th>Auto-approve</th><th>Req/period</th><th>Plugin access</th></tr></thead>';
+      var tbody = document.createElement('tbody');
+      users.forEach(function (user) {
+        var ex = overrides.filter(function (o) { return o.UserId === user.Id; })[0] || {};
+        var tr = document.createElement('tr');
+        tr.setAttribute('data-userid', user.Id);
+        function td(node) { var c = document.createElement('td'); c.appendChild(node); return c; }
+        function textTd(text) { var c = document.createElement('td'); c.textContent = text; return c; }
+
+        tr.appendChild(textTd(user.Name));
+        var usageCell = textTd(usageText(user.Id));
+        usageCell.style.whiteSpace = 'nowrap';
+        tr.appendChild(usageCell);
+
+        var quota = numberInput('jc-quota', ex.QuotaBytes != null ? (ex.QuotaBytes / GIB) : '');
+        tr.appendChild(td(quota));
+        var can = checkbox('jc-can', ex.CanRequest !== false);
+        tr.appendChild(td(can));
+        var auto = checkbox('jc-auto', ex.AutoApprove === true);
+        tr.appendChild(td(auto));
+        var cap = numberInput('jc-cap', ex.MaxRequestsPerPeriod != null ? ex.MaxRequestsPerPeriod : '');
+        tr.appendChild(td(cap));
+        var access = checkbox('jc-access', ex.PluginAccess === true);
+        tr.appendChild(td(access));
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+
+      var save = adminBtn(t('save'), 'ok', function (btn) {
+        btn.disabled = true;
+        // Re-read the live config so we don't clobber other settings, then write only QuotaOverrides.
+        window.ApiClient.getPluginConfiguration(PLUGIN_GUID).then(function (cfg) {
+          cfg.QuotaOverrides = collectQuotas(container);
+          return window.ApiClient.updatePluginConfiguration(PLUGIN_GUID, cfg);
+        }).then(function () {
+          btn.disabled = false;
+          btn.textContent = t('saved');
+          setTimeout(function () { btn.textContent = t('save'); }, 1500);
+        }).catch(function () { btn.disabled = false; });
+      });
+      save.style.marginTop = '1em';
+      container.appendChild(save);
+    }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  }
+
+  function numberInput(cls, value) {
+    var i = document.createElement('input');
+    i.type = 'number';
+    i.min = '0';
+    i.step = '1';
+    i.placeholder = 'default';
+    i.className = cls;
+    if (value !== '' && value != null) { i.value = value; }
+    return i;
+  }
+
+  function checkbox(cls, checked) {
+    var c = document.createElement('input');
+    c.type = 'checkbox';
+    c.className = cls;
+    c.checked = !!checked;
+    return c;
+  }
+
+  // Build the QuotaOverrides array — only entries that deviate from the defaults are kept (mirrors the
+  // old config-page behaviour so the stored config stays minimal).
+  function collectQuotas(container) {
+    var result = [];
+    container.querySelectorAll('tr[data-userid]').forEach(function (tr) {
+      var uid = tr.getAttribute('data-userid');
+      var quotaEl = tr.querySelector('.jc-quota');
+      var capEl = tr.querySelector('.jc-cap');
+      var canRequest = tr.querySelector('.jc-can').checked;
+      var autoApprove = tr.querySelector('.jc-auto').checked;
+      var pluginAccess = tr.querySelector('.jc-access').checked;
+      var quotaSet = quotaEl && quotaEl.value !== '' && quotaEl.value !== null;
+      var capSet = capEl && capEl.value !== '' && capEl.value !== null;
+      if (!quotaSet && !capSet && canRequest && !autoApprove && !pluginAccess) {
+        return; // all defaults → no entry
+      }
+      var o = { UserId: uid };
+      if (quotaSet) { o.QuotaBytes = Math.round(parseFloat(quotaEl.value) * GIB); }
+      if (!canRequest) { o.CanRequest = false; }
+      if (autoApprove) { o.AutoApprove = true; }
+      if (capSet) { o.MaxRequestsPerPeriod = parseInt(capEl.value, 10); }
+      if (pluginAccess) { o.PluginAccess = true; }
+      result.push(o);
+    });
+    return result;
+  }
 
   // ---------- Logs ----------
   function renderLogs(container) {
@@ -306,7 +436,7 @@
     b.type = 'button';
     b.className = 'jellycrowd-request' + (kind === 'danger' ? ' jellycrowd-request-danger' : (kind === 'ok' ? ' jellycrowd-request-ok' : ''));
     b.textContent = label;
-    b.addEventListener('click', function () { handler(); });
+    b.addEventListener('click', function () { handler(b); });
     return b;
   }
 

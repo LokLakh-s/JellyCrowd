@@ -65,13 +65,10 @@
         <h2 class="sectionTitle">Jelly Crowd</h2>
 
         <div class="jcTabBar">
-          <button type="button" id="jcTabRequests" class="jcTab jcTabActive">Requests</button>
-          <button type="button" id="jcTabQuotas" class="jcTab">User quotas</button>
-          <button type="button" id="jcTabSettings" class="jcTab">Settings</button>
+          <button type="button" id="jcTabSettings" class="jcTab jcTabActive">Settings</button>
           <button type="button" id="jcTabNotifications" class="jcTab">Notifications</button>
           <button type="button" id="jcTabDownload" class="jcTab">Download</button>
           <button type="button" id="jcTabDiagnostics" class="jcTab">Diagnostics</button>
-          <button type="button" id="jcTabLogs" class="jcTab">Logs</button>
         </div>
 
         <form id="JellyCrowdConfigForm">
@@ -268,14 +265,6 @@
               <select is="emby-select" id="AutoApproveGenreSelect" class="emby-select-withcolor emby-select"></select>
               <div id="AutoApproveGenreChips" class="jcChips"></div>
               <div class="fieldDescription">Pick one or more TMDB genres. When set, the size rule above only auto-approves a title if it has at least one of these genres. Empty = all genres. Trusted users always bypass.</div>
-            </div>
-          </div>
-
-          <div id="jcPaneQuotas" class="jcTabPane" style="display:none">
-            <div class="verticalSection">
-              <h3 class="sectionTitle" id="jcQuotaOverridesTitle">Per-user disk quotas (GiB)</h3>
-              <div class="fieldDescription" id="jcQuotaOverridesHint"></div>
-              <div id="jcQuotaOverrides"></div>
             </div>
           </div>
 
@@ -611,30 +600,6 @@ Content-Type: application/json
           </div>
         </form>
 
-        <div id="jcPaneRequests" class="jcTabPane" style="display:none">
-          <div class="verticalSection">
-            <h2 id="jcAdminPendingTitle" class="sectionTitle">Requests</h2>
-            <p id="jcAdminCreateHint" class="fieldDescription">To request on behalf of a user, open a title in the catalog and use the admin "Request on behalf of" selector.</p>
-            <div class="selectContainer" style="max-width:18em">
-              <label class="selectLabel" for="jcAdminStatusFilter" id="jcAdminFilterLabel">Filter by status</label>
-              <select id="jcAdminStatusFilter" is="emby-select" class="emby-select">
-                <option value="all">All</option>
-                <option value="0">Pending</option>
-                <option value="1">Approved</option>
-                <option value="3">Available</option>
-                <option value="2">Denied</option>
-              </select>
-            </div>
-            <p id="jcAdminPendingEmpty" class="fieldDescription" hidden></p>
-            <div id="jcAdminPending"></div>
-          </div>
-          <div class="verticalSection">
-            <h2 id="jcReportsTitle" class="sectionTitle">Reports</h2>
-            <p id="jcReportsEmpty" class="fieldDescription" hidden></p>
-            <div id="jcReports"></div>
-          </div>
-        </div>
-
         <div id="jcPaneDiagnostics" class="jcTabPane" style="display:none">
           <div class="verticalSection">
             <h2 id="jcDiagTitle" class="sectionTitle">Diagnostics</h2>
@@ -653,31 +618,6 @@ Content-Type: application/json
               <label class="emby-checkbox-label" style="margin-left:1em"><input id="jcCleanupOrphansOnly" type="checkbox" is="emby-checkbox" checked /><span>Orphans only (0 owners)</span></label>
             </div>
             <div id="jcCleanupResults"></div>
-          </div>
-        </div>
-
-        <div id="jcPaneLogs" class="jcTabPane" style="display:none">
-          <div class="verticalSection">
-            <h2 id="jcLogsTitle" class="sectionTitle">Logs</h2>
-            <div class="jcTestRow">
-              <input is="emby-input" type="text" id="jcLogSearch" placeholder="Search" style="max-width:18em" />
-              <select is="emby-select" id="jcLogCategory" class="emby-select">
-                <option value="">All categories</option>
-                <option value="request">request</option>
-                <option value="download">download</option>
-                <option value="admin">admin</option>
-                <option value="user">user</option>
-                <option value="system">system</option>
-              </select>
-              <select is="emby-select" id="jcLogLevel" class="emby-select">
-                <option value="">All levels</option>
-                <option value="info">info</option>
-                <option value="warning">warning</option>
-                <option value="error">error</option>
-              </select>
-              <button is="emby-button" type="button" id="jcLogRefresh" class="raised emby-button"><span id="jcLogRefreshLabel">Refresh</span></button>
-            </div>
-            <div id="jcLogResults"></div>
           </div>
         </div>
 
@@ -752,26 +692,19 @@ Content-Type: application/json
       }
 
       function jcActivateTab(tab) {
-        var isRequests = tab === 'requests';
+        // Requests / Reports / Quotas / Logs moved to the in-app Admin overlay; the Dashboard keeps only
+        // Settings, Notifications, Download and Diagnostics.
         var isDiag = tab === 'diagnostics';
-        var isLogs = tab === 'logs';
-        document.querySelector('#JellyCrowdConfigForm').style.display = (isRequests || isDiag || isLogs) ? 'none' : '';
-        document.querySelector('#jcPaneRequests').style.display = isRequests ? '' : 'none';
+        document.querySelector('#JellyCrowdConfigForm').style.display = isDiag ? 'none' : '';
         document.querySelector('#jcPaneDiagnostics').style.display = isDiag ? '' : 'none';
-        document.querySelector('#jcPaneLogs').style.display = isLogs ? '' : 'none';
         document.querySelector('#jcPaneSettings').style.display = tab === 'settings' ? '' : 'none';
-        document.querySelector('#jcPaneQuotas').style.display = tab === 'quotas' ? '' : 'none';
         document.querySelector('#jcPaneNotifications').style.display = tab === 'notifications' ? '' : 'none';
         document.querySelector('#jcPaneDownload').style.display = tab === 'download' ? '' : 'none';
         document.querySelector('#jcTabSettings').classList.toggle('jcTabActive', tab === 'settings');
-        document.querySelector('#jcTabQuotas').classList.toggle('jcTabActive', tab === 'quotas');
         document.querySelector('#jcTabNotifications').classList.toggle('jcTabActive', tab === 'notifications');
         document.querySelector('#jcTabDownload').classList.toggle('jcTabActive', tab === 'download');
         document.querySelector('#jcTabDiagnostics').classList.toggle('jcTabActive', isDiag);
-        document.querySelector('#jcTabLogs').classList.toggle('jcTabActive', isLogs);
-        document.querySelector('#jcTabRequests').classList.toggle('jcTabActive', isRequests);
         if (isDiag) { jcRunDiagnostics(); }
-        if (isLogs) { jcLoadLogs(); }
       }
 
       function jcRunDiagnostics() {
@@ -835,40 +768,6 @@ Content-Type: application/json
               });
               row.appendChild(name);
               row.appendChild(del);
-              box.appendChild(row);
-            });
-          })
-          .catch(function () { box.textContent = t('error_generic'); });
-      }
-
-      function jcLoadLogs() {
-        var box = document.querySelector('#jcLogResults');
-        box.textContent = '…';
-        var params = {
-          term: document.querySelector('#jcLogSearch').value || '',
-          category: document.querySelector('#jcLogCategory').value || '',
-          level: document.querySelector('#jcLogLevel').value || '',
-          limit: 200
-        };
-        ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Logs', params), dataType: 'json' })
-          .then(function (rows) {
-            box.innerHTML = '';
-            var icons = { info: 'ℹ️', warning: '⚠️', error: '❌' };
-            if (!rows || !rows.length) { box.textContent = t('log_empty'); return; }
-            rows.forEach(function (r) {
-              var row = document.createElement('div');
-              row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:baseline;';
-              var when = document.createElement('span');
-              when.style.cssText = 'opacity:.6;min-width:12em;font-variant-numeric:tabular-nums;';
-              when.textContent = new Date(r.Timestamp).toLocaleString();
-              var cat = document.createElement('span');
-              cat.style.cssText = 'opacity:.75;min-width:7em;';
-              cat.textContent = (icons[r.Level] || '•') + ' ' + r.Category;
-              var msg = document.createElement('span');
-              msg.textContent = r.Message;
-              row.appendChild(when);
-              row.appendChild(cat);
-              row.appendChild(msg);
               box.appendChild(row);
             });
           })
@@ -954,133 +853,6 @@ Content-Type: application/json
         });
       }
 
-      function buildQuotaOverrides(config) {
-        var container = document.querySelector('#jcQuotaOverrides');
-        container.innerHTML = '';
-        var overrides = config.QuotaOverrides || [];
-        var gib = JellyCrowdConfig.bytesPerGiB;
-        Promise.all([
-          ApiClient.getUsers(),
-          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Quota/All'), dataType: 'json' }).catch(function () { return []; })
-        ]).then(function (res) {
-          var users = res[0];
-          var usageMap = {};
-          (res[1] || []).forEach(function (u) { usageMap[u.UserId] = u; });
-
-          function usageText(uid) {
-            var u = usageMap[uid];
-            if (!u) { return '—'; }
-            var used = (u.UsedBytes / gib).toFixed(1);
-            if (u.Unlimited || u.QuotaBytes <= 0) { return used + ' / ∞ GiB'; }
-            return used + ' / ' + (u.QuotaBytes / gib).toFixed(1) + ' GiB'
-              + (u.Tier && u.Tier !== 'base' ? ' (' + u.Tier + ')' : '');
-          }
-
-          var table = document.createElement('table');
-          table.className = 'jcTable';
-          var thead = document.createElement('thead');
-          var htr = document.createElement('tr');
-          ['', 'User', 'Usage', 'Quota (GiB)', 'Can request', 'Auto-approve', 'Req/period', 'Plugin access'].forEach(function (h) {
-            var th = document.createElement('th');
-            th.textContent = h;
-            htr.appendChild(th);
-          });
-          thead.appendChild(htr);
-          table.appendChild(thead);
-
-          var tbody = document.createElement('tbody');
-          users.forEach(function (user) {
-            var existing = overrides.filter(function (o) { return o.UserId === user.Id; })[0] || {};
-            var tr = document.createElement('tr');
-
-            var tdAvatar = document.createElement('td');
-            // EVERY row gets the SAME element: a plain initials circle (no photo). Previously the admin
-            // (usually row 1, the only one with a profile photo) rendered differently from the rest.
-            var avatarWrap = document.createElement('div');
-            avatarWrap.className = 'jcAvatar';
-            avatarWrap.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:0.8em;font-weight:600;color:rgba(255,255,255,0.75);';
-            avatarWrap.textContent = (user.Name || '?').charAt(0).toUpperCase();
-            tdAvatar.appendChild(avatarWrap);
-            tr.appendChild(tdAvatar);
-
-            var tdName = document.createElement('td');
-            tdName.textContent = user.Name;
-            tr.appendChild(tdName);
-
-            var tdUsage = document.createElement('td');
-            tdUsage.style.whiteSpace = 'nowrap';
-            tdUsage.textContent = usageText(user.Id);
-            tr.appendChild(tdUsage);
-
-            var tdQuota = document.createElement('td');
-            var input = document.createElement('input');
-            input.type = 'number';
-            input.min = '0';
-            input.step = '1';
-            input.placeholder = 'default';
-            input.setAttribute('is', 'emby-input');
-            input.className = 'jc-quota-override';
-            input.setAttribute('data-userid', user.Id);
-            if (existing.QuotaBytes != null) {
-              input.value = existing.QuotaBytes / JellyCrowdConfig.bytesPerGiB;
-            }
-            tdQuota.appendChild(input);
-            tr.appendChild(tdQuota);
-
-            var tdCan = document.createElement('td');
-            var canCb = document.createElement('input');
-            canCb.type = 'checkbox';
-            canCb.setAttribute('is', 'emby-checkbox');
-            canCb.className = 'jc-can-request';
-            canCb.setAttribute('data-userid', user.Id);
-            canCb.checked = existing.CanRequest !== false;
-            tdCan.appendChild(canCb);
-            tr.appendChild(tdCan);
-
-            var tdAuto = document.createElement('td');
-            var autoCb = document.createElement('input');
-            autoCb.type = 'checkbox';
-            autoCb.setAttribute('is', 'emby-checkbox');
-            autoCb.className = 'jc-auto-approve';
-            autoCb.setAttribute('data-userid', user.Id);
-            autoCb.checked = existing.AutoApprove === true;
-            tdAuto.appendChild(autoCb);
-            tr.appendChild(tdAuto);
-
-            var tdCap = document.createElement('td');
-            var capInput = document.createElement('input');
-            capInput.type = 'number';
-            capInput.min = '0';
-            capInput.step = '1';
-            capInput.placeholder = 'default';
-            capInput.setAttribute('is', 'emby-input');
-            capInput.className = 'jc-req-cap';
-            capInput.setAttribute('data-userid', user.Id);
-            if (existing.MaxRequestsPerPeriod != null) {
-              capInput.value = existing.MaxRequestsPerPeriod;
-            }
-            tdCap.appendChild(capInput);
-            tr.appendChild(tdCap);
-
-            // Plugin access: only matters in "config mode" — lets the admin enable the plugin for
-            // specific users while it stays hidden from everyone else.
-            var tdAccess = document.createElement('td');
-            var accessCb = document.createElement('input');
-            accessCb.type = 'checkbox';
-            accessCb.className = 'jc-plugin-access';
-            accessCb.setAttribute('data-userid', user.Id);
-            accessCb.checked = existing.PluginAccess === true;
-            tdAccess.appendChild(accessCb);
-            tr.appendChild(tdAccess);
-
-            tbody.appendChild(tr);
-          });
-
-          table.appendChild(tbody);
-          container.appendChild(table);
-        });
-      }
-
       function jcPostTest(url, result, okLabel) {
         result.textContent = '…';
         fetch(ApiClient.getUrl(url), {
@@ -1105,60 +877,16 @@ Content-Type: application/json
         jcPostTest('JellyCrowd/Notifications/Test/' + channel, document.querySelector('#jcTestResult'), channel + ' OK');
       }
 
-      function collectQuotaOverrides() {
-        var gib = JellyCrowdConfig.bytesPerGiB;
-        var result = [];
-        document.querySelectorAll('.jc-can-request').forEach(function (canCb) {
-          var uid = canCb.getAttribute('data-userid');
-          var quotaEl = document.querySelector('.jc-quota-override[data-userid="' + uid + '"]');
-          var autoEl = document.querySelector('.jc-auto-approve[data-userid="' + uid + '"]');
-          var capEl = document.querySelector('.jc-req-cap[data-userid="' + uid + '"]');
-          var accessEl = document.querySelector('.jc-plugin-access[data-userid="' + uid + '"]');
-          var quotaSet = quotaEl && quotaEl.value !== '' && quotaEl.value !== null;
-          var capSet = capEl && capEl.value !== '' && capEl.value !== null;
-          var canRequest = canCb.checked;
-          var autoApprove = autoEl && autoEl.checked;
-          var pluginAccess = accessEl && accessEl.checked;
-          // Only persist an entry when it deviates from the defaults.
-          if (!quotaSet && !capSet && canRequest && !autoApprove && !pluginAccess) {
-            return;
-          }
-          var o = { UserId: uid };
-          if (quotaSet) { o.QuotaBytes = Math.round(parseFloat(quotaEl.value) * gib); }
-          if (!canRequest) { o.CanRequest = false; }
-          if (autoApprove) { o.AutoApprove = true; }
-          if (capSet) { o.MaxRequestsPerPeriod = parseInt(capEl.value, 10); }
-          if (pluginAccess) { o.PluginAccess = true; }
-          result.push(o);
-        });
-        return result;
-      }
-
       document.querySelector('#jcTabSettings').addEventListener('click', function () { jcActivateTab('settings'); });
-      document.querySelector('#jcTabQuotas').addEventListener('click', function () { jcActivateTab('quotas'); });
       document.querySelector('#jcTabNotifications').addEventListener('click', function () { jcActivateTab('notifications'); });
       document.querySelector('#jcTabDownload').addEventListener('click', function () { jcActivateTab('download'); });
       document.querySelector('#jcTabDiagnostics').addEventListener('click', function () { jcActivateTab('diagnostics'); });
-      document.querySelector('#jcTabLogs').addEventListener('click', function () { jcActivateTab('logs'); });
-      document.querySelector('#jcTabRequests').addEventListener('click', function () { jcActivateTab('requests'); });
       document.querySelector('#AdaptiveQuotaEnabled').addEventListener('change', function () {
         document.querySelector('#jcAdaptiveOptions').style.display = this.checked ? '' : 'none';
       });
       document.querySelector('#jcDiagRun').addEventListener('click', jcRunDiagnostics);
       document.querySelector('#jcDiagBackup').addEventListener('click', jcDownloadBackup);
       document.querySelector('#jcCleanupScan').addEventListener('click', jcScanCleanup);
-      document.querySelector('#jcLogRefresh').addEventListener('click', jcLoadLogs);
-      document.querySelector('#jcLogCategory').addEventListener('change', jcLoadLogs);
-      document.querySelector('#jcLogLevel').addEventListener('change', jcLoadLogs);
-      // The search box now filters on Enter, and live (debounced) as you type — previously it only
-      // applied when clicking Refresh, so pressing Enter "did nothing".
-      (function () {
-        var debounce;
-        var search = document.querySelector('#jcLogSearch');
-        search.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debounce); jcLoadLogs(); } });
-        search.addEventListener('input', function () { clearTimeout(debounce); debounce = setTimeout(jcLoadLogs, 350); });
-      })();
-
       document.querySelector('#jcTestDiscord').addEventListener('click', function () { jcRunNotifTest('discord'); });
       document.querySelector('#jcTestEmail').addEventListener('click', function () { jcRunNotifTest('email'); });
       [['jcTestTelegram', 'telegram'], ['jcTestNtfy', 'ntfy'], ['jcTestGotify', 'gotify'],
@@ -1174,7 +902,7 @@ Content-Type: application/json
 
       document.querySelector('#JellyCrowdConfigPage')
         .addEventListener('pageshow', function () {
-          jcActivateTab('requests');
+          jcActivateTab('settings');
           loadGenreOptions();
           Dashboard.showLoadingMsg();
           ApiClient.getPluginConfiguration(JellyCrowdConfig.pluginUniqueId).then(function (config) {
@@ -1272,7 +1000,6 @@ Content-Type: application/json
               jcFillSelect(entry[0], [], saved, entry[2]);
             });
             jcUpdateDownloadVisibility();
-            buildQuotaOverrides(config);
             Dashboard.hideLoadingMsg();
           });
         });
@@ -1368,7 +1095,8 @@ Content-Type: application/json
             config.ProwlarrApiKey = document.querySelector('#ProwlarrApiKey').value;
             config.ScriptPath = document.querySelector('#ScriptPath').value;
             config.ScriptArguments = document.querySelector('#ScriptArguments').value;
-            config.QuotaOverrides = collectQuotaOverrides();
+            // QuotaOverrides are managed in the in-app Admin overlay now; the form preserves whatever the
+            // freshly-read config already holds (we don't touch it here).
             ApiClient.updatePluginConfiguration(JellyCrowdConfig.pluginUniqueId, config).then(function (result) {
               Dashboard.processPluginConfigurationUpdateResult(result);
             });
@@ -1378,395 +1106,39 @@ Content-Type: application/json
         });
     </script>
     <script type="text/javascript">
+      // i18n for the Dashboard config tabs. The admin operational tools (Requests/Reports/Quotas/Logs/
+      // Moderation/Ownership) live in the in-app Admin overlay now, not on this page.
       (function () {
-        var SUPPORTED = ['en', 'fr'];
+        var SUPPORTED = ["en", "fr"];
         var strings = {};
-        var usersById = {};
 
         function lang() {
-          var code = (navigator.language || 'en').slice(0, 2).toLowerCase();
-          return SUPPORTED.indexOf(code) >= 0 ? code : 'en';
-        }
-
-        function loadUsers() {
-          return ApiClient.getUsers()
-            .then(function (users) { (users || []).forEach(function (u) { usersById[u.Id] = u.Name; }); })
-            .catch(function () { /* names are best-effort */ });
+          var code = (navigator.language || "en").slice(0, 2).toLowerCase();
+          return SUPPORTED.indexOf(code) >= 0 ? code : "en";
         }
 
         function t(key) {
           return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key;
         }
 
-        function isPending(request) {
-          return request.Status === 0 || request.Status === 'Pending';
-        }
-
         function loadStrings() {
-          return ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Web/strings/' + lang() + '.json'), dataType: 'json' })
+          return ApiClient.ajax({ type: "GET", url: ApiClient.getUrl("JellyCrowd/Web/strings/" + lang() + ".json"), dataType: "json" })
             .then(function (data) { strings = data || {}; })
             .catch(function () { strings = {}; });
         }
 
-        // Load the shared pure helpers (statusRank / statusLabelKey) once.
-        function ensureLib() {
-          if (window.JellyCrowdLib) {
-            return Promise.resolve();
-          }
-          return new Promise(function (resolve) {
-            var s = document.createElement('script');
-            s.src = ApiClient.getUrl('JellyCrowd/Web/catalog.lib.js');
-            s.onload = resolve;
-            s.onerror = resolve;
-            document.head.appendChild(s);
-          });
-        }
-
         function applyLabels() {
-          document.querySelector('#jcTabSettings').textContent = t('tab_settings');
-          document.querySelector('#jcTabQuotas').textContent = t('tab_quotas');
-          document.querySelector('#jcTabNotifications').textContent = t('tab_notifications');
-          document.querySelector('#jcTabDownload').textContent = t('tab_download');
-          document.querySelector('#jcTabDiagnostics').textContent = t('tab_diagnostics');
-          document.querySelector('#jcDiagTitle').textContent = t('tab_diagnostics');
-          document.querySelector('#jcDiagRunLabel').textContent = t('diag_run');
-          document.querySelector('#jcDiagBackupLabel').textContent = t('diag_backup');
-          document.querySelector('#jcTabLogs').textContent = t('tab_logs');
-          document.querySelector('#jcLogsTitle').textContent = t('tab_logs');
-          document.querySelector('#jcLogSearch').setAttribute('placeholder', t('log_search'));
-          document.querySelector('#jcLogRefreshLabel').textContent = t('log_refresh');
-          document.querySelector('#jcTabRequests').textContent = t('tab_requests');
-          document.querySelector('#jcQuotaOverridesTitle').textContent = t('admin_quota_title');
-          document.querySelector('#jcQuotaOverridesHint').textContent = t('admin_quota_hint');
-          document.querySelector('#jcAdminPendingTitle').textContent = t('tab_requests');
-          document.querySelector('#jcReportsTitle').textContent = t('admin_reports_title');
-          document.querySelector('#jcAdminCreateHint').textContent = t('admin_create_hint');
-          document.querySelector('#jcAdminFilterLabel').textContent = t('admin_filter_status');
-          var sf = document.querySelector('#jcAdminStatusFilter');
-          sf.options[0].textContent = t('admin_filter_all');
-          sf.options[1].textContent = t('status_pending');
-          sf.options[2].textContent = t('status_approved');
-          sf.options[3].textContent = t('status_available');
-          sf.options[4].textContent = t('status_denied');
+          document.querySelector("#jcTabSettings").textContent = t("tab_settings");
+          document.querySelector("#jcTabNotifications").textContent = t("tab_notifications");
+          document.querySelector("#jcTabDownload").textContent = t("tab_download");
+          document.querySelector("#jcTabDiagnostics").textContent = t("tab_diagnostics");
+          document.querySelector("#jcDiagTitle").textContent = t("tab_diagnostics");
+          document.querySelector("#jcDiagRunLabel").textContent = t("diag_run");
+          document.querySelector("#jcDiagBackupLabel").textContent = t("diag_backup");
         }
 
-        function decide(id, action) {
-          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + id + '/' + action) })
-            .then(load)
-            .catch(function () { /* ignore */ });
-        }
-
-        function statusToInt(s) {
-          if (typeof s === 'number') { return s; }
-          var map = { Pending: 0, Approved: 1, Denied: 2, Available: 3 };
-          return map[s] != null ? map[s] : 0;
-        }
-
-        // Admin edit: merge the changed field(s) with the request's current values, then POST.
-        function adminEdit(request, partial) {
-          var body = {
-            Status: partial.Status != null ? partial.Status : statusToInt(request.Status),
-            Season: request.Season != null ? request.Season : null,
-            Episode: request.Episode != null ? request.Episode : null,
-            DesiredAt: Object.prototype.hasOwnProperty.call(partial, 'DesiredAt') ? partial.DesiredAt : (request.DesiredAt || null)
-          };
-          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + request.Id + '/Edit'), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' })
-            .then(load)
-            .catch(function () { /* ignore */ });
-        }
-
-        function adminDelete(id) {
-          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Requests/' + id + '/Delete') })
-            .then(load)
-            .catch(function () { /* ignore */ });
-        }
-
-        var lastRequests = [];
-
-        function render(requests) {
-          if (requests) {
-            lastRequests = requests;
-          }
-
-          var filterEl = document.querySelector('#jcAdminStatusFilter');
-          var filter = filterEl ? filterEl.value : 'all';
-          var all = lastRequests.slice().filter(function (r) {
-            return filter === 'all' || statusToInt(r.Status) === parseInt(filter, 10);
-          });
-          if (window.JellyCrowdLib) {
-            all.sort(function (a, b) { return window.JellyCrowdLib.statusRank(a.Status) - window.JellyCrowdLib.statusRank(b.Status); });
-          }
-
-          var container = document.querySelector('#jcAdminPending');
-          var empty = document.querySelector('#jcAdminPendingEmpty');
-          container.innerHTML = '';
-
-          if (all.length === 0) {
-            empty.textContent = lastRequests.length === 0 ? t('admin_no_requests') : t('admin_no_requests_filtered');
-            empty.hidden = false;
-            return;
-          }
-
-          empty.hidden = true;
-
-          var table = document.createElement('table');
-          table.className = 'jcTable';
-          var thead = document.createElement('thead');
-          var htr = document.createElement('tr');
-          ['', t('col_title'), t('admin_requested_by'), t('col_date'), t('col_status'), ''].forEach(function (h) {
-            var th = document.createElement('th');
-            th.textContent = h;
-            htr.appendChild(th);
-          });
-          thead.appendChild(htr);
-          table.appendChild(thead);
-
-          var tbody = document.createElement('tbody');
-          all.forEach(function (request) {
-            var tr = document.createElement('tr');
-            tr.setAttribute('data-req-id', request.Id);
-
-            var tdPoster = document.createElement('td');
-            var poster = document.createElement(request.PosterPath ? 'img' : 'div');
-            poster.className = 'jcAdminPoster';
-            if (request.PosterPath) {
-              poster.loading = 'lazy';
-              poster.src = 'https://image.tmdb.org/t/p/w92' + request.PosterPath;
-            }
-            tdPoster.appendChild(poster);
-            tr.appendChild(tdPoster);
-
-            var tdTitle = document.createElement('td');
-            var year = request.ReleaseDate ? (' (' + String(request.ReleaseDate).slice(0, 4) + ')') : '';
-            tdTitle.textContent = request.Title + year + (request.Season ? ' · S' + request.Season : '') + (request.Episode ? 'E' + request.Episode : '');
-            tr.appendChild(tdTitle);
-
-            var tdUser = document.createElement('td');
-            tdUser.textContent = usersById[request.UserId] || '?';
-            tr.appendChild(tdUser);
-
-            var tdDate = document.createElement('td');
-            tdDate.className = 'jcAdminSub';
-            tdDate.textContent = request.RequestedAt ? new Date(request.RequestedAt).toLocaleDateString() : '';
-            tr.appendChild(tdDate);
-
-            var tdStatus = document.createElement('td');
-            tdStatus.className = 'jcAdminStatusCell';
-            var statusKey = window.JellyCrowdLib ? window.JellyCrowdLib.statusLabelKey(request.Status) : 'status_pending';
-            var status = document.createElement('span');
-            status.className = 'jcStatus jcStatus-' + statusKey.replace('status_', '');
-            status.textContent = t(statusKey);
-            tdStatus.appendChild(status);
-            // Don't surface a stale dispatch error once the title is available (it's here now).
-            var isAvailable = request.Status === 3 || request.Status === 'Available';
-            if (request.DispatchError && !isAvailable) {
-              var dispatchErr = document.createElement('span');
-              dispatchErr.className = 'jcStatus jcStatus-denied jcDispatchError';
-              dispatchErr.textContent = '⚠ ' + t('dispatch_failed');
-              dispatchErr.title = request.DispatchError
-                + (request.DispatchAttemptedAt ? '\n(' + new Date(request.DispatchAttemptedAt).toLocaleString() + ')' : '');
-              tdStatus.appendChild(dispatchErr);
-            }
-            tr.appendChild(tdStatus);
-
-            var tdActions = document.createElement('td');
-            tdActions.className = 'jcColActions';
-            if (isPending(request)) {
-              var approve = document.createElement('button');
-              approve.type = 'button';
-              approve.className = 'raised emby-button jcApproveButton';
-              approve.textContent = t('admin_approve');
-              approve.addEventListener('click', function () { decide(request.Id, 'Approve'); });
-              tdActions.appendChild(approve);
-
-              var deny = document.createElement('button');
-              deny.type = 'button';
-              deny.className = 'raised emby-button jcDenyButton';
-              deny.textContent = t('admin_deny');
-              deny.addEventListener('click', function () { decide(request.Id, 'Deny'); });
-              tdActions.appendChild(deny);
-            }
-
-            // Retry: re-trigger the backend search for an approved request that hasn't arrived
-            // (e.g. dispatch error, or it's stuck). Works for on-behalf requests too.
-            if (request.Status === 1 || request.Status === 'Approved') {
-              var retry = document.createElement('button');
-              retry.type = 'button';
-              retry.className = 'raised emby-button';
-              retry.textContent = t('retry_search');
-              retry.addEventListener('click', function () { decide(request.Id, 'Retry'); });
-              tdActions.appendChild(retry);
-            }
-
-            // Force-set status.
-            var statusSelect = document.createElement('select');
-            statusSelect.setAttribute('is', 'emby-select');
-            statusSelect.className = 'emby-select';
-            [['0', 'status_pending'], ['1', 'status_approved'], ['2', 'status_denied'], ['3', 'status_available']].forEach(function (pair) {
-              var opt = document.createElement('option');
-              opt.value = pair[0];
-              opt.textContent = t(pair[1]);
-              statusSelect.appendChild(opt);
-            });
-            statusSelect.value = String(statusToInt(request.Status));
-            statusSelect.addEventListener('change', function () { adminEdit(request, { Status: parseInt(statusSelect.value, 10) }); });
-            tdActions.appendChild(statusSelect);
-
-            // Reschedule (desired date).
-            var dateInput = document.createElement('input');
-            dateInput.type = 'date';
-            if (request.DesiredAt) { dateInput.value = String(request.DesiredAt).slice(0, 10); }
-            dateInput.addEventListener('change', function () { adminEdit(request, { DesiredAt: dateInput.value || null }); });
-            tdActions.appendChild(dateInput);
-
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'raised emby-button jcDangerButton';
-            del.textContent = t('admin_delete');
-            del.addEventListener('click', function () { adminDelete(request.Id); });
-            tdActions.appendChild(del);
-
-            tr.appendChild(tdActions);
-
-            tbody.appendChild(tr);
-          });
-
-          table.appendChild(tbody);
-          container.appendChild(table);
-          loadAdminDownloadStatus();
-        }
-
-        function applyAdminDownloadStatuses(statuses) {
-          (statuses || []).forEach(function (s) {
-            var row = document.querySelector('#jcAdminPending tr[data-req-id="' + s.RequestId + '"]');
-            if (!row) { return; }
-            var cell = row.querySelector('.jcAdminStatusCell');
-            if (!cell) { return; }
-            var old = cell.querySelector('.jcAdminDl');
-            if (old) { old.remove(); }
-            if (s.State === 'downloading' || s.State === 'importing' || s.State === 'queued') {
-              var key = window.JellyCrowdLib ? window.JellyCrowdLib.downloadStateKey(s.State) : null;
-              var badge = document.createElement('span');
-              badge.className = 'jcStatus jcAdminDl';
-              var label = key ? t(key) : s.State;
-              if (s.State === 'downloading' || s.State === 'importing') { label += ' ' + Math.round(s.Percent || 0) + '%'; }
-              badge.textContent = label;
-              cell.appendChild(badge);
-            }
-          });
-        }
-
-        function loadAdminDownloadStatus() {
-          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Requests/All/DownloadStatus'), dataType: 'json' })
-            .then(applyAdminDownloadStatuses)
-            .catch(function () { /* ignore */ });
-        }
-
-        function load() {
-          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Requests'), dataType: 'json' })
-            .then(render)
-            .catch(function () { /* ignore */ });
-        }
-
-        function reportAction(id, action) {
-          ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JellyCrowd/Reports/' + id + '/' + action) })
-            .then(loadReports)
-            .catch(function () { /* ignore */ });
-        }
-
-        function updateReportsBadge(unresolved) {
-          var title = document.querySelector('#jcReportsTitle');
-          if (title) { title.textContent = t('admin_reports_title') + (unresolved ? ' (' + unresolved + ')' : ''); }
-          var tab = document.querySelector('#jcTabRequests');
-          if (tab) {
-            var badge = tab.querySelector('.jcTabBadge');
-            if (unresolved) {
-              if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'jcTabBadge';
-                badge.style.cssText = 'margin-left:.4em;background:#c62828;color:#fff;border-radius:1em;padding:0 .5em;font-size:.8em;';
-                tab.appendChild(badge);
-              }
-              badge.textContent = unresolved;
-            } else if (badge) {
-              badge.remove();
-            }
-          }
-        }
-
-        function renderReports(reports) {
-          var container = document.querySelector('#jcReports');
-          var empty = document.querySelector('#jcReportsEmpty');
-          container.innerHTML = '';
-          var unresolved = (reports || []).filter(function (r) { return !r.Resolved; }).length;
-          updateReportsBadge(unresolved);
-          if (!reports || reports.length === 0) {
-            empty.textContent = t('admin_no_reports');
-            empty.hidden = false;
-            return;
-          }
-          empty.hidden = true;
-
-          var table = document.createElement('table');
-          table.className = 'jcTable';
-          var tbody = document.createElement('tbody');
-          reports.forEach(function (r) {
-            var tr = document.createElement('tr');
-            if (r.Resolved) { tr.style.opacity = '0.55'; }
-
-            var tdMain = document.createElement('td');
-            var title = document.createElement('div');
-            title.textContent = r.Title + (r.Resolved ? ' ✓' : '');
-            title.style.fontWeight = '600';
-            var msg = document.createElement('div');
-            msg.className = 'jcAdminSub';
-            msg.textContent = r.Message;
-            var sub = document.createElement('div');
-            sub.className = 'jcAdminSub';
-            sub.textContent = (usersById[r.UserId] || r.UserName || '?') + ' · ' + (r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '');
-            tdMain.appendChild(title);
-            tdMain.appendChild(msg);
-            tdMain.appendChild(sub);
-            tr.appendChild(tdMain);
-
-            var tdActions = document.createElement('td');
-            tdActions.className = 'jcColActions';
-            if (!r.Resolved) {
-              var resolve = document.createElement('button');
-              resolve.type = 'button';
-              resolve.className = 'raised emby-button';
-              resolve.textContent = t('admin_resolve');
-              resolve.addEventListener('click', function () { reportAction(r.Id, 'Resolve'); });
-              tdActions.appendChild(resolve);
-            }
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'raised emby-button jcDangerButton';
-            del.textContent = t('admin_delete');
-            del.addEventListener('click', function () { reportAction(r.Id, 'Delete'); });
-            tdActions.appendChild(del);
-            tr.appendChild(tdActions);
-
-            tbody.appendChild(tr);
-          });
-          table.appendChild(tbody);
-          container.appendChild(table);
-        }
-
-        function loadReports() {
-          ApiClient.ajax({ type: 'GET', url: ApiClient.getUrl('JellyCrowd/Reports'), dataType: 'json' })
-            .then(renderReports)
-            .catch(function () { /* ignore */ });
-        }
-
-        document.querySelector('#jcAdminStatusFilter').addEventListener('change', function () { render(); });
-
-        document.querySelector('#JellyCrowdConfigPage').addEventListener('pageshow', function () {
-          loadStrings().then(ensureLib).then(loadUsers).then(function () {
-            applyLabels();
-            load();
-            loadReports();
-          });
+        document.querySelector("#JellyCrowdConfigPage").addEventListener("pageshow", function () {
+          loadStrings().then(applyLabels);
         });
       })();
     </script>

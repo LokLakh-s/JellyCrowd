@@ -332,6 +332,18 @@ body.jellycrowd-overlay-open {
   font-weight: 600;
 }
 
+.jellycrowd-admin-table input[type="number"] {
+  width: 6em;
+  padding: 0.3em 0.4em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+  font-size: 0.85em;
+}
+
+.jellycrowd-admin-table input[type="checkbox"] { width: 1.1em; height: 1.1em; cursor: pointer; }
+
 .jellycrowd-admin-poster { width: 34px; height: 51px; object-fit: cover; border-radius: 0.2em; }
 
 .jellycrowd-admin-sub { opacity: 0.7; font-size: 0.85em; }
