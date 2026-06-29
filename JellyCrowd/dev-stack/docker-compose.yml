@@ -1,0 +1,69 @@
+# Jelly Crowd — local test stack against Jellyfin 12.0 RC2.
+#
+# Purpose: get ahead on compatibility with the reworked 12.0 web UI. Brings up Jellyfin 12.0-rc2 plus
+# the Servarr backends Jelly Crowd dispatches to (Radarr = movies, Sonarr = shows, Prowlarr = indexers).
+#
+# Quick start (from this folder):
+#   1) pwsh ./deploy-plugin.ps1        # builds Jelly Crowd (Release) into ./jellyfin/config/plugins/JellyCrowd
+#   2) docker compose up -d
+#   3) http://localhost:8096           # finish the Jellyfin setup wizard
+#   4) Install the File Transformation plugin (see README) — required for the header UI to appear.
+#   5) In Jelly Crowd config: TMDB key + connect Radarr (http://radarr:7878) / Sonarr (http://sonarr:8989).
+#
+# The Jelly Crowd image tag is pinned to RC2 for reproducibility; `unstable` / `preview` also exist if
+# you want the very latest nightly.
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:12.0-rc2
+    container_name: jellycrowd-jellyfin
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./jellyfin/config:/config        # plugins live here: /config/plugins/JellyCrowd (deploy script writes it)
+      - ./jellyfin/cache:/cache
+      - ./media:/media
+    environment:
+      - TZ=Europe/Paris
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: jellycrowd-radarr
+    ports:
+      - "7878:7878"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+    volumes:
+      - ./radarr/config:/config
+      - ./media:/media
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: jellycrowd-sonarr
+    ports:
+      - "8989:8989"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+    volumes:
+      - ./sonarr/config:/config
+      - ./media:/media
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: jellycrowd-prowlarr
+    ports:
+      - "9696:9696"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+    volumes:
+      - ./prowlarr/config:/config
+    restart: unless-stopped

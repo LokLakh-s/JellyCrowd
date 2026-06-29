@@ -4,6 +4,7 @@
   "nav_catalog": "Catalogue",
   "nav_calendar": "Calendrier",
   "nav_requests": "Mes demandes",
+  "nav_admin": "Admin",
   "nav_moderation": "Modération",
   "nav_ownership": "Appartenance",
   "ownership_subtitle": "Qui possède actuellement quel média.",

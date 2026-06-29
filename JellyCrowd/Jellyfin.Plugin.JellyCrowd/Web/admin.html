@@ -1,18 +1,18 @@
 <!--
-  Jelly Crowd "Moderation" page (admin only). Fetched and injected as a fragment like the other views,
-  so it carries no <html>/<head>/<body> and loads its assets via absolute URLs.
+  Jelly Crowd "Admin" overlay (admin only). A self-designed admin area hosted by the plugin, opened from
+  the admin-only navbar entry. Fetched and injected as a fragment like the other views.
 -->
-<div id="jellyCrowdModeration" class="jellycrowd">
+<div id="jellyCrowdAdmin" class="jellycrowd">
   <header class="jellycrowd-header">
     <div class="jellycrowd-brand">
-      <img id="jcModLogo" class="jellycrowd-logo" alt="" />
-      <h1 id="jcModTitle" class="jellycrowd-title"></h1>
+      <img id="jcAdminLogo" class="jellycrowd-logo" alt="" />
+      <h1 id="jcAdminTitle" class="jellycrowd-title"></h1>
     </div>
   </header>
-  <p id="jcModSubtitle" class="jellycrowd-disclaimer"></p>
+  <div id="jcAdminTabs" class="jellycrowd-admin-tabbar" role="tablist"></div>
   <section class="jellycrowd-section">
-    <p id="jcModMessage" class="jellycrowd-message" hidden></p>
-    <div id="jcModList" class="jellycrowd-list" aria-live="polite"></div>
+    <p id="jcAdminMessage" class="jellycrowd-message" hidden></p>
+    <div id="jcAdminContent" aria-live="polite"></div>
   </section>
 </div>
 
@@ -32,7 +32,7 @@
 
     function start() {
       var s = document.createElement('script');
-      s.src = get('JellyCrowd/Web/moderation.js');
+      s.src = get('JellyCrowd/Web/admin.js');
       document.head.appendChild(s);
     }
 

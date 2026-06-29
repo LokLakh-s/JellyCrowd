@@ -15,20 +15,14 @@
   var cfgLang = 'auto';
   var pluginHidden = false;   // "config mode": hide the plugin from non-admins (decided server-side)
 
-  // The user pages we host. Order defines the overlay tab order.
+  // The user pages we host. Order defines the overlay tab order. (Moderation & Ownership are admin-only
+  // and live in the plugin config page now, not the navbar.)
   var VIEWS = [
     { id: 'catalog', file: 'catalog.html', labelKey: 'nav_catalog' },
     { id: 'calendar', file: 'calendar.html', labelKey: 'nav_calendar' },
     { id: 'requests', file: 'requests.html', labelKey: 'nav_requests' },
     { id: 'mymedia', file: 'mymedia.html', labelKey: 'my_media_title' },
-    { id: 'moderation', file: 'moderation.html', labelKey: 'nav_moderation' },
-    { id: 'ownership', file: 'ownership.html', labelKey: 'nav_ownership' }
-  ];
-
-  // Admin-only nav tabs, in display order. Added once admin status is known (see ensureAdminTabs).
-  var ADMIN_TABS = [
-    { id: 'moderation', labelKey: 'nav_moderation' },
-    { id: 'ownership', labelKey: 'nav_ownership' }
+    { id: 'admin', file: 'admin.html', labelKey: 'nav_admin' }
   ];
 
   var overlay = null;
@@ -198,7 +192,11 @@
     if (!overlay) {
       return;
     }
-    var header = document.querySelector('.skinHeader');
+    // Anchor the overlay below whichever header is actually on screen: the MUI app bar (Jellyfin 12) or
+    // the classic skinHeader (10.11). On 12.0 the skinHeader still exists but is hidden (height 0), so we
+    // must prefer the MUI bar — otherwise the overlay starts at y=0 and overlaps the toolbar.
+    var header = document.querySelector('.MuiAppBar-root') || document.querySelector('.MuiToolbar-root')
+      || document.querySelector('.skinHeader');
     var top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
     overlay.style.top = (top > 0 ? top : 0) + 'px';
   }
@@ -522,23 +520,18 @@
   // the centered .headerTabs row. That row is page-specific (shown on Home / library pages, hidden on
   // detail / search / settings), so these links follow the same visibility — by design. Jellyfin
   // rebuilds the tab bar on navigation, so the MutationObserver re-inserts us whenever it's wiped.
-  // The admin-only tabs are added last and only once admin status is known. It can resolve after the
-  // first insertNav, so this runs again from tryInsert() to top up an already-built nav.
-  function ensureAdminTabs(nav) {
-    if (!isAdmin) {
-      return;
+  // The admin-only "Admin" tab is added once admin status is known (it can resolve after the first
+  // insertNav), so this runs again from tryInsert() to top up an already-built nav.
+  function ensureAdminNav(nav) {
+    if (isAdmin && !headerNavButtons.admin) {
+      nav.appendChild(navButton('nav_admin', 'admin'));
     }
-    ADMIN_TABS.forEach(function (tab) {
-      if (!headerNavButtons[tab.id]) {
-        nav.appendChild(navButton(tab.labelKey, tab.id));
-      }
-    });
   }
 
   function insertNav() {
     var existingNav = document.querySelector('.jcHeaderNav');
     if (existingNav) {
-      ensureAdminTabs(existingNav); // admin status may have resolved since the first insert
+      ensureAdminNav(existingNav); // admin status may have resolved since the first insert
       return;
     }
     // Prefer the native tabs row (centered). Fall back to the header's left area for library types
@@ -555,10 +548,118 @@
     nav.appendChild(navButton('nav_catalog', 'catalog'));
     nav.appendChild(navButton('nav_calendar', 'calendar'));
     nav.appendChild(navButton('nav_requests', 'requests'));
-    ensureAdminTabs(nav);
+    ensureAdminNav(nav);
     // Sit on the same line as the real tabs when the slider exists, else in the row/host itself.
     var slider = tabs ? tabs.querySelector('.emby-tabs-slider') : null;
     (slider || host).appendChild(nav);
+  }
+
+  // ---------- Jellyfin 12 (React + MUI) header ----------
+  // The 12.0 web client is a React/MUI app: the old `.headerTabs`/`.skinHeader` still exist but are
+  // hidden, so the classic insertNav() injects into dead DOM. Here we additionally inject our tabs into
+  // the live MUI toolbar. Styling is borrowed by cloning an existing native nav link's className (the
+  // emotion `css-*` hashes are build-specific, so we read them off the live element rather than hard-code
+  // them). React re-renders the toolbar, so a MutationObserver re-injects when our tabs disappear.
+  // No-op on 10.11 (there is no `.MuiToolbar-root`).
+  var muiObserver = null;
+  var muiPending = false;
+
+  function muiNavItems() {
+    var items = [
+      { id: 'catalog', labelKey: 'nav_catalog' },
+      { id: 'calendar', labelKey: 'nav_calendar' },
+      { id: 'requests', labelKey: 'nav_requests' }
+    ];
+    if (isAdmin) {
+      items.push({ id: 'admin', labelKey: 'nav_admin' });
+    }
+    return items;
+  }
+
+  function insertMuiNav() {
+    if (!pluginVisible()) {
+      return;
+    }
+    var toolbar = document.querySelector('.MuiToolbar-root');
+    if (!toolbar) {
+      return;
+    }
+    var stack = toolbar.querySelector('.MuiStack-root');
+    if (!stack) {
+      return;
+    }
+    // Clone the className of an existing native nav link (Movies / a tab link) so our tabs match exactly.
+    var template = stack.querySelector('a[href*="/movies"]') || stack.querySelector('a[href*="tab="]')
+      || stack.querySelectorAll('a')[1] || stack.querySelector('a');
+    var cls = template ? template.className : '';
+    muiNavItems().forEach(function (item) {
+      if (stack.querySelector('[data-jc-nav="' + item.id + '"]')) {
+        return; // already present
+      }
+      var a = document.createElement('a');
+      a.className = cls;
+      a.href = '#';
+      a.setAttribute('data-jc-nav', item.id);
+      a.textContent = t(item.labelKey);
+      a.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggleView(item.id); });
+      stack.appendChild(a);
+    });
+  }
+
+  // Right-cluster host: the MUI toolbar's icon box (next to Search) on Jellyfin 12, else the classic
+  // .headerRight on 10.11. Used by the quota / bell / announcement / links inserters so the same builders
+  // serve both layouts.
+  function rightHost() {
+    return document.querySelector('.MuiToolbar-root .MuiBox-root') || document.querySelector('.headerRight');
+  }
+
+  // The className of a native MUI icon button (Search) so our injected icon buttons match it exactly.
+  // Empty on 10.11 (no MUI toolbar) → callers fall back to the classic paper-icon-button-light styling.
+  function muiIconButtonClass() {
+    var tb = document.querySelector('.MuiToolbar-root');
+    if (!tb) {
+      return '';
+    }
+    var s = tb.querySelector('a[aria-label="Search"], button[aria-label="Search"]');
+    return s ? s.className : '';
+  }
+
+  // (Re)inject our whole header UI into the MUI toolbar. Each inserter is idempotent (host-scoped guard).
+  function mountMui() {
+    insertMuiNav();
+    insertQuota();
+    insertBell();
+    insertAnnouncement();
+    insertHeaderLinks();
+  }
+
+  function watchMuiToolbar() {
+    if (muiObserver || !document.querySelector('.MuiToolbar-root')) {
+      return;
+    }
+    muiObserver = new MutationObserver(function () {
+      if (muiPending) {
+        return;
+      }
+      muiPending = true;
+      // Debounce: React can fire many mutations per render; coalesce and re-inject only when our stuff is
+      // gone (React replaced the toolbar). The nav tabs and the quota bar are the two sentinels.
+      setTimeout(function () {
+        muiPending = false;
+        var tb = document.querySelector('.MuiToolbar-root');
+        if (!tb) {
+          return;
+        }
+        var stack = tb.querySelector('.MuiStack-root');
+        var box = tb.querySelector('.MuiBox-root');
+        var navMissing = stack && !stack.querySelector('[data-jc-nav]');
+        var clusterMissing = box && !box.querySelector('.jcHeaderQuota');
+        if (navMissing || clusterMissing) {
+          mountMui();
+        }
+      }, 150);
+    });
+    muiObserver.observe(document.body, { childList: true, subtree: true });
   }
 
   // Brand SVGs for the optional header links. Inline (the base page can't load external assets, and a
@@ -569,8 +670,9 @@
   function brandLinkIcon(svg, href, title, cls) {
     var a = document.createElement('a');
     // Same native icon-button classes as the bell/announcement so colour, hover circle, size and
-    // alignment all match them — no bespoke colour or hover; everything is inherited from the header.
-    a.className = 'paper-icon-button-light headerButton jcHeaderLink ' + cls;
+    // alignment all match them. On Jellyfin 12 we clone the MUI icon-button class; on 10.11 we fall back
+    // to the classic paper-icon-button-light styling.
+    a.className = (muiIconButtonClass() || 'paper-icon-button-light headerButton') + ' jcHeaderLink ' + cls;
     a.href = href;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
@@ -589,7 +691,7 @@
     if (!discordUrl && !supportUrl) {
       return;
     }
-    var host = document.querySelector('.headerRight');
+    var host = rightHost();
     if (!host) {
       return;
     }
@@ -614,8 +716,8 @@
   // Quota bar lives in .headerRight, placed between the search icon and the user avatar
   // (i.e. just before the .headerUserButton), per request.
   function insertQuota() {
-    var host = document.querySelector('.headerRight');
-    if (!host || document.querySelector('.jcHeaderQuota')) {
+    var host = rightHost();
+    if (!host || host.querySelector('.jcHeaderQuota')) {
       return;
     }
     var wrap = document.createElement('span');
@@ -876,10 +978,15 @@
 
   // Bell sits in .headerRight, just left of the quota bar.
   function insertBell() {
-    var host = document.querySelector('.headerRight');
-    if (!host || document.querySelector('.jcHeaderBell')) {
+    var host = rightHost();
+    if (!host || host.querySelector('.jcHeaderBell')) {
       return;
     }
+    // The popover lives on <body>; if React wiped a previous bell button its panel could linger, so drop
+    // any orphaned panel before building a fresh one (avoids duplicates across re-renders).
+    var stalePanels = document.querySelectorAll('.jcBellPanel');
+    for (var sp = 0; sp < stalePanels.length; sp++) { stalePanels[sp].remove(); }
+
     var wrap = document.createElement('span');
     wrap.className = 'jcHeaderBell';
     // align-self:center so the bell is vertically centred in the header bar like the nav tabs (it sat
@@ -888,7 +995,7 @@
 
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'paper-icon-button-light headerButton';
+    btn.className = muiIconButtonClass() || 'paper-icon-button-light headerButton';
     btn.title = t('notifications');
     // overflow:visible so the round icon button doesn't clip the corner badge.
     btn.style.cssText = 'position:relative;overflow:visible;';
@@ -901,7 +1008,7 @@
     var badge = document.createElement('span');
     badge.className = 'jcBellBadge';
     // Sit at the outer top-right corner (fully outside the icon glyph) so it is never half-hidden.
-    badge.style.cssText = 'position:absolute;top:-.15em;right:-.15em;min-width:1.2em;height:1.2em;padding:0 .25em;border-radius:.6em;background:#e53935;color:#fff;font-size:.62em;line-height:1.2em;text-align:center;display:none;box-sizing:border-box;z-index:1;pointer-events:none;';
+    badge.style.cssText = 'position:absolute;top:.05em;right:.05em;min-width:.95em;height:.95em;padding:0 .2em;border-radius:.5em;background:#e53935;color:#fff;font-size:.55em;line-height:.95em;text-align:center;display:none;box-sizing:border-box;z-index:1;pointer-events:none;';
     btn.appendChild(badge);
 
     // The panel is fixed-position and lives on <body> (not inside the header) so it is never clipped
@@ -1050,7 +1157,10 @@
     var els = announcementEls;
     var hasText = !!(announcement.text && announcement.text.trim());
     els.wrap.style.display = (!hasText && !isAdmin) ? 'none' : 'inline-flex';
-    els.icon.style.color = hasText ? announcementColors(announcement.level).bg : '';
+    // Keep the icon white like the rest of the header; only tint it for warning/alert levels so those
+    // still stand out. (Green "info" stays white — a green icon among white ones looked out of place.)
+    var lvl = announcement.level;
+    els.icon.style.color = (hasText && (lvl === 'yellow' || lvl === 'red')) ? announcementColors(lvl).bg : '';
     var isNew = hasText && (announcement.text.trim() !== lastSeenAnnouncement());
     els.dot.style.display = isNew ? '' : 'none';
     renderAnnouncementPanel(els.panel);
@@ -1124,8 +1234,11 @@
   // cramped and clipped in the header. A red dot marks a new (unseen) announcement; the icon is tinted by
   // level. Built once; content refreshes via refreshAnnouncement().
   function insertAnnouncement() {
-    var host = document.querySelector('.headerRight');
-    if (!host || document.querySelector('.jcHeaderAnnounce')) { return; }
+    var host = rightHost();
+    if (!host || host.querySelector('.jcHeaderAnnounce')) { return; }
+    // Drop any orphaned popover left over from a React re-render before building a fresh one.
+    var stalePanels = document.querySelectorAll('.jcAnnouncePanel');
+    for (var sp = 0; sp < stalePanels.length; sp++) { stalePanels[sp].remove(); }
 
     var wrap = document.createElement('span');
     wrap.className = 'jcHeaderAnnounce';
@@ -1133,7 +1246,7 @@
 
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'paper-icon-button-light headerButton';
+    btn.className = muiIconButtonClass() || 'paper-icon-button-light headerButton';
     btn.title = t('announcement_title');
     btn.style.cssText = 'position:relative;overflow:visible;';
     var icon = document.createElement('span');
@@ -1144,7 +1257,7 @@
 
     var dot = document.createElement('span');
     dot.className = 'jcAnnounceDot';
-    dot.style.cssText = 'position:absolute;top:-.05em;right:-.05em;width:.7em;height:.7em;border-radius:50%;background:#e53935;display:none;box-sizing:border-box;z-index:1;pointer-events:none;';
+    dot.style.cssText = 'position:absolute;top:.1em;right:.1em;width:.5em;height:.5em;border-radius:50%;background:#e53935;display:none;box-sizing:border-box;z-index:1;pointer-events:none;';
     btn.appendChild(dot);
 
     // Wider than the bell panel so announcements display nicely; fixed-position on <body> so it's never
@@ -1229,6 +1342,8 @@
     insertBell();
     insertAnnouncement();
     insertHeaderLinks(); // after the announcement, so we can anchor the links just left of it
+    insertMuiNav();      // Jellyfin 12 (MUI) toolbar — no-op on 10.11
+    watchMuiToolbar();   // re-inject our MUI tabs when React re-renders the toolbar
   }
 
   // ---------- Internal reviews on the native Jellyfin detail page (M25.2) ----------
