@@ -589,7 +589,8 @@
   function renderSeasonRequests(container, item, seasons, dateInput, requested) {
     var req = requested || { seasons: {}, episodes: {} };
     container.innerHTML = '';
-    (seasons || []).forEach(function (season) {
+    // Drop the "Specials" pseudo-season (TMDB numbers it 0): the popup lists real seasons only.
+    (seasons || []).filter(function (season) { return season && season.SeasonNumber !== 0; }).forEach(function (season) {
       var row = document.createElement('div');
       row.className = 'jellycrowd-season-row';
 
