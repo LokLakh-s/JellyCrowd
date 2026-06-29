@@ -169,9 +169,12 @@
       status.className = 'jellycrowd-status jellycrowd-status-denied';
       status.textContent = t('deletion_requested');
     } else {
-      var key = lib.statusLabelKey(request.Status);
+      var key = lib.requestStatusLabelKey(request);
       status.className = 'jellycrowd-status jellycrowd-status-' + key.replace('status_', '');
       status.textContent = t(key);
+      if (key === 'status_held') {
+        status.title = t('status_held_hint');
+      }
     }
     row.appendChild(status);
 
@@ -479,9 +482,12 @@
       status.className = 'jellycrowd-status jellycrowd-status-scheduled';
       status.textContent = availableCount + '/' + total;
     } else {
-      var key = lib.statusLabelKey(first.Status);
+      var key = lib.requestStatusLabelKey(first);
       status.className = 'jellycrowd-status jellycrowd-status-' + key.replace('status_', '');
       status.textContent = t(key);
+      if (key === 'status_held') {
+        status.title = t('status_held_hint');
+      }
     }
     row.appendChild(status);
 
