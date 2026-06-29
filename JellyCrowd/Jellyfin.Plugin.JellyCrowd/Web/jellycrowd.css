@@ -294,6 +294,71 @@ body.jellycrowd-overlay-open {
   color: #fff;
 }
 
+/* Admin overlay: Requests / Reports tables. */
+.jellycrowd-admin-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 1em;
+  font-size: 0.9em;
+}
+
+.jellycrowd-admin-filter select,
+.jellycrowd-admin-actions select,
+.jellycrowd-admin-actions input[type="date"] {
+  padding: 0.3em 0.45em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+  font-size: 0.85em;
+}
+
+.jellycrowd-admin-table { width: 100%; border-collapse: collapse; }
+
+.jellycrowd-admin-table th,
+.jellycrowd-admin-table td {
+  text-align: left;
+  padding: 0.5em 0.7em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  vertical-align: middle;
+}
+
+.jellycrowd-admin-table th {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  font-weight: 600;
+}
+
+.jellycrowd-admin-poster { width: 34px; height: 51px; object-fit: cover; border-radius: 0.2em; }
+
+.jellycrowd-admin-sub { opacity: 0.7; font-size: 0.85em; }
+
+.jellycrowd-admin-statuscell { white-space: nowrap; }
+.jellycrowd-admin-statuscell .jellycrowd-status { margin-right: 0.3em; }
+
+.jellycrowd-admin-actions { text-align: right; white-space: nowrap; }
+.jellycrowd-admin-actions > * { margin-left: 0.35em; vertical-align: middle; }
+
+.jellycrowd-status {
+  display: inline-block;
+  padding: 0.12em 0.5em;
+  border-radius: 0.3em;
+  font-size: 0.8em;
+  line-height: 1.3;
+}
+
+.jellycrowd-status-pending { background: #f9a825; color: #1a1a1a; }
+.jellycrowd-status-approved { background: #6366f1; color: #fff; }
+.jellycrowd-status-denied { background: #ef4444; color: #fff; }
+.jellycrowd-status-available { background: #10b981; color: #fff; }
+.jellycrowd-dl { background: #00a4dc; color: #fff; }
+
+.jellycrowd-request-danger { background: #c62828; }
+.jellycrowd-request-ok { background: #2e7d32; }
+
 /* Moderation page: one card per review across all titles, with hide/show + delete actions. */
 .jellycrowd-mod-row {
   background: rgba(255, 255, 255, 0.05);
