@@ -13,6 +13,7 @@
   var strings = {};
   var cfgLang = 'auto';
   var activeTab = null;
+  var usersById = {};   // userId -> display name (for the Requests/Reports tabs)
 
   function shortLang() { return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US'); }
   function t(key) { return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key; }
@@ -40,6 +41,21 @@
     });
   }
 
+  function apiPostJson(path, body) {
+    if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+      return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path), data: JSON.stringify(body), contentType: 'application/json' });
+    }
+    return fetch(pluginUrl(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } });
+  }
+
+  function loadUsers() {
+    if (!(window.ApiClient && typeof window.ApiClient.getUsers === 'function')) { return Promise.resolve(); }
+    return window.ApiClient.getUsers()
+      .then(function (users) { (users || []).forEach(function (u) { usersById[u.Id] = u.Name; }); })
+      .catch(function () { /* best-effort */ });
+  }
+
   function loadConfigLang() {
     return apiGet('JellyCrowd/Settings/Language')
       .then(function (d) { if (d && d.Language) { cfgLang = String(d.Language).toLowerCase(); } })
@@ -61,9 +77,228 @@
 
   // The admin tabs. `render(container)` fills the content area for that tab.
   var TABS = [
+    { id: 'requests', labelKey: 'tab_requests', render: renderRequests },
+    { id: 'reports', labelKey: 'admin_reports_title', render: renderReports },
     { id: 'moderation', labelKey: 'nav_moderation', render: renderModeration },
     { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership }
   ];
+
+  // ---------- Requests (admin approval queue) ----------
+  function statusToInt(s) {
+    if (typeof s === 'number') { return s; }
+    var map = { Pending: 0, Approved: 1, Denied: 2, Available: 3 };
+    return map[s] != null ? map[s] : 0;
+  }
+
+  function isPending(r) { return r.Status === 0 || r.Status === 'Pending'; }
+
+  function renderRequests(container) {
+    container.innerHTML = '';
+    // Status filter.
+    var bar = document.createElement('div');
+    bar.className = 'jellycrowd-admin-filter';
+    var label = document.createElement('span');
+    label.textContent = t('admin_filter_status');
+    var filter = document.createElement('select');
+    [['all', t('admin_filter_all')], ['0', t('status_pending')], ['1', t('status_approved')], ['3', t('status_available')], ['2', t('status_denied')]]
+      .forEach(function (o) { var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; filter.appendChild(opt); });
+    bar.appendChild(label);
+    bar.appendChild(filter);
+    container.appendChild(bar);
+
+    var listHost = document.createElement('div');
+    container.appendChild(listHost);
+
+    function reload() { load(); }
+    function decide(id, action) { apiPostNoResult('JellyCrowd/Requests/' + id + '/' + action).then(reload).catch(function () {}); }
+    function adminDelete(id) { apiPostNoResult('JellyCrowd/Requests/' + id + '/Delete').then(reload).catch(function () {}); }
+    function adminEdit(request, partial) {
+      var body = {
+        Status: partial.Status != null ? partial.Status : statusToInt(request.Status),
+        Season: request.Season != null ? request.Season : null,
+        Episode: request.Episode != null ? request.Episode : null,
+        DesiredAt: Object.prototype.hasOwnProperty.call(partial, 'DesiredAt') ? partial.DesiredAt : (request.DesiredAt || null)
+      };
+      apiPostJson('JellyCrowd/Requests/' + request.Id + '/Edit', body).then(reload).catch(function () {});
+    }
+
+    function paint(requests) {
+      var f = filter.value;
+      var all = requests.slice().filter(function (r) { return f === 'all' || statusToInt(r.Status) === parseInt(f, 10); });
+      all.sort(function (a, b) { return lib.statusRank(a.Status) - lib.statusRank(b.Status); });
+      listHost.innerHTML = '';
+      if (!all.length) { setMessage(requests.length ? t('admin_no_requests_filtered') : t('admin_no_requests')); return; }
+      setMessage('');
+      var table = document.createElement('table');
+      table.className = 'jellycrowd-admin-table';
+      table.innerHTML = '<thead><tr><th></th><th>' + t('col_title') + '</th><th>' + t('admin_requested_by') + '</th><th>' + t('col_date')
+        + '</th><th>' + t('col_status') + '</th><th></th></tr></thead>';
+      var tbody = document.createElement('tbody');
+      all.forEach(function (request) { tbody.appendChild(requestRow(request, decide, adminEdit, adminDelete)); });
+      table.appendChild(tbody);
+      listHost.appendChild(table);
+      loadDownloadStatus();
+    }
+
+    function load() {
+      setMessage(t('loading'));
+      apiGet('JellyCrowd/Requests').then(function (rows) { paint(rows || []); }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+    }
+
+    function loadDownloadStatus() {
+      apiGet('JellyCrowd/Requests/All/DownloadStatus').then(function (statuses) {
+        (statuses || []).forEach(function (s) {
+          var row = listHost.querySelector('tr[data-req-id="' + s.RequestId + '"]');
+          if (!row) { return; }
+          var cell = row.querySelector('.jellycrowd-admin-statuscell');
+          if (!cell) { return; }
+          var old = cell.querySelector('.jellycrowd-dl');
+          if (old) { old.remove(); }
+          if (s.State === 'downloading' || s.State === 'importing' || s.State === 'queued') {
+            var badge = document.createElement('span');
+            badge.className = 'jellycrowd-status jellycrowd-dl';
+            var key = lib.downloadStateKey(s.State);
+            var text = key ? t(key) : s.State;
+            if (s.State === 'downloading' || s.State === 'importing') { text += ' ' + Math.round(s.Percent || 0) + '%'; }
+            badge.textContent = text;
+            cell.appendChild(badge);
+          }
+        });
+      }).catch(function () { /* ignore */ });
+    }
+
+    filter.addEventListener('change', function () { load(); });
+    load();
+  }
+
+  function requestRow(request, decide, adminEdit, adminDelete) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-req-id', request.Id);
+
+    var tdP = document.createElement('td');
+    if (request.PosterPath) {
+      var img = document.createElement('img');
+      img.className = 'jellycrowd-admin-poster';
+      img.loading = 'lazy';
+      img.alt = '';
+      img.src = POSTER_BASE + request.PosterPath;
+      tdP.appendChild(img);
+    }
+    tr.appendChild(tdP);
+
+    var tdT = document.createElement('td');
+    var year = request.ReleaseDate ? (' (' + String(request.ReleaseDate).slice(0, 4) + ')') : '';
+    tdT.textContent = request.Title + year + (request.Season ? ' · S' + request.Season : '') + (request.Episode ? 'E' + request.Episode : '');
+    tr.appendChild(tdT);
+
+    var tdU = document.createElement('td');
+    tdU.textContent = usersById[request.UserId] || '?';
+    tr.appendChild(tdU);
+
+    var tdD = document.createElement('td');
+    tdD.className = 'jellycrowd-admin-sub';
+    tdD.textContent = request.RequestedAt ? new Date(request.RequestedAt).toLocaleDateString() : '';
+    tr.appendChild(tdD);
+
+    var tdS = document.createElement('td');
+    tdS.className = 'jellycrowd-admin-statuscell';
+    var statusKey = lib.statusLabelKey(request.Status);
+    var status = document.createElement('span');
+    status.className = 'jellycrowd-status jellycrowd-status-' + statusKey.replace('status_', '');
+    status.textContent = t(statusKey);
+    tdS.appendChild(status);
+    var isAvailable = request.Status === 3 || request.Status === 'Available';
+    if (request.DispatchError && !isAvailable) {
+      var err = document.createElement('span');
+      err.className = 'jellycrowd-status jellycrowd-status-denied';
+      err.textContent = '⚠ ' + t('dispatch_failed');
+      err.title = request.DispatchError;
+      tdS.appendChild(err);
+    }
+    tr.appendChild(tdS);
+
+    var tdA = document.createElement('td');
+    tdA.className = 'jellycrowd-admin-actions';
+    if (isPending(request)) {
+      tdA.appendChild(adminBtn(t('admin_approve'), 'ok', function () { decide(request.Id, 'Approve'); }));
+      tdA.appendChild(adminBtn(t('admin_deny'), 'danger', function () { decide(request.Id, 'Deny'); }));
+    }
+    if (request.Status === 1 || request.Status === 'Approved') {
+      tdA.appendChild(adminBtn(t('retry_search'), '', function () { decide(request.Id, 'Retry'); }));
+    }
+    var sel = document.createElement('select');
+    [['0', 'status_pending'], ['1', 'status_approved'], ['2', 'status_denied'], ['3', 'status_available']]
+      .forEach(function (p) { var o = document.createElement('option'); o.value = p[0]; o.textContent = t(p[1]); sel.appendChild(o); });
+    sel.value = String(statusToInt(request.Status));
+    sel.addEventListener('change', function () { adminEdit(request, { Status: parseInt(sel.value, 10) }); });
+    tdA.appendChild(sel);
+    var date = document.createElement('input');
+    date.type = 'date';
+    if (request.DesiredAt) { date.value = String(request.DesiredAt).slice(0, 10); }
+    date.addEventListener('change', function () { adminEdit(request, { DesiredAt: date.value || null }); });
+    tdA.appendChild(date);
+    tdA.appendChild(adminBtn(t('admin_delete'), 'danger', function () { adminDelete(request.Id); }));
+    tr.appendChild(tdA);
+    return tr;
+  }
+
+  function adminBtn(label, kind, handler) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'jellycrowd-request' + (kind === 'danger' ? ' jellycrowd-request-danger' : (kind === 'ok' ? ' jellycrowd-request-ok' : ''));
+    b.textContent = label;
+    b.addEventListener('click', function () { handler(); });
+    return b;
+  }
+
+  // ---------- Reports ----------
+  function renderReports(container) {
+    setMessage(t('loading'));
+    function reload() { renderReports(container); }
+    apiGet('JellyCrowd/Reports')
+      .then(function (reports) {
+        container.innerHTML = '';
+        reports = reports || [];
+        if (!reports.length) { setMessage(t('admin_no_reports')); return; }
+        setMessage('');
+        var table = document.createElement('table');
+        table.className = 'jellycrowd-admin-table';
+        var tbody = document.createElement('tbody');
+        reports.forEach(function (r) {
+          var tr = document.createElement('tr');
+          if (r.Resolved) { tr.style.opacity = '0.55'; }
+          var tdMain = document.createElement('td');
+          var title = document.createElement('div');
+          title.style.fontWeight = '600';
+          title.textContent = r.Title + (r.Resolved ? ' ✓' : '');
+          var msg = document.createElement('div');
+          msg.className = 'jellycrowd-admin-sub';
+          msg.textContent = r.Message;
+          var sub = document.createElement('div');
+          sub.className = 'jellycrowd-admin-sub';
+          sub.textContent = (usersById[r.UserId] || r.UserName || '?') + ' · ' + (r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '');
+          tdMain.appendChild(title);
+          tdMain.appendChild(msg);
+          tdMain.appendChild(sub);
+          tr.appendChild(tdMain);
+          var tdA = document.createElement('td');
+          tdA.className = 'jellycrowd-admin-actions';
+          if (!r.Resolved) {
+            tdA.appendChild(adminBtn(t('admin_resolve'), '', function () {
+              apiPostNoResult('JellyCrowd/Reports/' + r.Id + '/Resolve').then(reload).catch(function () {});
+            }));
+          }
+          tdA.appendChild(adminBtn(t('admin_delete'), 'danger', function () {
+            apiPostNoResult('JellyCrowd/Reports/' + r.Id + '/Delete').then(reload).catch(function () {});
+          }));
+          tr.appendChild(tdA);
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+      })
+      .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  }
 
   // ---------- Moderation ----------
   function renderModeration(container) {
@@ -276,7 +511,7 @@
   }
 
   function init() {
-    loadConfigLang().then(loadStrings).then(function () {
+    loadConfigLang().then(loadStrings).then(loadUsers).then(function () {
       var logo = document.getElementById('jcAdminLogo');
       if (logo) { logo.src = pluginUrl('JellyCrowd/Web/logo.png'); }
       document.getElementById('jcAdminTitle').textContent = t('nav_admin');
