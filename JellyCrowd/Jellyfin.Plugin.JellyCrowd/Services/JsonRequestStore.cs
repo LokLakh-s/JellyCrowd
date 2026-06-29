@@ -114,6 +114,31 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.Status = status;
       record.DecidedAt = DateTime.UtcNow;
       record.DecidedBy = decidedBy;
+      record.HeldForQuota = false; // an explicit decision supersedes the quota hold
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
+  public async Task<RequestRecord?> PromoteFromQuotaHoldAsync(Guid id, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.Status != RequestStatus.Pending || !record.HeldForQuota)
+      {
+        return null;
+      }
+
+      record.Status = RequestStatus.Approved;
+      record.HeldForQuota = false;
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }
@@ -175,6 +200,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.Status = RequestStatus.Available;
       record.JellyfinItemId = jellyfinItemId;
       record.AvailableAt = DateTime.UtcNow;
+      record.HeldForQuota = false; // fulfilled — no longer a quota hold
       record.DispatchError = null; // the title is here now — any earlier dispatch failure is moot
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
@@ -374,6 +400,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.Season = season;
       record.Episode = episode;
       record.DesiredAt = desiredAt;
+      record.HeldForQuota = false; // an explicit admin edit supersedes the quota hold
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }

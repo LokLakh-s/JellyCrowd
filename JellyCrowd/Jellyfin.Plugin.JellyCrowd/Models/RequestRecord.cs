@@ -58,6 +58,15 @@ public class RequestRecord
   public RequestStatus Status { get; set; }
 
   /// <summary>
+  /// Gets or sets a value indicating whether this request is <see cref="RequestStatus.Pending"/> solely
+  /// because it would exceed the requester's disk quota — it was otherwise eligible for auto-approval
+  /// (it did not require an administrator decision). Such a request is not awaiting the admin: once the
+  /// user's quota frees up it is automatically promoted to <see cref="RequestStatus.Approved"/>. Cleared
+  /// the moment the request leaves the pending state (promoted, decided, or fulfilled).
+  /// </summary>
+  public bool HeldForQuota { get; set; }
+
+  /// <summary>
   /// Gets or sets the UTC time the request was created.
   /// </summary>
   public DateTime RequestedAt { get; set; }

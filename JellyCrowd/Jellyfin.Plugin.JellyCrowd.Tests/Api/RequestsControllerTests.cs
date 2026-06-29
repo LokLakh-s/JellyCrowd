@@ -436,6 +436,9 @@ public class RequestsControllerTests
 
     public Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken)
       => Task.FromResult(_canRequest);
+
+    public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken)
+      => Task.FromResult(_canRequest);
   }
 
   private sealed class FakeNotificationService : INotificationService
@@ -527,6 +530,19 @@ public class RequestsControllerTests
       }
 
       return Task.FromResult(record);
+    }
+
+    public Task<RequestRecord?> PromoteFromQuotaHoldAsync(Guid id, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.Status != RequestStatus.Pending || !record.HeldForQuota)
+      {
+        return Task.FromResult<RequestRecord?>(null);
+      }
+
+      record.Status = RequestStatus.Approved;
+      record.HeldForQuota = false;
+      return Task.FromResult<RequestRecord?>(record);
     }
 
     public Task<bool> ExistsActiveAsync(Guid userId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken)

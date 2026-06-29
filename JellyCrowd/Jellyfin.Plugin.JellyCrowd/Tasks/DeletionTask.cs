@@ -23,6 +23,7 @@ public sealed class DeletionTask : IScheduledTask
   private readonly IDownloadDispatcher _downloadDispatcher;
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly INotificationService _notificationService;
+  private readonly IQuotaHoldPromoter _quotaHoldPromoter;
   private readonly Func<PluginConfiguration> _configurationProvider;
   private readonly ILogger<DeletionTask> _logger;
 
@@ -34,15 +35,17 @@ public sealed class DeletionTask : IScheduledTask
   /// <param name="downloadDispatcher">The download dispatcher (to purge the backend on full deletion).</param>
   /// <param name="libraryMatcher">The library matcher (to resolve the season/episode item to delete).</param>
   /// <param name="notificationService">The notification service, used to warn owners on expiry.</param>
+  /// <param name="quotaHoldPromoter">The quota-hold promoter (resumes held requests once space is freed).</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, ILibraryMatcher libraryMatcher, INotificationService notificationService, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
+  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, ILibraryMatcher libraryMatcher, INotificationService notificationService, IQuotaHoldPromoter quotaHoldPromoter, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
   {
     _store = store;
     _mediaDeleter = mediaDeleter;
     _downloadDispatcher = downloadDispatcher;
     _libraryMatcher = libraryMatcher;
     _notificationService = notificationService;
+    _quotaHoldPromoter = quotaHoldPromoter;
     _configurationProvider = configurationProvider;
     _logger = logger;
   }
@@ -138,6 +141,10 @@ public sealed class DeletionTask : IScheduledTask
         }
       }
     }
+
+    // Deleting media and lapsing ownerships both free disk quota: resume any requests that were held
+    // back purely because the requester was over quota.
+    await _quotaHoldPromoter.PromoteAsync(cancellationToken).ConfigureAwait(false);
 
     progress.Report(100);
   }

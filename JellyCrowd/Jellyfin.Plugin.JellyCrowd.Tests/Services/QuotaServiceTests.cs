@@ -182,6 +182,41 @@ public sealed class QuotaServiceTests : IDisposable
     Assert.True(await service.CanRequestAsync(user, "movie", CancellationToken.None));
   }
 
+  [Fact]
+  public async Task IsWithinQuotaAsync_TrueWhenExistingFootprintFits()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 6 * Gib });
+    // One in-flight movie commits 4 GiB against the 6 GiB quota — it fits, and nothing new is added.
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "A" }, CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.True(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task IsWithinQuotaAsync_FalseWhenExistingFootprintExceedsQuota()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 6 * Gib });
+    // Two in-flight movies already commit 8 GiB > the 6 GiB quota.
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "A" }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "B" }, CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.False(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task IsWithinQuotaAsync_TrueWhenUnlimited()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 0 });
+    var service = Create(new SizeMatcher(999 * Gib));
+
+    Assert.True(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+  }
+
   private async Task SeedAsync(Guid user, RequestStatus status)
   {
     var created = await _store.CreateAsync(
