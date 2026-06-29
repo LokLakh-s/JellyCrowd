@@ -16,7 +16,7 @@ public sealed class QuotaServiceTests : IDisposable
 {
   private const long Gib = 1024L * 1024 * 1024;
 
-  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
   private readonly JsonRequestStore _store;
   private readonly PluginConfiguration _config = new()
   {

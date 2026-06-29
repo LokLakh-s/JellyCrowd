@@ -19,7 +19,7 @@ public sealed class WatchlistControllerTests : IDisposable
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
   private readonly JsonWatchlistStore _store;
 
   public WatchlistControllerTests()

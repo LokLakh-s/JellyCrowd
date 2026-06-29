@@ -10,7 +10,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 /// </summary>
 public sealed class ExportBundleTests : IDisposable
 {
-  private readonly string _dir = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid().ToString());
+  private readonly string _dir = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid().ToString());
 
   public ExportBundleTests() => Directory.CreateDirectory(_dir);
 

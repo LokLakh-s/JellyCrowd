@@ -18,7 +18,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
 public sealed class ReportsControllerTests : IDisposable
 {
   private static readonly Guid User = Guid.NewGuid();
-  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
   private readonly JsonReportStore _store;
 
   public ReportsControllerTests() => _store = new JsonReportStore(_path);

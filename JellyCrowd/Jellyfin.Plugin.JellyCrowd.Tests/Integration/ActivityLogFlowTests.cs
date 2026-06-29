@@ -20,7 +20,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Integration;
 /// </summary>
 public sealed class ActivityLogFlowTests : IDisposable
 {
-  private readonly string _dir = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid().ToString("N"));
+  private readonly string _dir = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid().ToString("N"));
   private readonly JsonRequestStore _store;
   private readonly JsonActivityLog _activityLog;
 

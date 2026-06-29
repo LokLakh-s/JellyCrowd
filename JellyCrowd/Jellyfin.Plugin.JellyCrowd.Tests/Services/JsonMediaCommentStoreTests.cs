@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 /// </summary>
 public sealed class JsonMediaCommentStoreTests : IDisposable
 {
-  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
   private readonly JsonMediaCommentStore _store;
 
   public JsonMediaCommentStoreTests() => _store = new JsonMediaCommentStore(_path);

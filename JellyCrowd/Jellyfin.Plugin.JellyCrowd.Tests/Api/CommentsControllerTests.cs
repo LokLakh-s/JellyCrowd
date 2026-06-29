@@ -18,7 +18,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
 public sealed class CommentsControllerTests : IDisposable
 {
   private static readonly Guid User = Guid.NewGuid();
-  private readonly string _path = Path.Combine(Path.GetTempPath(), "jellycrowd-tests", Guid.NewGuid() + ".json");
+  private readonly string _path = Path.Combine(Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
   private readonly JsonMediaCommentStore _store;
 
   public CommentsControllerTests() => _store = new JsonMediaCommentStore(_path);
