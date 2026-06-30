@@ -374,14 +374,6 @@
     return a;
   }
 
-  // Navigate to the Jellyfin home page and close our overlay. Prefer the native home button (proper
-  // SPA navigation across versions); fall back to the home route.
-  function goHome() {
-    hideOverlay();
-    var hb = document.querySelector('.headerHomeButton');
-    if (hb) { hb.click(); } else { window.location.hash = '#/home.html'; }
-  }
-
   function isOnHome() {
     var h = (window.location.hash || '').toLowerCase();
     return h === '' || h === '#' || h === '#/' || h === '#!/' || h.indexOf('home') >= 0;
@@ -399,21 +391,6 @@
     // Clear shortly after so the whole navigation burst (hashchange and/or popstate) is covered, then
     // normal "navigation closes the overlay" behaviour resumes.
     setTimeout(function () { suppressHashClose = false; }, 200);
-  }
-
-  // A "Home" link styled like our other nav tabs but acting as a real Home navigation (and closing
-  // the plugin overlay). Shown first, on Home and in every library.
-  function homeButton() {
-    var a = document.createElement('button');
-    a.type = 'button';
-    a.className = 'jcHeaderTab';
-    a.textContent = t('nav_home');
-    a.style.cssText = 'box-sizing:border-box;margin:0;padding:1.5em 1.5em;border:0;outline:none;box-shadow:none;background:transparent;font-family:inherit;font-size:0.92em;font-weight:600;line-height:1.25;cursor:pointer;white-space:nowrap;';
-    a.style.color = NAV_GREY;
-    a.addEventListener('mouseenter', function () { a.style.color = NAV_BLUE; });
-    a.addEventListener('mouseleave', function () { a.style.color = NAV_GREY; });
-    a.addEventListener('click', function (e) { e.stopPropagation(); goHome(); });
-    return a;
   }
 
   // Quota fill colour, grading green (empty) -> yellow (half) -> red (full). Mirrors
@@ -549,11 +526,10 @@
     var nav = document.createElement('div');
     nav.className = 'jcHeaderNav';
     nav.style.cssText = 'display:inline-flex;align-items:center;';
-    nav.appendChild(homeButton());
+    nav.appendChild(navButton('nav_dashboard', 'dashboard'));
     nav.appendChild(navButton('nav_catalog', 'catalog'));
     nav.appendChild(navButton('nav_calendar', 'calendar'));
     nav.appendChild(navButton('nav_requests', 'requests'));
-    nav.appendChild(navButton('nav_dashboard', 'dashboard'));
     ensureAdminNav(nav);
     // Sit on the same line as the real tabs when the slider exists, else in the row/host itself.
     var slider = tabs ? tabs.querySelector('.emby-tabs-slider') : null;
@@ -572,10 +548,10 @@
 
   function muiNavItems() {
     var items = [
+      { id: 'dashboard', labelKey: 'nav_dashboard' },
       { id: 'catalog', labelKey: 'nav_catalog' },
       { id: 'calendar', labelKey: 'nav_calendar' },
-      { id: 'requests', labelKey: 'nav_requests' },
-      { id: 'dashboard', labelKey: 'nav_dashboard' }
+      { id: 'requests', labelKey: 'nav_requests' }
     ];
     if (isAdmin) {
       items.push({ id: 'admin', labelKey: 'nav_admin' });
