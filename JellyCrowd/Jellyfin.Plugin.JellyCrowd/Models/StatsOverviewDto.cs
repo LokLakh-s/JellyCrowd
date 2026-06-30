@@ -44,4 +44,8 @@ public class StatsOverviewDto
 
   /// <summary>Gets or sets the activity-over-time series (plays/minutes per day), oldest first.</summary>
   public IReadOnlyList<StatsDayDto> Daily { get; set; } = Array.Empty<StatsDayDto>();
+
+  /// <summary>Gets or sets the timestamp of the earliest play on record — how far back the statistics go
+  /// (bounded by the history retention window). Null when nothing has been recorded yet.</summary>
+  public DateTime? DataSinceUtc { get; set; }
 }

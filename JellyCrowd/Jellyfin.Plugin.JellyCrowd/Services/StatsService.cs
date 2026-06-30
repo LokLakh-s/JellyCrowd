@@ -60,6 +60,10 @@ public sealed class StatsService : IStatsService
     dto.LibraryEpisodes = CountOf(BaseItemKind.Episode);
     var chartDays = windowDays > 0 ? Math.Min(windowDays, ChartMaxDays) : ChartMaxDays;
     dto.Daily = StatsAggregator.BuildDailySeries(records, DateTime.UtcNow, chartDays);
+
+    // Earliest play on record = how far back the statistics go (cached store, so this is in-memory).
+    var allRecords = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    dto.DataSinceUtc = allRecords.Count > 0 ? allRecords.Min(r => r.PlayedAtUtc) : (DateTime?)null;
     return dto;
   }
 
