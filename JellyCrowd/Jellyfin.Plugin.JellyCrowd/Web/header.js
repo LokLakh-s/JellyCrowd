@@ -1335,6 +1335,144 @@
     if (style && style.parentNode) { style.parentNode.removeChild(style); }
   }
 
+  // ---------- Branding (cosmetic theming applied to the whole UI, for every visitor) ----------
+  // Settings come from the admin Branding tab via the anonymous /Settings/Branding endpoint and are
+  // applied at runtime: a <style> block (built by the shared lib, loaded on demand), a favicon swap, a
+  // navbar logo, a best-effort default avatar, and custom left-drawer entries. Re-asserted on DOM
+  // mutations (the web client re-renders), each step idempotent so it never thrashes. Independent of
+  // plugin visibility — branding is site-wide.
+  var branding = null;        // last-fetched branding settings
+  var brandingCss = null;     // last applied css text (skip redundant writes)
+  var brandingLib = null;     // cached JellyCrowdLib once loaded (the base page doesn't load it otherwise)
+
+  // Resolve a branding image reference: an external http(s) or root-relative URL is used as-is; a relative
+  // plugin path (an uploaded image, "JellyCrowd/Branding/Image/…") is resolved against the server.
+  function brandingAssetUrl(u) {
+    if (!u) { return u; }
+    if (/^(https?:)?\/\//i.test(u) || u.charAt(0) === '/' || /^data:/i.test(u)) { return u; }
+    return getUrl(u);
+  }
+
+  function loadBranding() {
+    return fetch(getUrl('JellyCrowd/Settings/Branding'))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        branding = d || null;
+        if (branding) {
+          // Normalise uploaded-image paths to absolute so both the <style> builder and the imperative
+          // logo/favicon/avatar steps get a usable URL.
+          branding.LogoUrl = brandingAssetUrl(branding.LogoUrl);
+          branding.FaviconUrl = brandingAssetUrl(branding.FaviconUrl);
+          branding.DefaultAvatarUrl = brandingAssetUrl(branding.DefaultAvatarUrl);
+          branding.BackgroundUrl = brandingAssetUrl(branding.BackgroundUrl);
+        }
+      })
+      .catch(function () { branding = null; });
+  }
+
+  function brandingEnabled() { return !!(branding && branding.Enabled); }
+
+  // Load catalog.lib.js once (only when branding is on), then re-apply; subsequent calls are synchronous.
+  function ensureBrandingLib(cb) {
+    if (brandingLib) { cb(brandingLib); return; }
+    if (window.JellyCrowdLib) { brandingLib = window.JellyCrowdLib; cb(brandingLib); return; }
+    if (document.getElementById('jcBrandingLib')) { return; } // load in flight; its onload re-applies
+    var s = document.createElement('script');
+    s.id = 'jcBrandingLib';
+    s.src = getUrl('JellyCrowd/Web/catalog.lib.js');
+    s.onload = function () { brandingLib = window.JellyCrowdLib || null; applyBranding(); };
+    document.head.appendChild(s);
+  }
+
+  function removeBranding() {
+    var s = document.getElementById('jcBrandingStyle');
+    if (s && s.parentNode) { s.parentNode.removeChild(s); }
+    var logo = document.getElementById('jcBrandLogo');
+    if (logo && logo.parentNode) { logo.parentNode.removeChild(logo); }
+    var links = document.querySelectorAll('.jcDrawerLink');
+    for (var i = 0; i < links.length; i++) { if (links[i].parentNode) { links[i].parentNode.removeChild(links[i]); } }
+    brandingCss = null;
+  }
+
+  function applyBrandingStyle() {
+    ensureBrandingLib(function (L) {
+      var css = L.buildBrandingCss(branding);
+      // Structural rules the pure builder doesn't own (sized to the runtime-injected elements):
+      if (branding.LogoUrl) { css += '\n.jcBrandLogo{height:1.7em;width:auto;cursor:pointer;margin:0 .5em;vertical-align:middle;}'; }
+      if (branding.DefaultAvatarUrl) {
+        // Best-effort: paint the configured image over the placeholder shown for users with no photo.
+        css += '\n.headerUserButtonRound .material-icons,.userButtonIcon,.cardImageIcon.person{'
+          + 'background-image:url("' + branding.DefaultAvatarUrl + '") !important;background-size:cover !important;'
+          + 'background-position:center !important;color:transparent !important;border-radius:50%;}';
+      }
+      if (css === brandingCss && document.getElementById('jcBrandingStyle')) { return; }
+      brandingCss = css;
+      var style = document.getElementById('jcBrandingStyle');
+      if (!style) { style = document.createElement('style'); style.id = 'jcBrandingStyle'; document.head.appendChild(style); }
+      style.textContent = css;
+    });
+  }
+
+  function applyFavicon() {
+    if (!branding.FaviconUrl) { return; }
+    var links = document.querySelectorAll('link[rel~="icon"]');
+    if (!links.length) { var l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); links = [l]; }
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].getAttribute('href') !== branding.FaviconUrl) { links[i].setAttribute('href', branding.FaviconUrl); }
+    }
+  }
+
+  function applyBrandLogo() {
+    if (!branding.LogoUrl) { return; }
+    var host = document.querySelector('.MuiToolbar-root') || document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
+    if (!host) { return; }
+    var img = document.getElementById('jcBrandLogo');
+    if (!img) {
+      img = document.createElement('img');
+      img.id = 'jcBrandLogo';
+      img.className = 'jcBrandLogo';
+      img.alt = '';
+      img.addEventListener('click', function () { window.location.hash = '#/home'; });
+    }
+    if (img.getAttribute('src') !== branding.LogoUrl) { img.src = branding.LogoUrl; }
+    if (img.parentNode !== host) { host.insertBefore(img, host.firstChild); } // re-attach if the client wiped it
+  }
+
+  function applyDrawerLinks() {
+    var links = (branding && branding.DrawerLinks) || [];
+    if (!links.length) { return; }
+    var host = document.querySelector('.mainDrawer-scrollContainer') || document.querySelector('.navDrawerContent') || document.querySelector('.mainDrawer');
+    if (!host) { return; }
+    if (host.querySelector('.jcDrawerLink')) { return; } // already injected for this drawer render
+    for (var i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (!link || !link.Name) { continue; }
+      var a = document.createElement('a');
+      a.className = 'navMenuOption jcDrawerLink';
+      a.setAttribute('is', 'emby-linkbutton');
+      a.href = link.Url || '#';
+      if (link.NewTab) { a.target = '_blank'; a.rel = 'noopener'; }
+      var icon = document.createElement('span');
+      icon.className = 'material-icons navMenuOptionIcon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = link.Icon || 'link';
+      var text = document.createElement('span');
+      text.className = 'navMenuOptionText';
+      text.textContent = link.Name;
+      a.appendChild(icon);
+      a.appendChild(text);
+      host.appendChild(a);
+    }
+  }
+
+  function applyBranding() {
+    if (!brandingEnabled()) { removeBranding(); return; }
+    applyBrandingStyle();
+    applyFavicon();
+    applyBrandLogo();
+    applyDrawerLinks();
+  }
+
   function tryInsert() {
     if (!pluginVisible()) {
       removeHeaderStyle(); // restore the native header tabs for users who can't see the plugin
@@ -1662,11 +1800,13 @@
 
     var observer = new MutationObserver(function () {
       tryInsert();
+      applyBranding(); // re-assert branding when the web client re-renders (idempotent)
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
       scheduleDetailInject();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     tryInsert();
+    applyBranding();
     setInterval(refreshBellBadge, 15000); // M28: notif badge appears faster (Note 10)
     window.jellyCrowdRefreshBell = refreshBellBadge;
     // Any real navigation (Jellyfin menu, opening a library item) closes our overlay — except the
@@ -1699,5 +1839,5 @@
     }, true);
   }
 
-  loadConfigLang().then(loadStrings).then(start).then(resolveAdminVisibility);
+  loadConfigLang().then(loadStrings).then(loadBranding).then(start).then(resolveAdminVisibility);
 })();

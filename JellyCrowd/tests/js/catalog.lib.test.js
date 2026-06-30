@@ -225,3 +225,46 @@ test('requestSortRank: deletion-requested wins over available; numeric statuses 
   assert.strictEqual(lib.requestSortRank({ Status: 3 }, false), 5);
   assert.strictEqual(lib.requestSortRank({ Status: 1 }, true), 2);
 });
+
+test('buildBrandingCss returns empty when disabled or unset', () => {
+  assert.strictEqual(lib.buildBrandingCss(null), '');
+  assert.strictEqual(lib.buildBrandingCss({}), '');
+  assert.strictEqual(lib.buildBrandingCss({ Enabled: false, CustomCss: 'a{}' }), '');
+});
+
+test('buildBrandingCss puts the font @import first and applies the family', () => {
+  const css = lib.buildBrandingCss({ Enabled: true, FontUrl: 'https://f/css?x', FontFamily: 'Inter' });
+  assert.ok(css.startsWith('@import url("https://f/css?x");'), 'import leads');
+  assert.ok(css.includes('font-family:Inter !important;'));
+});
+
+test('buildBrandingCss applies accent, background, and presets', () => {
+  const css = lib.buildBrandingCss({
+    Enabled: true,
+    AccentColor: '#ff0000',
+    BackgroundColor: '#000',
+    BackgroundUrl: 'https://i/bg.png',
+    PresetHideBackdrop: true,
+    PresetDarkIndicators: true,
+    PresetNarrowChannels: true,
+    PresetButtonTweaks: true,
+    PresetCompactEpisodes: true
+  });
+  assert.ok(css.includes('.button-submit'));
+  assert.ok(css.includes('#ff0000'));
+  assert.ok(css.includes('.backgroundContainer{') && css.includes('background-image:url("https://i/bg.png")'));
+  assert.ok(css.includes('.backdropImage{display:none'));
+  assert.ok(css.includes('.indicator{background:#00000058'));
+  assert.ok(css.includes('.channelsContainer{max-width:8em;}'));
+  assert.ok(css.includes('a.raised.emby-button{padding:0.9em 1em'));
+  assert.ok(css.includes('.listItemImage'));
+});
+
+test('buildBrandingCss appends free custom CSS last so it wins', () => {
+  const css = lib.buildBrandingCss({ Enabled: true, AccentColor: '#fff', CustomCss: '.mine{color:hotpink;}' });
+  assert.ok(css.trimEnd().endsWith('.mine{color:hotpink;}'));
+});
+
+test('buildBrandingCss with only custom CSS still emits it', () => {
+  assert.strictEqual(lib.buildBrandingCss({ Enabled: true, CustomCss: '.x{top:0;}' }), '.x{top:0;}');
+});

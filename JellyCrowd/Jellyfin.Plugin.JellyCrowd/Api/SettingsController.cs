@@ -59,6 +59,40 @@ public class SettingsController : ControllerBase
   }
 
   /// <summary>
+  /// Gets the presentational branding settings the web client applies to theme the whole Jellyfin UI
+  /// (logo, favicon, default avatar, background, accent colour, font, layout presets, custom CSS and
+  /// custom drawer entries). Anonymous: all fields are cosmetic, and branding applies to every visitor.
+  /// </summary>
+  /// <response code="200">The branding settings.</response>
+  /// <returns>The presentational branding configuration.</returns>
+  [HttpGet("Branding")]
+  [AllowAnonymous]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public ActionResult<BrandingDto> GetBranding()
+  {
+    var config = _config();
+    return Ok(new BrandingDto
+    {
+      Enabled = config.BrandingEnabled,
+      LogoUrl = config.BrandingLogoUrl ?? string.Empty,
+      FaviconUrl = config.BrandingFaviconUrl ?? string.Empty,
+      DefaultAvatarUrl = config.BrandingDefaultAvatarUrl ?? string.Empty,
+      BackgroundUrl = config.BrandingBackgroundUrl ?? string.Empty,
+      BackgroundColor = config.BrandingBackgroundColor ?? string.Empty,
+      AccentColor = config.BrandingAccentColor ?? string.Empty,
+      FontFamily = config.BrandingFontFamily ?? string.Empty,
+      FontUrl = config.BrandingFontUrl ?? string.Empty,
+      CustomCss = config.BrandingCustomCss ?? string.Empty,
+      PresetCompactEpisodes = config.BrandingPresetCompactEpisodes,
+      PresetDarkIndicators = config.BrandingPresetDarkIndicators,
+      PresetNarrowChannels = config.BrandingPresetNarrowChannels,
+      PresetHideBackdrop = config.BrandingPresetHideBackdrop,
+      PresetButtonTweaks = config.BrandingPresetButtonTweaks,
+      DrawerLinks = config.BrandingDrawerLinks
+    });
+  }
+
+  /// <summary>
   /// Tells the caller whether the plugin should be shown to them: hidden ("config mode") only affects
   /// non-administrators. Authenticated so the current user's role is known.
   /// </summary>
