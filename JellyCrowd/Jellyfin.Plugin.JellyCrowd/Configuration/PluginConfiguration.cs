@@ -40,6 +40,7 @@ public class PluginConfiguration : BasePluginConfiguration
     DiscordInviteUrl = string.Empty;
     SupportLinkEnabled = false;
     SupportLinkUrl = string.Empty;
+    StatsEnabled = true;
     BrandingEnabled = false;
     BrandingLogoUrl = string.Empty;
     BrandingFaviconUrl = string.Empty;
@@ -276,6 +277,12 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the support/donation URL the header icon links to.
   /// </summary>
   public string SupportLinkUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether playback history is captured for the statistics screens.
+  /// On by default; turning it off stops new capture (existing history is kept).
+  /// </summary>
+  public bool StatsEnabled { get; set; }
 
   // ----- Branding (cosmetic theming applied to the whole Jellyfin web UI by header.js) -----
 

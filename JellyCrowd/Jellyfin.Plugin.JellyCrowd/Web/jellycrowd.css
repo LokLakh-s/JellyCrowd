@@ -381,6 +381,32 @@ body.jellycrowd-overlay-open {
 .jellycrowd-imagefield .jellycrowd-text-input { flex: 1 1 auto; min-width: 10em; }
 .jellycrowd-upload-btn { padding: 0.35em 0.8em; white-space: nowrap; }
 
+/* ----- Stats tab ----- */
+.jellycrowd-stats-period { display: flex; flex-wrap: wrap; gap: 0.3em; margin-bottom: 1em; }
+.jellycrowd-stats-period .jellycrowd-admin-tab { padding: 0.3em 0.8em; }
+
+.jellycrowd-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7em;
+  margin-bottom: 0.5em;
+}
+.jellycrowd-stat-card {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0.5em;
+  padding: 0.9em 1em;
+  text-align: center;
+}
+.jellycrowd-stat-value { font-size: 1.6em; font-weight: 700; line-height: 1.1; }
+.jellycrowd-stat-label { opacity: 0.65; font-size: 0.82em; margin-top: 0.3em; }
+
+.jellycrowd-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.5em 1.4em;
+}
+.jellycrowd-stat-section .jellycrowd-admin-table td { padding: 0.3em 0.4em; }
+
 .jellycrowd-colorfield { display: inline-flex; align-items: center; gap: 0.4em; }
 .jellycrowd-colorfield input[type="color"] {
   width: 2.2em; height: 1.9em; padding: 0; cursor: pointer;
