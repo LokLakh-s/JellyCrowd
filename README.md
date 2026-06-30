@@ -2,93 +2,77 @@
 
 # 🎬 Jelly Crowd
 
-**Un catalogue de découverte et un système de requêtes — façon Overseerr — directement intégré dans Jellyfin, avec quotas disque par utilisateur.**
+**One plugin to rule them all** — catalogue de découverte, requêtes, quotas, branding et stats,
+directement intégrés dans Jellyfin.
 
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)
-![Jellyfin 10.11](https://img.shields.io/badge/Jellyfin-10.11.x-00A4DC?style=for-the-badge&logo=jellyfin)
+![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)
+![Jellyfin 10.11](https://img.shields.io/badge/Jellyfin-10.11%2B-00A4DC?style=for-the-badge&logo=jellyfin)
 ![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet)
 
 </div>
 
 ---
 
+> **Dépôt source privé.** La distribution publique (manifest d'installation + archives de release) vit
+> dans le dépôt public **[`LokLakh-s/jellycrowd-dist`](https://github.com/LokLakh-s/jellycrowd-dist)**, où
+> se trouve aussi la **documentation publique** (en anglais, admin + utilisateurs).
+
 **Jelly Crowd** est un **plugin Jellyfin natif**. Contrairement aux services externes type Overseerr/Jellyseerr
 qui tournent à côté du serveur, Jelly Crowd vit **dans** Jellyfin et réutilise ses utilisateurs, son
-authentification et son thème.
+authentification et son thème. **Aucun plugin tiers requis** : il héberge ses propres pages web via un
+middleware ASP.NET intégré.
 
 ## ✨ Fonctionnalités
 
-- 🍿 **Catalogue de découverte (TMDB)** — parcours/recherche de films & séries avec **filtres** (genres,
-  années & notes en double-sliders, tri), **survol** des affiches, et **fiche détaillée** (genres, durée,
-  synopsis, liens TMDB & IMDb). Les titres déjà présents sont marqués « disponible » et ouvrent la fiche Jellyfin.
-- 📝 **Requêtes** — demande d'un média via une **file d'attente admin** (approbation/refus). Les **séries
-  se demandent par saison**. *(Intégration Radarr/Sonarr possible ultérieurement.)*
-- 💾 **Quotas disque par utilisateur** — quota par défaut + **overrides par utilisateur** ; l'usage reflète la
-  taille réelle en bibliothèque ; au-delà, les requêtes sont bloquées (bouton grisé). **Limite de requêtes par
-  période** (jour/semaine/mois) configurable.
-- 🗑️ **Gestion des médias** — écran « Mes médias » où l'utilisateur demande la suppression ; un média marqué est
-  **supprimé du disque** après une **rétention** configurable (tâche planifiée).
-- 🔔 **Notifications** — événements de requête (créée / approuvée / disponible) vers **Discord** et/ou **e-mail (SMTP)**.
-- 🎨 **Intégration UI** — onglets Catalogue / Mes requêtes + barre de quota injectés dans le bandeau, et pages
-  utilisateur hébergées par Jelly Crowd lui-même (un seul plugin requis : [File Transformation](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)),
-  plus une page d'admin à onglets (Demandes / Quotas / Réglages / Notifications) accessible directement depuis le dashboard.
-- 🔄 **Mises à jour automatiques** via dépôt de plugin (voir Installation).
+- 🍿 **Catalogue de découverte (TMDB)** — parcours/recherche de films & séries avec filtres (genres, années
+  & notes en double-sliders, tri), survol des affiches, fiche détaillée (casting, saisons, liens TMDB & IMDb)
+  et **calendrier des sorties**.
+- 📝 **Requêtes** — demande d'un média via une file d'attente admin (approbation / auto-approbation). Séries
+  par saison ou par épisode. **Fulfilment automatique** via Radarr/Sonarr, webhook ou script.
+- 💾 **Quotas disque par utilisateur** — quota par défaut + overrides ; **quota adaptatif** optionnel qui
+  récompense les utilisateurs actifs ; expiration des médias pour libérer de l'espace ; limites de requêtes.
+- ⭐ **Avis & signalements** — notes/critiques in-app avec modération, plus un canal de signalement.
+- 🔔 **Notifications** — Discord, e-mail, Telegram, ntfy, Gotify, Pushover, Slack ou webhook.
+- 🎨 **Branding** — thème complet de l'interface : logo, favicon, couleurs, police, fond, CSS custom, liens du menu.
+- 📊 **Statistiques & dashboards** — analytics de lecture pour l'admin (top médias & utilisateurs, graphes
+  d'activité, « en cours de lecture ») + un dashboard personnel pour chaque utilisateur.
 
 > Pour l'état d'avancement, voir [`ROADMAP.md`](./ROADMAP.md).
 
 ## 📦 Pré-requis
 
-- **Jellyfin 10.11.x**
-- Le plugin [**File Transformation**](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)
-  (dépôt : `https://www.iamparadox.dev/jellyfin/plugins/manifest.json`) — seule dépendance, pour injecter
-  l'interface dans le client web. (Plugin Pages n'est plus requis : Jelly Crowd héberge ses propres pages.)
+- **Jellyfin 10.11+**
 - Une **clé API TMDB** (gratuite) pour le catalogue.
 
 ## 🚀 Installation
 
-### Via dépôt de plugin (recommandé)
+L'installation publique passe par le dépôt **`jellycrowd-dist`** :
 
 1. **Dashboard → Plugins → Dépôts (Repositories) → +** et ajouter :
-   ```
-   https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json
+   ```text
+   https://raw.githubusercontent.com/LokLakh-s/jellycrowd-dist/main/manifest.json
    ```
 2. **Catalogue (Catalog)** → installer **Jelly Crowd** → redémarrer Jellyfin.
+3. **Dashboard → Plugins → Jelly Crowd** → renseigner la clé TMDB.
 
-Une entrée **Jelly Crowd** apparaît directement dans la barre latérale du dashboard admin
-(onglets *Réglages / Quotas utilisateurs / Demandes*). Renseigner la clé TMDB et les quotas.
+Les mises à jour sont automatiques : à chaque release, la CI publie l'archive dans `jellycrowd-dist` et met
+à jour son `manifest.json` ; Jellyfin propose la nouvelle version (ou l'installe seul si l'auto-update est actif).
 
-### 🔄 Mises à jour automatiques (sans télécharger de zip)
-
-Une fois le dépôt ajouté, **plus jamais besoin de télécharger/décompresser un `.zip`** : à chaque
-nouvelle version, le `manifest.json` du dépôt est mis à jour automatiquement par la CI (avec
-l'URL de l'archive et son empreinte MD5). Jellyfin détecte la nouvelle version et l'installe.
-
-- **Mise à jour en place** : *Dashboard → Plugins → Jelly Crowd* affiche « Mise à jour disponible » → 1 clic, puis redémarrage.
-- **Tout automatique** : *Dashboard → Plugins → Repositories* / réglages des plugins → activer la
-  vérification/installation auto des mises à jour ; Jellyfin applique alors les nouvelles versions au
-  redémarrage, sans intervention.
-
-> ⚠️ **Pré-requis indispensable** : le dépôt GitHub `LokLakh-s/JellyCrowd` doit être **public** — Jellyfin
-> télécharge le `manifest.json` (URL *raw*) et l'archive de release **sans authentification**. Si le dépôt
-> est privé, l'install/MAJ par dépôt échoue (il faudrait alors héberger le manifest ailleurs).
-
-### Configuration
-
-Une fois installé, ouvrir **Dashboard → Plugins → Jelly Crowd** (onglets Demandes / Quotas / Réglages /
-Notifications / Téléchargement). Le détail de chaque réglage est documenté dans **[CONFIGURATION.md](CONFIGURATION.md)**.
-
-### En développement (build local)
+## 🛠️ Développement
 
 ```powershell
 dotnet build -c Release
 ```
 
 Copier le `.dll` produit dans `<jellyfin-data>/plugins/JellyCrowd/`, puis redémarrer Jellyfin.
+Architecture, conventions et commandes : voir [`CLAUDE.md`](./CLAUDE.md).
 
-## 🛠️ Développement
+### Release & distribution
 
-Voir [`CLAUDE.md`](./CLAUDE.md) pour l'architecture, les conventions et les commandes.
+Un push sur `main` déclenche le workflow [`release.yml`](.github/workflows/release.yml) (runner self-hosted) :
+versioning 4-parties piloté par mot-clé de commit, build + tests, puis publication de l'archive et mise à
+jour du `manifest.json` dans le dépôt public `jellycrowd-dist` (via le secret `DIST_TOKEN`).
 
 ## 📄 Licence
 
-[GPL-3.0](./LICENSE) — aligné sur l'écosystème des plugins Jellyfin.
+Logiciel propriétaire — voir [`LICENSE`](./LICENSE). Tous droits réservés.
