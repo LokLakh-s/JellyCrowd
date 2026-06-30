@@ -165,13 +165,30 @@
     return period;
   }
 
+  // Compact "My storage" widget that sits beside the period selector instead of at the page bottom.
+  function storageWidget(d) {
+    var box = document.createElement('div');
+    box.className = 'jellycrowd-dash-storage';
+    var title = document.createElement('div');
+    title.className = 'jellycrowd-dash-storage-title';
+    title.textContent = t('dashboard_quota');
+    box.appendChild(title);
+    box.appendChild(quotaBar(d));
+    return box;
+  }
+
   function render(d) {
     var content = document.getElementById('jcDashContent');
     if (!content) { return; }
     content.innerHTML = '';
     d = d || {};
 
-    content.appendChild(periodBar(load));
+    // Top row: period selector on the left, storage on the right (fills the empty space beside it).
+    var topRow = document.createElement('div');
+    topRow.className = 'jellycrowd-dash-top';
+    topRow.appendChild(periodBar(load));
+    topRow.appendChild(storageWidget(d));
+    content.appendChild(topRow);
 
     // Viewing
     content.appendChild(heading(t('dashboard_viewing')));
@@ -198,10 +215,6 @@
     reqCards.appendChild(statCard(d.RequestsAvailable || 0, t('dashboard_req_available')));
     reqCards.appendChild(statCard(d.RequestsDenied || 0, t('dashboard_req_denied')));
     content.appendChild(reqCards);
-
-    // Quota
-    content.appendChild(heading(t('dashboard_quota')));
-    content.appendChild(quotaBar(d));
   }
 
   function load() {
