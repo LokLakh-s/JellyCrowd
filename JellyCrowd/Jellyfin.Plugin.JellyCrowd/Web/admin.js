@@ -625,6 +625,38 @@
       }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
     }
 
+    // A dropdown of every Jellyfin user, so the admin can open ANY user's stats (not only the most
+    // active ones listed above). Selecting a user reuses the same drill-down as the top-users table.
+    function userPicker() {
+      var wrap = document.createElement('div');
+      wrap.className = 'jellycrowd-stats-userpicker';
+      var label = document.createElement('span');
+      label.className = 'jellycrowd-field-label';
+      label.textContent = t('stats_view_user');
+      var sel = document.createElement('select');
+      sel.className = 'jellycrowd-select';
+      var def = document.createElement('option');
+      def.value = '';
+      def.textContent = '…';
+      sel.appendChild(def);
+      if (window.ApiClient && window.ApiClient.getUsers) {
+        window.ApiClient.getUsers().then(function (users) {
+          (users || []).slice().sort(function (a, b) { return (a.Name || '').localeCompare(b.Name || ''); }).forEach(function (u) {
+            var opt = document.createElement('option');
+            opt.value = u.Id;
+            opt.textContent = u.Name;
+            sel.appendChild(opt);
+          });
+        }).catch(function () { /* best-effort */ });
+      }
+      sel.addEventListener('change', function () {
+        if (sel.value) { showUser({ UserId: sel.value, Name: sel.options[sel.selectedIndex].textContent }); }
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(sel);
+      return wrap;
+    }
+
     function load() {
       setMessage(t('loading'));
       apiGet('JellyCrowd/Stats/Overview?windowDays=' + windowDays).then(function (o) {
@@ -632,6 +664,12 @@
         mainHost.innerHTML = '';
         o = o || {};
         mainHost.appendChild(periodBar(load));
+        if (o.DataSinceUtc) {
+          var since = document.createElement('div');
+          since.className = 'jellycrowd-dash-since';
+          since.textContent = t('dashboard_data_since') + ' ' + new Date(o.DataSinceUtc).toLocaleDateString();
+          mainHost.appendChild(since);
+        }
         mainHost.appendChild(statsChart(o.Daily));
 
         var cards = document.createElement('div');
@@ -649,6 +687,7 @@
         grid.appendChild(statsRankTable(t('stats_top_users'), o.TopUsers, function (r) { return r.Name; }, showUser));
         mainHost.appendChild(grid);
 
+        mainHost.appendChild(userPicker());
         mainHost.appendChild(statsRecentTable(o.Recent));
       }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
     }
