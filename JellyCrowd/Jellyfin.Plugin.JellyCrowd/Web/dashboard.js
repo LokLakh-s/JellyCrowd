@@ -183,10 +183,18 @@
     content.innerHTML = '';
     d = d || {};
 
-    // Top row: period selector on the left, storage on the right (fills the empty space beside it).
+    // Top row: period selector (+ "recording since" caption) on the left, storage on the right.
     var topRow = document.createElement('div');
     topRow.className = 'jellycrowd-dash-top';
-    topRow.appendChild(periodBar(load));
+    var topLeft = document.createElement('div');
+    topLeft.appendChild(periodBar(load));
+    if (d.DataSinceUtc) {
+      var since = document.createElement('div');
+      since.className = 'jellycrowd-dash-since';
+      since.textContent = t('dashboard_data_since') + ' ' + new Date(d.DataSinceUtc).toLocaleDateString();
+      topLeft.appendChild(since);
+    }
+    topRow.appendChild(topLeft);
     topRow.appendChild(storageWidget(d));
     content.appendChild(topRow);
 

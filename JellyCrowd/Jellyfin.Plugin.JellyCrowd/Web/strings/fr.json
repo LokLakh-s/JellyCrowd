@@ -266,6 +266,7 @@
   "dashboard_viewing": "Mon visionnage",
   "dashboard_requests": "Mes demandes",
   "dashboard_quota": "Mon stockage",
+  "dashboard_data_since": "Données enregistrées depuis le",
   "dashboard_quota_unlimited": "Illimité",
   "dashboard_req_total": "Total",
   "dashboard_req_pending": "En attente",

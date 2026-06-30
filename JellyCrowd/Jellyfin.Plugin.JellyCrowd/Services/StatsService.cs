@@ -123,6 +123,11 @@ public sealed class StatsService : IStatsService
       .Where(r => r.UserId == userId).ToList();
     var view = StatsAggregator.BuildOverview(records, UserTopN, UserRecentN);
 
+    // Earliest play on record (any user) = how far back the statistics go. The store caches, so this
+    // extra read is in-memory; the value is naturally bounded by the history retention window.
+    var allRecords = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    DateTime? dataSince = allRecords.Count > 0 ? allRecords.Min(r => r.PlayedAtUtc) : (DateTime?)null;
+
     var requests = await _requestStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
     var quota = await _quotaService.GetUsageAsync(userId, cancellationToken).ConfigureAwait(false);
 
@@ -141,7 +146,8 @@ public sealed class StatsService : IStatsService
       RequestsDenied = requests.Count(r => r.Status == RequestStatus.Denied),
       QuotaUsedBytes = quota.UsedBytes,
       QuotaTotalBytes = quota.QuotaBytes,
-      QuotaUnlimited = quota.Unlimited
+      QuotaUnlimited = quota.Unlimited,
+      DataSinceUtc = dataSince
     };
   }
 

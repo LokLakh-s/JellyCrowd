@@ -397,6 +397,7 @@ body.jellycrowd-overlay-open {
 .jellycrowd-dash-top .jellycrowd-stats-period { margin-bottom: 0; }
 .jellycrowd-dash-storage { min-width: 240px; max-width: 360px; flex: 0 1 auto; }
 .jellycrowd-dash-storage-title { font-weight: 600; opacity: 0.7; font-size: 0.9em; margin-bottom: 0.4em; }
+.jellycrowd-dash-since { opacity: 0.55; font-size: 0.82em; margin-top: 0.55em; }
 
 .jellycrowd-stat-cards {
   display: grid;
