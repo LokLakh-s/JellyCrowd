@@ -15,6 +15,7 @@
   var strings = {};
   var cfgLang = 'auto';
   var activeTab = null;
+  var statsSessionTimer = null;   // live "now playing" poll (Stats tab); cleared when leaving the tab
   var usersById = {};   // userId -> display name (for the Requests/Reports tabs)
 
   function shortLang() { return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US'); }
@@ -447,129 +448,215 @@
   }
 
   // ---------- Statistics (JellyStats-style; admin only) ----------
+  function statsHours(min) { return Math.round((min || 0) / 60); }
+
+  function statsCard(value, label) {
+    var c = document.createElement('div');
+    c.className = 'jellycrowd-stat-card';
+    var v = document.createElement('div');
+    v.className = 'jellycrowd-stat-value';
+    v.textContent = value;
+    var l = document.createElement('div');
+    l.className = 'jellycrowd-stat-label';
+    l.textContent = label;
+    c.appendChild(v);
+    c.appendChild(l);
+    return c;
+  }
+
+  function statsHeading(text) {
+    var h = document.createElement('h3');
+    h.className = 'jellycrowd-branding-heading';
+    h.textContent = text;
+    return h;
+  }
+
+  function statsEmpty(text) {
+    var p = document.createElement('p');
+    p.className = 'jellycrowd-field-hint';
+    p.textContent = text;
+    return p;
+  }
+
+  // A ranked table (rank · name · plays · watch time). onRowClick makes rows clickable (drill-down).
+  function statsRankTable(title, rows, nameOf, onRowClick) {
+    var section = document.createElement('div');
+    section.className = 'jellycrowd-stat-section';
+    section.appendChild(statsHeading(title));
+    if (!rows || !rows.length) { section.appendChild(statsEmpty(t('stats_empty'))); return section; }
+    var table = document.createElement('table');
+    table.className = 'jellycrowd-admin-table';
+    var tbody = document.createElement('tbody');
+    rows.forEach(function (r, i) {
+      var tr = document.createElement('tr');
+      function td(text, cls) { var c = document.createElement('td'); c.textContent = text; if (cls) { c.className = cls; } return c; }
+      tr.appendChild(td('#' + (i + 1), 'jellycrowd-admin-sub'));
+      tr.appendChild(td(nameOf(r) || '—'));
+      tr.appendChild(td(r.Plays + ' ' + t('stats_plays_unit'), 'jellycrowd-admin-sub'));
+      tr.appendChild(td(statsHours(r.Minutes) + ' h', 'jellycrowd-admin-sub'));
+      if (onRowClick) { tr.className = 'jellycrowd-row-click'; tr.addEventListener('click', function () { onRowClick(r); }); }
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    section.appendChild(table);
+    return section;
+  }
+
+  function statsRecentTable(rows) {
+    var section = document.createElement('div');
+    section.className = 'jellycrowd-stat-section';
+    section.appendChild(statsHeading(t('stats_recent')));
+    if (!rows || !rows.length) { section.appendChild(statsEmpty(t('stats_empty'))); return section; }
+    var table = document.createElement('table');
+    table.className = 'jellycrowd-admin-table';
+    var tbody = document.createElement('tbody');
+    rows.forEach(function (r) {
+      var tr = document.createElement('tr');
+      function td(text, cls) { var c = document.createElement('td'); c.textContent = text; if (cls) { c.className = cls; } return c; }
+      tr.appendChild(td(r.UserName || '—'));
+      tr.appendChild(td(r.Label || '—'));
+      tr.appendChild(td(r.PlayedAtUtc ? new Date(r.PlayedAtUtc).toLocaleString() : '', 'jellycrowd-admin-sub'));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    section.appendChild(table);
+    return section;
+  }
+
+  // A lightweight inline SVG bar chart of plays per day (stretched to the container width).
+  function statsChart(daily) {
+    var section = document.createElement('div');
+    section.className = 'jellycrowd-stat-section';
+    section.appendChild(statsHeading(t('stats_activity')));
+    if (!daily || !daily.length) { section.appendChild(statsEmpty(t('stats_empty'))); return section; }
+    var NS = 'http://www.w3.org/2000/svg';
+    var max = 1;
+    daily.forEach(function (d) { if (d.Plays > max) { max = d.Plays; } });
+    var n = daily.length;
+    var bw = 100 / n;
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 32');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('class', 'jellycrowd-chart');
+    daily.forEach(function (d, i) {
+      var h = (d.Plays / max) * 30;
+      var rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('x', String(i * bw + bw * 0.12));
+      rect.setAttribute('y', String(30 - (d.Plays > 0 ? Math.max(h, 0.6) : 0)));
+      rect.setAttribute('width', String(bw * 0.76));
+      rect.setAttribute('height', String(d.Plays > 0 ? Math.max(h, 0.6) : 0));
+      rect.setAttribute('class', 'jellycrowd-chart-bar');
+      var title = document.createElementNS(NS, 'title');
+      title.textContent = d.Date + ': ' + d.Plays + ' ' + t('stats_plays_unit') + ' · ' + statsHours(d.Minutes) + ' h';
+      rect.appendChild(title);
+      svg.appendChild(rect);
+    });
+    section.appendChild(svg);
+    return section;
+  }
+
   function renderStats(container) {
     container.innerHTML = '';
-    setMessage(t('loading'));
     var windowDays = 30;
+    var liveHost = document.createElement('div');
+    var mainHost = document.createElement('div');
+    container.appendChild(liveHost);
+    container.appendChild(mainHost);
 
-    function hours(min) { return Math.round((min || 0) / 60); }
-
-    function statCard(value, label) {
-      var c = document.createElement('div');
-      c.className = 'jellycrowd-stat-card';
-      var v = document.createElement('div');
-      v.className = 'jellycrowd-stat-value';
-      v.textContent = value;
-      var l = document.createElement('div');
-      l.className = 'jellycrowd-stat-label';
-      l.textContent = label;
-      c.appendChild(v);
-      c.appendChild(l);
-      return c;
+    function periodBar(reload) {
+      var period = document.createElement('div');
+      period.className = 'jellycrowd-stats-period';
+      [[7, '7 j'], [30, '30 j'], [90, '90 j'], [365, '1 an'], [0, t('stats_all')]].forEach(function (p) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'jellycrowd-admin-tab' + (windowDays === p[0] ? ' jellycrowd-admin-tab-active' : '');
+        b.textContent = p[1];
+        b.addEventListener('click', function () { windowDays = p[0]; reload(); });
+        period.appendChild(b);
+      });
+      return period;
     }
 
-    // A ranked table: rank · name · plays · watch time.
-    function rankTable(title, rows, nameOf) {
-      var section = document.createElement('div');
-      section.className = 'jellycrowd-stat-section';
-      var h = document.createElement('h3');
-      h.className = 'jellycrowd-branding-heading';
-      h.textContent = title;
-      section.appendChild(h);
-      if (!rows || !rows.length) {
-        var empty = document.createElement('p');
-        empty.className = 'jellycrowd-field-hint';
-        empty.textContent = t('stats_empty');
-        section.appendChild(empty);
-        return section;
-      }
-      var table = document.createElement('table');
-      table.className = 'jellycrowd-admin-table';
-      var tbody = document.createElement('tbody');
-      rows.forEach(function (r, i) {
-        var tr = document.createElement('tr');
-        function td(text, cls) { var c = document.createElement('td'); c.textContent = text; if (cls) { c.className = cls; } return c; }
-        tr.appendChild(td('#' + (i + 1), 'jellycrowd-admin-sub'));
-        tr.appendChild(td(nameOf(r) || '—'));
-        tr.appendChild(td(r.Plays + ' ' + t('stats_plays_unit'), 'jellycrowd-admin-sub'));
-        tr.appendChild(td(hours(r.Minutes) + ' h', 'jellycrowd-admin-sub'));
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      section.appendChild(table);
-      return section;
+    function pollSessions() {
+      apiGet('JellyCrowd/Stats/Sessions').then(function (sessions) {
+        liveHost.innerHTML = '';
+        liveHost.appendChild(statsHeading(t('stats_now_playing')));
+        if (!sessions || !sessions.length) { liveHost.appendChild(statsEmpty(t('stats_nobody'))); return; }
+        var table = document.createElement('table');
+        table.className = 'jellycrowd-admin-table';
+        var tbody = document.createElement('tbody');
+        sessions.forEach(function (s) {
+          var tr = document.createElement('tr');
+          function td(text, cls) { var c = document.createElement('td'); c.textContent = text; if (cls) { c.className = cls; } return c; }
+          tr.appendChild(td(s.UserName || '—'));
+          tr.appendChild(td(s.Label || '—'));
+          tr.appendChild(td(s.PositionPercent + '%' + (s.Paused ? ' · ' + t('stats_paused') : ''), 'jellycrowd-admin-sub'));
+          tr.appendChild(td(s.Client || '', 'jellycrowd-admin-sub'));
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        liveHost.appendChild(table);
+      }).catch(function () { /* best-effort live panel */ });
     }
 
-    function recentTable(rows) {
-      var section = document.createElement('div');
-      section.className = 'jellycrowd-stat-section';
-      var h = document.createElement('h3');
-      h.className = 'jellycrowd-branding-heading';
-      h.textContent = t('stats_recent');
-      section.appendChild(h);
-      if (!rows || !rows.length) {
-        var empty = document.createElement('p');
-        empty.className = 'jellycrowd-field-hint';
-        empty.textContent = t('stats_empty');
-        section.appendChild(empty);
-        return section;
-      }
-      var table = document.createElement('table');
-      table.className = 'jellycrowd-admin-table';
-      var tbody = document.createElement('tbody');
-      rows.forEach(function (r) {
-        var tr = document.createElement('tr');
-        function td(text, cls) { var c = document.createElement('td'); c.textContent = text; if (cls) { c.className = cls; } return c; }
-        tr.appendChild(td(r.UserName || '—'));
-        tr.appendChild(td(r.Label || '—'));
-        var when = r.PlayedAtUtc ? new Date(r.PlayedAtUtc).toLocaleString() : '';
-        tr.appendChild(td(when, 'jellycrowd-admin-sub'));
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      section.appendChild(table);
-      return section;
+    function showUser(u) {
+      mainHost.innerHTML = '';
+      setMessage(t('loading'));
+      apiGet('JellyCrowd/Stats/User/' + encodeURIComponent(u.UserId) + '?windowDays=' + windowDays).then(function (d) {
+        setMessage('');
+        mainHost.innerHTML = '';
+        d = d || {};
+        var back = adminBtn(t('stats_back'), '', function () { load(); });
+        mainHost.appendChild(back);
+        mainHost.appendChild(statsHeading(u.Name || '—'));
+        var cards = document.createElement('div');
+        cards.className = 'jellycrowd-stat-cards';
+        cards.appendChild(statsCard(statsHours(d.TotalMinutes) + ' h', t('stats_watchtime')));
+        cards.appendChild(statsCard(d.TotalPlays || 0, t('stats_plays')));
+        cards.appendChild(statsCard(d.RequestsTotal || 0, t('dashboard_req_total')));
+        cards.appendChild(statsCard(d.RequestsAvailable || 0, t('dashboard_req_available')));
+        mainHost.appendChild(cards);
+        var grid = document.createElement('div');
+        grid.className = 'jellycrowd-stat-grid';
+        grid.appendChild(statsRankTable(t('stats_top_movies'), d.TopMovies, function (r) { return r.Name; }));
+        grid.appendChild(statsRankTable(t('stats_top_shows'), d.TopShows, function (r) { return r.Name; }));
+        mainHost.appendChild(grid);
+        mainHost.appendChild(statsRecentTable(d.Recent));
+      }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
     }
 
     function load() {
       setMessage(t('loading'));
       apiGet('JellyCrowd/Stats/Overview?windowDays=' + windowDays).then(function (o) {
         setMessage('');
-        container.innerHTML = '';
+        mainHost.innerHTML = '';
         o = o || {};
-
-        var period = document.createElement('div');
-        period.className = 'jellycrowd-stats-period';
-        [[7, '7 j'], [30, '30 j'], [90, '90 j'], [365, '1 an'], [0, t('stats_all')]].forEach(function (p) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'jellycrowd-admin-tab' + (windowDays === p[0] ? ' jellycrowd-admin-tab-active' : '');
-          b.textContent = p[1];
-          b.addEventListener('click', function () { windowDays = p[0]; load(); });
-          period.appendChild(b);
-        });
-        container.appendChild(period);
+        mainHost.appendChild(periodBar(load));
+        mainHost.appendChild(statsChart(o.Daily));
 
         var cards = document.createElement('div');
         cards.className = 'jellycrowd-stat-cards';
-        cards.appendChild(statCard(o.TotalPlays || 0, t('stats_plays')));
-        cards.appendChild(statCard(hours(o.TotalMinutes) + ' h', t('stats_watchtime')));
-        cards.appendChild(statCard(o.UniqueUsers || 0, t('stats_viewers')));
-        cards.appendChild(statCard((o.LibraryMovies || 0) + ' · ' + (o.LibraryShows || 0) + ' · ' + (o.LibraryEpisodes || 0), t('stats_library')));
-        container.appendChild(cards);
+        cards.appendChild(statsCard(o.TotalPlays || 0, t('stats_plays')));
+        cards.appendChild(statsCard(statsHours(o.TotalMinutes) + ' h', t('stats_watchtime')));
+        cards.appendChild(statsCard(o.UniqueUsers || 0, t('stats_viewers')));
+        cards.appendChild(statsCard((o.LibraryMovies || 0) + ' · ' + (o.LibraryShows || 0) + ' · ' + (o.LibraryEpisodes || 0), t('stats_library')));
+        mainHost.appendChild(cards);
 
         var grid = document.createElement('div');
         grid.className = 'jellycrowd-stat-grid';
-        grid.appendChild(rankTable(t('stats_top_movies'), o.TopMovies, function (r) { return r.Name; }));
-        grid.appendChild(rankTable(t('stats_top_shows'), o.TopShows, function (r) { return r.Name; }));
-        grid.appendChild(rankTable(t('stats_top_users'), o.TopUsers, function (r) { return r.Name; }));
-        container.appendChild(grid);
+        grid.appendChild(statsRankTable(t('stats_top_movies'), o.TopMovies, function (r) { return r.Name; }));
+        grid.appendChild(statsRankTable(t('stats_top_shows'), o.TopShows, function (r) { return r.Name; }));
+        grid.appendChild(statsRankTable(t('stats_top_users'), o.TopUsers, function (r) { return r.Name; }, showUser));
+        mainHost.appendChild(grid);
 
-        container.appendChild(recentTable(o.Recent));
+        mainHost.appendChild(statsRecentTable(o.Recent));
       }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
     }
 
     load();
+    pollSessions();
+    if (statsSessionTimer) { clearInterval(statsSessionTimer); }
+    statsSessionTimer = setInterval(pollSessions, 10000);
   }
 
   // ---------- Branding (whole-UI theming, saved into the plugin configuration) ----------
@@ -1043,6 +1130,7 @@
   // ---------- shell ----------
   function activate(id) {
     activeTab = id;
+    if (statsSessionTimer) { clearInterval(statsSessionTimer); statsSessionTimer = null; } // stop the live poll when leaving Stats
     var bar = document.getElementById('jcAdminTabs');
     [].forEach.call(bar.querySelectorAll('.jellycrowd-admin-tab'), function (b) {
       b.classList.toggle('jellycrowd-admin-tab-active', b.getAttribute('data-tab') === id);
