@@ -20,7 +20,7 @@ Légende : ☐ à faire · ☑ fait · ◐ en cours
   Déclenchement à l'approbation + tâche de secours, idempotent (`DispatchedAt`). **Auto-planification**
   des sorties futures à leur date (`RequestScheduling`) + badge « Planifié pour le … ».
 - **Fait (code, M8)** : onglet **« Calendar »** (sorties à venir, films+séries, groupées par date).
-- **UI auto-hébergée** : Jelly Crowd injecte son shell (`header.js`) via **File Transformation** (seule dépendance plugin) et **héberge ses propres pages** dans un overlay à onglets — **Plugin Pages retiré**. Liens header (Catalog/Calendar/My requests) rendus comme les onglets natifs Jellyfin.
+- **UI auto-hébergée** : Jelly Crowd injecte son shell (`header.js`) dans `index.html` via son **propre middleware** (`IStartupFilter`, au moment de la requête — aucun plugin tiers) et **héberge ses propres pages** dans un overlay à onglets. Liens header (Catalog/Calendar/My requests) rendus comme les onglets natifs Jellyfin.
 - **En cours / prochaine action** : essentiellement les **vérifs en conditions réelles** (voir ci-dessous).
   Côté code, pas de milestone ouvert ; pistes futures dans « Hors périmètre ».
 - **Bloqué côté agent (à faire par l'utilisateur — vérifs live)** : shell/onglets + thème ; suppression
@@ -41,7 +41,7 @@ Légende : ☐ à faire · ☑ fait · ◐ en cours
   `gh` CLI absent (suivi CI via l'API REST si besoin ; le token est dans l'URL du remote, ne pas l'afficher).
 - **Toujours `git fetch` + rebase après un push** : la Release pousse un commit `chore(release): vX.Y.Z [skip ci]` sur `main`.
 - **Analyseurs très stricts** (`TreatWarningsAsErrors`, `AllEnabledByDefault`, StyleCop, Nullable) → écrire défensivement du premier coup (chaque itération = un aller-retour CI).
-- **Dépendances plugin** : **File Transformation uniquement** (intégré **par réflexion**, sans NuGet). **Plugin Pages a été retiré** (on héberge nos pages nous-mêmes). **Ne PAS internaliser File Transformation** : il patche `Startup.Configure` de Jellyfin via HarmonyLib avec du code spécifique par version → fragile + risque de conflit. Garder son API stable `RegisterTransformation`.
+- **Dépendances plugin** : **aucune**. Jelly Crowd injecte son interface lui-même via un `IStartupFilter` + middleware (`WebInjectionMiddleware`) qui sert `index.html` avec le `<script>` ajouté avant `</body>` au moment de la requête — en lecture seule (pas de patch disque), donc survit aux mises à jour du client web.
 - ⚠️ Un **token GitHub** (`ghp_…`) est exposé dans la config git du remote — à révoquer si besoin.
 - Règles projet (anglais, indentation 2, i18n suit la langue Jellyfin, tests obligatoires par fonctionnalité) : voir `CLAUDE.md`.
 - M1 n'a pas eu son bump `[minor]` (le commit `[minor]` avait échoué au build, le correctif est passé en patch). Pour marquer M1 → faire un commit `[minor]` (donnerait `v0.2.0`).

@@ -40,7 +40,7 @@ authentification et son thème.
 
 - **Jellyfin 10.11.x**
 - **Aucun plugin tiers requis** — Jelly Crowd injecte lui-même son interface dans le client web (via son
-  propre middleware, au moment de la requête). Plus besoin de *File Transformation* ni de *Plugin Pages*.
+  propre middleware, au moment de la requête).
 - Une **clé API TMDB** (gratuite) pour le catalogue.
 
 ## 🚀 Installation

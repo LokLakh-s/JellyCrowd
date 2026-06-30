@@ -23,9 +23,9 @@ Ce n'est **pas** `jelly-quotas` (app externe React/Node à côté de Jellyfin) �
 
 - **.NET 9** (`net9.0`) — Jellyfin **10.11.x**.
 - Références host : `Jellyfin.Controller`, `Jellyfin.Model` (`ExcludeAssets=runtime`, fournis par le host).
-- UI user-facing : **seule dépendance = File Transformation** (IAmParadox27, ≥ 2.2.1). Jelly Crowd
-  injecte son shell (`header.js`) dans `index.html` via File Transformation, puis **héberge lui-même**
-  ses pages dans un overlay à onglets. **Plugin Pages n'est plus utilisé** (voir décision plus bas).
+- UI user-facing : **aucun plugin tiers**. Jelly Crowd injecte son shell (`header.js`) dans `index.html`
+  via son **propre middleware** (`WebInjectionStartupFilter` + `WebInjectionMiddleware`, au moment de la
+  requête), puis **héberge lui-même** ses pages dans un overlay à onglets.
 - Persistance : **SQLite** (`Microsoft.Data.Sqlite`) dans le data path du plugin.
 - Catalogue : **API TMDB** (clé API requise, stockée en config plugin).
 - Licence : **GPL-3.0**.
@@ -88,8 +88,8 @@ Le `.dll` produit (`Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/`) se copie da
 `<jellyfin-data>/plugins/JellyCrowd_<version>/`. Redémarrer Jellyfin → le plugin apparaît dans
 *Dashboard → Plugins* et expose sa page de config.
 
-Pré-requis runtime côté Jellyfin pour les pages user : installer **File Transformation** uniquement
-(dépôt `https://www.iamparadox.dev/jellyfin/plugins/manifest.json`). Plugin Pages n'est plus requis.
+Pré-requis runtime côté Jellyfin pour les pages user : **aucun plugin tiers** — Jelly Crowd injecte
+lui-même son interface dans le client web (`WebInjectionMiddleware` ajouté via un `IStartupFilter`).
 
 ## Conventions
 
@@ -181,8 +181,8 @@ Les workflows tournent sur un **runner self-hosted** pour économiser les minute
   La taille réelle n'est connue qu'**après** satisfaction → enforcement à la création basé sur usage actuel +
   estimation configurable.
 - **Compat** : ne pas casser 10.11 / net9. Les pages user sont **hébergées par Jelly Crowd** (overlay à
-  onglets via `header.js`), injecté par **File Transformation** — pas de Plugin Pages. Ne PAS internaliser
-  File Transformation (patch Harmony de `Startup` spécifique par version + risque de conflit).
+  onglets via `header.js`), injecté par **son propre middleware** (`WebInjectionStartupFilter` +
+  `WebInjectionMiddleware` : sert `index.html` avec le `<script>` ajouté avant `</body>`, au moment de la requête).
 - **Auth des contrôleurs (10.11)** : il n'existe PAS de policy nommée `DefaultAuthorization`. Pour un endpoint
   utilisateur authentifié → `[Authorize]` (policy par défaut). Pour un endpoint admin → `[Authorize(Policy = "RequiresElevation")]`.
   Assets statiques publics → `[AllowAnonymous]`.
@@ -194,5 +194,5 @@ Les workflows tournent sur un **runner self-hosted** pour économiser les minute
 |-------|-------|
 | Fulfillment | Mode d'approbation (manuel/auto) + backends de DL : Webhook, Radarr/Sonarr, script local |
 | Catalogue | TMDB (découverte) + croisement biblio Jellyfin |
-| UI | Pages hébergées par Jelly Crowd (overlay à onglets via `header.js`), injectées par File Transformation. Plugin Pages retiré (1 seule dépendance). |
+| UI | Pages hébergées par Jelly Crowd (overlay à onglets via `header.js`), injectées par son propre middleware (`IStartupFilter`, au moment de la requête). Aucun plugin tiers. |
 | Version | Jellyfin 10.11.x / .NET 9 |
