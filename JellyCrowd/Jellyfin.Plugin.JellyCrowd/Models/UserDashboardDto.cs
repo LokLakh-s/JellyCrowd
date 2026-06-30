@@ -50,4 +50,8 @@ public class UserDashboardDto
 
   /// <summary>Gets or sets a value indicating whether the user's quota is unlimited.</summary>
   public bool QuotaUnlimited { get; set; }
+
+  /// <summary>Gets or sets the timestamp of the earliest play recorded on the server — i.e. how far back
+  /// the statistics go (bounded by the history retention window). Null when nothing has been recorded yet.</summary>
+  public DateTime? DataSinceUtc { get; set; }
 }
