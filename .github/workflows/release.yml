@@ -6,6 +6,10 @@ name: Release
 #   [revision] / #revision / [hotfix] / [build] -> bump REVISION (x.y.z.w+1) — stay on the x.y.z line
 #   anything else                          -> bump PATCH    (x.y.z+1.0)
 # Skip a release entirely with [skip release] in the commit message.
+#
+# Source stays in this (private) repo; the plugin ZIP + install manifest are published to the PUBLIC
+# distribution repo LokLakh-s/jellycrowd-dist via the DIST_TOKEN secret (a fine-grained PAT with
+# Contents: Read and write on that repo).
 
 on:
   push:
@@ -22,12 +26,13 @@ defaults:
   run:
     working-directory: JellyCrowd
 
+env:
+  DIST_REPO: LokLakh-s/jellycrowd-dist
+
 jobs:
   release:
     name: Version & Release
-    # Self-hosted runner ("JellyCrowd") to save GitHub-hosted minutes.
     runs-on: [self-hosted]
-    # Don't loop on the bot's own "chore(release):" bump commit, and honor [skip release].
     if: >-
       ${{ !startsWith(github.event.head_commit.message, 'chore(release):')
           && !contains(github.event.head_commit.message, '[skip release]') }}
@@ -37,8 +42,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # The runner isn't root: install the .NET SDK into the writable, persistent tool cache
-      # instead of the default /usr/share/dotnet (which fails with "Permission denied").
       - name: Configure .NET install dir
         run: echo "DOTNET_INSTALL_DIR=$RUNNER_TOOL_CACHE/dotnet" >> "$GITHUB_ENV"
 
@@ -60,7 +63,6 @@ jobs:
           set -euo pipefail
           latest=$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)
           if [ -z "$latest" ]; then base="0.1.0.0"; else base="${latest#v}"; fi
-          # Parse up to 4 cells; default any missing (e.g. a legacy 3-part tag) to 0.
           IFS='.' read -r major minor patch revision <<< "$base"
           major=${major:-0}; minor=${minor:-0}; patch=${patch:-0}; revision=${revision:-0}
           if printf '%s' "$COMMIT_MSG" | grep -qiE '\[major\]|#major'; then
@@ -72,7 +74,6 @@ jobs:
           else
             patch=$((patch+1)); revision=0
           fi
-          # Version is the full 4-part value (Jellyfin assembly versions are 4-part anyway).
           version="${major}.${minor}.${patch}.${revision}"
           echo "version=$version"   >> "$GITHUB_OUTPUT"
           echo "assembly=$version"  >> "$GITHUB_OUTPUT"
@@ -105,27 +106,49 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          # Plugin + bundled runtime deps (MailKit/MimeKit/BouncyCastle); host-provided assemblies
-          # are ExcludeAssets=runtime and absent from the output.
           cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/*.dll artifacts/
           cp build.yaml artifacts/
           zipname="jelly-crowd-${{ steps.bump.outputs.tag }}.zip"
           (cd artifacts && zip "$zipname" *.dll build.yaml && md5sum "$zipname" > "$zipname.md5")
 
-      - name: Update repository manifest
-        # The repository manifest lives at the repo root (one manifest for all plugins in this
-        # monorepo). Update only the Jelly Crowd entry, matched by guid, and keep the 3 newest
-        # versions so the manifest stays small.
+      - name: Commit version bump and tag (source repo)
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add JellyCrowd/Directory.Build.props JellyCrowd/build.yaml
+          git commit -m "chore(release): ${{ steps.bump.outputs.tag }} [skip ci]"
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin HEAD:main --follow-tags
+
+      - name: Publish release to the distribution repo
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ env.DIST_REPO }}
+          token: ${{ secrets.DIST_TOKEN }}
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: ${{ steps.bump.outputs.tag }}
+          files: |
+            JellyCrowd/artifacts/jelly-crowd-*.zip
+            JellyCrowd/artifacts/jelly-crowd-*.zip.md5
+
+      - name: Update the distribution manifest
+        working-directory: ${{ github.workspace }}
+        env:
+          DIST_TOKEN: ${{ secrets.DIST_TOKEN }}
         run: |
           set -euo pipefail
           tag="${{ steps.bump.outputs.tag }}"
           asm="${{ steps.bump.outputs.assembly }}"
           guid="a1994160-4ea2-4d81-bd3c-ffe825700d98"
           zipname="jelly-crowd-${tag}.zip"
-          manifest="${GITHUB_WORKSPACE}/manifest.json"
-          checksum=$(md5sum "artifacts/${zipname}" | cut -d' ' -f1)
-          sourceUrl="https://github.com/LokLakh-s/JellyCrowd/releases/download/${tag}/${zipname}"
+          checksum=$(md5sum "JellyCrowd/artifacts/${zipname}" | cut -d' ' -f1)
+          sourceUrl="https://github.com/${DIST_REPO}/releases/download/${tag}/${zipname}"
           timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.0000000Z)
+          rm -rf "${RUNNER_TEMP}/dist-repo"
+          git clone "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" "${RUNNER_TEMP}/dist-repo"
+          cd "${RUNNER_TEMP}/dist-repo"
           entry=$(jq -n \
             --arg v "$asm" \
             --arg c "Release ${tag}" \
@@ -136,35 +159,19 @@ jobs:
             '{version: $v, changelog: $c, targetAbi: $abi, sourceUrl: $url, checksum: $sum, timestamp: $ts}')
           jq --argjson e "$entry" --arg guid "$guid" \
             'map(if .guid == $guid then .versions = (([$e] + (.versions // [])) | .[0:3]) else . end)' \
-            "$manifest" > "$manifest.tmp"
-          mv "$manifest.tmp" "$manifest"
-
-      - name: Commit version bump and tag
-        working-directory: ${{ github.workspace }}
-        run: |
-          set -euo pipefail
+            manifest.json > manifest.tmp
+          mv manifest.tmp manifest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add JellyCrowd/Directory.Build.props JellyCrowd/build.yaml manifest.json
-          git commit -m "chore(release): ${{ steps.bump.outputs.tag }} [skip ci]"
-          git tag "${{ steps.bump.outputs.tag }}"
-          git push origin HEAD:main --follow-tags
+          git add manifest.json
+          git commit -m "Release ${tag}" || echo "manifest unchanged"
+          git push origin HEAD:main
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.bump.outputs.tag }}
-          name: ${{ steps.bump.outputs.tag }}
-          generate_release_notes: true
-          files: |
-            JellyCrowd/artifacts/jelly-crowd-*.zip
-            JellyCrowd/artifacts/jelly-crowd-*.zip.md5
-
-      # Keep the self-hosted runner's disk from growing.
       - name: Cleanup workspace
         if: always()
         run: |
           rm -rf Jellyfin.Plugin.JellyCrowd/bin Jellyfin.Plugin.JellyCrowd/obj \
                  Jellyfin.Plugin.JellyCrowd.Tests/bin Jellyfin.Plugin.JellyCrowd.Tests/obj \
                  artifacts
+          rm -rf "${RUNNER_TEMP}/dist-repo" || true
           dotnet nuget locals http-cache temp --clear || true
