@@ -104,6 +104,7 @@
     var row = document.createElement('div');
     row.className = 'jellycrowd-request-row';
     row.dataset.reqId = request.Id;
+    if (request.ReleaseDate) { row.dataset.releaseDate = request.ReleaseDate; } // shown on the "Unreleased" badge
     row._jcRequests = [request]; // for autosort
 
     var available = (request.Status === 3 || request.Status === 'Available');
@@ -344,6 +345,10 @@
         if (s.TimeLeft) {
           label += ' · ' + s.TimeLeft;
         }
+      } else if (s.State === 'unreleased' && row.dataset.releaseDate) {
+        // Not out yet: spell out the release date so the wait is clear.
+        var rel = new Date(row.dataset.releaseDate);
+        label += ' · ' + (isNaN(rel.getTime()) ? row.dataset.releaseDate : rel.toLocaleDateString());
       }
       badge.textContent = label;
       // Insert before the Cancel button when present, otherwise at the end.
@@ -412,6 +417,7 @@
     row.className = 'jellycrowd-request-row';
     row.dataset.reqIds = group.map(function (r) { return r.Id; }).join(' ');
     row.dataset.reqId = first.Id; // representative, for compatibility
+    if (first.ReleaseDate) { row.dataset.releaseDate = first.ReleaseDate; } // shown on the "Unreleased" badge
     row._jcRequests = group; // for autosort
 
     function openDetail() {
