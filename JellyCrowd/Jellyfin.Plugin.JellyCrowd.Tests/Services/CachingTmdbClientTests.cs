@@ -24,7 +24,7 @@ public class CachingTmdbClientTests
     await client.GetTrendingAsync("en-US", CancellationToken.None);
     Assert.Equal(1, inner.TrendingCalls); // second served from cache
 
-    now = now.AddMinutes(11); // past the 10-minute TTL
+    now = now.AddHours(13); // past the 12-hour catalog TTL
     await client.GetTrendingAsync("en-US", CancellationToken.None);
     Assert.Equal(2, inner.TrendingCalls);
   }

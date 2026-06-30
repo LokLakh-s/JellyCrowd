@@ -17,7 +17,11 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 public sealed class CachingTmdbClient : ITmdbClient
 {
   private const int MaxEntries = 1000;
-  private static readonly TimeSpan ShortTtl = TimeSpan.FromMinutes(10); // catalog lists / details
+  // TMDB catalog data changes slowly, so cache it long enough that browsing stays instant (and TMDB is
+  // hit at most ~twice a day per view) rather than going cold every few minutes. Dynamic state — a
+  // title's "available"/"requested" badge — is applied fresh per request in CatalogController, after
+  // this cache, so a long catalog TTL never shows stale availability.
+  private static readonly TimeSpan ShortTtl = TimeSpan.FromHours(12);   // catalog lists / details
   private static readonly TimeSpan LongTtl = TimeSpan.FromHours(24);    // near-static (genres, id mapping)
 
   private readonly ITmdbClient _inner;
