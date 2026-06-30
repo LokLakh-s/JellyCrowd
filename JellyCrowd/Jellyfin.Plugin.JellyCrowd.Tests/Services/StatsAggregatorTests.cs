@@ -95,6 +95,29 @@ public class StatsAggregatorTests
   }
 
   [Fact]
+  public void BuildDailySeries_ZeroFillsAndOrdersOldestFirst()
+  {
+    var now = new DateTime(2026, 6, 10, 15, 0, 0, DateTimeKind.Utc);
+    var records = new List<PlaybackRecord>
+    {
+      Movie(Alice, "Alice", "m1", "Dune", 60, new DateTime(2026, 6, 10, 9, 0, 0, DateTimeKind.Utc)),  // today
+      Movie(Bob, "Bob", "m2", "Heat", 30, new DateTime(2026, 6, 10, 11, 0, 0, DateTimeKind.Utc)),     // today
+      Movie(Alice, "Alice", "m3", "Sicario", 90, new DateTime(2026, 6, 8, 20, 0, 0, DateTimeKind.Utc)) // 2 days ago
+    };
+
+    var series = StatsAggregator.BuildDailySeries(records, now, 5); // Jun 6..10
+
+    Assert.Equal(5, series.Count);
+    Assert.Equal("2026-06-06", series[0].Date); // oldest first
+    Assert.Equal("2026-06-10", series[4].Date); // ends today
+    Assert.Equal(0, series[0].Plays);            // empty day zero-filled
+    Assert.Equal(1, series[2].Plays);            // Jun 8: one play
+    Assert.Equal(90, series[2].Minutes);
+    Assert.Equal(2, series[4].Plays);            // today: two plays
+    Assert.Equal(90, series[4].Minutes);
+  }
+
+  [Fact]
   public void BuildOverview_Recent_NewestFirstWithEpisodeLabel()
   {
     var t = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);

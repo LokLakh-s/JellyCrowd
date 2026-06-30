@@ -41,4 +41,7 @@ public class StatsOverviewDto
 
   /// <summary>Gets or sets the most recent plays.</summary>
   public IReadOnlyList<StatsRecentDto> Recent { get; set; } = Array.Empty<StatsRecentDto>();
+
+  /// <summary>Gets or sets the activity-over-time series (plays/minutes per day), oldest first.</summary>
+  public IReadOnlyList<StatsDayDto> Daily { get; set; } = Array.Empty<StatsDayDto>();
 }

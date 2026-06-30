@@ -407,6 +407,13 @@ body.jellycrowd-overlay-open {
 }
 .jellycrowd-stat-section .jellycrowd-admin-table td { padding: 0.3em 0.4em; }
 
+.jellycrowd-chart { width: 100%; height: 120px; display: block; }
+.jellycrowd-chart-bar { fill: #00a4dc; }
+.jellycrowd-chart-bar:hover { fill: #33b5e5; }
+
+.jellycrowd-row-click { cursor: pointer; }
+.jellycrowd-row-click:hover { background: rgba(255, 255, 255, 0.06); }
+
 .jellycrowd-dash-quota { max-width: 480px; }
 .jellycrowd-dash-quota-track {
   margin-top: 0.4em;

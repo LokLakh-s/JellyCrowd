@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -46,6 +48,36 @@ public class StatsController : ControllerBase
   public async Task<ActionResult<StatsOverviewDto>> Overview([FromQuery] int? windowDays, CancellationToken cancellationToken)
   {
     return Ok(await _stats.GetOverviewAsync(Clamp(windowDays), cancellationToken).ConfigureAwait(false));
+  }
+
+  /// <summary>
+  /// Gets a specific user's dashboard (their viewing, request and quota activity). Administrators only —
+  /// the per-user drill-down on the admin Stats screen.
+  /// </summary>
+  /// <param name="userId">The user id.</param>
+  /// <param name="windowDays">The rolling window in days (0 = all time). Defaults to 30.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The user's dashboard.</response>
+  /// <returns>The requested user's dashboard.</returns>
+  [HttpGet("User/{userId}")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<UserDashboardDto>> UserDashboard(Guid userId, [FromQuery] int? windowDays, CancellationToken cancellationToken)
+  {
+    return Ok(await _stats.GetUserDashboardAsync(userId, Clamp(windowDays), cancellationToken).ConfigureAwait(false));
+  }
+
+  /// <summary>
+  /// Gets the live "now playing" sessions. Administrators only.
+  /// </summary>
+  /// <response code="200">The live sessions.</response>
+  /// <returns>The currently-playing sessions.</returns>
+  [HttpGet("Sessions")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public ActionResult<IReadOnlyList<StatsSessionDto>> Sessions()
+  {
+    return Ok(_stats.GetSessions());
   }
 
   /// <summary>

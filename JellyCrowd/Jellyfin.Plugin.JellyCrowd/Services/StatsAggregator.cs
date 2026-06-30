@@ -94,6 +94,48 @@ public static class StatsAggregator
     return dto;
   }
 
+  /// <summary>
+  /// Builds the activity-over-time series: plays and watched minutes per UTC day for the last
+  /// <paramref name="days"/> days ending on <paramref name="nowUtc"/>, oldest first, zero-filled.
+  /// </summary>
+  /// <param name="records">The playback records.</param>
+  /// <param name="nowUtc">The current UTC time (the series ends on this day).</param>
+  /// <param name="days">The number of days to include.</param>
+  /// <returns>One entry per day, ascending.</returns>
+  public static IReadOnlyList<StatsDayDto> BuildDailySeries(IReadOnlyList<PlaybackRecord> records, DateTime nowUtc, int days)
+  {
+    ArgumentNullException.ThrowIfNull(records);
+    if (days <= 0)
+    {
+      days = 30;
+    }
+
+    if (days > 366)
+    {
+      days = 366;
+    }
+
+    var byDay = records
+      .GroupBy(r => r.PlayedAtUtc.Date)
+      .ToDictionary(g => g.Key, g => (Plays: g.Count(), Minutes: Math.Round(g.Sum(r => r.Minutes), 1)));
+
+    var today = nowUtc.Date;
+    var result = new List<StatsDayDto>(days);
+    for (var i = days - 1; i >= 0; i--)
+    {
+      var day = today.AddDays(-i);
+      byDay.TryGetValue(day, out var v);
+      result.Add(new StatsDayDto
+      {
+        Date = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        Plays = v.Plays,
+        Minutes = v.Minutes
+      });
+    }
+
+    return result;
+  }
+
   // "Dune" for a movie; "The Office · S2E5" for an episode (falling back to the episode title).
   private static string Label(PlaybackRecord r)
   {

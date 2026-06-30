@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -26,4 +27,10 @@ public interface IStatsService
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The user's dashboard.</returns>
   Task<UserDashboardDto> GetUserDashboardAsync(Guid userId, int windowDays, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets the currently-playing Jellyfin sessions ("now playing").
+  /// </summary>
+  /// <returns>The live sessions.</returns>
+  IReadOnlyList<StatsSessionDto> GetSessions();
 }
