@@ -22,6 +22,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   private const string ReportsFileName = "reports.json";
   private const string ActivityLogFileName = "activity.json";
   private const string UserActivityFileName = "user-activity.json";
+  private const string PlaybackHistoryFileName = "playback-history.json";
 
   /// <inheritdoc />
   public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
@@ -57,6 +58,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       _ => new JsonActivityLog(Path.Combine(Plugin.Instance!.DataFolderPath, ActivityLogFileName)));
     serviceCollection.AddSingleton<IUserActivityStore>(
       _ => new JsonUserActivityStore(Path.Combine(Plugin.Instance!.DataFolderPath, UserActivityFileName)));
+    serviceCollection.AddSingleton<IPlaybackHistoryStore>(
+      _ => new JsonPlaybackHistoryStore(Path.Combine(Plugin.Instance!.DataFolderPath, PlaybackHistoryFileName)));
+    serviceCollection.AddSingleton<IStatsService, StatsService>();
     serviceCollection.AddSingleton<Func<PluginConfiguration>>(_ => () => Plugin.Instance!.Configuration);
     serviceCollection.AddSingleton<IQuotaService>(sp => new QuotaService(
       sp.GetRequiredService<IRequestStore>(),
@@ -89,6 +93,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddHostedService<WebInjectionService>();
     serviceCollection.AddHostedService<LibraryEventEntryPoint>();
     serviceCollection.AddHostedService<PlaybackActivityEntryPoint>();
+    serviceCollection.AddHostedService<PlaybackHistoryEntryPoint>();
     serviceCollection.AddHostedService<ConfigChangeLogger>();
   }
 }

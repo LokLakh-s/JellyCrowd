@@ -80,6 +80,7 @@
   // The admin tabs. `render(container)` fills the content area for that tab.
   var TABS = [
     { id: 'requests', labelKey: 'tab_requests', render: renderRequests },
+    { id: 'stats', labelKey: 'tab_stats', render: renderStats },
     { id: 'reports', labelKey: 'admin_reports_title', render: renderReports },
     { id: 'quotas', labelKey: 'tab_quotas', render: renderQuotas },
     { id: 'moderation', labelKey: 'nav_moderation', render: renderModeration },
@@ -443,6 +444,132 @@
     b.textContent = label;
     b.addEventListener('click', function () { handler(b); });
     return b;
+  }
+
+  // ---------- Statistics (JellyStats-style; admin only) ----------
+  function renderStats(container) {
+    container.innerHTML = '';
+    setMessage(t('loading'));
+    var windowDays = 30;
+
+    function hours(min) { return Math.round((min || 0) / 60); }
+
+    function statCard(value, label) {
+      var c = document.createElement('div');
+      c.className = 'jellycrowd-stat-card';
+      var v = document.createElement('div');
+      v.className = 'jellycrowd-stat-value';
+      v.textContent = value;
+      var l = document.createElement('div');
+      l.className = 'jellycrowd-stat-label';
+      l.textContent = label;
+      c.appendChild(v);
+      c.appendChild(l);
+      return c;
+    }
+
+    // A ranked table: rank · name · plays · watch time.
+    function rankTable(title, rows, nameOf) {
+      var section = document.createElement('div');
+      section.className = 'jellycrowd-stat-section';
+      var h = document.createElement('h3');
+      h.className = 'jellycrowd-branding-heading';
+      h.textContent = title;
+      section.appendChild(h);
+      if (!rows || !rows.length) {
+        var empty = document.createElement('p');
+        empty.className = 'jellycrowd-field-hint';
+        empty.textContent = t('stats_empty');
+        section.appendChild(empty);
+        return section;
+      }
+      var table = document.createElement('table');
+      table.className = 'jellycrowd-admin-table';
+      var tbody = document.createElement('tbody');
+      rows.forEach(function (r, i) {
+        var tr = document.createElement('tr');
+        function td(text, cls) { var c = document.createElement('td'); c.textContent = text; if (cls) { c.className = cls; } return c; }
+        tr.appendChild(td('#' + (i + 1), 'jellycrowd-admin-sub'));
+        tr.appendChild(td(nameOf(r) || '—'));
+        tr.appendChild(td(r.Plays + ' ' + t('stats_plays_unit'), 'jellycrowd-admin-sub'));
+        tr.appendChild(td(hours(r.Minutes) + ' h', 'jellycrowd-admin-sub'));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      section.appendChild(table);
+      return section;
+    }
+
+    function recentTable(rows) {
+      var section = document.createElement('div');
+      section.className = 'jellycrowd-stat-section';
+      var h = document.createElement('h3');
+      h.className = 'jellycrowd-branding-heading';
+      h.textContent = t('stats_recent');
+      section.appendChild(h);
+      if (!rows || !rows.length) {
+        var empty = document.createElement('p');
+        empty.className = 'jellycrowd-field-hint';
+        empty.textContent = t('stats_empty');
+        section.appendChild(empty);
+        return section;
+      }
+      var table = document.createElement('table');
+      table.className = 'jellycrowd-admin-table';
+      var tbody = document.createElement('tbody');
+      rows.forEach(function (r) {
+        var tr = document.createElement('tr');
+        function td(text, cls) { var c = document.createElement('td'); c.textContent = text; if (cls) { c.className = cls; } return c; }
+        tr.appendChild(td(r.UserName || '—'));
+        tr.appendChild(td(r.Label || '—'));
+        var when = r.PlayedAtUtc ? new Date(r.PlayedAtUtc).toLocaleString() : '';
+        tr.appendChild(td(when, 'jellycrowd-admin-sub'));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      section.appendChild(table);
+      return section;
+    }
+
+    function load() {
+      setMessage(t('loading'));
+      apiGet('JellyCrowd/Stats/Overview?windowDays=' + windowDays).then(function (o) {
+        setMessage('');
+        container.innerHTML = '';
+        o = o || {};
+
+        var period = document.createElement('div');
+        period.className = 'jellycrowd-stats-period';
+        [[7, '7 j'], [30, '30 j'], [90, '90 j'], [365, '1 an'], [0, t('stats_all')]].forEach(function (p) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'jellycrowd-admin-tab' + (windowDays === p[0] ? ' jellycrowd-admin-tab-active' : '');
+          b.textContent = p[1];
+          b.addEventListener('click', function () { windowDays = p[0]; load(); });
+          period.appendChild(b);
+        });
+        container.appendChild(period);
+
+        var cards = document.createElement('div');
+        cards.className = 'jellycrowd-stat-cards';
+        cards.appendChild(statCard(o.TotalPlays || 0, t('stats_plays')));
+        cards.appendChild(statCard(hours(o.TotalMinutes) + ' h', t('stats_watchtime')));
+        cards.appendChild(statCard(o.UniqueUsers || 0, t('stats_viewers')));
+        cards.appendChild(statCard((o.LibraryMovies || 0) + ' · ' + (o.LibraryShows || 0) + ' · ' + (o.LibraryEpisodes || 0), t('stats_library')));
+        container.appendChild(cards);
+
+        var grid = document.createElement('div');
+        grid.className = 'jellycrowd-stat-grid';
+        grid.appendChild(rankTable(t('stats_top_movies'), o.TopMovies, function (r) { return r.Name; }));
+        grid.appendChild(rankTable(t('stats_top_shows'), o.TopShows, function (r) { return r.Name; }));
+        grid.appendChild(rankTable(t('stats_top_users'), o.TopUsers, function (r) { return r.Name; }));
+        container.appendChild(grid);
+
+        container.appendChild(recentTable(o.Recent));
+      }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+    }
+
+    load();
   }
 
   // ---------- Branding (whole-UI theming, saved into the plugin configuration) ----------
