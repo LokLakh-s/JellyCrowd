@@ -385,6 +385,19 @@ body.jellycrowd-overlay-open {
 .jellycrowd-stats-period { display: flex; flex-wrap: wrap; gap: 0.3em; margin-bottom: 1em; }
 .jellycrowd-stats-period .jellycrowd-admin-tab { padding: 0.3em 0.8em; }
 
+/* Dashboard top row: period selector (left) + storage (right, in the previously empty space). */
+.jellycrowd-dash-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.5em;
+  margin-bottom: 1em;
+}
+.jellycrowd-dash-top .jellycrowd-stats-period { margin-bottom: 0; }
+.jellycrowd-dash-storage { min-width: 240px; max-width: 360px; flex: 0 1 auto; }
+.jellycrowd-dash-storage-title { font-weight: 600; opacity: 0.7; font-size: 0.9em; margin-bottom: 0.4em; }
+
 .jellycrowd-stat-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
