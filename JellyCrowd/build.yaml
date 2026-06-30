@@ -1,7 +1,7 @@
 ---
 name: "Jelly Crowd"
 guid: "a1994160-4ea2-4d81-bd3c-ffe825700d98"
-version: "0.68.1.0"
+version: "0.68.2.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Discovery catalog & media requests (Overseerr-style) with per-user disk quotas, inside Jellyfin."
