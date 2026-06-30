@@ -90,7 +90,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     });
     serviceCollection.AddSingleton<IDownloadDispatcher, DownloadDispatcher>();
 
-    serviceCollection.AddHostedService<WebInjectionService>();
+    // Inject the web-client shell at request time via our own middleware (no File Transformation dependency).
+    serviceCollection.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, WebInjectionStartupFilter>();
     serviceCollection.AddHostedService<LibraryEventEntryPoint>();
     serviceCollection.AddHostedService<PlaybackActivityEntryPoint>();
     serviceCollection.AddHostedService<PlaybackHistoryEntryPoint>();
