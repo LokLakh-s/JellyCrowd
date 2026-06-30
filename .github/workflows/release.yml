@@ -119,8 +119,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add JellyCrowd/Directory.Build.props JellyCrowd/build.yaml
           git commit -m "chore(release): ${{ steps.bump.outputs.tag }} [skip ci]"
-          git tag "${{ steps.bump.outputs.tag }}"
-          git push origin HEAD:main --follow-tags
+          # Annotated tag + explicit push: the version counter (git tag --list) lives in THIS repo, and
+          # `--follow-tags` only pushes annotated tags — a lightweight tag would never reach the remote,
+          # leaving the next run to recompute the same version and fail on an empty bump commit.
+          git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
+          git push origin HEAD:main
+          git push origin "refs/tags/${{ steps.bump.outputs.tag }}"
 
       - name: Publish release to the distribution repo
         uses: softprops/action-gh-release@v2
