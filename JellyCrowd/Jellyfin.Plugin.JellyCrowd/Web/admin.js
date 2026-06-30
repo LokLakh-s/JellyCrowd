@@ -84,6 +84,7 @@
     { id: 'quotas', labelKey: 'tab_quotas', render: renderQuotas },
     { id: 'moderation', labelKey: 'nav_moderation', render: renderModeration },
     { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership },
+    { id: 'branding', labelKey: 'tab_branding', render: renderBranding },
     { id: 'logs', labelKey: 'tab_logs', render: renderLogs }
   ];
 
@@ -442,6 +443,245 @@
     b.textContent = label;
     b.addEventListener('click', function () { handler(b); });
     return b;
+  }
+
+  // ---------- Branding (whole-UI theming, saved into the plugin configuration) ----------
+  function textInput(cls, value, placeholder) {
+    var i = document.createElement('input');
+    i.type = 'text';
+    i.className = cls + ' jellycrowd-text-input';
+    if (placeholder) { i.placeholder = placeholder; }
+    if (value != null) { i.value = value; }
+    return i;
+  }
+
+  // A labelled form row: label on the left, control on the right, optional hint underneath.
+  function field(labelText, control, hint) {
+    var wrap = document.createElement('div');
+    wrap.className = 'jellycrowd-field';
+    var top = document.createElement('div');
+    top.className = 'jellycrowd-field-top';
+    var span = document.createElement('span');
+    span.className = 'jellycrowd-field-label';
+    span.textContent = labelText;
+    top.appendChild(span);
+    top.appendChild(control);
+    wrap.appendChild(top);
+    if (hint) {
+      var h = document.createElement('div');
+      h.className = 'jellycrowd-field-hint';
+      h.textContent = hint;
+      wrap.appendChild(h);
+    }
+    return wrap;
+  }
+
+  function sectionHeading(text) {
+    var h = document.createElement('h3');
+    h.className = 'jellycrowd-branding-heading';
+    h.textContent = text;
+    return h;
+  }
+
+  // A native colour picker synced with a text field, so named colours / rgba() values survive a save.
+  function colorField(cls, value) {
+    var wrap = document.createElement('span');
+    wrap.className = 'jellycrowd-colorfield';
+    var swatch = document.createElement('input');
+    swatch.type = 'color';
+    var text = document.createElement('input');
+    text.type = 'text';
+    text.className = cls + ' jellycrowd-text-input';
+    text.placeholder = '#rrggbb';
+    if (value) { text.value = value; }
+    if (/^#[0-9a-fA-F]{6}$/.test(value || '')) { swatch.value = value; }
+    swatch.addEventListener('input', function () { text.value = swatch.value; });
+    text.addEventListener('input', function () { if (/^#[0-9a-fA-F]{6}$/.test(text.value)) { swatch.value = text.value; } });
+    wrap.appendChild(swatch);
+    wrap.appendChild(text);
+    return wrap;
+  }
+
+  // POST a chosen file to the branding upload endpoint; resolves to the stored relative URL.
+  function uploadBrandingImage(file) {
+    var fd = new FormData();
+    fd.append('file', file, file.name);
+    var headers = {};
+    if (window.ApiClient && window.ApiClient.accessToken) { headers['X-Emby-Token'] = window.ApiClient.accessToken(); }
+    return fetch(pluginUrl('JellyCrowd/Branding/Upload'), { method: 'POST', body: fd, headers: headers })
+      .then(function (r) { if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } return r.json(); })
+      .then(function (res) { return (res && res.Url) || ''; });
+  }
+
+  // An image field: a URL text input plus an "Upload" button that stores a file and fills the input.
+  function imageInput(cls, value) {
+    var input = textInput(cls, value, 'https://…');
+    var wrap = document.createElement('span');
+    wrap.className = 'jellycrowd-imagefield';
+    var file = document.createElement('input');
+    file.type = 'file';
+    file.accept = 'image/*';
+    file.style.display = 'none';
+    var btn = adminBtn(t('branding_upload'), '', function () { file.click(); });
+    btn.classList.add('jellycrowd-upload-btn');
+    file.addEventListener('change', function () {
+      if (!file.files || !file.files[0]) { return; }
+      var orig = btn.textContent;
+      btn.disabled = true; btn.textContent = '…';
+      uploadBrandingImage(file.files[0]).then(function (rel) {
+        if (rel) { input.value = rel; }
+        btn.disabled = false; btn.textContent = orig;
+      }).catch(function () { btn.disabled = false; btn.textContent = orig; setMessage(t('error_generic')); });
+      file.value = '';
+    });
+    wrap.appendChild(input);
+    wrap.appendChild(btn);
+    wrap.appendChild(file);
+    return { input: input, wrap: wrap };
+  }
+
+  function drawerLinkRow(l) {
+    l = l || {};
+    var row = document.createElement('div');
+    row.className = 'jellycrowd-drawer-row';
+    var name = textInput('jc-dl-name', l.Name || '', t('branding_drawer_name'));
+    var url = textInput('jc-dl-url', l.Url || '', t('branding_drawer_url'));
+    var icon = textInput('jc-dl-icon', l.Icon || '', t('branding_drawer_icon'));
+    var newTabLabel = document.createElement('label');
+    newTabLabel.className = 'jellycrowd-drawer-newtab';
+    var newTab = checkbox('jc-dl-newtab', l.NewTab === true);
+    newTabLabel.appendChild(newTab);
+    newTabLabel.appendChild(document.createTextNode(' ' + t('branding_drawer_newtab')));
+    var del = adminBtn('✕', 'danger', function () { if (row.parentNode) { row.parentNode.removeChild(row); } });
+    del.classList.add('jellycrowd-drawer-del');
+    row.appendChild(name);
+    row.appendChild(url);
+    row.appendChild(icon);
+    row.appendChild(newTabLabel);
+    row.appendChild(del);
+    return row;
+  }
+
+  function collectDrawerLinks(wrap) {
+    var out = [];
+    wrap.querySelectorAll('.jellycrowd-drawer-row').forEach(function (row) {
+      var name = row.querySelector('.jc-dl-name').value.trim();
+      var url = row.querySelector('.jc-dl-url').value.trim();
+      if (!name || !url) { return; } // an entry needs at least a label and a destination
+      out.push({
+        Name: name,
+        Url: url,
+        Icon: row.querySelector('.jc-dl-icon').value.trim(),
+        NewTab: row.querySelector('.jc-dl-newtab').checked
+      });
+    });
+    return out;
+  }
+
+  function renderBranding(container) {
+    container.innerHTML = '';
+    setMessage(t('loading'));
+    if (!(window.ApiClient && window.ApiClient.getPluginConfiguration && window.ApiClient.updatePluginConfiguration)) {
+      setMessage(t('error_generic'));
+      return;
+    }
+    window.ApiClient.getPluginConfiguration(PLUGIN_GUID).then(function (cfg) {
+      setMessage('');
+      var b = cfg || {};
+
+      var intro = document.createElement('p');
+      intro.className = 'jellycrowd-disclaimer';
+      intro.textContent = t('branding_intro');
+      container.appendChild(intro);
+
+      var enabled = checkbox('jc-b-enabled', b.BrandingEnabled === true);
+      container.appendChild(field(t('branding_enabled'), enabled, t('branding_enabled_hint')));
+
+      container.appendChild(sectionHeading(t('branding_identity')));
+      var logoF = imageInput('jc-b-logo', b.BrandingLogoUrl || '');
+      var logo = logoF.input;
+      container.appendChild(field(t('branding_logo'), logoF.wrap));
+      var faviconF = imageInput('jc-b-favicon', b.BrandingFaviconUrl || '');
+      var favicon = faviconF.input;
+      container.appendChild(field(t('branding_favicon'), faviconF.wrap));
+      var avatarF = imageInput('jc-b-avatar', b.BrandingDefaultAvatarUrl || '');
+      var avatar = avatarF.input;
+      container.appendChild(field(t('branding_avatar'), avatarF.wrap, t('branding_avatar_hint')));
+
+      container.appendChild(sectionHeading(t('branding_appearance')));
+      var bgF = imageInput('jc-b-bgurl', b.BrandingBackgroundUrl || '');
+      var bgUrl = bgF.input;
+      container.appendChild(field(t('branding_background'), bgF.wrap));
+      container.appendChild(field(t('branding_background_color'), colorField('jc-b-bgcolor', b.BrandingBackgroundColor || '')));
+      container.appendChild(field(t('branding_accent'), colorField('jc-b-accent', b.BrandingAccentColor || '')));
+      var fontFamily = textInput('jc-b-font', b.BrandingFontFamily || '', 'Inter, sans-serif');
+      container.appendChild(field(t('branding_font'), fontFamily));
+      var fontUrl = textInput('jc-b-fonturl', b.BrandingFontUrl || '', 'https://fonts.googleapis.com/…');
+      container.appendChild(field(t('branding_font_url'), fontUrl, t('branding_font_url_hint')));
+
+      container.appendChild(sectionHeading(t('branding_presets')));
+      var pCompact = checkbox('jc-b-p-compact', b.BrandingPresetCompactEpisodes === true);
+      container.appendChild(field(t('branding_preset_compact'), pCompact));
+      var pDark = checkbox('jc-b-p-dark', b.BrandingPresetDarkIndicators === true);
+      container.appendChild(field(t('branding_preset_dark'), pDark));
+      var pNarrow = checkbox('jc-b-p-narrow', b.BrandingPresetNarrowChannels === true);
+      container.appendChild(field(t('branding_preset_narrow'), pNarrow));
+      var pBackdrop = checkbox('jc-b-p-backdrop', b.BrandingPresetHideBackdrop === true);
+      container.appendChild(field(t('branding_preset_backdrop'), pBackdrop));
+      var pButtons = checkbox('jc-b-p-buttons', b.BrandingPresetButtonTweaks === true);
+      container.appendChild(field(t('branding_preset_buttons'), pButtons));
+
+      container.appendChild(sectionHeading(t('branding_drawer')));
+      var drawerHint = document.createElement('p');
+      drawerHint.className = 'jellycrowd-field-hint';
+      drawerHint.textContent = t('branding_drawer_hint');
+      container.appendChild(drawerHint);
+      var drawerWrap = document.createElement('div');
+      drawerWrap.className = 'jellycrowd-drawer-list';
+      (b.BrandingDrawerLinks || []).forEach(function (l) { drawerWrap.appendChild(drawerLinkRow(l)); });
+      container.appendChild(drawerWrap);
+      var addLink = adminBtn(t('branding_drawer_add'), '', function () { drawerWrap.appendChild(drawerLinkRow({})); });
+      container.appendChild(addLink);
+
+      container.appendChild(sectionHeading(t('branding_custom_css')));
+      var cssArea = document.createElement('textarea');
+      cssArea.className = 'jc-b-css jellycrowd-css-input';
+      cssArea.rows = 12;
+      cssArea.spellcheck = false;
+      cssArea.placeholder = '.backgroundContainer { … }';
+      cssArea.value = b.BrandingCustomCss || '';
+      container.appendChild(cssArea);
+
+      var save = adminBtn(t('save'), 'ok', function (btn) {
+        btn.disabled = true;
+        // Re-read the live config so other settings aren't clobbered, then write only the Branding fields.
+        window.ApiClient.getPluginConfiguration(PLUGIN_GUID).then(function (live) {
+          live.BrandingEnabled = enabled.checked;
+          live.BrandingLogoUrl = logo.value.trim();
+          live.BrandingFaviconUrl = favicon.value.trim();
+          live.BrandingDefaultAvatarUrl = avatar.value.trim();
+          live.BrandingBackgroundUrl = bgUrl.value.trim();
+          live.BrandingBackgroundColor = container.querySelector('.jc-b-bgcolor').value.trim();
+          live.BrandingAccentColor = container.querySelector('.jc-b-accent').value.trim();
+          live.BrandingFontFamily = fontFamily.value.trim();
+          live.BrandingFontUrl = fontUrl.value.trim();
+          live.BrandingPresetCompactEpisodes = pCompact.checked;
+          live.BrandingPresetDarkIndicators = pDark.checked;
+          live.BrandingPresetNarrowChannels = pNarrow.checked;
+          live.BrandingPresetHideBackdrop = pBackdrop.checked;
+          live.BrandingPresetButtonTweaks = pButtons.checked;
+          live.BrandingCustomCss = cssArea.value;
+          live.BrandingDrawerLinks = collectDrawerLinks(drawerWrap);
+          return window.ApiClient.updatePluginConfiguration(PLUGIN_GUID, live);
+        }).then(function () {
+          btn.disabled = false;
+          btn.textContent = t('saved');
+          setTimeout(function () { btn.textContent = t('save'); }, 1500);
+        }).catch(function () { btn.disabled = false; setMessage(t('error_generic')); });
+      });
+      save.style.marginTop = '1.2em';
+      container.appendChild(save);
+    }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
   // ---------- Reports ----------

@@ -40,6 +40,21 @@ public class PluginConfiguration : BasePluginConfiguration
     DiscordInviteUrl = string.Empty;
     SupportLinkEnabled = false;
     SupportLinkUrl = string.Empty;
+    BrandingEnabled = false;
+    BrandingLogoUrl = string.Empty;
+    BrandingFaviconUrl = string.Empty;
+    BrandingDefaultAvatarUrl = string.Empty;
+    BrandingBackgroundUrl = string.Empty;
+    BrandingBackgroundColor = string.Empty;
+    BrandingAccentColor = string.Empty;
+    BrandingFontFamily = string.Empty;
+    BrandingFontUrl = string.Empty;
+    BrandingCustomCss = string.Empty;
+    BrandingPresetCompactEpisodes = false;
+    BrandingPresetDarkIndicators = false;
+    BrandingPresetNarrowChannels = false;
+    BrandingPresetHideBackdrop = false;
+    BrandingPresetButtonTweaks = false;
     MediaExpiryDays = 90;
     EstimatedMovieSizeBytes = 5L * 1024 * 1024 * 1024; // 5 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
@@ -261,6 +276,62 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the support/donation URL the header icon links to.
   /// </summary>
   public string SupportLinkUrl { get; set; }
+
+  // ----- Branding (cosmetic theming applied to the whole Jellyfin web UI by header.js) -----
+
+  /// <summary>
+  /// Gets or sets a value indicating whether branding is applied (master switch). Off leaves Jellyfin's
+  /// own appearance untouched.
+  /// </summary>
+  public bool BrandingEnabled { get; set; }
+
+  /// <summary>Gets or sets the navbar logo image URL (empty = Jellyfin default).</summary>
+  public string BrandingLogoUrl { get; set; }
+
+  /// <summary>Gets or sets the favicon image URL (empty = Jellyfin default).</summary>
+  public string BrandingFaviconUrl { get; set; }
+
+  /// <summary>Gets or sets the default profile-picture URL for users without one (empty = Jellyfin initials).</summary>
+  public string BrandingDefaultAvatarUrl { get; set; }
+
+  /// <summary>Gets or sets the page background image URL (empty = Jellyfin default).</summary>
+  public string BrandingBackgroundUrl { get; set; }
+
+  /// <summary>Gets or sets the page background colour (CSS colour; empty = Jellyfin default).</summary>
+  public string BrandingBackgroundColor { get; set; }
+
+  /// <summary>Gets or sets the accent colour for primary buttons / active states (CSS colour; empty = default).</summary>
+  public string BrandingAccentColor { get; set; }
+
+  /// <summary>Gets or sets the CSS font-family applied to the UI (empty = Jellyfin default).</summary>
+  public string BrandingFontFamily { get; set; }
+
+  /// <summary>Gets or sets an optional font stylesheet URL (e.g. Google Fonts) imported before use.</summary>
+  public string BrandingFontUrl { get; set; }
+
+  /// <summary>Gets or sets free-form custom CSS appended last (highest priority).</summary>
+  public string BrandingCustomCss { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the compact episode-list layout preset is on.</summary>
+  public bool BrandingPresetCompactEpisodes { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the dark/transparent indicators preset is on.</summary>
+  public bool BrandingPresetDarkIndicators { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the narrower Live TV channels preset is on.</summary>
+  public bool BrandingPresetNarrowChannels { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the hide-item-backdrop preset is on.</summary>
+  public bool BrandingPresetHideBackdrop { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the roomier raised-button preset is on.</summary>
+  public bool BrandingPresetButtonTweaks { get; set; }
+
+  /// <summary>
+  /// Gets or sets the custom entries injected into the Jellyfin left navigation drawer.
+  /// </summary>
+  [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
+  public Collection<DrawerLink> BrandingDrawerLinks { get; set; } = new();
 
   /// <summary>
   /// Gets or sets the media ownership expiry window in days. A user's ownership of an available title

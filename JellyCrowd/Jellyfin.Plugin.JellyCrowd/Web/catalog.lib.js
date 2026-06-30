@@ -278,6 +278,52 @@
     return 'hsl(' + (120 - p * 1.2) + ', 70%, 45%)';
   }
 
+  // Build the branding <style> text from the branding settings (pure, so it's unit-tested). Order
+  // matters: any @import (font) must come first to be valid; the admin's free custom CSS comes last so
+  // it always wins. Returns '' when branding is disabled. Selectors target Jellyfin's own classes (the
+  // same ones used in hand-written custom CSS) and the plugin's own buttons; structural bits (logo,
+  // favicon, avatar, drawer links) are applied imperatively by header.js, not here.
+  function buildBrandingCss(branding) {
+    var b = branding || {};
+    if (!b.Enabled) { return ''; }
+    var imports = '';
+    var rules = [];
+
+    if (b.FontUrl) { imports += '@import url("' + b.FontUrl + '");\n'; }
+    if (b.FontFamily) {
+      rules.push('body,.ui-body,.page,h1,h2,h3,h4,button,input,select,textarea,.button-link{font-family:' + b.FontFamily + ' !important;}');
+    }
+
+    if (b.AccentColor) {
+      var a = b.AccentColor;
+      rules.push(
+        '.button-submit,.raised.button-submit,button.button-submit{background:' + a + ' !important;}'
+        + '.mainDrawer .navMenuOption-selected,.emby-tab-button-active{color:' + a + ' !important;}'
+        + '.jellycrowd-request:not(.jellycrowd-request-danger):not(.jellycrowd-request-secondary){background:' + a + ';}');
+    }
+
+    if (b.BackgroundUrl || b.BackgroundColor) {
+      var bg = '.backgroundContainer{';
+      if (b.BackgroundColor) { bg += 'background-color:' + b.BackgroundColor + ';'; }
+      if (b.BackgroundUrl) { bg += 'background-image:url("' + b.BackgroundUrl + '");background-size:cover;background-position:center;'; }
+      bg += '}';
+      rules.push(bg);
+    }
+
+    // Layout presets — the exact selectors come from real hand-written Jellyfin custom CSS.
+    if (b.PresetHideBackdrop) { rules.push('.backdropImage{display:none !important;}'); }
+    if (b.PresetDarkIndicators) { rules.push('.indicator{background:#00000058 !important;}.countIndicator{background:#00000058 !important;}'); }
+    if (b.PresetNarrowChannels) { rules.push('.channelsContainer{max-width:8em;}'); }
+    if (b.PresetButtonTweaks) { rules.push('a.raised.emby-button{padding:0.9em 1em;color:inherit !important;}'); }
+    if (b.PresetCompactEpisodes) {
+      rules.push('.listItemImage.listItemImage-large.itemAction.lazy{height:110px;}.listItem-content{height:115px;}.secondary.listItem-overview.listItemBodyText{height:61px;margin:0;}');
+    }
+
+    if (b.CustomCss) { rules.push(String(b.CustomCss)); }
+
+    return imports + rules.join('\n');
+  }
+
   return {
     pickLang: pickLang,
     resolveLang: resolveLang,
@@ -300,6 +346,7 @@
     quotaPercent: quotaPercent,
     quotaColor: quotaColor,
     groupByReleaseDate: groupByReleaseDate,
-    buildMonthMatrix: buildMonthMatrix
+    buildMonthMatrix: buildMonthMatrix,
+    buildBrandingCss: buildBrandingCss
   };
 });
