@@ -4,11 +4,17 @@ guid: "a1994160-4ea2-4d81-bd3c-ffe825700d98"
 version: "0.68.4.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
-overview: "Discovery catalog & media requests (Overseerr-style) with per-user disk quotas, inside Jellyfin."
+overview: "One plugin to rule them all — TMDB catalog, media requests, per-user quotas, branding and stats, inside Jellyfin."
 description: >
-  Jelly Crowd is a native Jellyfin plugin that lets users browse a TMDB-powered discovery catalog,
-  request movies and shows through an admin approval queue, and enforces a configurable per-user
-  disk-usage quota.
+  One plugin to rule them all! Jelly Crowd turns Jellyfin into a complete media request & discovery
+  platform — with no third-party plugins required. A TMDB discovery catalog with a release calendar;
+  user requests through an admin approval (or auto-approval) queue with automatic fulfilment via
+  Radarr/Sonarr, a webhook or a custom script; configurable per-user disk quotas (with an optional
+  adaptive quota and media expiry); reviews, ratings and problem reports with moderation; notifications
+  to Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or a webhook; full UI branding (logo,
+  favicon, colours, font, background, custom CSS, left-menu links); and built-in statistics — admin
+  playback dashboards (top media & users, activity charts, live "now playing") plus a personal
+  dashboard for every user. Entirely self-hosted by Jelly Crowd. For Jellyfin 10.11+.
 category: "General"
 owner: "LokLakh-s"
 artifacts:
