@@ -21,6 +21,7 @@
     { id: 'catalog', file: 'catalog.html', labelKey: 'nav_catalog' },
     { id: 'calendar', file: 'calendar.html', labelKey: 'nav_calendar' },
     { id: 'requests', file: 'requests.html', labelKey: 'nav_requests' },
+    { id: 'dashboard', file: 'dashboard.html', labelKey: 'nav_dashboard' },
     { id: 'mymedia', file: 'mymedia.html', labelKey: 'my_media_title' },
     { id: 'admin', file: 'admin.html', labelKey: 'nav_admin' }
   ];
@@ -552,6 +553,7 @@
     nav.appendChild(navButton('nav_catalog', 'catalog'));
     nav.appendChild(navButton('nav_calendar', 'calendar'));
     nav.appendChild(navButton('nav_requests', 'requests'));
+    nav.appendChild(navButton('nav_dashboard', 'dashboard'));
     ensureAdminNav(nav);
     // Sit on the same line as the real tabs when the slider exists, else in the row/host itself.
     var slider = tabs ? tabs.querySelector('.emby-tabs-slider') : null;
@@ -572,7 +574,8 @@
     var items = [
       { id: 'catalog', labelKey: 'nav_catalog' },
       { id: 'calendar', labelKey: 'nav_calendar' },
-      { id: 'requests', labelKey: 'nav_requests' }
+      { id: 'requests', labelKey: 'nav_requests' },
+      { id: 'dashboard', labelKey: 'nav_dashboard' }
     ];
     if (isAdmin) {
       items.push({ id: 'admin', labelKey: 'nav_admin' });

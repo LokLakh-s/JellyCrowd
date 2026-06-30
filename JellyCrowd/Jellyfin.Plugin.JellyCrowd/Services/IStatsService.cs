@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -16,4 +17,13 @@ public interface IStatsService
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The overview.</returns>
   Task<StatsOverviewDto> GetOverviewAsync(int windowDays, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Builds the personal dashboard for one user: their viewing statistics plus request and quota activity.
+  /// </summary>
+  /// <param name="userId">The user.</param>
+  /// <param name="windowDays">The viewing window in days (0 = all time).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The user's dashboard.</returns>
+  Task<UserDashboardDto> GetUserDashboardAsync(Guid userId, int windowDays, CancellationToken cancellationToken);
 }
