@@ -37,6 +37,12 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
+    <!-- Read the Playback Reporting plugin's SQLite database (historical-playback import). Microsoft.Data.Sqlite
+         + SQLitePCLRaw + the native e_sqlite3 are all provided by the Jellyfin host at runtime, so the runtime
+         asset is excluded (compile-time reference only — never bundled, so no version conflict). -->
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>

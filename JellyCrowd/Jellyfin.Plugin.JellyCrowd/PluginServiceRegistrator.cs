@@ -61,6 +61,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IPlaybackHistoryStore>(
       _ => new JsonPlaybackHistoryStore(Path.Combine(Plugin.Instance!.DataFolderPath, PlaybackHistoryFileName)));
     serviceCollection.AddSingleton<IStatsService, StatsService>();
+    serviceCollection.AddSingleton<IPlaybackReportingImporter, PlaybackReportingImporter>();
     serviceCollection.AddSingleton<Func<PluginConfiguration>>(_ => () => Plugin.Instance!.Configuration);
     serviceCollection.AddSingleton<IQuotaService>(sp => new QuotaService(
       sp.GetRequiredService<IRequestStore>(),

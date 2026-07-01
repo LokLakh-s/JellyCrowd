@@ -400,6 +400,8 @@ body.jellycrowd-overlay-open {
 .jellycrowd-dash-storage-title { font-weight: 600; opacity: 0.7; font-size: 0.9em; margin-bottom: 0.4em; }
 .jellycrowd-dash-since { opacity: 0.55; font-size: 0.82em; margin-top: 0.55em; }
 .jellycrowd-stats-userpicker { display: flex; align-items: center; gap: 0.6em; margin: 0.9em 0; }
+.jellycrowd-stats-import { margin: 1.6em 0 0.4em; padding-top: 1em; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.jellycrowd-stats-import .jellycrowd-field-hint { margin-top: 0.4em; }
 
 .jellycrowd-stat-cards {
   display: grid;
