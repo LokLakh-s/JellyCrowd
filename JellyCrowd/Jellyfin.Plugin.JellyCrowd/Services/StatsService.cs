@@ -141,6 +141,9 @@ public sealed class StatsService : IStatsService
     var allRecords = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
     DateTime? dataSince = allRecords.Count > 0 ? allRecords.Min(r => r.PlayedAtUtc) : (DateTime?)null;
 
+    var chartDays = windowDays > 0 ? Math.Min(windowDays, ChartMaxDays) : ChartMaxDays;
+    var daily = StatsAggregator.BuildDailySeries(records, DateTime.UtcNow, chartDays);
+
     var requests = await _requestStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
     var quota = await _quotaService.GetUsageAsync(userId, cancellationToken).ConfigureAwait(false);
 
@@ -162,7 +165,8 @@ public sealed class StatsService : IStatsService
       QuotaUnlimited = quota.Unlimited,
       DataSinceUtc = dataSince,
       RankByMinutes = rankByMinutes,
-      RankedUsers = byMinutes.Count
+      RankedUsers = byMinutes.Count,
+      Daily = daily
     };
   }
 

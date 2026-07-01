@@ -61,4 +61,7 @@ public class UserDashboardDto
 
   /// <summary>Gets or sets the number of viewers with activity in the window (the ranking denominator).</summary>
   public int RankedUsers { get; set; }
+
+  /// <summary>Gets or sets the user's activity-over-time series (plays/minutes per day) for the window, oldest first.</summary>
+  public IReadOnlyList<StatsDayDto> Daily { get; set; } = Array.Empty<StatsDayDto>();
 }
