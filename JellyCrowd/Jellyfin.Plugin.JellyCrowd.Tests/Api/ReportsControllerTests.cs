@@ -8,6 +8,7 @@ using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Moq;
 using Xunit;
 
 namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
@@ -33,7 +34,7 @@ public sealed class ReportsControllerTests : IDisposable
   }
 
   private ReportsController CreateController()
-    => new(_store, new FakeUserAccessor(), _ => "tester")
+    => new(_store, new FakeUserAccessor(), _ => "tester", Mock.Of<IActivityLog>())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -47,6 +48,20 @@ public sealed class ReportsControllerTests : IDisposable
     var report = Assert.IsType<MediaReport>(ok.Value);
     Assert.Equal("bad subs", report.Message);
     Assert.Equal("tester", report.UserName);
+  }
+
+  [Theory]
+  [InlineData("subtitles", "subtitles")]
+  [InlineData("AUDIO", "audio")]
+  [InlineData("nonsense", "other")]
+  [InlineData(null, "other")]
+  public async Task Post_NormalizesType(string? given, string expected)
+  {
+    var result = await CreateController().Post(
+      new ReportDto { MediaType = "movie", TmdbId = 1, Title = "M", Message = "x", Type = given! }, CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    Assert.Equal(expected, Assert.IsType<MediaReport>(ok.Value).Type);
   }
 
   [Fact]

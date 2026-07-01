@@ -16,4 +16,7 @@ public class ReportDto
 
   /// <summary>Gets or sets the issue description.</summary>
   public string Message { get; set; } = string.Empty;
+
+  /// <summary>Gets or sets the issue category (bug / subtitles / audio / quality / other).</summary>
+  public string Type { get; set; } = "other";
 }
