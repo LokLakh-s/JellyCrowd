@@ -582,6 +582,66 @@ public class CatalogController : ControllerBase
     }
   }
 
+  /// <summary>
+  /// Gets the titles most requested on this server (internal popularity), ranked by the number of distinct
+  /// requesters, enriched from TMDB and flagged for availability. The UI hides the row when it is empty.
+  /// </summary>
+  /// <param name="language">Optional TMDB language code (defaults to <c>en-US</c>).</param>
+  /// <param name="limit">Maximum number of titles (1–30, default 12).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The most-requested titles.</response>
+  /// <response code="503">TMDB is not configured or unreachable.</response>
+  /// <returns>The most-requested catalog items.</returns>
+  [HttpGet("Popular")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+  public async Task<ActionResult<IReadOnlyList<CatalogItem>>> Popular(
+    [FromQuery] string? language,
+    [FromQuery] int? limit,
+    CancellationToken cancellationToken)
+  {
+    var take = Math.Clamp(limit ?? 12, 1, 30);
+    var lang = Normalize(language);
+    try
+    {
+      // Rank by how many distinct users have requested each title (the "most wanted here" signal).
+      var all = await _requestStore.GetAllAsync(cancellationToken).ConfigureAwait(false);
+      var ranked = all
+        .GroupBy(r => new { r.TmdbId, r.MediaType })
+        .Select(g => new { g.Key.TmdbId, g.Key.MediaType, Users = g.Select(r => r.UserId).Distinct().Count() })
+        .OrderByDescending(x => x.Users)
+        .ThenByDescending(x => x.TmdbId)
+        .Take(take)
+        .ToList();
+
+      var items = new List<CatalogItem>();
+      foreach (var entry in ranked)
+      {
+        var mediaType = string.Equals(entry.MediaType, "tv", StringComparison.Ordinal) ? "tv" : "movie";
+        var item = await _tmdbClient.GetDetailsAsync(mediaType, entry.TmdbId, lang, cancellationToken).ConfigureAwait(false);
+        if (item is null)
+        {
+          continue;
+        }
+
+        item.JellyfinItemId = _libraryMatcher.FindItemId(item.MediaType, item.TmdbId);
+        item.Available = item.JellyfinItemId is not null;
+        items.Add(item);
+      }
+
+      var marked = await ApplyRequestedMarkersAsync(items, null, null, cancellationToken).ConfigureAwait(false);
+      return Ok(marked);
+    }
+    catch (InvalidOperationException ex)
+    {
+      return NotConfigured(ex);
+    }
+    catch (HttpRequestException ex)
+    {
+      return Upstream(ex);
+    }
+  }
+
   private static bool IsSeedType(string mediaType)
     => string.Equals(mediaType, "movie", StringComparison.Ordinal)
        || string.Equals(mediaType, "tv", StringComparison.Ordinal);
