@@ -359,6 +359,37 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
+  /// Gets every request for a single title (administrators only) so the media detail popup can show who
+  /// wanted it and in what state. Newest first.
+  /// </summary>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="tmdbId">The TMDB id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The title's requests.</response>
+  /// <returns>The requests for the title.</returns>
+  [HttpGet("Media/{mediaType}/{tmdbId:int}")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<IReadOnlyList<MediaAdminRequestDto>>> Media(string mediaType, int tmdbId, CancellationToken cancellationToken)
+  {
+    var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    var result = all
+      .Where(r => r.TmdbId == tmdbId && string.Equals(r.MediaType, mediaType, StringComparison.OrdinalIgnoreCase))
+      .OrderByDescending(r => r.RequestedAt)
+      .Select(r => new MediaAdminRequestDto
+      {
+        UserName = _resolveUserName(r.UserId),
+        Status = r.Status.ToString(),
+        Season = r.Season,
+        Episode = r.Episode,
+        RequestedAt = r.RequestedAt
+      })
+      .ToList();
+
+    return Ok(result);
+  }
+
+  /// <summary>
   /// Live download status (Radarr/Sonarr queue) for every request (administrators only) — lets the
   /// admin requests table show a "Downloading" badge.
   /// </summary>
