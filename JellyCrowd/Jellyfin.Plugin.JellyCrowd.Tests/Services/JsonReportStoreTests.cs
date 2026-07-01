@@ -51,8 +51,9 @@ public sealed class JsonReportStoreTests : IDisposable
   {
     var a = await _store.AddAsync(New("a"), CancellationToken.None);
 
-    var resolved = await _store.SetResolvedAsync(a.Id, true, CancellationToken.None);
+    var resolved = await _store.SetResolvedAsync(a.Id, true, "handled", CancellationToken.None);
     Assert.True(resolved!.Resolved);
+    Assert.Equal("handled", resolved.AdminResponse);
 
     Assert.True(await _store.DeleteAsync(a.Id, CancellationToken.None));
     Assert.Empty(await _store.GetAllAsync(CancellationToken.None));

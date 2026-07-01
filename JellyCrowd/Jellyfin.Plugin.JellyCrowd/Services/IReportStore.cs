@@ -27,13 +27,14 @@ public interface IReportStore
   Task<IReadOnlyList<MediaReport>> GetAllAsync(CancellationToken cancellationToken);
 
   /// <summary>
-  /// Sets (or clears) the resolved flag on a report.
+  /// Sets (or clears) the resolved flag on a report, optionally recording an admin note.
   /// </summary>
   /// <param name="id">The report id.</param>
   /// <param name="resolved">Whether the report is resolved.</param>
+  /// <param name="response">An optional admin note to store (ignored when null/blank).</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The updated report, or <c>null</c> if not found.</returns>
-  Task<MediaReport?> SetResolvedAsync(Guid id, bool resolved, CancellationToken cancellationToken);
+  Task<MediaReport?> SetResolvedAsync(Guid id, bool resolved, string? response, CancellationToken cancellationToken);
 
   /// <summary>
   /// Deletes a report.

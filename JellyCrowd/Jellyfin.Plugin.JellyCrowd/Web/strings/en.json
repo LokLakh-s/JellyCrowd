@@ -191,6 +191,7 @@
   "admin_reports_title": "Reports",
   "admin_no_reports": "No reports.",
   "admin_resolve": "Resolve",
+  "admin_resolve_response": "Optional note to the reporter…",
   "admin_filter_status": "Filter by status",
   "admin_filter_all": "All",
   "admin_approve": "Approve",

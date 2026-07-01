@@ -406,6 +406,16 @@ body.jellycrowd-overlay-open {
 .jellycrowd-admin-mediainfo { margin-top: 1.2em; padding-top: 0.8em; border-top: 1px solid rgba(255, 255, 255, 0.1); }
 .jellycrowd-admin-mediainfo-title { font-weight: 600; opacity: 0.8; font-size: 0.9em; margin-bottom: 0.4em; }
 .jellycrowd-report-type { margin-bottom: 0.5em; align-self: flex-start; }
+.jellycrowd-report-response {
+  padding: 0.3em 0.45em;
+  border-radius: 0.3em;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+  font-size: 0.85em;
+  min-width: 11em;
+  margin-right: 0.4em;
+}
 .jellycrowd-stats-import .jellycrowd-field-hint { margin-top: 0.4em; }
 
 .jellycrowd-stat-cards {

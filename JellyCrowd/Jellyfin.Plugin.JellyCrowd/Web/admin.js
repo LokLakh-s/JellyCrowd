@@ -1002,12 +1002,23 @@
           tdMain.appendChild(title);
           tdMain.appendChild(msg);
           tdMain.appendChild(sub);
+          if (r.AdminResponse) {
+            var resp = document.createElement('div');
+            resp.className = 'jellycrowd-admin-sub';
+            resp.textContent = '↳ ' + r.AdminResponse;
+            tdMain.appendChild(resp);
+          }
           tr.appendChild(tdMain);
           var tdA = document.createElement('td');
           tdA.className = 'jellycrowd-admin-actions';
           if (!r.Resolved) {
+            var respInput = document.createElement('input');
+            respInput.type = 'text';
+            respInput.className = 'jellycrowd-report-response';
+            respInput.placeholder = t('admin_resolve_response');
+            tdA.appendChild(respInput);
             tdA.appendChild(adminBtn(t('admin_resolve'), '', function () {
-              apiPostNoResult('JellyCrowd/Reports/' + r.Id + '/Resolve').then(reload).catch(function () {});
+              apiPostJson('JellyCrowd/Reports/' + r.Id + '/Resolve', { Response: respInput.value }).then(reload).catch(function () {});
             }));
           }
           tdA.appendChild(adminBtn(t('admin_delete'), 'danger', function () {

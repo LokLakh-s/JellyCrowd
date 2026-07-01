@@ -36,4 +36,7 @@ public class MediaReport
 
   /// <summary>Gets or sets a value indicating whether an admin marked the report resolved.</summary>
   public bool Resolved { get; set; }
+
+  /// <summary>Gets or sets an optional admin note delivered to the reporter when the report is resolved.</summary>
+  public string AdminResponse { get; set; } = string.Empty;
 }

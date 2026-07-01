@@ -34,7 +34,7 @@ public sealed class ReportsControllerTests : IDisposable
   }
 
   private ReportsController CreateController()
-    => new(_store, new FakeUserAccessor(), _ => "tester", Mock.Of<IActivityLog>())
+    => new(_store, new FakeUserAccessor(), _ => "tester", Mock.Of<IActivityLog>(), Mock.Of<INotificationService>())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -77,11 +77,32 @@ public sealed class ReportsControllerTests : IDisposable
   {
     var created = await _store.AddAsync(new MediaReport { MediaType = "movie", TmdbId = 1, Title = "M", UserId = User, UserName = "u", Message = "x" }, CancellationToken.None);
 
-    await CreateController().Resolve(created.Id, CancellationToken.None);
+    await CreateController().Resolve(created.Id, new ResolveReportDto { Response = "fixed" }, CancellationToken.None);
 
     var ok = Assert.IsType<OkObjectResult>((await CreateController().GetAll(CancellationToken.None)).Result);
     var list = Assert.IsAssignableFrom<IReadOnlyList<MediaReport>>(ok.Value);
     Assert.True(Assert.Single(list).Resolved);
+  }
+
+  [Fact]
+  public async Task Resolve_NotifiesReporter_WithNote()
+  {
+    var created = await _store.AddAsync(
+      new MediaReport { MediaType = "movie", TmdbId = 1, Title = "M", UserId = User, UserName = "u", Message = "x" }, CancellationToken.None);
+    var notifications = new Mock<INotificationService>();
+    var controller = new ReportsController(_store, new FakeUserAccessor(), _ => "tester", Mock.Of<IActivityLog>(), notifications.Object)
+    {
+      ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+    };
+
+    var result = await controller.Resolve(created.Id, new ResolveReportDto { Response = "Fixed the subs." }, CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    Assert.Equal("Fixed the subs.", Assert.IsType<MediaReport>(ok.Value).AdminResponse);
+    notifications.Verify(
+      n => n.NotifyPersonalAsync(User, It.IsAny<PersonalNotifyKind>(), It.IsAny<string>(), It.IsAny<string>(),
+        It.Is<string>(b => b.Contains("Fixed the subs.", StringComparison.Ordinal)), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+      Times.Once);
   }
 
   private sealed class FakeUserAccessor : ICurrentUserAccessor

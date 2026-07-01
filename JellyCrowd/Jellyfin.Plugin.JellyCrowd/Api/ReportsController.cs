@@ -30,6 +30,7 @@ public class ReportsController : ControllerBase
   private readonly ICurrentUserAccessor _userAccessor;
   private readonly Func<Guid, string> _resolveUserName;
   private readonly IActivityLog _activityLog;
+  private readonly INotificationService _notifications;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ReportsController"/> class.
@@ -38,12 +39,14 @@ public class ReportsController : ControllerBase
   /// <param name="userAccessor">The current-user accessor.</param>
   /// <param name="resolveUserName">Resolves a user id to a display name.</param>
   /// <param name="activityLog">The activity log.</param>
-  public ReportsController(IReportStore store, ICurrentUserAccessor userAccessor, Func<Guid, string> resolveUserName, IActivityLog activityLog)
+  /// <param name="notifications">The notification service.</param>
+  public ReportsController(IReportStore store, ICurrentUserAccessor userAccessor, Func<Guid, string> resolveUserName, IActivityLog activityLog, INotificationService notifications)
   {
     _store = store;
     _userAccessor = userAccessor;
     _resolveUserName = resolveUserName;
     _activityLog = activityLog;
+    _notifications = notifications;
   }
 
   private static string NormalizeType(string? type)
@@ -122,9 +125,10 @@ public class ReportsController : ControllerBase
   }
 
   /// <summary>
-  /// Marks a report resolved (administrators only).
+  /// Marks a report resolved (administrators only), optionally with a note that is sent to the reporter.
   /// </summary>
   /// <param name="id">The report id.</param>
+  /// <param name="dto">Optional resolution payload (an admin note for the reporter).</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">The updated report.</response>
   /// <response code="404">No such report.</response>
@@ -133,15 +137,24 @@ public class ReportsController : ControllerBase
   [Authorize(Policy = "RequiresElevation")]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status404NotFound)]
-  public async Task<ActionResult<MediaReport>> Resolve(Guid id, CancellationToken cancellationToken)
+  public async Task<ActionResult<MediaReport>> Resolve(Guid id, [FromBody] ResolveReportDto? dto, CancellationToken cancellationToken)
   {
-    var updated = await _store.SetResolvedAsync(id, resolved: true, cancellationToken).ConfigureAwait(false);
-    if (updated is not null)
+    var updated = await _store.SetResolvedAsync(id, resolved: true, dto?.Response, cancellationToken).ConfigureAwait(false);
+    if (updated is null)
     {
-      await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", cancellationToken).ConfigureAwait(false);
+      return NotFound();
     }
 
-    return updated is null ? NotFound() : Ok(updated);
+    await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", cancellationToken).ConfigureAwait(false);
+
+    // Tell the reporter their ticket was handled (in-app bell always; personal channels are un-gated here).
+    var body = string.IsNullOrWhiteSpace(updated.AdminResponse)
+      ? $"Your report on \"{updated.Title}\" has been resolved."
+      : $"Your report on \"{updated.Title}\" has been resolved. Admin note: {updated.AdminResponse}";
+    _ = _notifications.NotifyPersonalAsync(
+      updated.UserId, PersonalNotifyKind.None, updated.Title, "Your report was resolved", body, null, CancellationToken.None);
+
+    return Ok(updated);
   }
 
   /// <summary>

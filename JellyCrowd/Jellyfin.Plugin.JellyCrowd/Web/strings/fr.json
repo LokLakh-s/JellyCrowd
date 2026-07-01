@@ -191,6 +191,7 @@
   "admin_reports_title": "Signalements",
   "admin_no_reports": "Aucun signalement.",
   "admin_resolve": "Résoudre",
+  "admin_resolve_response": "Note optionnelle au demandeur…",
   "admin_filter_status": "Filtrer par statut",
   "admin_filter_all": "Tous",
   "admin_approve": "Approuver",
