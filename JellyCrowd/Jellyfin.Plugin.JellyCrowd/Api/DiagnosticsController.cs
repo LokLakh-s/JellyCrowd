@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jellyfin.Plugin.JellyCrowd.Api;
 
 /// <summary>
-/// Admin health checks (TMDB, File Transformation, download backend, data folder, footprint).
+/// Admin health checks (TMDB, download backend, data folder, footprint).
 /// </summary>
 [ApiController]
 [Authorize(Policy = "RequiresElevation")]

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Runtime.Loader;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
@@ -13,8 +12,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyCrowd.Services;
 
 /// <summary>
-/// Default <see cref="IDiagnosticsService"/>: validates TMDB connectivity, the File Transformation
-/// dependency, the download backend, and write access to the data folder, plus the store footprint.
+/// Default <see cref="IDiagnosticsService"/>: validates TMDB connectivity, the download backend, and
+/// write access to the data folder, plus the store footprint.
 /// </summary>
 public sealed class DiagnosticsService : IDiagnosticsService
 {
@@ -53,7 +52,6 @@ public sealed class DiagnosticsService : IDiagnosticsService
     var results = new List<DiagnosticResult>
     {
       await CheckTmdbAsync(config, cancellationToken).ConfigureAwait(false),
-      CheckFileTransformation(),
       await CheckDownloadBackendAsync(config, cancellationToken).ConfigureAwait(false)
     };
 
@@ -217,16 +215,6 @@ public sealed class DiagnosticsService : IDiagnosticsService
       _logger.LogDebug(ex, "TMDB diagnostic failed.");
       return Result("TMDB", "error", "TMDB request failed: " + ex.Message);
     }
-  }
-
-  private static DiagnosticResult CheckFileTransformation()
-  {
-    var present = AssemblyLoadContext.All
-      .SelectMany(context => context.Assemblies)
-      .Any(a => a.FullName?.Contains(".FileTransformation", StringComparison.Ordinal) == true);
-    return present
-      ? Result("File Transformation", "ok", "Detected — the Jelly Crowd header and pages are injected.")
-      : Result("File Transformation", "warning", "Not detected — install the File Transformation plugin so the UI loads.");
   }
 
   private async Task<DiagnosticResult> CheckDownloadBackendAsync(PluginConfiguration config, CancellationToken cancellationToken)

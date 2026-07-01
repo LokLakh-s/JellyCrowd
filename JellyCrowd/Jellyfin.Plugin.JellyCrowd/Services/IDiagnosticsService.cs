@@ -6,7 +6,7 @@ using Jellyfin.Plugin.JellyCrowd.Models;
 namespace Jellyfin.Plugin.JellyCrowd.Services;
 
 /// <summary>
-/// Runs the plugin's health checks (TMDB, File Transformation, download backend, data folder) and
+/// Runs the plugin's health checks (TMDB, download backend, data folder) and
 /// reports the on-disk footprint of its stores.
 /// </summary>
 public interface IDiagnosticsService
