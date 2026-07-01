@@ -80,12 +80,4 @@ public class DiagnosticsServiceTests
     Assert.Equal("error", backend.Status);
     Assert.Contains("down", backend.Detail, StringComparison.Ordinal);
   }
-
-  [Fact]
-  public async Task AlwaysReportsFileTransformation()
-  {
-    var results = await Create(Mock.Of<ITmdbClient>(), Mock.Of<IDownloadDispatcher>(), new PluginConfiguration()).RunAsync(CancellationToken.None);
-
-    Assert.Contains(results, r => r.Name == "File Transformation");
-  }
 }

@@ -1,9 +1,9 @@
 /*
  * Jelly Crowd — web client shell.
- * Injected into the Jellyfin web client (via the File Transformation plugin). Adds Catalog /
- * My Requests entries and a compact quota bar to the top header, and hosts our user pages itself
- * in a full-screen overlay with its own tab bar — so Jelly Crowd no longer depends on the
- * Plugin Pages plugin. Pages render inline (not in an iframe), so window.ApiClient and the active
+ * Injected into the Jellyfin web client by Jelly Crowd's own middleware. Adds Catalog / Calendar /
+ * My Requests / Dashboard entries and a compact quota bar to the top header, and hosts our user
+ * pages itself in a full-screen overlay with its own tab bar (no third-party plugin). Pages render
+ * inline (not in an iframe), so window.ApiClient and the active
  * theme are available to them as before. The header DOM is not a public contract, so the selectors
  * below may need tweaking per Jellyfin version.
  */
