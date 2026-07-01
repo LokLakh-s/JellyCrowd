@@ -10,6 +10,7 @@
   var strings = {};
   var cfgLang = 'auto';
   var windowDays = 30;
+  var chartMetric = 'minutes';
 
   function shortLang() { return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US'); }
   function t(key) { return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key; }
@@ -68,6 +69,62 @@
     h.className = 'jellycrowd-branding-heading';
     h.textContent = text;
     return h;
+  }
+
+  // SVG bar chart of the daily series for the currently-selected metric (watch time or plays).
+  function dashChart(daily) {
+    var NS = 'http://www.w3.org/2000/svg';
+    var pick = function (d) { return chartMetric === 'plays' ? d.Plays : d.Minutes; };
+    var max = 1;
+    daily.forEach(function (d) { var v = pick(d); if (v > max) { max = v; } });
+    var n = daily.length, bw = 100 / n;
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 32');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('class', 'jellycrowd-chart');
+    daily.forEach(function (d, i) {
+      var v = pick(d);
+      var h = (v / max) * 30;
+      var rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('x', String(i * bw + bw * 0.12));
+      rect.setAttribute('y', String(30 - (v > 0 ? Math.max(h, 0.6) : 0)));
+      rect.setAttribute('width', String(bw * 0.76));
+      rect.setAttribute('height', String(v > 0 ? Math.max(h, 0.6) : 0));
+      rect.setAttribute('class', 'jellycrowd-chart-bar');
+      var title = document.createElementNS(NS, 'title');
+      title.textContent = d.Date + ': ' + hours(d.Minutes) + ' h · ' + d.Plays + ' ×';
+      rect.appendChild(title);
+      svg.appendChild(rect);
+    });
+    return svg;
+  }
+
+  // Activity section with a metric toggle (watch time / plays). The toggle re-renders the chart
+  // client-side from the same data — no server round-trip.
+  function chartSection(daily) {
+    var section = document.createElement('div');
+    section.appendChild(heading(t('dashboard_activity')));
+    var toggle = document.createElement('div');
+    toggle.className = 'jellycrowd-stats-period';
+    var host = document.createElement('div');
+    [['minutes', t('stats_watchtime')], ['plays', t('stats_plays')]].forEach(function (m) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = m[1];
+      b.className = 'jellycrowd-admin-tab' + (chartMetric === m[0] ? ' jellycrowd-admin-tab-active' : '');
+      b.addEventListener('click', function () {
+        chartMetric = m[0];
+        [].forEach.call(toggle.children, function (c) { c.className = 'jellycrowd-admin-tab'; });
+        b.className = 'jellycrowd-admin-tab jellycrowd-admin-tab-active';
+        host.innerHTML = '';
+        host.appendChild(dashChart(daily));
+      });
+      toggle.appendChild(b);
+    });
+    section.appendChild(toggle);
+    host.appendChild(dashChart(daily));
+    section.appendChild(host);
+    return section;
   }
 
   function rankTable(title, rows) {
@@ -211,6 +268,7 @@
       rank.textContent = t('dashboard_rank') + ' #' + d.RankByMinutes + ' / ' + d.RankedUsers;
       content.appendChild(rank);
     }
+    if (d.Daily && d.Daily.length) { content.appendChild(chartSection(d.Daily)); }
 
     var grid = document.createElement('div');
     grid.className = 'jellycrowd-stat-grid';
