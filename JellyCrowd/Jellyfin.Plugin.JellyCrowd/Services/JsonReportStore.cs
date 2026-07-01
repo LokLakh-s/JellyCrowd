@@ -73,7 +73,7 @@ public sealed class JsonReportStore : IReportStore, IDisposable
   }
 
   /// <inheritdoc />
-  public async Task<MediaReport?> SetResolvedAsync(Guid id, bool resolved, CancellationToken cancellationToken)
+  public async Task<MediaReport?> SetResolvedAsync(Guid id, bool resolved, string? response, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
     try
@@ -86,6 +86,11 @@ public sealed class JsonReportStore : IReportStore, IDisposable
       }
 
       record.Resolved = resolved;
+      if (!string.IsNullOrWhiteSpace(response))
+      {
+        record.AdminResponse = response.Trim();
+      }
+
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }
