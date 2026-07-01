@@ -274,6 +274,7 @@
   "dashboard_requests": "My requests",
   "dashboard_quota": "My storage",
   "dashboard_data_since": "Recording data since",
+  "dashboard_rank": "Rank by watch time:",
   "dashboard_quota_unlimited": "Unlimited",
   "dashboard_req_total": "Total",
   "dashboard_req_pending": "Pending",

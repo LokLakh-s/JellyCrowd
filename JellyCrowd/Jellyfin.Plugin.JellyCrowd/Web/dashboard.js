@@ -205,6 +205,12 @@
     viewCards.appendChild(statCard(hours(d.TotalMinutes) + ' h', t('stats_watchtime')));
     viewCards.appendChild(statCard(d.TotalPlays || 0, t('stats_plays')));
     content.appendChild(viewCards);
+    if (d.RankByMinutes > 0 && d.RankedUsers > 1) {
+      var rank = document.createElement('div');
+      rank.className = 'jellycrowd-dash-rank';
+      rank.textContent = t('dashboard_rank') + ' #' + d.RankByMinutes + ' / ' + d.RankedUsers;
+      content.appendChild(rank);
+    }
 
     var grid = document.createElement('div');
     grid.className = 'jellycrowd-stat-grid';

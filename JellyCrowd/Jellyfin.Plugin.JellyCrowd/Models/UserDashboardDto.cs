@@ -54,4 +54,11 @@ public class UserDashboardDto
   /// <summary>Gets or sets the timestamp of the earliest play recorded on the server — i.e. how far back
   /// the statistics go (bounded by the history retention window). Null when nothing has been recorded yet.</summary>
   public DateTime? DataSinceUtc { get; set; }
+
+  /// <summary>Gets or sets the user's rank by watch time among all viewers active in the window
+  /// (1 = most watch time). 0 when the user has no plays in the window.</summary>
+  public int RankByMinutes { get; set; }
+
+  /// <summary>Gets or sets the number of viewers with activity in the window (the ranking denominator).</summary>
+  public int RankedUsers { get; set; }
 }
