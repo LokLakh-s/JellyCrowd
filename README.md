@@ -37,7 +37,7 @@ middleware ASP.NET intégré.
 - 📊 **Statistiques & dashboards** — analytics de lecture pour l'admin (top médias & utilisateurs, graphes
   d'activité, « en cours de lecture ») + un dashboard personnel pour chaque utilisateur.
 
-> Pour l'état d'avancement, voir [`ROADMAP.md`](./ROADMAP.md).
+> Pour l'état d'avancement, voir [`ROADMAP.md`](JellyCrowd/ROADMAP.md).
 
 ## 📦 Pré-requis
 
@@ -65,7 +65,7 @@ dotnet build -c Release
 ```
 
 Copier le `.dll` produit dans `<jellyfin-data>/plugins/JellyCrowd/`, puis redémarrer Jellyfin.
-Architecture, conventions et commandes : voir [`CLAUDE.md`](./CLAUDE.md).
+Architecture, conventions et commandes : voir [`CLAUDE.md`](JellyCrowd/CLAUDE.md).
 
 ### Release & distribution
 

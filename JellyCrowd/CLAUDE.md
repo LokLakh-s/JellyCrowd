@@ -26,17 +26,16 @@ Ce n'est **pas** `jelly-quotas` (app externe React/Node à côté de Jellyfin) �
 - UI user-facing : **aucun plugin tiers**. Jelly Crowd injecte son shell (`header.js`) dans `index.html`
   via son **propre middleware** (`WebInjectionStartupFilter` + `WebInjectionMiddleware`, au moment de la
   requête), puis **héberge lui-même** ses pages dans un overlay à onglets.
-- Persistance : **SQLite** (`Microsoft.Data.Sqlite`) dans le data path du plugin.
+- Persistance : **fichiers JSON versionnés** (`VersionedJsonFile`, bornés en taille + rétention) dans le data folder du plugin. `Microsoft.Data.Sqlite` sert **uniquement** à lire la base de Playback Reporting lors de l'import.
 - Catalogue : **API TMDB** (clé API requise, stockée en config plugin).
-- Licence : **GPL-3.0**.
+- Licence : **propriétaire** (tous droits réservés). Source privée ; distribution binaire via le dépôt public `jellycrowd-dist`.
 
 ## Layout
 
 ```
 Jellyfin.Plugin.JellyCrowd/
   Plugin.cs                  # BasePlugin<PluginConfiguration>, IHasWebPages (page config admin, EnableInMainMenu)
-  PluginServiceRegistrator.cs# DI : services + hosted services (pages + header injection + ItemAdded)
-  TransformationPatches.cs   # callback File Transformation (injecte header.js dans index.html)
+  PluginServiceRegistrator.cs# DI : services + hosted services (injection header + stats + reconcile…)
   Configuration/
     PluginConfiguration.cs   # TMDB, quotas + overrides, estimations, rate limit, rétention, Discord/SMTP
     configPage.html          # page admin à onglets (Demandes/Quotas/Réglages/Notifications)
@@ -54,7 +53,7 @@ Jellyfin.Plugin.JellyCrowd/
     NotificationService.cs / NotificationMessages.cs  # Discord + SMTP (+ builder pur testé)
     MediaDeleter.cs          # suppression disque via ILibraryManager.DeleteItem
     RequestReconciler.cs     # Approved -> Available quand le média arrive
-    WebInjectionService.cs   # (hosted) enregistre l'injection du shell via File Transformation (réflexion)
+    WebInjection*.cs         # WebInjectionMiddleware + WebInjectionStartupFilter : injectent header.js dans index.html (IStartupFilter, lecture seule)
     LibraryEventEntryPoint.cs # (hosted) ItemAdded -> reconcile temps réel (debounce)
   Tasks/
     ReconcileTask.cs         # IScheduledTask (15 min, backstop) -> RequestReconciler
@@ -100,7 +99,7 @@ lui-même son interface dans le client web (`WebInjectionMiddleware` ajouté via
   (`indent_size = 2`).
 - Namespace racine : `Jellyfin.Plugin.JellyCrowd`.
 - Style imposé par `.editorconfig` + `jellyfin.ruleset` (StyleCop) ; `TreatWarningsAsErrors=true`.
-- En-tête de licence GPL-3.0 si requis ; documentation XML sur les membres publics.
+- Licence **propriétaire** (pas d'en-tête GPL dans les fichiers) ; documentation XML sur les membres publics.
 - DTOs dans `Models/` ; pas de logique métier dans les contrôleurs (déléguer aux `Services/`).
 - GUID du plugin : `a1994160-4ea2-4d81-bd3c-ffe825700d98` (ne pas changer).
 
@@ -110,7 +109,7 @@ lui-même son interface dans le client web (`WebInjectionMiddleware` ajouté via
 
 - Les chaînes destinées à l'utilisateur ne sont **jamais en dur** dans le code/HTML : elles vivent dans des
   catalogues de traduction par langue (`Web/strings/<lang>.json`, ex. `en.json`, `fr.json`).
-- **Côté pages user (Plugin Pages)** : détecter la langue active de l'utilisateur Jellyfin (préférence utilisateur
+- **Côté pages user (overlay hébergé)** : détecter la langue active de l'utilisateur Jellyfin (préférence utilisateur
   / locale du client web, fallback `navigator.language` puis `en`) et charger le catalogue correspondant ;
   fallback sur `en` pour toute clé manquante.
 - **Côté serveur** (messages d'API/erreurs visibles par l'utilisateur) : prévoir aussi des chaînes localisables ;
@@ -130,7 +129,7 @@ Concrètement, on n'ajoute rien sans couverture :
 - **Chaque service** (`Services/*`) → tests unitaires de la logique (calcul d'usage, enforcement quota,
   matching biblio, parsing TMDB…).
 - **Chaque bouton / interaction UI** → la logique métier déclenchée doit être testable et testée côté backend ;
-  pour le comportement front (Plugin Pages), extraire le JS dans des fonctions pures testables et/ou ajouter un
+  pour le comportement front (overlay hébergé), extraire le JS dans des fonctions pures testables et/ou ajouter un
   test e2e si pertinent. Pas de logique non testée cachée dans le HTML.
 - Un PR qui ajoute du code sans test associé est considéré **incomplet**.
 - La CI (`.github/workflows/build.yml`) lance `dotnet test` ; un test rouge **bloque** le merge.

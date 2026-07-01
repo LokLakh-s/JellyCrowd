@@ -6,10 +6,9 @@ Jelly Crowd**, une page à onglets : **Demandes**, **Quotas utilisateurs**, **R�
 
 ## Prérequis
 
-- **File Transformation** (dépôt `https://www.iamparadox.dev/jellyfin/plugins/manifest.json`) installé :
-  c'est la seule dépendance, elle permet d'injecter les liens **Catalog / My requests** et la barre de
-  quota dans l'en-tête de Jellyfin. Sans elle, le backend fonctionne mais les pages utilisateur ne
-  s'affichent pas dans le bandeau.
+- **Aucune dépendance de plugin.** Jelly Crowd injecte lui-même ses liens (**Catalog / Calendar /
+  My requests / Dashboard**) et la barre de quota dans l'en-tête de Jellyfin via son propre middleware
+  (aucune installation tierce à prévoir).
 - Une **clé API TMDB** (v3, gratuite) pour alimenter le catalogue.
 
 ## Onglet Réglages

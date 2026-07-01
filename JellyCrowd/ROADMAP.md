@@ -7,12 +7,12 @@ Légende : ☐ à faire · ☑ fait · ◐ en cours
 
 ---
 
-## 📍 État actuel (point de reprise) — au 2026-06-13
+## 📍 État actuel — au 2026-07-01
 
-- **Dépôt** : le plugin vit dans le monorepo **`LokLakh-s/JellyCrowd`**, sous **`JellyCrowd/`**
-  (migré depuis l'ancien `Klakh/jelly-crowd`). **Manifeste de dépôt à la racine** du repo (1 entrée/plugin,
-  3 versions max). URL dépôt : `https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json`.
-- **Version publiée** : releases auto, dernière **`v0.6.0`**. Branche `main`, CI **verte**.
+- **Dépôt source (privé)** : **`LokLakh-s/JellyCrowd`**, plugin sous **`JellyCrowd/`**. Push via **git WSL** (SSH `github-perso`).
+- **Distribution (publique)** : le manifeste d'installation + les zips de release vivent dans le dépôt **public `LokLakh-s/jellycrowd-dist`** (+ ses docs publiques en anglais). URL à ajouter dans Jellyfin :
+  `https://raw.githubusercontent.com/LokLakh-s/jellycrowd-dist/main/manifest.json`. Un push sur `main` **coupe une release** (runner self-hosted) qui publie zip + manifest sur le dépôt dist via le secret `DIST_TOKEN`.
+- **Version publiée** : dernière **`v0.68.10.0`**. Branche `main`, CI verte.
 - **Fait (code, M0→M6)** : catalogue TMDB enrichi (filtres double-sliders genres/années/notes, tri, survol, fiche complète avec affiche + liens TMDB/IMDb, clic dispo → fiche Jellyfin, **scroll infini + rangées de catégories/plateformes**) ; requêtes en file admin **par saison**, **annulables tant que Pending**, avec **date souhaitée** optionnelle (`DesiredAt`) ; quotas disque par user (overrides, barre d'usage dégradée vert→rouge, refus 403/bouton grisé) ; **limite de requêtes par période** ; disponibilité **temps réel** (`IRequestReconciler` sur `ItemAdded`/`ItemRemoved` + tâche planifiée de secours) ; **« Mes médias » + suppression disque** après rétention, **multi-user aware** (tâche) ; **notifications Discord (embeds) + e-mail SMTP (MailKit, 465/587)** avec boutons de test ; **réglage de langue admin** (auto/en/fr) ; **logo** ; **page admin à onglets** (Demandes/Quotas/Réglages/Notifs/**Téléchargement**) ; **manifest de dépôt** (MAJ auto).
 - **Fait (code, M7)** : **téléchargement auto des requêtes** — onglet « Téléchargement » avec sélecteur de
   backend piloté par menu déroulant : **Webhook** (POST JSON + tooltip d'exemple), **Radarr/Sonarr**
@@ -32,19 +32,18 @@ Légende : ☐ à faire · ☑ fait · ◐ en cours
 - Pipeline complet : **CI** (`build.yml` : restore → build Release → `dotnet test` → tests JS `node --test` → package `.zip`) + **Release** (`release.yml` : versionning auto par mot-clé de commit `[major]`/`[minor]`/patch → tag + GitHub Release).
 - Backend TMDB : `TmdbClient`/`ITmdbClient`, `TmdbResponseParser`, `CatalogController` (`/JellyCrowd/Catalog/Trending|Search|Details`), DI via `PluginServiceRegistrator`.
 - Frontend : `Web/catalog.html|js|css` + `Web/strings/{en,fr}.json`, servis par `WebController` (`/JellyCrowd/Web/...`), logique pure testée dans `Web/catalog.lib.js` (+ `tests/js/`).
-- Injection web : `WebInjectionService` (réflexion) enregistre le callback File Transformation sur `index.html` ; `header.js` héberge le shell + les pages (overlay à onglets).
+- Injection web : `WebInjectionMiddleware` (via `WebInjectionStartupFilter : IStartupFilter`) sert `index.html` avec le `<script src="…/header.js">` ajouté avant `</body>`, en lecture seule à la requête (aucun plugin tiers) ; `header.js` héberge le shell + les pages (overlay à onglets).
 
 ### Faits à se rappeler en reprenant (IMPORTANT)
-- **SDK .NET disponible en local** (dotnet 10.x build le `net9.0`) → **builder/tester en local AVANT de pousser** :
-  `cd JellyCrowd && dotnet build -c Release` puis `DOTNET_ROLL_FORWARD=Major dotnet test -c Release --no-build`
-  (le roll-forward sert car seul le runtime ASP.NET 10 est installé, pas le 9) + `node --test tests/js/*.test.js`.
-  `gh` CLI absent (suivi CI via l'API REST si besoin ; le token est dans l'URL du remote, ne pas l'afficher).
-- **Toujours `git fetch` + rebase après un push** : la Release pousse un commit `chore(release): vX.Y.Z [skip ci]` sur `main`.
+- **SDK .NET disponible en local** → **builder/tester en local AVANT de pousser** :
+  `cd JellyCrowd && dotnet build -c Release` puis `dotnet test -c Release` + `node --test tests/js/*.test.js`.
+  ⚠️ Un changement sous `Web/**` exige un build **propre** (`rm -rf obj/Release bin/Release`), sinon la ressource
+  embarquée (`header.js`/…) reste périmée.
+- **Toujours `git pull --rebase` après un push** : la Release pousse un commit `chore(release): vX.Y.Z.W [skip ci]` + tag annoté sur `main`.
 - **Analyseurs très stricts** (`TreatWarningsAsErrors`, `AllEnabledByDefault`, StyleCop, Nullable) → écrire défensivement du premier coup (chaque itération = un aller-retour CI).
 - **Dépendances plugin** : **aucune**. Jelly Crowd injecte son interface lui-même via un `IStartupFilter` + middleware (`WebInjectionMiddleware`) qui sert `index.html` avec le `<script>` ajouté avant `</body>` au moment de la requête — en lecture seule (pas de patch disque), donc survit aux mises à jour du client web.
-- ⚠️ Un **token GitHub** (`ghp_…`) est exposé dans la config git du remote — à révoquer si besoin.
+- **Versioning 4 cellules** `major.minor.patch.revision` par mot-clé de commit (`[major]` / `[minor]` / `[revision]`|`[hotfix]`|`[build]`, défaut = patch) ; `[skip release]` pour un commit **sans release** (ex. docs).
 - Règles projet (anglais, indentation 2, i18n suit la langue Jellyfin, tests obligatoires par fonctionnalité) : voir `CLAUDE.md`.
-- M1 n'a pas eu son bump `[minor]` (le commit `[minor]` avait échoué au build, le correctif est passé en patch). Pour marquer M1 → faire un commit `[minor]` (donnerait `v0.2.0`).
 
 ---
 
@@ -517,6 +516,7 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 - ◐ **Responsive / mobile + accessibilité** : passe a11y/clavier livrée — overlay & popup média `role=dialog`/`aria-modal`/`aria-label` (focus mis sur la croix à l'ouverture, Échap ferme) ; nav = vrais `<button>` ; barre de quota et cartes catalogue `role=button`+`tabindex`+Entrée/Espace. *(Reste : audit tailles tactiles TV + piège de focus complet dans la modale.)*
 - ☑ **Doc utilisateur** — [`GETTING_STARTED.md`](GETTING_STARTED.md) (anglais), en plus de `CONFIGURATION.md` (admin). *(Captures à ajouter par l'utilisateur.)*
 - ◐ **Tests e2e & non-régression** : logique JS critique extraite vers `catalog.lib.js` et **testée** (autosort `requestSortRank`, statuts, parsers) — 26 tests JS. *(Reste : DOM jsdom complet + golden payloads + smoke Playwright — voir stratégie ci-dessous.)*
+- ◐ **Pan statistiques & ticketing (M30–M33)** — désormais **dans le périmètre 1.0** (voir plus bas). M30/M31/M32 en grande partie livrés ; reste : watchtime par bibliothèque, classement, onglet graphes, popularité dans le catalogue, infos admin par média, et **M33 ticketing** (entier).
 - ☐ Passe de **polish** finale, puis **release `v1.0.0`** (commit `[major]`).
 
 #### Principe transversal — budget de stockage & rétention
@@ -545,26 +545,31 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
 ---
 
-## Au-delà de la 1.0.0 — pan « JellyStats-like »  *(prévu : `v2.0.0`)*
+## M30–M33 — Pan statistiques & ticketing  *(inclus dans le périmètre 1.0)*
 
-### M30 — Statistiques utilisateur  ☐
+> Anciennement prévu pour une « 2.0 » ; **ramené dans la 1.0** — tout se développe avant le 1.0.
+> M30→M32 sont en grande partie **livrés** (stats / dashboard / vue admin / import Playback Reporting) ;
+> les reliquats + M33 ci-dessous restent à faire avant la stabilisation.
 
-- ☐ Recensement par utilisateur : nb de requêtes, médias vus **en entier**, films / épisodes / séries regardés, **watchtime** (7 / 30 / 90 jours + total), watchtime **par bibliothèque** accessible, etc.
+### M30 — Statistiques utilisateur  ◐ *(livré ; reste watchtime par bibliothèque)*
 
-### M31 — Dashboard utilisateur  ☐
+- ☑ Recensement par utilisateur : nb de requêtes, films / épisodes / séries regardés, **watchtime** (7 / 30 / 90 j + total), activité récente. Capture autonome (`PlaybackHistoryEntryPoint`), exposée via `Stats/Me` + `Stats/User/{id}`. **Import Playback Reporting** pour l'historique antérieur.
+- ☐ Watchtime **par bibliothèque** accessible.
 
-- ☐ Dashboard avec ses stats et son **classement** (pour les métriques pertinentes).
-- ☐ Onglet **graphes** : évolution dans le temps (échelle réglable, plusieurs courbes — regroupées ou séparées selon la pertinence).
+### M31 — Dashboard utilisateur  ◐ *(dashboard livré ; reste classement + graphes)*
 
-### M32 — Popularité interne & vue admin enrichie  ☐
+- ☑ **Dashboard perso** (`dashboard.html/js`) : temps de visionnage, top films/séries, activité récente, résumé des demandes, stockage (au niveau du sélecteur de période) et « données enregistrées depuis le… ».
+- ☐ **Classement** entre utilisateurs (pour les métriques pertinentes).
+- ☐ Onglet **graphes** : évolution dans le temps (échelle réglable, plusieurs courbes). *(Un graphe d'activité journalier existe déjà côté admin.)*
 
-- ☐ **Popularité interne** : « le plus demandé / le plus regardé chez vous » mis en avant dans le catalogue.
-- ☐ **Informations admin** sur chaque média de Jellyfin.
+### M32 — Popularité interne & vue admin enrichie  ◐ *(vue admin livrée ; reste popularité catalogue)*
 
-> Le passage à **`v2.0.0`** (commit `[major]`) marque l'ajout du pan statistiques.
+- ☑ **Vue admin** : écran Stats serveur (top médias/users, graphe journalier, « en cours »), **drill-down sur n'importe quel utilisateur** (sélecteur), « données depuis », **import Playback Reporting**.
+- ☐ **Popularité interne** : « le plus demandé / le plus regardé chez vous » mis en avant **dans le catalogue**.
+- ☐ **Informations admin** sur chaque média (dans la fiche / le catalogue).
 
-### M33 — Système de ticketting  ☐
+### M33 — Système de ticketing  ☐
 
-- ☐ **Ouverture de tickets** : les utilisateurs peuvent ouvrir des tickets pour signaler des bugs/problèmes avec des médias/sous titres/mauvaise langue audio, etc.)
-- ☐ **Onglet admin dédié** : l'admin a une interface adaptée pour gérer cela.
-- ☐ **Notifications et logs** : ce système génère des notifications pour les concernés (configurables par l'admin), ainsi que des logs.
+- ☐ **Ouverture de tickets** : signaler bugs/problèmes média (sous-titres, mauvaise langue audio, etc.). *(Le canal « signalements » actuel en couvre une petite partie.)*
+- ☐ **Onglet admin dédié** : interface de gestion.
+- ☐ **Notifications et logs** : notifications aux concernés (configurables par l'admin), + logs.
