@@ -42,6 +42,9 @@ public class PlaybackRecord
   /// <summary>Gets or sets the client/device name the viewing happened on.</summary>
   public string Client { get; set; } = string.Empty;
 
+  /// <summary>Gets or sets the Jellyfin library the item belongs to (resolved at play time; empty when unknown).</summary>
+  public string LibraryName { get; set; } = string.Empty;
+
   /// <summary>Gets or sets the UTC time the viewing started.</summary>
   public DateTime PlayedAtUtc { get; set; }
 
