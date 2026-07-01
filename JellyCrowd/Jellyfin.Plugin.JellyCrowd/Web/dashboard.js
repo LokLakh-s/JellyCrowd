@@ -234,6 +234,26 @@
     return box;
   }
 
+  // Watch time split by library (top libraries by minutes).
+  function libraryTable(rows) {
+    var section = document.createElement('div');
+    section.appendChild(heading(t('dashboard_by_library')));
+    var table = document.createElement('table');
+    table.className = 'jellycrowd-admin-table';
+    var tbody = document.createElement('tbody');
+    rows.forEach(function (r) {
+      var tr = document.createElement('tr');
+      function td(x, cls) { var c = document.createElement('td'); c.textContent = x; if (cls) { c.className = cls; } return c; }
+      tr.appendChild(td(r.Name || t('dashboard_lib_unknown')));
+      tr.appendChild(td(hours(r.Minutes) + ' h', 'jellycrowd-admin-sub'));
+      tr.appendChild(td((r.Plays || 0) + ' ×', 'jellycrowd-admin-sub'));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    section.appendChild(table);
+    return section;
+  }
+
   function render(d) {
     var content = document.getElementById('jcDashContent');
     if (!content) { return; }
@@ -275,6 +295,7 @@
     grid.appendChild(rankTable(t('stats_top_movies'), d.TopMovies));
     grid.appendChild(rankTable(t('stats_top_shows'), d.TopShows));
     content.appendChild(grid);
+    if (d.ByLibrary && d.ByLibrary.length) { content.appendChild(libraryTable(d.ByLibrary)); }
     content.appendChild(recentTable(d.Recent));
 
     // Requests

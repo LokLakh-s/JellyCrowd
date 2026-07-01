@@ -284,6 +284,8 @@
   "dashboard_data_since": "Recording data since",
   "dashboard_rank": "Rank by watch time:",
   "dashboard_activity": "Activity over time",
+  "dashboard_by_library": "Watch time by library",
+  "dashboard_lib_unknown": "Other",
   "dashboard_quota_unlimited": "Unlimited",
   "dashboard_req_total": "Total",
   "dashboard_req_pending": "Pending",

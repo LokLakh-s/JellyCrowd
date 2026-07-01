@@ -144,6 +144,13 @@ public sealed class StatsService : IStatsService
     var chartDays = windowDays > 0 ? Math.Min(windowDays, ChartMaxDays) : ChartMaxDays;
     var daily = StatsAggregator.BuildDailySeries(records, DateTime.UtcNow, chartDays);
 
+    var byLibrary = records
+      .GroupBy(r => r.LibraryName ?? string.Empty)
+      .Select(g => new StatsItemDto { Name = g.Key, Plays = g.Count(), Minutes = Math.Round(g.Sum(r => r.Minutes), 1) })
+      .OrderByDescending(x => x.Minutes)
+      .Take(8)
+      .ToList();
+
     var requests = await _requestStore.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
     var quota = await _quotaService.GetUsageAsync(userId, cancellationToken).ConfigureAwait(false);
 
@@ -166,7 +173,8 @@ public sealed class StatsService : IStatsService
       DataSinceUtc = dataSince,
       RankByMinutes = rankByMinutes,
       RankedUsers = byMinutes.Count,
-      Daily = daily
+      Daily = daily,
+      ByLibrary = byLibrary
     };
   }
 

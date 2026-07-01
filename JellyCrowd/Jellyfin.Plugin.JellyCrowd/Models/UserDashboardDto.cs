@@ -64,4 +64,7 @@ public class UserDashboardDto
 
   /// <summary>Gets or sets the user's activity-over-time series (plays/minutes per day) for the window, oldest first.</summary>
   public IReadOnlyList<StatsDayDto> Daily { get; set; } = Array.Empty<StatsDayDto>();
+
+  /// <summary>Gets or sets the user's watch time split by library (top libraries by minutes; <see cref="StatsItemDto.Name"/> is the library name).</summary>
+  public IReadOnlyList<StatsItemDto> ByLibrary { get; set; } = Array.Empty<StatsItemDto>();
 }

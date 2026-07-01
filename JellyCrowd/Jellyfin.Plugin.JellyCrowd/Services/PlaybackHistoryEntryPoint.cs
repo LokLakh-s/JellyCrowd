@@ -28,6 +28,7 @@ public sealed class PlaybackHistoryEntryPoint : IHostedService
 
   private readonly ISessionManager _sessionManager;
   private readonly IPlaybackHistoryStore _store;
+  private readonly ILibraryManager _libraryManager;
   private readonly Func<Guid, string> _resolveUserName;
   private readonly Func<PluginConfiguration> _configurationProvider;
   private readonly ILogger<PlaybackHistoryEntryPoint> _logger;
@@ -38,18 +39,21 @@ public sealed class PlaybackHistoryEntryPoint : IHostedService
   /// </summary>
   /// <param name="sessionManager">The Jellyfin session manager (source of playback events).</param>
   /// <param name="store">The playback-history store.</param>
+  /// <param name="libraryManager">The library manager (resolves the item's library).</param>
   /// <param name="resolveUserName">Resolves a user id to a display name.</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
   public PlaybackHistoryEntryPoint(
     ISessionManager sessionManager,
     IPlaybackHistoryStore store,
+    ILibraryManager libraryManager,
     Func<Guid, string> resolveUserName,
     Func<PluginConfiguration> configurationProvider,
     ILogger<PlaybackHistoryEntryPoint> logger)
   {
     _sessionManager = sessionManager;
     _store = store;
+    _libraryManager = libraryManager;
     _resolveUserName = resolveUserName;
     _configurationProvider = configurationProvider;
     _logger = logger;
@@ -140,6 +144,7 @@ public sealed class PlaybackHistoryEntryPoint : IHostedService
       Season = state.Season,
       Episode = state.Episode,
       Client = state.Client,
+      LibraryName = state.LibraryName,
       PlayedAtUtc = state.StartUtc,
       Minutes = Math.Round(state.Minutes, 2)
     };
@@ -173,6 +178,7 @@ public sealed class PlaybackHistoryEntryPoint : IHostedService
       ItemName = item.Name ?? string.Empty,
       ItemType = ItemTypeOf(item),
       Client = e.Session?.Client ?? string.Empty,
+      LibraryName = ResolveLibrary(item),
       StartUtc = now,
       LastTickUtc = now,
       Minutes = 0
@@ -225,6 +231,22 @@ public sealed class PlaybackHistoryEntryPoint : IHostedService
     return item is Movie ? "Movie" : item.GetType().Name;
   }
 
+  private string ResolveLibrary(BaseItem item)
+  {
+    try
+    {
+      var folders = _libraryManager.GetCollectionFolders(item);
+      return folders.Count > 0 ? (folders[0].Name ?? string.Empty) : string.Empty;
+    }
+#pragma warning disable CA1031 // Library resolution is best-effort; never let it surface to playback.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogDebug(ex, "Jelly Crowd: could not resolve the library for an item.");
+      return string.Empty;
+    }
+  }
+
   private sealed class SessionState
   {
     public Guid UserId { get; set; }
@@ -246,6 +268,8 @@ public sealed class PlaybackHistoryEntryPoint : IHostedService
     public int? Episode { get; set; }
 
     public string Client { get; set; } = string.Empty;
+
+    public string LibraryName { get; set; } = string.Empty;
 
     public DateTime StartUtc { get; set; }
 
