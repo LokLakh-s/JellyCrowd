@@ -123,9 +123,18 @@ public sealed class StatsService : IStatsService
   /// <inheritdoc />
   public async Task<UserDashboardDto> GetUserDashboardAsync(Guid userId, int windowDays, CancellationToken cancellationToken)
   {
-    var records = (await GetRecordsAsync(windowDays, cancellationToken).ConfigureAwait(false))
-      .Where(r => r.UserId == userId).ToList();
+    var windowRecords = await GetRecordsAsync(windowDays, cancellationToken).ConfigureAwait(false);
+    var records = windowRecords.Where(r => r.UserId == userId).ToList();
     var view = StatsAggregator.BuildOverview(records, UserTopN, UserRecentN);
+
+    // Rank the user among all viewers active in the window, by watch time (1 = most). FindIndex returns
+    // -1 when the user has no plays in the window -> reported as rank 0.
+    var byMinutes = windowRecords
+      .GroupBy(r => r.UserId)
+      .Select(g => new { UserId = g.Key, Minutes = g.Sum(r => r.Minutes) })
+      .OrderByDescending(u => u.Minutes)
+      .ToList();
+    var rankByMinutes = byMinutes.FindIndex(u => u.UserId == userId) + 1;
 
     // Earliest play on record (any user) = how far back the statistics go. The store caches, so this
     // extra read is in-memory; the value is naturally bounded by the history retention window.
@@ -151,7 +160,9 @@ public sealed class StatsService : IStatsService
       QuotaUsedBytes = quota.UsedBytes,
       QuotaTotalBytes = quota.QuotaBytes,
       QuotaUnlimited = quota.Unlimited,
-      DataSinceUtc = dataSince
+      DataSinceUtc = dataSince,
+      RankByMinutes = rankByMinutes,
+      RankedUsers = byMinutes.Count
     };
   }
 
