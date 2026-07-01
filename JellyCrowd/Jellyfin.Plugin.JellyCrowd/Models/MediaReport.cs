@@ -28,6 +28,9 @@ public class MediaReport
   /// <summary>Gets or sets the issue description.</summary>
   public string Message { get; set; } = string.Empty;
 
+  /// <summary>Gets or sets the issue category: <c>bug</c> / <c>subtitles</c> / <c>audio</c> / <c>quality</c> / <c>other</c>.</summary>
+  public string Type { get; set; } = "other";
+
   /// <summary>Gets or sets the UTC creation time.</summary>
   public DateTime CreatedAt { get; set; }
 

@@ -24,9 +24,12 @@ public class ReportsController : ControllerBase
 {
   private const int MaxMessageLength = 2000;
 
+  private static readonly string[] KnownTypes = { "bug", "subtitles", "audio", "quality", "other" };
+
   private readonly IReportStore _store;
   private readonly ICurrentUserAccessor _userAccessor;
   private readonly Func<Guid, string> _resolveUserName;
+  private readonly IActivityLog _activityLog;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ReportsController"/> class.
@@ -34,11 +37,26 @@ public class ReportsController : ControllerBase
   /// <param name="store">The report store.</param>
   /// <param name="userAccessor">The current-user accessor.</param>
   /// <param name="resolveUserName">Resolves a user id to a display name.</param>
-  public ReportsController(IReportStore store, ICurrentUserAccessor userAccessor, Func<Guid, string> resolveUserName)
+  /// <param name="activityLog">The activity log.</param>
+  public ReportsController(IReportStore store, ICurrentUserAccessor userAccessor, Func<Guid, string> resolveUserName, IActivityLog activityLog)
   {
     _store = store;
     _userAccessor = userAccessor;
     _resolveUserName = resolveUserName;
+    _activityLog = activityLog;
+  }
+
+  private static string NormalizeType(string? type)
+  {
+    foreach (var known in KnownTypes)
+    {
+      if (string.Equals(known, type, StringComparison.OrdinalIgnoreCase))
+      {
+        return known;
+      }
+    }
+
+    return "other";
   }
 
   /// <summary>
@@ -79,10 +97,13 @@ public class ReportsController : ControllerBase
         Title = dto.Title,
         UserId = userId,
         UserName = _resolveUserName(userId),
-        Message = message
+        Message = message,
+        Type = NormalizeType(dto.Type)
       },
       cancellationToken).ConfigureAwait(false);
 
+    await _activityLog.LogAsync(
+      "info", "report", $"New report ({created.Type}): {created.Title} — {created.UserName}", cancellationToken).ConfigureAwait(false);
     return Ok(created);
   }
 
@@ -115,6 +136,11 @@ public class ReportsController : ControllerBase
   public async Task<ActionResult<MediaReport>> Resolve(Guid id, CancellationToken cancellationToken)
   {
     var updated = await _store.SetResolvedAsync(id, resolved: true, cancellationToken).ConfigureAwait(false);
+    if (updated is not null)
+    {
+      await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", cancellationToken).ConfigureAwait(false);
+    }
+
     return updated is null ? NotFound() : Ok(updated);
   }
 

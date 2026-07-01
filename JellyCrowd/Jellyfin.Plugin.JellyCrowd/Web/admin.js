@@ -998,7 +998,7 @@
           msg.textContent = r.Message;
           var sub = document.createElement('div');
           sub.className = 'jellycrowd-admin-sub';
-          sub.textContent = (usersById[r.UserId] || r.UserName || '?') + ' · ' + (r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '');
+          sub.textContent = t('report_type_' + (r.Type || 'other')) + ' · ' + (usersById[r.UserId] || r.UserName || '?') + ' · ' + (r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '');
           tdMain.appendChild(title);
           tdMain.appendChild(msg);
           tdMain.appendChild(sub);

@@ -855,6 +855,14 @@
       wrap.className = 'jellycrowd-report';
       var form = document.createElement('div');
       form.className = 'jellycrowd-comment-form';
+      var typeSel = document.createElement('select');
+      typeSel.className = 'jellycrowd-report-type';
+      [['bug', 'report_type_bug'], ['subtitles', 'report_type_subtitles'], ['audio', 'report_type_audio'], ['quality', 'report_type_quality'], ['other', 'report_type_other']].forEach(function (o) {
+        var opt = document.createElement('option');
+        opt.value = o[0];
+        opt.textContent = t(o[1]);
+        typeSel.appendChild(opt);
+      });
       var input = document.createElement('textarea');
       input.className = 'jellycrowd-comment-input';
       input.rows = 2;
@@ -867,10 +875,11 @@
         var msg = input.value.trim();
         if (!msg) { return; }
         send.disabled = true;
-        apiPost('JellyCrowd/Reports', { MediaType: item.MediaType, TmdbId: item.TmdbId, Title: item.Title, Message: msg })
+        apiPost('JellyCrowd/Reports', { MediaType: item.MediaType, TmdbId: item.TmdbId, Title: item.Title, Message: msg, Type: typeSel.value })
           .then(function () { wrap.textContent = t('report_thanks'); })
           .catch(function () { send.disabled = false; });
       });
+      form.appendChild(typeSel);
       form.appendChild(input);
       form.appendChild(send);
       wrap.appendChild(form);
