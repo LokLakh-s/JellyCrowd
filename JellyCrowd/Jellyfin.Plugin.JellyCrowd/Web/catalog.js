@@ -1434,7 +1434,10 @@
     var sciFi = filters.mediaType === 'tv' ? '10765' : '878';
     // "For you" first (auto-removed when there are no recommendations / seeds). No "see more": the
     // recommendations endpoint isn't a discover filter we can paginate as a grid.
-    var queue = [{ kind: 'path', title: t('row_foryou'), path: 'JellyCrowd/Catalog/Recommendations?language=' + encodeURIComponent(fullLocale()) }];
+    var queue = [
+      { kind: 'path', title: t('row_popular'), path: 'JellyCrowd/Catalog/Popular?language=' + encodeURIComponent(fullLocale()) },
+      { kind: 'path', title: t('row_foryou'), path: 'JellyCrowd/Catalog/Recommendations?language=' + encodeURIComponent(fullLocale()) }
+    ];
     queue.push({ kind: 'platforms', title: t('streaming_platforms') });
     platformList().slice(0, 4).forEach(function (platform) {
       queue.push({
