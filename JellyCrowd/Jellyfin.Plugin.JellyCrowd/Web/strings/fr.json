@@ -85,6 +85,7 @@
   "request_button": "Demander",
   "request_season": "Demander la saison",
   "act_as": "Demander au nom de :",
+  "admin_media_requests": "Demandé par {n} utilisateur(s) :",
   "act_as_self": "Moi-même",
   "episodes": "Épisodes",
   "details_button": "Détails",

@@ -879,6 +879,38 @@
     return link;
   }
 
+  // Admin-only block in the media detail popup: every request for this title (who wanted it, status, scope).
+  function appendAdminMediaInfo(container, item) {
+    var section = document.createElement('div');
+    section.className = 'jellycrowd-admin-mediainfo';
+    var head = document.createElement('div');
+    head.className = 'jellycrowd-admin-mediainfo-title';
+    section.appendChild(head);
+    container.appendChild(section);
+    apiGet('JellyCrowd/Requests/Media/' + item.MediaType + '/' + item.TmdbId)
+      .then(function (list) {
+        if (!list || !list.length) { section.remove(); return; }
+        var users = {};
+        list.forEach(function (r) { if (r.UserName) { users[r.UserName] = true; } });
+        head.textContent = t('admin_media_requests').replace('{n}', String(Object.keys(users).length));
+        var table = document.createElement('table');
+        table.className = 'jellycrowd-admin-table';
+        var tbody = document.createElement('tbody');
+        list.forEach(function (r) {
+          var tr = document.createElement('tr');
+          function td(x, cls) { var c = document.createElement('td'); c.textContent = x; if (cls) { c.className = cls; } return c; }
+          var scope = (r.Season != null) ? ' · S' + r.Season + (r.Episode != null ? 'E' + r.Episode : '') : '';
+          tr.appendChild(td((r.UserName || '—') + scope));
+          tr.appendChild(td(r.Status || '', 'jellycrowd-admin-sub'));
+          tr.appendChild(td(r.RequestedAt ? new Date(r.RequestedAt).toLocaleDateString() : '', 'jellycrowd-admin-sub'));
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        section.appendChild(table);
+      })
+      .catch(function () { section.remove(); });
+  }
+
   function openModal(item) {
     var overlay = document.createElement('div');
     overlay.className = 'jellycrowd-modal-overlay';
@@ -1023,6 +1055,8 @@
       adminRow.appendChild(adminSelect);
       reqTarget.appendChild(adminRow);
     }
+
+    if (isAdmin) { appendAdminMediaInfo(content, item); }
 
     var dateInput = null;
     if (item.MediaType === 'tv') {
