@@ -49,6 +49,31 @@ public sealed class JsonPlaybackHistoryStore : IPlaybackHistoryStore, IDisposabl
   }
 
   /// <inheritdoc />
+  public async Task<int> AddRangeAsync(IEnumerable<PlaybackRecord> records, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(records);
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var before = items.Count;
+      foreach (var record in records)
+      {
+        record.Id = record.Id == Guid.Empty ? Guid.NewGuid() : record.Id;
+        items.Add(record);
+      }
+
+      Prune(items);
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return Math.Max(0, items.Count - before);
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<IReadOnlyList<PlaybackRecord>> GetAllAsync(CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

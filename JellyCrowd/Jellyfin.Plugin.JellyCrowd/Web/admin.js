@@ -52,6 +52,16 @@
       .then(function (r) { if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } });
   }
 
+  function apiPostResult(path) {
+    if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+      return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path), dataType: 'json', contentType: 'application/json' });
+    }
+    return fetch(pluginUrl(path), { method: 'POST' }).then(function (r) {
+      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+      return r.json();
+    });
+  }
+
   function loadUsers() {
     if (!(window.ApiClient && typeof window.ApiClient.getUsers === 'function')) { return Promise.resolve(); }
     return window.ApiClient.getUsers()
@@ -657,6 +667,31 @@
       return wrap;
     }
 
+    // One-time backfill: pull viewing history from the Playback Reporting plugin's database. Safe to
+    // re-run (only plays older than Jelly Crowd's own history are added).
+    function importButton() {
+      var wrap = document.createElement('div');
+      wrap.className = 'jellycrowd-stats-import';
+      var btn = adminBtn(t('stats_import_pr'), '', function () {
+        if (!window.confirm(t('stats_import_confirm'))) { return; }
+        btn.disabled = true;
+        setMessage(t('stats_importing'));
+        apiPostResult('JellyCrowd/Stats/ImportPlaybackReporting').then(function (r) {
+          btn.disabled = false;
+          r = r || {};
+          if (!r.Found) { setMessage(t('stats_import_none')); return; }
+          setMessage(t('stats_import_done').replace('{n}', r.Imported || 0));
+          load();
+        }).catch(function (e) { btn.disabled = false; setMessage(t(lib.errorKey(e && e.status))); });
+      });
+      var hint = document.createElement('div');
+      hint.className = 'jellycrowd-field-hint';
+      hint.textContent = t('stats_import_hint');
+      wrap.appendChild(btn);
+      wrap.appendChild(hint);
+      return wrap;
+    }
+
     function load() {
       setMessage(t('loading'));
       apiGet('JellyCrowd/Stats/Overview?windowDays=' + windowDays).then(function (o) {
@@ -689,6 +724,7 @@
 
         mainHost.appendChild(userPicker());
         mainHost.appendChild(statsRecentTable(o.Recent));
+        mainHost.appendChild(importButton());
       }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
     }
 

@@ -20,6 +20,14 @@ public interface IPlaybackHistoryStore
   Task AddAsync(PlaybackRecord record, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Appends many records at once (assigning ids), persisting a single time. Used for bulk imports.
+  /// </summary>
+  /// <param name="records">The records to store.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The number of records kept after the retention bound is applied.</returns>
+  Task<int> AddRangeAsync(IEnumerable<PlaybackRecord> records, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Gets every stored record, newest first.
   /// </summary>
   /// <param name="cancellationToken">The cancellation token.</param>
