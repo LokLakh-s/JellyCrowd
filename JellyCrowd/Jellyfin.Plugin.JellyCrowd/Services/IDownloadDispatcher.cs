@@ -72,4 +72,13 @@ public interface IDownloadDispatcher
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when stuck requests have been re-searched.</returns>
   Task RetryStuckAsync(CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Asks the active backend to rescan the request's title from disk, so a file added manually (outside
+  /// Radarr/Sonarr) is imported and the backend stops searching for it. Best-effort; never throws.
+  /// </summary>
+  /// <param name="request">The request whose media just became available.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the rescan has been requested.</returns>
+  Task RescanAsync(RequestRecord request, CancellationToken cancellationToken);
 }

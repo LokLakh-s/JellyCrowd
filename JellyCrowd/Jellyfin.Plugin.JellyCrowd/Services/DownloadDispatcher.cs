@@ -179,6 +179,29 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   }
 
   /// <inheritdoc />
+  public async Task RescanAsync(RequestRecord request, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    var client = ActiveClient(_config());
+    if (client is null)
+    {
+      return;
+    }
+
+    try
+    {
+      var payload = DownloadPayloadBuilder.Build(request, _resolveUserName(request.UserId));
+      await client.RescanAsync(payload, cancellationToken).ConfigureAwait(false);
+    }
+#pragma warning disable CA1031 // Best-effort import hint; must never block reconciliation.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogDebug(ex, "Backend rescan failed for request {RequestId}.", request.Id.ToString("N", CultureInfo.InvariantCulture));
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken)
   {
     ArgumentNullException.ThrowIfNull(request);

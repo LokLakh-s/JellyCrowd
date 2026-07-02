@@ -133,6 +133,8 @@ public sealed class ActivityLogFlowTests : IDisposable
 
     public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task RescanAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task<bool> PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.FromResult(true);
 
     public Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)

@@ -15,6 +15,7 @@ public sealed class RequestReconciler : IRequestReconciler
   private readonly IRequestStore _store;
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly INotificationService _notificationService;
+  private readonly IDownloadDispatcher _dispatcher;
   private readonly ILogger<RequestReconciler> _logger;
 
   /// <summary>
@@ -23,12 +24,14 @@ public sealed class RequestReconciler : IRequestReconciler
   /// <param name="store">The request store.</param>
   /// <param name="libraryMatcher">The library matcher.</param>
   /// <param name="notificationService">The notification service.</param>
+  /// <param name="dispatcher">The download dispatcher (to nudge the backend to import a manual file).</param>
   /// <param name="logger">The logger.</param>
-  public RequestReconciler(IRequestStore store, ILibraryMatcher libraryMatcher, INotificationService notificationService, ILogger<RequestReconciler> logger)
+  public RequestReconciler(IRequestStore store, ILibraryMatcher libraryMatcher, INotificationService notificationService, IDownloadDispatcher dispatcher, ILogger<RequestReconciler> logger)
   {
     _store = store;
     _libraryMatcher = libraryMatcher;
     _notificationService = notificationService;
+    _dispatcher = dispatcher;
     _logger = logger;
   }
 
@@ -54,6 +57,15 @@ public sealed class RequestReconciler : IRequestReconciler
         {
           await _store.MarkAvailableAsync(request.Id, itemId, cancellationToken).ConfigureAwait(false);
           await _notificationService.NotifyRequestEventAsync(request, NotificationEvent.Available, cancellationToken).ConfigureAwait(false);
+
+          // The media is present in Jellyfin but may have been placed manually (the backend failed to grab
+          // it, or the user side-loaded it). If this request went through a backend, nudge it to rescan the
+          // folder from disk so it imports the file and stops searching. Best-effort.
+          if (request.DispatchedAt is not null)
+          {
+            await _dispatcher.RescanAsync(request, cancellationToken).ConfigureAwait(false);
+          }
+
           resolved++;
         }
       }
