@@ -537,10 +537,10 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 > En plus des **tests unitaires** existants (.NET logique pure + contrôleurs avec fakes ; JS pur via `node:test`) :
 >
 > - ☑ **Tests de contrat / parsers sur fixtures** : réponses TMDB/Radarr/Sonarr (JSON) figées et vérifiées contre les parsers (`ServarrResponseParser`, `ServarrQueueParser`, `ServarrEpisodeParser`, `ServarrIndexerParser`, `TmdbResponseParser`, `ServarrItemState`).
-> - ☐ **Tests d'intégration HTTP** des contrôleurs avec un **serveur mock** (WireMock.Net) pour TMDB/Radarr/Sonarr → valide le flux requête→dispatch→statut sans Jellyfin live.
+> - ☑ **Tests d'intégration HTTP** contre un **serveur mock** (WireMock.Net) pour Radarr/Sonarr + TMDB → valide le flux requête→dispatch/rescan→statut sur de vraies sockets, sans Jellyfin live ([`ServarrHttpIntegrationTests`](Jellyfin.Plugin.JellyCrowd.Tests/Integration/ServarrHttpIntegrationTests.cs)).
 > - ☑ **Tests DOM (jsdom)** pour la logique de rendu critique : piège de focus modale, badges de statut, libellés de téléchargement (`dom.lib.test.js`).
 > - ☑ **Snapshot/golden** des payloads générés (embed Discord via `NotificationEmbeds`, ajout Servarr via `ServarrPayload`, `DownloadPayloadBuilder`).
-> - ☐ *(Optionnel, nightly)* **smoke e2e Playwright** sur un `docker-compose` (Jellyfin + plugin + *arr mockés*).
+> - ☑ *(Opt-in / nightly)* **smoke e2e Playwright** contre le dev-stack (login → catalogue TMDB → modale détails) : [`tests/e2e/`](tests/e2e), workflow manuel *E2E smoke (Playwright)*.
 > - ☑ **Checklist de régression manuelle** documentée pour les vérifs live impossibles à automatiser ([`TESTS.TODO.md`](TESTS.TODO.md)).
 
 ---

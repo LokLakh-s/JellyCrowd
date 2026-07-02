@@ -5,8 +5,13 @@ artifacts/
 *.user
 *.suo
 
-# Node (JS test tooling under tests/js — package.json + lockfile are committed, deps are not)
+# Node (JS test tooling under tests/ — package.json + lockfile are committed, deps are not)
 node_modules/
+
+# Playwright e2e output
+test-results/
+playwright-report/
+.playwright/
 
 # IDE
 .vs/

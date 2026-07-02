@@ -1,0 +1,13 @@
+{
+  "name": "jellycrowd-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright smoke e2e for Jelly Crowd, run against a live Jellyfin dev stack (see dev-stack/). Optional / nightly — not part of the per-push CI. Set JC_BASE_URL / JC_USER / JC_PASSWORD to point at the instance.",
+  "scripts": {
+    "test": "playwright test",
+    "install-browser": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  }
+}
