@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using MediaBrowser.Common.Net;
 using Microsoft.Extensions.Logging;
@@ -16,20 +17,31 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </summary>
 public class TmdbClient : ITmdbClient
 {
-  private const string BaseUrl = "https://api.themoviedb.org/3";
+  private const string DefaultBaseUrl = "https://api.themoviedb.org/3";
 
   private readonly IHttpClientFactory _httpClientFactory;
+  private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<TmdbClient> _logger;
+  private readonly string _baseUrl;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="TmdbClient"/> class.
   /// </summary>
   /// <param name="httpClientFactory">The HTTP client factory.</param>
+  /// <param name="config">Accessor for the current plugin configuration (supplies the TMDB API key).</param>
   /// <param name="logger">The logger.</param>
-  public TmdbClient(IHttpClientFactory httpClientFactory, ILogger<TmdbClient> logger)
+  public TmdbClient(IHttpClientFactory httpClientFactory, Func<PluginConfiguration> config, ILogger<TmdbClient> logger)
+    : this(httpClientFactory, config, logger, DefaultBaseUrl)
+  {
+  }
+
+  // Test seam: overrides the TMDB base URL so integration tests can point the client at a mock server.
+  internal TmdbClient(IHttpClientFactory httpClientFactory, Func<PluginConfiguration> config, ILogger<TmdbClient> logger, string baseUrl)
   {
     _httpClientFactory = httpClientFactory;
+    _config = config;
     _logger = logger;
+    _baseUrl = baseUrl;
   }
 
   /// <inheritdoc />
@@ -268,7 +280,7 @@ public class TmdbClient : ITmdbClient
 
   private async Task<string> GetAsync(string relativePathWithQuery, CancellationToken cancellationToken)
   {
-    var apiKey = Plugin.Instance?.Configuration.TmdbApiKey ?? string.Empty;
+    var apiKey = _config().TmdbApiKey ?? string.Empty;
     if (string.IsNullOrWhiteSpace(apiKey))
     {
       throw new InvalidOperationException("TMDB API key is not configured.");
@@ -277,7 +289,7 @@ public class TmdbClient : ITmdbClient
     _logger.LogDebug("Requesting TMDB {Path}", relativePathWithQuery);
 
     var separator = relativePathWithQuery.Contains('?', StringComparison.Ordinal) ? '&' : '?';
-    var uri = new Uri($"{BaseUrl}{relativePathWithQuery}{separator}api_key={Escape(apiKey)}");
+    var uri = new Uri($"{_baseUrl}{relativePathWithQuery}{separator}api_key={Escape(apiKey)}");
 
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
     using var response = await client.GetAsync(uri, cancellationToken).ConfigureAwait(false);
