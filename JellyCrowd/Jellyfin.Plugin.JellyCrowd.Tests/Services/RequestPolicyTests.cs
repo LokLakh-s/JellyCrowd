@@ -134,21 +134,44 @@ public class RequestPolicyTests
   }
 
   [Fact]
-  public void IsVisibleTo_DisablingConfigMode_GivesEveryoneAccess_EvenWithLeftoverGrant()
+  public void IsVisibleTo_EnabledOverride_ForcesAccess_EvenInConfigMode()
   {
-    // Scenario: a user was granted per-user access in config mode; later config mode is turned OFF
-    // (open to all) WITHOUT unchecking that user's PluginAccess. There must be no conflict — the leftover
-    // grant is simply ignored and everyone (granted user included) sees the plugin.
-    var config = Config(); // HiddenFromUsers == false (config mode off)
-    var granted = Guid.NewGuid();
-    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = granted, PluginAccess = true });
+    var config = Config();
+    config.HiddenFromUsers = true; // hidden by default
+    var user = Guid.NewGuid();
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, PluginAccess = true });
 
-    Assert.True(RequestPolicy.IsVisibleTo(config, granted, isAdmin: false)); // still visible (leftover grant is a no-op)
-    Assert.True(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));    // and so is everyone else
+    Assert.True(RequestPolicy.IsVisibleTo(config, user, isAdmin: false)); // override forces access
+  }
 
-    // Re-enabling config mode keeps the granted user in (their PluginAccess still applies), others out.
+  [Fact]
+  public void IsVisibleTo_DisabledOverride_BlocksAccess_EvenWhenPluginVisible()
+  {
+    var config = Config(); // config mode off → visible to all by default
+    var blocked = Guid.NewGuid();
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = blocked, PluginAccess = false });
+
+    Assert.False(RequestPolicy.IsVisibleTo(config, blocked, isAdmin: false)); // blocked despite plugin being visible
+    Assert.True(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));     // others unaffected
+  }
+
+  [Fact]
+  public void IsVisibleTo_NoOverride_FollowsConfigMode()
+  {
+    var config = Config();
+    Assert.True(RequestPolicy.IsVisibleTo(config, User, isAdmin: false)); // config mode off → visible
+
     config.HiddenFromUsers = true;
-    Assert.True(RequestPolicy.IsVisibleTo(config, granted, isAdmin: false));
-    Assert.False(RequestPolicy.IsVisibleTo(config, User, isAdmin: false));
+    Assert.False(RequestPolicy.IsVisibleTo(config, User, isAdmin: false)); // config mode on → hidden
+  }
+
+  [Fact]
+  public void IsVisibleTo_Admin_AlwaysVisible_EvenWithDisabledOverride()
+  {
+    var config = Config();
+    var admin = Guid.NewGuid();
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = admin, PluginAccess = false });
+
+    Assert.True(RequestPolicy.IsVisibleTo(config, admin, isAdmin: true));
   }
 }

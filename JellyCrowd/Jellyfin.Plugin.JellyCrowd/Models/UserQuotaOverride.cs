@@ -38,9 +38,9 @@ public class UserQuotaOverride
   public int? MaxRequestsPerPeriod { get; set; }
 
   /// <summary>
-  /// Gets or sets a value indicating whether this user may access the plugin while it is hidden from
-  /// regular users ("config mode"). Lets the admin enable Jelly Crowd for specific users only.
-  /// <c>null</c>/<c>false</c> means no access when hidden.
+  /// Gets or sets this user's per-user plugin-access override, which wins over the global "config mode":
+  /// <c>true</c> forces access even while config mode hides the plugin; <c>false</c> blocks this user
+  /// even when the plugin is otherwise visible; <c>null</c> (no override) follows config mode.
   /// </summary>
   public bool? PluginAccess { get; set; }
 }

@@ -156,7 +156,7 @@
         tr.appendChild(td(auto));
         var cap = numberInput('jc-cap', ex.MaxRequestsPerPeriod != null ? ex.MaxRequestsPerPeriod : '');
         tr.appendChild(td(cap));
-        var access = checkbox('jc-access', ex.PluginAccess === true);
+        var access = accessSelect(ex.PluginAccess);
         tr.appendChild(td(access));
 
         tbody.appendChild(tr);
@@ -200,6 +200,21 @@
     return c;
   }
 
+  // Per-user plugin-access override (3-state, overrides "config mode"): Default (follow config mode) /
+  // Enabled (always) / Disabled (never). Maps to PluginAccess null / true / false.
+  function accessSelect(value) {
+    var s = document.createElement('select');
+    s.className = 'jc-access';
+    [['', 'Default'], ['on', 'Enabled'], ['off', 'Disabled']].forEach(function (opt) {
+      var o = document.createElement('option');
+      o.value = opt[0];
+      o.textContent = opt[1];
+      s.appendChild(o);
+    });
+    s.value = value === true ? 'on' : (value === false ? 'off' : '');
+    return s;
+  }
+
   // Build the QuotaOverrides array — only entries that deviate from the defaults are kept (mirrors the
   // old config-page behaviour so the stored config stays minimal).
   function collectQuotas(container) {
@@ -210,10 +225,10 @@
       var capEl = tr.querySelector('.jc-cap');
       var canRequest = tr.querySelector('.jc-can').checked;
       var autoApprove = tr.querySelector('.jc-auto').checked;
-      var pluginAccess = tr.querySelector('.jc-access').checked;
+      var access = tr.querySelector('.jc-access').value; // '' default, 'on' enabled, 'off' disabled
       var quotaSet = quotaEl && quotaEl.value !== '' && quotaEl.value !== null;
       var capSet = capEl && capEl.value !== '' && capEl.value !== null;
-      if (!quotaSet && !capSet && canRequest && !autoApprove && !pluginAccess) {
+      if (!quotaSet && !capSet && canRequest && !autoApprove && access === '') {
         return; // all defaults → no entry
       }
       var o = { UserId: uid };
@@ -221,7 +236,7 @@
       if (!canRequest) { o.CanRequest = false; }
       if (autoApprove) { o.AutoApprove = true; }
       if (capSet) { o.MaxRequestsPerPeriod = parseInt(capEl.value, 10); }
-      if (pluginAccess) { o.PluginAccess = true; }
+      if (access === 'on') { o.PluginAccess = true; } else if (access === 'off') { o.PluginAccess = false; }
       result.push(o);
     });
     return result;
