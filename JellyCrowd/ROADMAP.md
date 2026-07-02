@@ -515,9 +515,9 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
 - ☑ **Responsive / mobile + accessibilité** : passe a11y/clavier — overlay & popup média `role=dialog`/`aria-modal`/`aria-label` (focus mis sur la croix à l'ouverture, Échap ferme) ; nav = vrais `<button>` ; barre de quota et cartes catalogue `role=button`+`tabindex`+Entrée/Espace. Indicateur de focus `:focus-visible` sur tous les contrôles (clavier/télécommande TV), tailles tactiles élargies sur `pointer: coarse`, et **piège de focus complet** dans la modale (Tab/Shift+Tab cyclent dans le dialogue, focus restauré à la fermeture).
 - ☑ **Doc utilisateur** — [`GETTING_STARTED.md`](GETTING_STARTED.md) (anglais), en plus de `CONFIGURATION.md` (admin). *(Captures à ajouter par l'utilisateur.)*
-- ◐ **Tests e2e & non-régression** : logique JS critique extraite vers `catalog.lib.js` et **testée** — autosort `requestSortRank`, statuts, parsers, **piège de focus modale**, **badges de statut** et **libellés de téléchargement** (jsdom). *(Reste : intégration HTTP WireMock.Net + smoke Playwright — voir stratégie ci-dessous.)*
-- ◐ **Pan statistiques & ticketing (M30–M33)** — désormais **dans le périmètre 1.0** (voir plus bas). M30/M31/M32 en grande partie livrés ; reste : watchtime par bibliothèque, classement, onglet graphes, popularité dans le catalogue, infos admin par média, et **M33 ticketing** (entier).
-- ☐ Passe de **polish** finale, puis **release `v1.0.0`** (commit `[major]`).
+- ☑ **Tests e2e & non-régression** : logique JS critique extraite vers `catalog.lib.js` et **testée** (jsdom — piège de focus modale, badges de statut, libellés de téléchargement), **intégration HTTP WireMock.Net** (Radarr/Sonarr + TMDB, flux dispatch/rescan sur de vraies sockets) et **smoke Playwright** (login → catalogue TMDB → modale). Voir stratégie ci-dessous.
+- ☑ **Pan statistiques & ticketing (M30–M33)** — livré : watchtime par bibliothèque, classement, onglet graphes, popularité dans le catalogue, infos admin par média, et **M33 ticketing**.
+- ☑ Passe de **polish** finale, puis **release `v1.0.0`** (commit `[major]`).
 
 #### Principe transversal — budget de stockage & rétention
 
