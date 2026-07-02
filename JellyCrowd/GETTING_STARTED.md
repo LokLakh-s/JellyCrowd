@@ -5,6 +5,10 @@ There's no extra account or app — you use your usual Jellyfin login.
 
 > This guide is for **users**. For server-side setup, see [`CONFIGURATION.md`](CONFIGURATION.md).
 
+**Install (admin, once):** in Jellyfin, go to *Dashboard → Plugins → Repositories → Add* and paste
+`https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json`, then install **Jelly Crowd**
+from the catalog and restart. Updates then arrive automatically.
+
 ## Where it lives
 
 Once signed in to Jellyfin, a Jelly Crowd navigation bar appears at the top, next to **Home**:
