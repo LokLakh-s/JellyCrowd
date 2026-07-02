@@ -468,6 +468,8 @@ public class RequestsControllerTests
 
     public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task RescanAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken)
     {
       Retried.Add(request.Id);

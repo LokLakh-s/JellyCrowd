@@ -56,6 +56,48 @@ public sealed class ServarrDownloadClient : IDownloadClient
     return EnsureRequestedAsync(dispatch, cancellationToken);
   }
 
+  /// <inheritdoc />
+  public async Task RescanAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(dispatch);
+    var config = _config();
+
+    if (string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal))
+    {
+      if (!RadarrConfigured(config))
+      {
+        return;
+      }
+
+      var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+      if (movie?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var movieId) && movieId > 0)
+      {
+        var command = new JsonObject { ["name"] = "RescanMovie", ["movieId"] = movieId };
+        await _servarr.CommandAsync(config.RadarrUrl, config.RadarrApiKey, command, cancellationToken).ConfigureAwait(false);
+      }
+    }
+    else if (string.Equals(dispatch.MediaType, "tv", StringComparison.Ordinal))
+    {
+      if (!SonarrConfigured(config))
+      {
+        return;
+      }
+
+      var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+      if (tvdbId is null)
+      {
+        return;
+      }
+
+      var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId.Value, cancellationToken).ConfigureAwait(false);
+      if (series is not null && series["id"] is JsonValue seriesIdValue && seriesIdValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
+      {
+        var command = new JsonObject { ["name"] = "RescanSeries", ["seriesId"] = seriesId };
+        await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
+      }
+    }
+  }
+
   // Idempotent dispatch: if the title is already in Radarr/Sonarr, (re)trigger a search; otherwise add
   // it (the add payload already requests a search). Crucially, re-adding an existing title makes
   // Radarr/Sonarr return 400 — which previously failed the dispatch, left it "due", and made the

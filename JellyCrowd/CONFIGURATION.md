@@ -103,6 +103,10 @@ Le **menu déroulant « Download backend »** pilote les réglages affichés :
   - Les **films** passent par Radarr, les **séries** par Sonarr. Comme Sonarr fonctionne en TVDB,
     l'identifiant TVDB est résolu automatiquement depuis TMDB. Pour une demande de **saison précise**,
     seule cette saison est surveillée ; sinon toute la série.
+  - **Fichier déposé à la main** : si un média demandé est ajouté manuellement (hors Radarr/Sonarr) et
+    détecté par Jellyfin, la demande passe **Disponible** et Jelly Crowd demande à Radarr/Sonarr de
+    **rescanner** le film/la série depuis le disque (`RescanMovie` / `RescanSeries`), pour qu'ils
+    importent le fichier et cessent de le chercher.
   - Bouton **Test backend** : vérifie la connexion aux instances configurées (`system/status`).
   - **Statut de téléchargement en direct** : quand le backend est **Servarr**, la page *Mes demandes*
     interroge la file d'attente de Radarr/Sonarr (`/queue`) toutes les 5 s et affiche sur chaque demande

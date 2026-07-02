@@ -181,6 +181,8 @@ public sealed class DeletionTaskTests : IDisposable
 
     public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task RescanAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task<bool> RetryAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
   }
 }

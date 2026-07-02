@@ -71,4 +71,15 @@ public interface IDownloadClient
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when the retry has been attempted.</returns>
   Task RetryAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Asks the backend to rescan the title's folder from disk (Radarr <c>RescanMovie</c> / Sonarr
+  /// <c>RescanSeries</c>), so a file placed manually — outside the backend — is imported and the backend
+  /// stops searching for it. No-op for fire-and-forget backends and when the title is not (yet) in the
+  /// backend. Best-effort: the dispatcher swallows any failure so reconciliation is never blocked.
+  /// </summary>
+  /// <param name="dispatch">The original request payload.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the rescan has been requested.</returns>
+  Task RescanAsync(DownloadDispatch dispatch, CancellationToken cancellationToken);
 }

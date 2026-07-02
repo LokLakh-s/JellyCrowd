@@ -69,6 +69,9 @@ public sealed class ScriptDownloadClient : IDownloadClient
   public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
 
   /// <inheritdoc />
+  public Task RescanAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.CompletedTask;
+
+  /// <inheritdoc />
   public Task<bool> PurgeAsync(DownloadDispatch dispatch, CancellationToken cancellationToken) => Task.FromResult(true);
 
   /// <inheritdoc />
