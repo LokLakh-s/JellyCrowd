@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Test-only seams (e.g. TmdbClient's overridable base URL for WireMock integration tests). -->
+    <InternalsVisibleTo Include="Jellyfin.Plugin.JellyCrowd.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Bundled at runtime (copied into the plugin zip) for robust SMTP: 465/587, STARTTLS, and
          optional acceptance of self-signed/expired certificates. -->
     <PackageReference Include="MailKit" Version="4.17.0" />
