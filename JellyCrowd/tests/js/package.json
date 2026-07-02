@@ -1,0 +1,12 @@
+{
+  "name": "jellycrowd-js-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JS unit + DOM tests for the Jelly Crowd web assets, run via `node --test`. jsdom provides a DOM for the rendering/interaction tests; the pure-logic tests need no dependencies.",
+  "scripts": {
+    "test": "node --test *.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1"
+  }
+}

@@ -1,0 +1,196 @@
+'use strict';
+
+// DOM tests (jsdom) for the framework-free DOM helpers in catalog.lib.js — the modal focus trap that
+// ships in catalog.js. jsdom has no layout engine, so getClientRects()/offsetParent are always empty;
+// the helpers take an injectable `visible` predicate precisely so they stay testable here while using
+// the real layout check in the browser.
+
+const test = require('node:test');
+const assert = require('node:assert');
+const path = require('node:path');
+const { JSDOM } = require('jsdom');
+
+const lib = require(path.join(
+  __dirname,
+  '..',
+  '..',
+  'Jellyfin.Plugin.JellyCrowd',
+  'Web',
+  'catalog.lib.js'));
+
+// Treat everything not explicitly `hidden` as visible (stands in for the browser's getClientRects check).
+const VISIBLE = { visible: function (el) { return !el.hidden; } };
+
+function setup(html) {
+  return new JSDOM('<!DOCTYPE html><body>' + html + '</body>').window.document;
+}
+
+function keyEvent(key, shift) {
+  const e = { key: key, shiftKey: !!shift, prevented: false };
+  e.preventDefault = function () { e.prevented = true; };
+  return e;
+}
+
+function trapModal() {
+  const doc = setup(
+    '<div id="m">'
+    + '<button id="first">f</button><button id="mid">m</button><button id="last">l</button>'
+    + '</div><button id="outside">o</button>');
+  return {
+    doc: doc,
+    modal: doc.getElementById('m'),
+    first: doc.getElementById('first'),
+    mid: doc.getElementById('mid'),
+    last: doc.getElementById('last'),
+    outside: doc.getElementById('outside')
+  };
+}
+
+test('focusablesIn returns the visible focusable elements in DOM order', () => {
+  const doc = setup(
+    '<div id="m">'
+    + '<a href="#">a</a>'
+    + '<button>b</button>'
+    + '<button disabled>x</button>'
+    + '<div tabindex="0">c</div>'
+    + '<span>plain</span>'
+    + '<input>'
+    + '<input tabindex="-1">'
+    + '</div>');
+  const f = lib.focusablesIn(doc.getElementById('m'), VISIBLE);
+  assert.deepStrictEqual(f.map(function (el) { return el.tagName.toLowerCase(); }), ['a', 'button', 'div', 'input']);
+});
+
+test('focusablesIn honors the injected visibility predicate', () => {
+  const doc = setup('<div id="m"><button>a</button><button hidden>b</button><button>c</button></div>');
+  const f = lib.focusablesIn(doc.getElementById('m'), VISIBLE);
+  assert.deepStrictEqual(f.map(function (el) { return el.textContent; }), ['a', 'c']);
+});
+
+test('focusablesIn is empty for a missing or query-less container', () => {
+  assert.deepStrictEqual(lib.focusablesIn(null, VISIBLE), []);
+  assert.deepStrictEqual(lib.focusablesIn({}, VISIBLE), []);
+});
+
+test('Tab on the last element wraps focus to the first', () => {
+  const m = trapModal();
+  m.last.focus();
+  const e = keyEvent('Tab', false);
+  assert.strictEqual(lib.handleTrapKeydown(e, m.modal, VISIBLE), true);
+  assert.strictEqual(e.prevented, true);
+  assert.strictEqual(m.doc.activeElement, m.first);
+});
+
+test('Shift+Tab on the first element wraps focus to the last', () => {
+  const m = trapModal();
+  m.first.focus();
+  const e = keyEvent('Tab', true);
+  assert.strictEqual(lib.handleTrapKeydown(e, m.modal, VISIBLE), true);
+  assert.strictEqual(e.prevented, true);
+  assert.strictEqual(m.doc.activeElement, m.last);
+});
+
+test('Tab while focus sits outside the dialog pulls it back to the first element', () => {
+  const m = trapModal();
+  m.outside.focus();
+  const e = keyEvent('Tab', false);
+  assert.strictEqual(lib.handleTrapKeydown(e, m.modal, VISIBLE), true);
+  assert.strictEqual(m.doc.activeElement, m.first);
+});
+
+test('Tab in the middle is left to the browser (not trapped)', () => {
+  const m = trapModal();
+  m.mid.focus();
+  const e = keyEvent('Tab', false);
+  assert.strictEqual(lib.handleTrapKeydown(e, m.modal, VISIBLE), false);
+  assert.strictEqual(e.prevented, false);
+  assert.strictEqual(m.doc.activeElement, m.mid);
+});
+
+test('Escape (and other non-Tab keys) are not handled by the trap', () => {
+  const m = trapModal();
+  const e = keyEvent('Escape', false);
+  assert.strictEqual(lib.handleTrapKeydown(e, m.modal, VISIBLE), false);
+  assert.strictEqual(e.prevented, false);
+});
+
+test('Tab in a dialog with no focusables is swallowed', () => {
+  const doc = setup('<div id="m"><span>text only</span></div>');
+  const e = keyEvent('Tab', false);
+  assert.strictEqual(lib.handleTrapKeydown(e, doc.getElementById('m'), VISIBLE), true);
+  assert.strictEqual(e.prevented, true);
+});
+
+test('handleTrapKeydown is a no-op without a container', () => {
+  const e = keyEvent('Tab', false);
+  assert.strictEqual(lib.handleTrapKeydown(e, null, VISIBLE), false);
+  assert.strictEqual(e.prevented, false);
+});
+
+// ---------- status badge rendering ----------
+
+const T = function (k) { return 'T:' + k; }; // i18n stub: echoes the key so we can assert the mapping
+
+test('buildStatusBadge maps an Available request to the available badge', () => {
+  const doc = setup('');
+  const span = lib.buildStatusBadge(doc, { Status: 3 }, T);
+  assert.strictEqual(span.className, 'jellycrowd-status jellycrowd-status-available');
+  assert.strictEqual(span.textContent, 'T:status_available');
+  assert.strictEqual(span.title, '');
+});
+
+test('buildStatusBadge shows "deletion requested" regardless of the underlying status', () => {
+  const doc = setup('');
+  const span = lib.buildStatusBadge(doc, { Status: 3, DeletionRequestedAt: '2026-06-01T00:00:00Z' }, T);
+  assert.strictEqual(span.className, 'jellycrowd-status jellycrowd-status-denied');
+  assert.strictEqual(span.textContent, 'T:deletion_requested');
+});
+
+test('buildStatusBadge marks a quota-held pending request with a hover hint', () => {
+  const doc = setup('');
+  const span = lib.buildStatusBadge(doc, { Status: 0, HeldForQuota: true }, T);
+  assert.strictEqual(span.className, 'jellycrowd-status jellycrowd-status-held');
+  assert.strictEqual(span.textContent, 'T:status_held');
+  assert.strictEqual(span.title, 'T:status_held_hint');
+});
+
+test('buildStatusBadge leaves a plain pending request untitled', () => {
+  const doc = setup('');
+  const span = lib.buildStatusBadge(doc, { Status: 0 }, T);
+  assert.strictEqual(span.className, 'jellycrowd-status jellycrowd-status-pending');
+  assert.strictEqual(span.title, '');
+});
+
+// ---------- download badge label (pure) ----------
+
+test('formatBytesDecimal uses decimal (GB=/1000) units', () => {
+  assert.strictEqual(lib.formatBytesDecimal(0), '0 B');
+  assert.strictEqual(lib.formatBytesDecimal(999), '999 B');
+  assert.strictEqual(lib.formatBytesDecimal(1000), '1.0 KB');
+  assert.strictEqual(lib.formatBytesDecimal(5470000000), '5.5 GB');
+});
+
+test('downloadBadgeLabel composes percent, size and time-left while downloading', () => {
+  const label = lib.downloadBadgeLabel(
+    { State: 'downloading', Percent: 42, SizeBytes: 5470000000, TimeLeft: '10m' }, T);
+  assert.strictEqual(label, 'T:dl_downloading 42% · 5.5 GB · 10m');
+});
+
+test('downloadBadgeLabel omits size/time-left when absent', () => {
+  assert.strictEqual(lib.downloadBadgeLabel({ State: 'importing', Percent: 100 }, T), 'T:dl_importing 100%');
+  assert.strictEqual(lib.downloadBadgeLabel({ State: 'queued' }, T), 'T:dl_queued');
+});
+
+test('downloadBadgeLabel appends the release date for an unreleased title', () => {
+  // Invalid date falls back to the raw string (deterministic, locale-independent).
+  assert.strictEqual(
+    lib.downloadBadgeLabel({ State: 'unreleased' }, T, { releaseDate: 'soon' }),
+    'T:dl_unreleased · soon');
+  // A valid date is localized — assert the stable prefix only.
+  assert.ok(lib.downloadBadgeLabel({ State: 'unreleased' }, T, { releaseDate: '2030-01-15' })
+    .startsWith('T:dl_unreleased · '));
+});
+
+test('downloadBadgeLabel falls back to the raw state for unknown states', () => {
+  assert.strictEqual(lib.downloadBadgeLabel({ State: 'weird' }, T), 'weird');
+});

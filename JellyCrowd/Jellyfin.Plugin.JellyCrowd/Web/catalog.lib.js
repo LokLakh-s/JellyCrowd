@@ -324,7 +324,104 @@
     return imports + rules.join('\n');
   }
 
+  // ---------- DOM helpers (operate on passed-in elements; still framework-free) ----------
+
+  // The focusable elements inside `container`, in DOM order. `opts.visible(el)` decides visibility
+  // (default: the element has layout boxes — correct in a browser, including under a position:fixed
+  // overlay where offsetParent would wrongly be null). Tests inject a predicate because jsdom has no
+  // layout engine, so getClientRects() is always empty there.
+  function focusablesIn(container, opts) {
+    if (!container || !container.querySelectorAll) { return []; }
+    var isVisible = (opts && opts.visible) || function (el) { return el.getClientRects().length > 0; };
+    var sel = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]';
+    // tabindex="-1" means "programmatically focusable but out of the tab order" — filter it out for
+    // EVERY element type (the :not() on the selector alone wouldn't catch e.g. <input tabindex="-1">,
+    // which still matches input:not([disabled])).
+    return Array.prototype.slice.call(container.querySelectorAll(sel)).filter(function (el) {
+      return el.getAttribute('tabindex') !== '-1' && isVisible(el);
+    });
+  }
+
+  // Focus trap for a modal dialog: keeps Tab / Shift+Tab cycling within `container` instead of leaking
+  // to the page behind it. Call from a keydown handler; returns true when it took over the event (having
+  // preventDefault-ed and moved focus). Only Tab is handled — Escape/close is the caller's concern.
+  // `opts.doc` overrides the document used for activeElement (defaults to the container's owner
+  // document); `opts.visible` is passed through to focusablesIn.
+  function handleTrapKeydown(e, container, opts) {
+    if (!e || e.key !== 'Tab' || !container) { return false; }
+    var doc = (opts && opts.doc) || container.ownerDocument;
+    var f = focusablesIn(container, opts);
+    if (!f.length) { e.preventDefault(); return true; }
+    var first = f[0];
+    var last = f[f.length - 1];
+    var active = doc ? doc.activeElement : null;
+    if (!container.contains(active)) { e.preventDefault(); first.focus(); return true; }
+    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); return true; }
+    if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); return true; }
+    return false;
+  }
+
+  // Build the primary status badge <span> for a "My requests" row. A pending deletion overrides the
+  // status; a quota-held request gets a hover hint. `t` is the i18n lookup; `doc` is the document to
+  // create in (pass `document` in the browser; tests pass a jsdom document).
+  function buildStatusBadge(doc, request, t) {
+    var r = request || {};
+    var span = doc.createElement('span');
+    if (r.DeletionRequestedAt) {
+      span.className = 'jellycrowd-status jellycrowd-status-denied';
+      span.textContent = t('deletion_requested');
+      return span;
+    }
+    var key = requestStatusLabelKey(r);
+    span.className = 'jellycrowd-status jellycrowd-status-' + key.replace('status_', '');
+    span.textContent = t(key);
+    if (key === 'status_held') {
+      span.title = t('status_held_hint');
+    }
+    return span;
+  }
+
+  // Human-readable byte size in DECIMAL units (GB = /1000), matching what RDT/Radarr report on the
+  // download status (the quota bar uses binary GiB via formatBytes). Pure.
+  function formatBytesDecimal(bytes) {
+    var n = Number(bytes) || 0;
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = 0;
+    while (n >= 1000 && i < units.length - 1) {
+      n /= 1000;
+      i++;
+    }
+    return (i === 0 ? n : n.toFixed(1)) + ' ' + units[i];
+  }
+
+  // The text of a live download badge (from the Radarr/Sonarr queue): the localized state label, plus —
+  // when downloading/importing — "percent · decimal-size · time-left", or — when unreleased — the
+  // release date. `t` is the i18n lookup; `opts.releaseDate` supplies the unreleased date. Pure (DOM-free).
+  function downloadBadgeLabel(s, t, opts) {
+    var state = (s || {}).State;
+    var key = downloadStateKey(state);
+    var label = key ? t(key) : String(state);
+    if (state === 'downloading' || state === 'importing') {
+      label += ' ' + Math.round((s && s.Percent) || 0) + '%';
+      if (Number(s && s.SizeBytes) > 0) {
+        label += ' · ' + formatBytesDecimal(s.SizeBytes);
+      }
+      if (s && s.TimeLeft) {
+        label += ' · ' + s.TimeLeft;
+      }
+    } else if (state === 'unreleased' && opts && opts.releaseDate) {
+      var rel = new Date(opts.releaseDate);
+      label += ' · ' + (isNaN(rel.getTime()) ? String(opts.releaseDate) : rel.toLocaleDateString());
+    }
+    return label;
+  }
+
   return {
+    focusablesIn: focusablesIn,
+    handleTrapKeydown: handleTrapKeydown,
+    buildStatusBadge: buildStatusBadge,
+    formatBytesDecimal: formatBytesDecimal,
+    downloadBadgeLabel: downloadBadgeLabel,
     pickLang: pickLang,
     resolveLang: resolveLang,
     contentLocale: contentLocale,

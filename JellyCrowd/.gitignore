@@ -5,6 +5,9 @@ artifacts/
 *.user
 *.suo
 
+# Node (JS test tooling under tests/js — package.json + lockfile are committed, deps are not)
+node_modules/
+
 # IDE
 .vs/
 .vscode/*

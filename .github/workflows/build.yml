@@ -50,7 +50,9 @@ jobs:
         run: dotnet test --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
       - name: Test (JS)
-        run: node --test tests/js/*.test.js
+        run: |
+          (cd tests/js && npm ci)
+          node --test tests/js/*.test.js
 
       - name: Upload test results
         if: always()
