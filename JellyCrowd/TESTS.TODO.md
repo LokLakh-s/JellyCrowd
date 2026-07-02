@@ -9,7 +9,7 @@
 🟨 - Test a révélé des problèmes -> choses à prendre en compte
 🟥 - Test NOK
 ❌ - Test non faisable ou non pertinent
-🔧 - Corrigé par Claude, à revérifier en live (réinstaller la dernière version)
+🔧 - Corrigé, à revérifier en live (réinstaller la dernière version)
 
 ## 0. Prérequis
 
