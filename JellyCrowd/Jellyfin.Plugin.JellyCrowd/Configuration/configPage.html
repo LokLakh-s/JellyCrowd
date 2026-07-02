@@ -248,6 +248,20 @@
               <div class="fieldDescription">Grace period before media a user flagged for deletion is removed from disk.</div>
             </div>
 
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="RemoveEmptySeries" name="RemoveEmptySeries" type="checkbox" is="emby-checkbox" />
+                <span>Remove empty series left after deletion</span>
+              </label>
+              <div class="fieldDescription">After a series' episodes are deleted, Jellyfin can keep an empty series entry (0 episodes). Enable this to have the deletion task sweep them away (item + empty folder). A series still wanted by an active request, or newer than the grace period below, is never removed.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="EmptySeriesMinAgeHours">Empty-series grace period (hours)</label>
+              <input id="EmptySeriesMinAgeHours" type="number" is="emby-input" min="0" step="1" />
+              <div class="fieldDescription">An empty series must have existed at least this long before it can be removed, so a series still downloading its first episodes is left alone. Default 24.</div>
+            </div>
+
             <div class="inputContainer">
               <label class="inputLabel inputLabelUnfocused" for="MediaExpiryDays">Media ownership expiry (days)</label>
               <input id="MediaExpiryDays" type="number" is="emby-input" min="0" step="1" />
@@ -934,6 +948,8 @@ Content-Type: application/json
             document.querySelector('#MaxRequestsPerPeriod').value = config.MaxRequestsPerPeriod || 0;
             document.querySelector('#RequestPeriod').value = config.RequestPeriod || 'Week';
             document.querySelector('#DeletionRetentionHours').value = config.DeletionRetentionHours != null ? config.DeletionRetentionHours : 24;
+            document.querySelector('#RemoveEmptySeries').checked = config.RemoveEmptySeries !== false;
+            document.querySelector('#EmptySeriesMinAgeHours').value = config.EmptySeriesMinAgeHours != null ? config.EmptySeriesMinAgeHours : 24;
             document.querySelector('#MediaExpiryDays').value = config.MediaExpiryDays != null ? config.MediaExpiryDays : 90;
             document.querySelector('#AutoApproveMaxSizeGiB').value = (config.AutoApproveMaxSizeBytes || 0) / gib;
             autoApproveGenres = (config.AutoApproveGenres || []).slice();
@@ -1035,6 +1051,8 @@ Content-Type: application/json
             config.MaxRequestsPerPeriod = parseInt(document.querySelector('#MaxRequestsPerPeriod').value || '0', 10);
             config.RequestPeriod = document.querySelector('#RequestPeriod').value;
             config.DeletionRetentionHours = parseInt(document.querySelector('#DeletionRetentionHours').value || '0', 10);
+            config.RemoveEmptySeries = document.querySelector('#RemoveEmptySeries').checked;
+            config.EmptySeriesMinAgeHours = parseInt(document.querySelector('#EmptySeriesMinAgeHours').value || '24', 10);
             config.MediaExpiryDays = parseInt(document.querySelector('#MediaExpiryDays').value || '0', 10);
             config.AutoApproveMaxSizeBytes = Math.round(parseFloat(document.querySelector('#AutoApproveMaxSizeGiB').value || '0') * gib);
             config.AutoApproveGenres = autoApproveGenres.slice();

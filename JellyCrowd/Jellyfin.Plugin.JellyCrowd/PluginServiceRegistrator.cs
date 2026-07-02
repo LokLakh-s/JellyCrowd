@@ -31,6 +31,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<ITmdbClient>(sp => new CachingTmdbClient(sp.GetRequiredService<TmdbClient>()));
     serviceCollection.AddSingleton<ILibraryMatcher, LibraryMatcher>();
     serviceCollection.AddSingleton<IMediaDeleter, MediaDeleter>();
+    serviceCollection.AddSingleton<IEmptyLibraryCleaner, EmptyLibraryCleaner>();
     serviceCollection.AddSingleton<ICurrentUserAccessor, CurrentUserAccessor>();
     serviceCollection.AddSingleton<Api.PluginVisibilityFilter>();
     serviceCollection.AddSingleton<RateLimiter>();
