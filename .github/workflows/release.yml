@@ -7,9 +7,10 @@ name: Release
 #   anything else                          -> bump PATCH    (x.y.z+1.0)
 # Skip a release entirely with [skip release] in the commit message.
 #
-# Source stays in this (private) repo; the plugin ZIP + install manifest are published to the PUBLIC
-# distribution repo LokLakh-s/jellycrowd-dist via the DIST_TOKEN secret (a fine-grained PAT with
-# Contents: Read and write on that repo).
+# Source stays in this (private) repo; the plugin ZIP + install manifest + README/screenshots (from dist/)
+# are published to the PUBLIC distribution repo LokLakh-s/JellyCrowd via the DIST_TOKEN secret (a
+# fine-grained PAT with Contents: Read and write on that repo). The public repo is force-pushed to a
+# single clean commit each release, so it never accumulates history.
 
 on:
   push:
@@ -27,7 +28,7 @@ defaults:
     working-directory: JellyCrowd
 
 env:
-  DIST_REPO: LokLakh-s/jellycrowd-dist
+  DIST_REPO: LokLakh-s/JellyCrowd
 
 jobs:
   release:
@@ -138,7 +139,7 @@ jobs:
             JellyCrowd/artifacts/jelly-crowd-*.zip
             JellyCrowd/artifacts/jelly-crowd-*.zip.md5
 
-      - name: Update the distribution manifest
+      - name: Publish the distribution repo (single clean commit)
         working-directory: ${{ github.workspace }}
         env:
           DIST_TOKEN: ${{ secrets.DIST_TOKEN }}
@@ -151,9 +152,11 @@ jobs:
           checksum=$(md5sum "JellyCrowd/artifacts/${zipname}" | cut -d' ' -f1)
           sourceUrl="https://github.com/${DIST_REPO}/releases/download/${tag}/${zipname}"
           timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.0000000Z)
+
+          # Read the current manifest from the distribution repo so the version history is preserved
+          # (git history is not — the public repo is kept to a single commit, see below).
           rm -rf "${RUNNER_TEMP}/dist-repo"
-          git clone "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" "${RUNNER_TEMP}/dist-repo"
-          cd "${RUNNER_TEMP}/dist-repo"
+          git clone --depth 1 "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" "${RUNNER_TEMP}/dist-repo"
           entry=$(jq -n \
             --arg v "$asm" \
             --arg c "Release ${tag}" \
@@ -164,13 +167,22 @@ jobs:
             '{version: $v, changelog: $c, targetAbi: $abi, sourceUrl: $url, checksum: $sum, timestamp: $ts}')
           jq --argjson e "$entry" --arg guid "$guid" \
             'map(if .guid == $guid then .versions = (([$e] + (.versions // [])) | .[0:3]) else . end)' \
-            manifest.json > manifest.tmp
-          mv manifest.tmp manifest.json
+            "${RUNNER_TEMP}/dist-repo/manifest.json" > "${RUNNER_TEMP}/manifest.json"
+
+          # Assemble the public repo: updated manifest + the distribution assets kept in THIS (private)
+          # repo under dist/ (README, screenshots, logo, LICENSE). Force-push a single commit so the public
+          # history is always exactly one clean commit — no accumulated release history, ever.
+          staging="${RUNNER_TEMP}/dist-staging"
+          rm -rf "$staging"; mkdir -p "$staging"
+          cp "${RUNNER_TEMP}/manifest.json" "$staging/manifest.json"
+          cp -r dist/. "$staging/"
+          cd "$staging"
+          git init -q -b main
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.json
-          git commit -m "Release ${tag}" || echo "manifest unchanged"
-          git push origin HEAD:main
+          git add -A
+          git commit -q -m "Jelly Crowd ${tag}"
+          git push -f "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" HEAD:main
 
       - name: Cleanup workspace
         if: always()
