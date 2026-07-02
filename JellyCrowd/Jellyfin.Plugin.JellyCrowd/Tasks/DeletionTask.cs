@@ -24,6 +24,7 @@ public sealed class DeletionTask : IScheduledTask
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly INotificationService _notificationService;
   private readonly IQuotaHoldPromoter _quotaHoldPromoter;
+  private readonly IEmptyLibraryCleaner _emptyLibraryCleaner;
   private readonly Func<PluginConfiguration> _configurationProvider;
   private readonly ILogger<DeletionTask> _logger;
 
@@ -36,9 +37,10 @@ public sealed class DeletionTask : IScheduledTask
   /// <param name="libraryMatcher">The library matcher (to resolve the season/episode item to delete).</param>
   /// <param name="notificationService">The notification service, used to warn owners on expiry.</param>
   /// <param name="quotaHoldPromoter">The quota-hold promoter (resumes held requests once space is freed).</param>
+  /// <param name="emptyLibraryCleaner">Removes empty series (ghosts) left after deletion.</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, ILibraryMatcher libraryMatcher, INotificationService notificationService, IQuotaHoldPromoter quotaHoldPromoter, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
+  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, ILibraryMatcher libraryMatcher, INotificationService notificationService, IQuotaHoldPromoter quotaHoldPromoter, IEmptyLibraryCleaner emptyLibraryCleaner, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
   {
     _store = store;
     _mediaDeleter = mediaDeleter;
@@ -46,6 +48,7 @@ public sealed class DeletionTask : IScheduledTask
     _libraryMatcher = libraryMatcher;
     _notificationService = notificationService;
     _quotaHoldPromoter = quotaHoldPromoter;
+    _emptyLibraryCleaner = emptyLibraryCleaner;
     _configurationProvider = configurationProvider;
     _logger = logger;
   }
@@ -139,6 +142,26 @@ public sealed class DeletionTask : IScheduledTask
             record.PosterPath,
             cancellationToken).ConfigureAwait(false);
         }
+      }
+    }
+
+    // Sweep away empty series (0 episodes) that Jellyfin keeps in the library after their files were
+    // deleted. Skip any title an active request still wants, and any series too new to be a settled ghost.
+    if (_configurationProvider().RemoveEmptySeries)
+    {
+      var wanted = new HashSet<int>();
+      foreach (var record in await _store.GetAllAsync(cancellationToken).ConfigureAwait(false))
+      {
+        if (record.Status is Models.RequestStatus.Pending or Models.RequestStatus.Approved)
+        {
+          wanted.Add(record.TmdbId);
+        }
+      }
+
+      var ghosts = _emptyLibraryCleaner.RemoveEmptySeries(_configurationProvider().EmptySeriesMinAgeHours, wanted);
+      if (ghosts > 0)
+      {
+        _logger.LogInformation("Jelly Crowd removed {Count} empty series.", ghosts);
       }
     }
 

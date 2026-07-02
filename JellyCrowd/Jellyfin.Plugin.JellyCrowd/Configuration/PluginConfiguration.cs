@@ -62,6 +62,8 @@ public class PluginConfiguration : BasePluginConfiguration
     MaxRequestsPerPeriod = 0;
     RequestPeriod = RequestPeriod.Week;
     DeletionRetentionHours = 24;
+    RemoveEmptySeries = true;
+    EmptySeriesMinAgeHours = 24;
     DiscordWebhookUrl = string.Empty;
     DiscordNotifyCreated = true;
     DiscordNotifyApproved = true;
@@ -211,6 +213,19 @@ public class PluginConfiguration : BasePluginConfiguration
   /// actually removed from disk by the scheduled task. 0 deletes at the next task run.
   /// </summary>
   public int DeletionRetentionHours { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the deletion task also sweeps the library for empty series
+  /// (0 episodes) — ghost entries Jellyfin keeps after their files are deleted — and removes them. On by
+  /// default; guarded by <see cref="EmptySeriesMinAgeHours"/> and by any active request for the title.
+  /// </summary>
+  public bool RemoveEmptySeries { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum age (in hours) an empty series must have before it can be removed by the
+  /// sweep, so a just-added series still downloading its first episodes is never deleted. Default 24.
+  /// </summary>
+  public int EmptySeriesMinAgeHours { get; set; }
 
   /// <summary>
   /// Gets or sets the auto-approval size threshold (in bytes): when &gt; 0, requests whose estimated

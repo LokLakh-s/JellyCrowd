@@ -41,7 +41,7 @@ public sealed class DeletionTaskTests : IDisposable
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher();
     var promoter = new RecordingPromoter();
-    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), promoter, () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), promoter, new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -58,7 +58,7 @@ public sealed class DeletionTaskTests : IDisposable
   {
     var id = await SeedFlaggedAsync("item-xyz");
     var deleter = new RecordingDeleter();
-    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 1_000_000 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -74,7 +74,7 @@ public sealed class DeletionTaskTests : IDisposable
     var id = await SeedFlaggedAsync("item-fail");
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher(purgeSucceeds: false);
-    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -97,7 +97,7 @@ public sealed class DeletionTaskTests : IDisposable
 
     var deleter = new RecordingDeleter();
     var dispatcher = new RecordingDispatcher();
-    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
 
     await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
 
@@ -105,6 +105,34 @@ public sealed class DeletionTaskTests : IDisposable
     Assert.Empty(dispatcher.Purged); // backend not purged
     Assert.Null(await _store.GetByIdAsync(flagged.Id, CancellationToken.None)); // this ownership removed
     Assert.NotNull(await _store.GetByIdAsync(other.Id, CancellationToken.None)); // other owner intact
+  }
+
+  [Fact]
+  public async Task Execute_SweepsEmptySeries_AndProtectsActiveRequests_WhenEnabled()
+  {
+    // An active (Approved) request must be handed to the cleaner as "wanted" so its series is spared.
+    var wantedReq = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 555, MediaType = "tv", Title = "Wanted" }, CancellationToken.None);
+    await _store.UpdateStatusAsync(wantedReq.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+
+    var cleaner = new RecordingCleaner();
+    var task = new DeletionTask(_store, new RecordingDeleter(), new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), cleaner, () => new PluginConfiguration { RemoveEmptySeries = true, EmptySeriesMinAgeHours = 24 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Equal(1, cleaner.Calls);
+    Assert.Equal(24, cleaner.LastMinAgeHours);
+    Assert.Contains(555, cleaner.LastWanted!);
+  }
+
+  [Fact]
+  public async Task Execute_SkipsEmptySeriesSweep_WhenDisabled()
+  {
+    var cleaner = new RecordingCleaner();
+    var task = new DeletionTask(_store, new RecordingDeleter(), new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), cleaner, () => new PluginConfiguration { RemoveEmptySeries = false }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Equal(0, cleaner.Calls);
   }
 
   private async Task<Guid> SeedFlaggedAsync(string itemId)
@@ -154,6 +182,23 @@ public sealed class DeletionTaskTests : IDisposable
     {
       Deleted.Add(jellyfinItemId);
       return true;
+    }
+  }
+
+  private sealed class RecordingCleaner : IEmptyLibraryCleaner
+  {
+    public int Calls { get; private set; }
+
+    public int LastMinAgeHours { get; private set; } = -1;
+
+    public IReadOnlySet<int>? LastWanted { get; private set; }
+
+    public int RemoveEmptySeries(int minAgeHours, IReadOnlySet<int> wantedTmdbIds)
+    {
+      Calls++;
+      LastMinAgeHours = minAgeHours;
+      LastWanted = wantedTmdbIds;
+      return 0;
     }
   }
 
