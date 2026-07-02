@@ -72,6 +72,9 @@ The 🔔 bell lists your in-app notifications (request approved/denied, media av
 In its **settings** (⚙) you can enable delivery by **email / ntfy** and pick the categories you care
 about (everything is off by default — in-app alerts always stay on).
 
+When several episodes of a season you requested become available at once, they arrive as a **single
+grouped notification** per channel (e.g. "6 episodes now available") rather than one message per episode.
+
 ## Reporting a problem
 
 On an available title's detail view, **Report a problem** lets you flag an issue (wrong version, missing

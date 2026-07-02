@@ -47,4 +47,57 @@ public static class NotificationMessages
         title)
     };
   }
+
+  /// <summary>
+  /// Builds the subject/body for a grouped "now available" notification covering several episodes of the
+  /// same season that became available together (so channels get one message, not one per episode).
+  /// </summary>
+  /// <param name="representative">Any request from the group (supplies title and season).</param>
+  /// <param name="episodes">The episode numbers that became available.</param>
+  /// <returns>A subject/body pair.</returns>
+  public static (string Subject, string Body) BuildAvailableBatch(RequestRecord representative, System.Collections.Generic.IReadOnlyList<int> episodes)
+  {
+    ArgumentNullException.ThrowIfNull(representative);
+    ArgumentNullException.ThrowIfNull(episodes);
+
+    var title = representative.Season.HasValue
+      ? string.Format(CultureInfo.InvariantCulture, "{0} (Season {1})", representative.Title, representative.Season.Value)
+      : representative.Title;
+
+    var subject = string.Format(CultureInfo.InvariantCulture, "Now available: {0}", title);
+    var body = string.Format(
+      CultureInfo.InvariantCulture,
+      "{0} episodes of \"{1}\" are now available in the library (episodes {2}).",
+      episodes.Count,
+      title,
+      FormatEpisodeRanges(episodes));
+    return (subject, body);
+  }
+
+  // Formats a set of episode numbers compactly, collapsing contiguous runs into ranges:
+  // [1,2,3,4,5,6] -> "1–6", [1,2,4,5] -> "1–2, 4–5", [1,3,5] -> "1, 3, 5".
+  private static string FormatEpisodeRanges(System.Collections.Generic.IReadOnlyList<int> episodes)
+  {
+    var sorted = new System.Collections.Generic.List<int>(episodes);
+    sorted.Sort();
+
+    var parts = new System.Collections.Generic.List<string>();
+    var i = 0;
+    while (i < sorted.Count)
+    {
+      var start = sorted[i];
+      var end = start;
+      while (i + 1 < sorted.Count && sorted[i + 1] == end + 1)
+      {
+        end = sorted[++i];
+      }
+
+      parts.Add(start == end
+        ? start.ToString(CultureInfo.InvariantCulture)
+        : string.Format(CultureInfo.InvariantCulture, "{0}–{1}", start, end));
+      i++;
+    }
+
+    return string.Join(", ", parts);
+  }
 }

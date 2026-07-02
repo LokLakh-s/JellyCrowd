@@ -446,6 +446,9 @@ public class RequestsControllerTests
     public Task NotifyRequestEventAsync(RequestRecord request, NotificationEvent notificationEvent, CancellationToken cancellationToken)
       => Task.CompletedTask;
 
+    public Task NotifyAvailableBatchAsync(System.Collections.Generic.IReadOnlyList<RequestRecord> requests, CancellationToken cancellationToken)
+      => Task.CompletedTask;
+
     public Task NotifyPersonalAsync(Guid userId, PersonalNotifyKind kind, string title, string subject, string body, string? posterPath, CancellationToken cancellationToken)
       => Task.CompletedTask;
 

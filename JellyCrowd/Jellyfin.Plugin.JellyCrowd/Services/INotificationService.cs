@@ -19,6 +19,17 @@ public interface INotificationService
   Task NotifyRequestEventAsync(RequestRecord request, NotificationEvent notificationEvent, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Sends a single grouped "now available" notification for several requests that became available at
+  /// once — typically multiple episodes of the same season dropping together — so each channel gets one
+  /// message instead of one per episode. A single-item batch behaves exactly like
+  /// <see cref="NotifyRequestEventAsync"/> with <see cref="NotificationEvent.Available"/>. Never throws.
+  /// </summary>
+  /// <param name="requests">The requests that just became available (same recipient/title/season).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when delivery has been attempted.</returns>
+  Task NotifyAvailableBatchAsync(System.Collections.Generic.IReadOnlyList<RequestRecord> requests, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Sends a standalone personal notification (in-app bell + the user's opted-in personal channels) that
   /// is not tied to a request lifecycle event, e.g. a quota or ownership-expiry warning. Never throws.
   /// </summary>

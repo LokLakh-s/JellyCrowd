@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -157,6 +158,56 @@ public sealed class ReconcileTaskTests : IDisposable
     Assert.Null(dispatcher.Rescanned);
   }
 
+  [Fact]
+  public async Task Execute_GroupsAvailableNotifications_ForEpisodesOfTheSameSeason()
+  {
+    // A season dropping several episodes at once (the Rick & Morty S9 case) must produce ONE grouped
+    // "now available" notification, not one per episode.
+    var user = Guid.NewGuid();
+    for (var ep = 1; ep <= 6; ep++)
+    {
+      var created = await _store.CreateAsync(
+        new RequestRecord { UserId = user, TmdbId = 42, MediaType = "tv", Title = "Rick and Morty", Season = 9, Episode = ep },
+        CancellationToken.None);
+      await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+    }
+
+    var notifier = new RecordingNotificationService();
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), notifier, new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+
+    await reconciler.ReconcileAsync(CancellationToken.None);
+
+    Assert.Equal(new[] { 6 }, notifier.AvailableBatches); // one batched call grouping all six episodes
+  }
+
+  [Fact]
+  public async Task Execute_SeparatesAvailableBatches_ByRequesterAndSeason()
+  {
+    // Groups never merge across requester or season: Alice S1 (2 eps), Alice S2 (1), Bob S1 (1) → 3 groups.
+    async Task SeedEpisodeAsync(Guid user, int season, int episode)
+    {
+      var created = await _store.CreateAsync(
+        new RequestRecord { UserId = user, TmdbId = 42, MediaType = "tv", Title = "Show", Season = season, Episode = episode },
+        CancellationToken.None);
+      await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+    }
+
+    var alice = Guid.NewGuid();
+    var bob = Guid.NewGuid();
+    await SeedEpisodeAsync(alice, 1, 1);
+    await SeedEpisodeAsync(alice, 1, 2);
+    await SeedEpisodeAsync(alice, 2, 1);
+    await SeedEpisodeAsync(bob, 1, 1);
+
+    var notifier = new RecordingNotificationService();
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), notifier, new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+
+    await reconciler.ReconcileAsync(CancellationToken.None);
+
+    Assert.Equal(3, notifier.AvailableBatches.Count);          // one per (user, season) group
+    Assert.Equal(new[] { 1, 1, 2 }, notifier.AvailableBatches.OrderBy(n => n).ToArray()); // Alice S1 has two episodes
+  }
+
   private async Task<Guid> SeedApprovedAsync()
   {
     var created = await _store.CreateAsync(
@@ -241,6 +292,9 @@ public sealed class ReconcileTaskTests : IDisposable
   private sealed class NoopNotificationService : INotificationService
   {
     public Task NotifyRequestEventAsync(RequestRecord request, NotificationEvent notificationEvent, CancellationToken cancellationToken)
+      => Task.CompletedTask;
+
+    public Task NotifyAvailableBatchAsync(System.Collections.Generic.IReadOnlyList<RequestRecord> requests, CancellationToken cancellationToken)
       => Task.CompletedTask;
 
     public Task NotifyPersonalAsync(Guid userId, PersonalNotifyKind kind, string title, string subject, string body, string? posterPath, CancellationToken cancellationToken)

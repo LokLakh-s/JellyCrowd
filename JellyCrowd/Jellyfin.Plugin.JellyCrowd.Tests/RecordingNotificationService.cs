@@ -16,9 +16,19 @@ internal sealed class RecordingNotificationService : INotificationService
 
   public List<(Guid UserId, PersonalNotifyKind Kind, string Title)> Personal { get; } = new();
 
+  // Each entry is one batched "now available" call and the number of requests it grouped.
+  public List<int> AvailableBatches { get; } = new();
+
   public Task NotifyRequestEventAsync(RequestRecord request, NotificationEvent notificationEvent, CancellationToken cancellationToken)
   {
     Events.Add(notificationEvent);
+    return Task.CompletedTask;
+  }
+
+  public Task NotifyAvailableBatchAsync(IReadOnlyList<RequestRecord> requests, CancellationToken cancellationToken)
+  {
+    AvailableBatches.Add(requests.Count);
+    Events.Add(NotificationEvent.Available);
     return Task.CompletedTask;
   }
 

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -39,7 +41,7 @@ public sealed class RequestReconciler : IRequestReconciler
   public async Task<int> ReconcileAsync(CancellationToken cancellationToken)
   {
     var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
-    var resolved = 0;
+    var justAvailable = new List<RequestRecord>();
     var reverted = 0;
 
     foreach (var request in all)
@@ -56,7 +58,6 @@ public sealed class RequestReconciler : IRequestReconciler
         if (itemId is not null)
         {
           await _store.MarkAvailableAsync(request.Id, itemId, cancellationToken).ConfigureAwait(false);
-          await _notificationService.NotifyRequestEventAsync(request, NotificationEvent.Available, cancellationToken).ConfigureAwait(false);
 
           // The media is present in Jellyfin but may have been placed manually (the backend failed to grab
           // it, or the user side-loaded it). If this request went through a backend, nudge it to rescan the
@@ -66,7 +67,9 @@ public sealed class RequestReconciler : IRequestReconciler
             await _dispatcher.RescanAsync(request, cancellationToken).ConfigureAwait(false);
           }
 
-          resolved++;
+          // Defer the "now available" notification so episodes of the same season dropping together can be
+          // grouped into one message per channel (see the batch below) instead of one per episode.
+          justAvailable.Add(request);
         }
       }
       else if (request.Status == RequestStatus.Available
@@ -79,6 +82,14 @@ public sealed class RequestReconciler : IRequestReconciler
       }
     }
 
+    // One grouped notification per (requester, title, season): several episodes of a season that become
+    // available in the same pass produce a single message per channel rather than one per episode.
+    foreach (var group in justAvailable.GroupBy(r => (r.UserId, r.TmdbId, r.Season)))
+    {
+      await _notificationService.NotifyAvailableBatchAsync(group.ToList(), cancellationToken).ConfigureAwait(false);
+    }
+
+    var resolved = justAvailable.Count;
     if (resolved > 0 || reverted > 0)
     {
       _logger.LogInformation("Jelly Crowd reconcile: {Resolved} available, {Reverted} reverted.", resolved, reverted);
