@@ -60,8 +60,11 @@ public static class RequestPolicy
     => Find(config, userId)?.AutoApprove ?? false;
 
   /// <summary>
-  /// Whether the plugin should be visible/usable for a user: administrators always; everyone when not
-  /// in "config mode"; in config mode only users granted per-user plugin access.
+  /// Whether the plugin should be visible/usable for a user. Administrators always see it. A per-user
+  /// override (<see cref="UserQuotaOverride.PluginAccess"/>) wins over the global "config mode" in both
+  /// directions: <c>true</c> forces access even while config mode hides the plugin; <c>false</c> blocks
+  /// this user even when the plugin is otherwise visible. With no override (<c>null</c>) the user follows
+  /// config mode — hidden when it is on, visible when it is off.
   /// </summary>
   /// <param name="config">The plugin configuration.</param>
   /// <param name="userId">The user id.</param>
@@ -70,12 +73,18 @@ public static class RequestPolicy
   public static bool IsVisibleTo(PluginConfiguration config, Guid userId, bool isAdmin)
   {
     ArgumentNullException.ThrowIfNull(config);
-    if (isAdmin || !config.HiddenFromUsers)
+    if (isAdmin)
     {
       return true;
     }
 
-    return Find(config, userId)?.PluginAccess ?? false;
+    var access = Find(config, userId)?.PluginAccess;
+    if (access.HasValue)
+    {
+      return access.Value;
+    }
+
+    return !config.HiddenFromUsers;
   }
 
   /// <summary>
