@@ -1856,3 +1856,56 @@ body.jellycrowd-overlay-open {
     display: inline;
   }
 }
+
+/* ===================== Accessibility ===================== */
+
+/* Visible keyboard / D-pad focus. Jellyfin's TV layout scales focus on its OWN elements only, so
+   Jelly Crowd's custom controls (cards, chips, buttons, links, inputs) otherwise show no focus ring
+   at all — leaving remote and keyboard users unable to see where they are. :focus-visible keeps plain
+   mouse clicks ring-free. Scoped to Jelly Crowd containers so Jellyfin's own chrome is untouched. */
+.jellycrowd-overlay :focus-visible,
+.jellycrowd-modal-overlay :focus-visible,
+.jellycrowd-card:focus-visible,
+.jcHeaderNav :focus-visible,
+.jcHeaderBell:focus-visible,
+.jcBellPanel :focus-visible,
+.jcHeaderAnnounce:focus-visible,
+.jcAnnouncePanel :focus-visible {
+  outline: 3px solid #00a4dc;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* The card ring hugs the poster's rounded corners. */
+.jellycrowd-card:focus-visible {
+  outline-offset: 3px;
+}
+
+/* Larger hit areas on coarse pointers — touch screens and TV remotes report `pointer: coarse` — without
+   inflating the denser mouse/desktop layout. */
+@media (pointer: coarse) {
+  .jellycrowd-star {
+    width: 2.5em;
+    height: 2.5em;
+  }
+
+  .jellycrowd-modal-close {
+    width: 2.75em;
+    height: 2.75em;
+  }
+
+  .jellycrowd-active-chip-x {
+    width: 2em;
+    height: 2em;
+  }
+
+  .jellycrowd-chip,
+  .jellycrowd-star-inline {
+    padding-top: 0.55em;
+    padding-bottom: 0.55em;
+  }
+
+  .jellycrowd-cal-item {
+    padding: 0.45em;
+  }
+}

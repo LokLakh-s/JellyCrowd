@@ -1276,6 +1276,9 @@
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+    // Remember what had focus (the card/Details button that opened this) so we can restore it on close —
+    // otherwise keyboard/TV-remote users lose their place when the dialog goes away.
+    var opener = document.activeElement;
     // Move keyboard focus into the dialog (the close button) so Esc / Tab work from here.
     try { close.focus(); } catch (e) { /* focus is best-effort */ }
 
@@ -1301,10 +1304,39 @@
     function dismiss() {
       overlay.remove();
       document.removeEventListener('keydown', onKey);
+      // Return focus to whatever opened the dialog so keyboard/remote navigation resumes in place.
+      try { if (opener && opener.focus) { opener.focus(); } } catch (e) { /* best-effort */ }
+    }
+    // The focusable elements currently inside the dialog (recomputed on each Tab so async content —
+    // related titles, reviews — is included once it loads). getClientRects() filters hidden nodes even
+    // under a position:fixed overlay, where offsetParent would wrongly report null.
+    function focusables() {
+      var sel = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+      return Array.prototype.slice.call(modal.querySelectorAll(sel)).filter(function (el) {
+        return el.getClientRects().length > 0;
+      });
     }
     function onKey(e) {
       if (e.key === 'Escape') {
         dismiss();
+        return;
+      }
+      if (e.key !== 'Tab') { return; }
+      // Focus trap: keep Tab / Shift+Tab cycling inside the dialog instead of leaking to the page behind.
+      var f = focusables();
+      if (!f.length) { e.preventDefault(); return; }
+      var first = f[0];
+      var last = f[f.length - 1];
+      var active = document.activeElement;
+      if (!modal.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
       }
     }
     close.addEventListener('click', dismiss);
