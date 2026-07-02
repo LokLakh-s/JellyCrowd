@@ -513,9 +513,9 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 
 Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
-- ◐ **Responsive / mobile + accessibilité** : passe a11y/clavier livrée — overlay & popup média `role=dialog`/`aria-modal`/`aria-label` (focus mis sur la croix à l'ouverture, Échap ferme) ; nav = vrais `<button>` ; barre de quota et cartes catalogue `role=button`+`tabindex`+Entrée/Espace. *(Reste : audit tailles tactiles TV + piège de focus complet dans la modale.)*
+- ☑ **Responsive / mobile + accessibilité** : passe a11y/clavier — overlay & popup média `role=dialog`/`aria-modal`/`aria-label` (focus mis sur la croix à l'ouverture, Échap ferme) ; nav = vrais `<button>` ; barre de quota et cartes catalogue `role=button`+`tabindex`+Entrée/Espace. Indicateur de focus `:focus-visible` sur tous les contrôles (clavier/télécommande TV), tailles tactiles élargies sur `pointer: coarse`, et **piège de focus complet** dans la modale (Tab/Shift+Tab cyclent dans le dialogue, focus restauré à la fermeture).
 - ☑ **Doc utilisateur** — [`GETTING_STARTED.md`](GETTING_STARTED.md) (anglais), en plus de `CONFIGURATION.md` (admin). *(Captures à ajouter par l'utilisateur.)*
-- ◐ **Tests e2e & non-régression** : logique JS critique extraite vers `catalog.lib.js` et **testée** (autosort `requestSortRank`, statuts, parsers) — 26 tests JS. *(Reste : DOM jsdom complet + golden payloads + smoke Playwright — voir stratégie ci-dessous.)*
+- ◐ **Tests e2e & non-régression** : logique JS critique extraite vers `catalog.lib.js` et **testée** — autosort `requestSortRank`, statuts, parsers, **piège de focus modale**, **badges de statut** et **libellés de téléchargement** (jsdom). *(Reste : intégration HTTP WireMock.Net + smoke Playwright — voir stratégie ci-dessous.)*
 - ◐ **Pan statistiques & ticketing (M30–M33)** — désormais **dans le périmètre 1.0** (voir plus bas). M30/M31/M32 en grande partie livrés ; reste : watchtime par bibliothèque, classement, onglet graphes, popularité dans le catalogue, infos admin par média, et **M33 ticketing** (entier).
 - ☐ Passe de **polish** finale, puis **release `v1.0.0`** (commit `[major]`).
 
@@ -536,12 +536,12 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 
 > En plus des **tests unitaires** existants (.NET logique pure + contrôleurs avec fakes ; JS pur via `node:test`) :
 >
-> - ☐ **Tests de contrat / parsers sur fixtures réelles** : figer des réponses TMDB/Radarr/Sonarr (JSON) et vérifier les parsers contre elles (garde-fou anti-dérive d'API).
+> - ☑ **Tests de contrat / parsers sur fixtures** : réponses TMDB/Radarr/Sonarr (JSON) figées et vérifiées contre les parsers (`ServarrResponseParser`, `ServarrQueueParser`, `ServarrEpisodeParser`, `ServarrIndexerParser`, `TmdbResponseParser`, `ServarrItemState`).
 > - ☐ **Tests d'intégration HTTP** des contrôleurs avec un **serveur mock** (WireMock.Net) pour TMDB/Radarr/Sonarr → valide le flux requête→dispatch→statut sans Jellyfin live.
-> - ☐ **Tests DOM (jsdom)** pour la logique de rendu critique (`header.js`, badges de statut, application des statuts de DL).
-> - ☐ **Snapshot/golden** des payloads générés (embed Discord, ajout Servarr) pour détecter toute régression de format.
+> - ☑ **Tests DOM (jsdom)** pour la logique de rendu critique : piège de focus modale, badges de statut, libellés de téléchargement (`dom.lib.test.js`).
+> - ☑ **Snapshot/golden** des payloads générés (embed Discord via `NotificationEmbeds`, ajout Servarr via `ServarrPayload`, `DownloadPayloadBuilder`).
 > - ☐ *(Optionnel, nightly)* **smoke e2e Playwright** sur un `docker-compose` (Jellyfin + plugin + *arr mockés*).
-> - ☐ **Checklist de régression manuelle** documentée pour les vérifs live impossibles à automatiser (chaîne *arr réelle, RDT).
+> - ☑ **Checklist de régression manuelle** documentée pour les vérifs live impossibles à automatiser ([`TESTS.TODO.md`](TESTS.TODO.md)).
 
 ---
 

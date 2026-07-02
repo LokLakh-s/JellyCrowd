@@ -100,6 +100,7 @@ jobs:
           dotnet restore
           dotnet build --configuration Release --no-restore
           dotnet test --configuration Release --no-build --verbosity normal
+          (cd tests/js && npm ci)
           node --test tests/js/*.test.js
 
       - name: Package plugin

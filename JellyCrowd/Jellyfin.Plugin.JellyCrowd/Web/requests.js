@@ -165,19 +165,7 @@
     }
     row.appendChild(main);
 
-    var status = document.createElement('span');
-    if (request.DeletionRequestedAt) {
-      status.className = 'jellycrowd-status jellycrowd-status-denied';
-      status.textContent = t('deletion_requested');
-    } else {
-      var key = lib.requestStatusLabelKey(request);
-      status.className = 'jellycrowd-status jellycrowd-status-' + key.replace('status_', '');
-      status.textContent = t(key);
-      if (key === 'status_held') {
-        status.title = t('status_held_hint');
-      }
-    }
-    row.appendChild(status);
+    row.appendChild(lib.buildStatusBadge(document, request, t));
 
     // A dispatched-but-still-approved request that carries a backend error is "blocked" (not found /
     // backend issue) — surfaced distinctly from a normal in-progress request, with the reason on hover.
@@ -290,15 +278,6 @@
 
   // Apply live download statuses (from the Radarr/Sonarr queue) onto the matching rows. Stale
   // badges are cleared first so a finished download stops showing progress.
-  // Decimal byte formatter (GB = /1000) to match RDT/Radarr's reported sizes (the quota bar uses binary GiB).
-  function formatBytesDecimal(n) {
-    n = Number(n) || 0;
-    var u = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var i = 0;
-    while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
-    return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
-  }
-
   function applyDownloadStatuses(statuses) {
     var list = document.getElementById('jcReqList');
     if (!list) {
@@ -331,26 +310,11 @@
         return;
       }
 
-      var key = lib.downloadStateKey(s.State);
       var badge = document.createElement('span');
       badge.className = 'jellycrowd-status jellycrowd-dl jellycrowd-dl-' + s.State;
-      var label = key ? t(key) : s.State;
-      if (s.State === 'downloading' || s.State === 'importing') {
-        label += ' ' + Math.round(s.Percent || 0) + '%';
-        // Final size is known up front with debrid (RDT) — show it while downloading. Use DECIMAL
-        // units (GB, /1000) to match what RDT/Radarr display, not binary GiB.
-        if (s.SizeBytes > 0) {
-          label += ' · ' + formatBytesDecimal(s.SizeBytes);
-        }
-        if (s.TimeLeft) {
-          label += ' · ' + s.TimeLeft;
-        }
-      } else if (s.State === 'unreleased' && row.dataset.releaseDate) {
-        // Not out yet: spell out the release date so the wait is clear.
-        var rel = new Date(row.dataset.releaseDate);
-        label += ' · ' + (isNaN(rel.getTime()) ? row.dataset.releaseDate : rel.toLocaleDateString());
-      }
-      badge.textContent = label;
+      // Label: state + (downloading/importing) percent · decimal size · time-left, or (unreleased) the
+      // release date. Decimal units (GB, /1000) match what RDT/Radarr display, not binary GiB.
+      badge.textContent = lib.downloadBadgeLabel(s, t, { releaseDate: row.dataset.releaseDate });
       // Insert before the Cancel button when present, otherwise at the end.
       var cancelBtn = row.querySelector('button.jellycrowd-request');
       row.insertBefore(badge, cancelBtn || null);
