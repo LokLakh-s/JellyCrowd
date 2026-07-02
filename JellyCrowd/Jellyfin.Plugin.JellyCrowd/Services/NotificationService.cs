@@ -83,6 +83,41 @@ public sealed class NotificationService : INotificationService
     }
 
     var (subject, body) = NotificationMessages.Build(request, notificationEvent);
+    await FanOutAsync(config, request, notificationEvent, subject, body, cancellationToken).ConfigureAwait(false);
+  }
+
+  /// <inheritdoc />
+  public async Task NotifyAvailableBatchAsync(IReadOnlyList<RequestRecord> requests, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(requests);
+
+    var episodes = requests.Where(r => r.Episode.HasValue).Select(r => r.Episode!.Value).ToList();
+    if (episodes.Count < 2)
+    {
+      // Not a multi-episode set (a movie, a whole show/season, or a single episode) — notify each the
+      // normal per-request way.
+      foreach (var request in requests)
+      {
+        await NotifyRequestEventAsync(request, NotificationEvent.Available, cancellationToken).ConfigureAwait(false);
+      }
+
+      return;
+    }
+
+    var config = Plugin.Instance?.Configuration;
+    if (config is null)
+    {
+      return;
+    }
+
+    var (subject, body) = NotificationMessages.BuildAvailableBatch(requests[0], episodes);
+    await FanOutAsync(config, requests[0], NotificationEvent.Available, subject, body, cancellationToken).ConfigureAwait(false);
+  }
+
+  // Fans a fully-built (subject, body) out to every configured channel: activity log, the requester's
+  // in-app bell + personal channels, the Discord embed, the ops mailbox and the text notifiers.
+  private async Task FanOutAsync(PluginConfiguration config, RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CancellationToken cancellationToken)
+  {
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
 
