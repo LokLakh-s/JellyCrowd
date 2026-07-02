@@ -211,7 +211,7 @@
   function periodBar(reload) {
     var period = document.createElement('div');
     period.className = 'jellycrowd-stats-period';
-    [[7, '7 j'], [30, '30 j'], [90, '90 j'], [365, '1 an'], [0, t('stats_all')]].forEach(function (p) {
+    [[7, t('stats_period_7d')], [30, t('stats_period_30d')], [90, t('stats_period_90d')], [365, t('stats_period_1y')], [0, t('stats_all')]].forEach(function (p) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'jellycrowd-admin-tab' + (windowDays === p[0] ? ' jellycrowd-admin-tab-active' : '');
