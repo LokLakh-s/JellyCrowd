@@ -71,51 +71,97 @@ public static class SegmentDetection
   }
 
   /// <summary>
-  /// Derives the outro (end-credits) start time, in absolute seconds, from the detected black regions.
-  /// The credits transition is the earliest black frame that leaves a credits-sized remainder before the
-  /// end (long enough to be credits, not so long it is a mid-content fade). Returns <c>null</c> when no
-  /// such transition is found — better no segment than one that skips into the content.
+  /// Derives the outro (end-credits) start time, in absolute seconds, from the detected black and silence
+  /// regions. Two anchors, tried in order:
+  /// <list type="number">
+  ///   <item>a long, uninterrupted silence that runs to the end of the item — a silent/quiet credits
+  ///   crawl (common on TV episode end cards); its start is the outro;</item>
+  ///   <item>otherwise the earliest <em>long</em> black run — credits on a black background (common on
+  ///   films). Short scene-transition fades are ignored so an isolated dramatic mid-tail fade is not
+  ///   mistaken for the credits.</item>
+  /// </list>
+  /// The chosen point must leave a credits-sized remainder. Returns <c>null</c> when neither anchor fits —
+  /// better no segment than one that skips into the content.
   /// </summary>
   /// <param name="black">Black regions, relative to the analyzed window.</param>
+  /// <param name="silence">Silence regions, relative to the analyzed window.</param>
   /// <param name="offsetSeconds">Absolute start of the analyzed window (the ffmpeg seek point).</param>
   /// <param name="runtimeSeconds">Total item runtime in seconds.</param>
-  /// <param name="minBlackSeconds">Minimum black duration to count as a transition.</param>
-  /// <param name="minCreditsSeconds">Credits must run at least this long after the transition.</param>
-  /// <param name="maxCreditsSeconds">…and at most this long (rejects mid-content fades).</param>
+  /// <param name="minLongBlackSeconds">Minimum black duration to anchor credits-on-black (excludes scene fades).</param>
+  /// <param name="minSilenceRunSeconds">Minimum silence duration to anchor a silent credits crawl.</param>
+  /// <param name="silenceEndToleranceSeconds">How close to the runtime end a silence must reach to count as "to the end".</param>
+  /// <param name="minCreditsSeconds">Credits must run at least this long after the anchor.</param>
+  /// <param name="maxCreditsSeconds">…and at most this long (rejects mid-content anchors).</param>
   /// <returns>The absolute outro start in seconds, or <c>null</c>.</returns>
   public static double? DetectOutroStartSeconds(
     IReadOnlyList<DetectedRegion> black,
+    IReadOnlyList<DetectedRegion> silence,
     double offsetSeconds,
     double runtimeSeconds,
-    double minBlackSeconds,
+    double minLongBlackSeconds,
+    double minSilenceRunSeconds,
+    double silenceEndToleranceSeconds,
     double minCreditsSeconds,
     double maxCreditsSeconds)
   {
     ArgumentNullException.ThrowIfNull(black);
+    ArgumentNullException.ThrowIfNull(silence);
 
-    double? best = null;
+    // Anchor 1: a long silence reaching the end of the item marks a silent/quiet credits crawl.
+    double? silenceAnchor = null;
+    foreach (var region in silence)
+    {
+      if (region.Duration < minSilenceRunSeconds)
+      {
+        continue;
+      }
+
+      var absoluteEnd = offsetSeconds + region.End;
+      if (absoluteEnd < runtimeSeconds - silenceEndToleranceSeconds)
+      {
+        continue; // an internal quiet passage, not the end credits
+      }
+
+      var absoluteStart = offsetSeconds + region.Start;
+      if (silenceAnchor is null || absoluteStart < silenceAnchor.Value)
+      {
+        silenceAnchor = absoluteStart;
+      }
+    }
+
+    if (silenceAnchor is double sa && IsCreditsSized(sa, runtimeSeconds, minCreditsSeconds, maxCreditsSeconds))
+    {
+      return sa;
+    }
+
+    // Anchor 2: the earliest long black run (credits on black).
+    double? blackAnchor = null;
     foreach (var region in black)
     {
-      if (region.Duration < minBlackSeconds)
+      if (region.Duration < minLongBlackSeconds)
       {
         continue;
       }
 
       var absoluteStart = offsetSeconds + region.Start;
-      var remaining = runtimeSeconds - absoluteStart;
-      if (remaining < minCreditsSeconds || remaining > maxCreditsSeconds)
+      if (!IsCreditsSized(absoluteStart, runtimeSeconds, minCreditsSeconds, maxCreditsSeconds))
       {
         continue;
       }
 
-      // Earliest qualifying transition wins (the credits start at the first end-of-content fade).
-      if (best is null || absoluteStart < best.Value)
+      if (blackAnchor is null || absoluteStart < blackAnchor.Value)
       {
-        best = absoluteStart;
+        blackAnchor = absoluteStart;
       }
     }
 
-    return best;
+    return blackAnchor;
+  }
+
+  private static bool IsCreditsSized(double absoluteStart, double runtimeSeconds, double minCreditsSeconds, double maxCreditsSeconds)
+  {
+    var remaining = runtimeSeconds - absoluteStart;
+    return remaining >= minCreditsSeconds && remaining <= maxCreditsSeconds;
   }
 
   private static double ParseSeconds(string value)
