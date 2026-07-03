@@ -27,7 +27,6 @@ namespace Jellyfin.Plugin.JellyCrowd.Segments;
 public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
 {
   private const long TicksPerSecond = TimeSpan.TicksPerSecond;
-  private const double MinBlackSeconds = 0.4;
 
   private readonly ILibraryManager _libraryManager;
   private readonly IMediaEncoder _mediaEncoder;
@@ -95,28 +94,36 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
 
     var runtimeTicks = item.RunTimeTicks.Value;
     var runtimeSeconds = runtimeTicks / (double)TicksPerSecond;
-    var outroStart = await DetectOutroAsync(item.Path, runtimeSeconds, config, cancellationToken).ConfigureAwait(false);
-    if (outroStart is not null)
+    var outroSegments = await DetectOutroAsync(item.Path, runtimeSeconds, config, cancellationToken).ConfigureAwait(false);
+    foreach (var seg in outroSegments)
     {
       segments.Add(new MediaSegmentDto
       {
         ItemId = item.Id,
         Type = MediaSegmentType.Outro,
-        StartTicks = (long)(outroStart.Value * TicksPerSecond),
-        EndTicks = runtimeTicks
+        StartTicks = (long)(seg.Start * TicksPerSecond),
+        EndTicks = (long)(seg.End * TicksPerSecond)
       });
-      _logger.LogInformation("Jelly Crowd: outro at {Start:0}s for {Name}.", outroStart.Value, item.Name);
+    }
+
+    if (outroSegments.Count > 0)
+    {
+      _logger.LogInformation(
+        "Jelly Crowd: {Count} outro segment(s) for {Name}, first at {Start:0}s.",
+        outroSegments.Count,
+        item.Name,
+        outroSegments[0].Start);
     }
 
     return segments;
   }
 
-  private async Task<double?> DetectOutroAsync(string path, double runtimeSeconds, PluginConfiguration config, CancellationToken cancellationToken)
+  private async Task<IReadOnlyList<DetectedRegion>> DetectOutroAsync(string path, double runtimeSeconds, PluginConfiguration config, CancellationToken cancellationToken)
   {
     var ffmpeg = _mediaEncoder.EncoderPath;
     if (string.IsNullOrEmpty(ffmpeg))
     {
-      return null;
+      return Array.Empty<DetectedRegion>();
     }
 
     // Analyze only the tail — the last 20% of the runtime, capped so a long movie scan stays fast.
@@ -124,34 +131,38 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     var offset = Math.Max(0, runtimeSeconds - window);
     var analyzed = runtimeSeconds - offset;
 
+    // One decode of the tail yields both signals: per-second average luma (signalstats) to tell dark
+    // credits from a bright bonus, and audio silence (a quiet credits crawl).
     var args = string.Format(
       CultureInfo.InvariantCulture,
-      "-hide_banner -nostats -ss {0:0.###} -i \"{1}\" -vf blackdetect=d={2:0.###}:pix_th=0.10 -af silencedetect=noise=-45dB:d=0.8 -f null -",
+      "-hide_banner -nostats -ss {0:0.###} -i \"{1}\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
       offset,
-      path,
-      MinBlackSeconds);
+      path);
+
+    var options = new OutroDetectionOptions(
+      config.OutroDarkFraction,
+      config.OutroMinCreditRunSeconds,
+      config.OutroMinBonusRunSeconds,
+      config.OutroMaxBonusGapSeconds,
+      config.OutroMaxTrailingBonusSeconds,
+      config.OutroMinTrailingSilenceSeconds,
+      config.OutroSilenceEndToleranceSeconds,
+      config.OutroMinCreditsSeconds,
+      config.OutroMaxCreditsSeconds);
 
     try
     {
       var output = await _processRunner.RunCaptureAsync(ffmpeg, args, config.OutroAnalyzeTimeoutSeconds, cancellationToken).ConfigureAwait(false);
-      var (black, silence) = SegmentDetection.ParseRegions(output, analyzed);
-      return SegmentDetection.DetectOutroStartSeconds(
-        black,
-        silence,
-        offset,
-        runtimeSeconds,
-        config.OutroMinLongBlackSeconds,
-        config.OutroMinSilenceRunSeconds,
-        config.OutroSilenceEndToleranceSeconds,
-        config.OutroMinCreditsSeconds,
-        config.OutroMaxCreditsSeconds);
+      var (_, silence) = SegmentDetection.ParseRegions(output, analyzed);
+      var luma = SegmentDetection.ParseLumaSamples(output);
+      return SegmentDetection.DetectOutroSegments(luma, silence, offset, runtimeSeconds, options);
     }
 #pragma warning disable CA1031 // Detection is best-effort; a failure just yields no segment.
     catch (Exception ex)
 #pragma warning restore CA1031
     {
       _logger.LogDebug(ex, "Jelly Crowd outro detection failed for {Path}.", path);
-      return null;
+      return Array.Empty<DetectedRegion>();
     }
   }
 }

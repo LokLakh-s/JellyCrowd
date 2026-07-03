@@ -1,30 +1,53 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Xunit;
 
 namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 
 /// <summary>
-/// Tests for <see cref="SegmentDetection"/> — the pure ffmpeg-output parsing and outro heuristic.
+/// Tests for <see cref="SegmentDetection"/> — the pure ffmpeg-output parsing and the luma/silence outro
+/// segmenter (which keeps a post-credits bonus scene un-skipped).
 /// </summary>
 public class SegmentDetectionTests
 {
-  private static readonly DetectedRegion[] NoRegions = Array.Empty<DetectedRegion>();
+  private static readonly DetectedRegion[] NoSilence = Array.Empty<DetectedRegion>();
 
-  // Real jellyfin-ffmpeg output captured from a clip whose credits (black + silence) start at ~15s.
-  private const string FfmpegOutput =
-    "[Parsed_silencedetect_0 @ 0x1] silence_start: 15.010658\n" +
-    "[Parsed_silencedetect_0 @ 0x1] silence_end: 20.03873 | silence_duration: 5.028073\n" +
-    "[Parsed_blackdetect_0 @ 0x2] black_start:15.023047 black_end:19.923047 black_duration:4.9\n";
+  // Defaults mirroring PluginConfiguration.
+  private static OutroDetectionOptions Options() => new(
+    DarkFraction: 0.25,
+    MinCreditRunSeconds: 15,
+    MinBonusRunSeconds: 10,
+    MaxBonusGapSeconds: 90,
+    MaxTrailingBonusSeconds: 150,
+    MinTrailingSilenceSeconds: 20,
+    SilenceEndToleranceSeconds: 15,
+    MinCreditsSeconds: 20,
+    MaxCreditsSeconds: 900);
+
+  // Builds 1 Hz luma samples over [0, window) from a per-second brightness function.
+  private static List<LumaSample> Luma(int window, Func<int, double> brightness)
+  {
+    var list = new List<LumaSample>(window);
+    for (var s = 0; s < window; s++)
+    {
+      list.Add(new LumaSample(s, brightness(s)));
+    }
+
+    return list;
+  }
+
+  // ----- Parsing -----
 
   [Fact]
-  public void ParseRegions_ExtractsBlackAndSilence()
+  public void ParseRegions_ExtractsSilence()
   {
-    var (black, silence) = SegmentDetection.ParseRegions(FfmpegOutput, fallbackEnd: 20);
+    const string output =
+      "[Parsed_silencedetect_0 @ 0x1] silence_start: 15.010658\n" +
+      "[Parsed_silencedetect_0 @ 0x1] silence_end: 20.03873 | silence_duration: 5.028073\n";
 
-    var b = Assert.Single(black);
-    Assert.Equal(15.023047, b.Start, 3);
-    Assert.Equal(19.923047, b.End, 3);
+    var (_, silence) = SegmentDetection.ParseRegions(output, fallbackEnd: 20);
 
     var s = Assert.Single(silence);
     Assert.Equal(15.010658, s.Start, 3);
@@ -35,107 +58,141 @@ public class SegmentDetectionTests
   public void ParseRegions_ClosesUnterminatedSilence_AtFallback()
   {
     var (_, silence) = SegmentDetection.ParseRegions("[x] silence_start: 40.0\n", fallbackEnd: 55);
-
     Assert.Equal(55, Assert.Single(silence).End);
   }
 
   [Fact]
-  public void ParseRegions_ReturnsEmpty_ForNoMatches()
+  public void ParseLumaSamples_PairsPtsTimeWithYavg()
   {
-    var (black, silence) = SegmentDetection.ParseRegions("nothing here", 10);
-    Assert.Empty(black);
-    Assert.Empty(silence);
-  }
+    const string output =
+      "[Parsed_metadata_2 @ 0x0] frame:0    pts:0     pts_time:0\n" +
+      "[Parsed_metadata_2 @ 0x0] lavfi.signalstats.YAVG=384.637\n" +
+      "[Parsed_metadata_2 @ 0x0] frame:1    pts:1000  pts_time:1\n" +
+      "[Parsed_metadata_2 @ 0x0] lavfi.signalstats.YAVG=72.5\n";
 
-  // ----- Anchor 1: a long silence running to the end (silent/quiet credits crawl) -----
+    var samples = SegmentDetection.ParseLumaSamples(output);
 
-  [Fact]
-  public void DetectOutro_SilenceReachingEnd_AnchorsAtSilenceStart()
-  {
-    // 30-min episode (1800s); window is the last 360s (offset 1440). A 97s silence runs from relative
-    // 263s (abs 1703 = 28m23s) to the file end — the ending crawl. Its start is the outro. This mirrors
-    // real Devil May Cry S01E01, where an isolated 11s scene-fade earlier would have false-triggered the
-    // old "earliest black" rule; that black is present here but the silence anchor takes precedence.
-    var black = new[] { new DetectedRegion(114, 125), new DetectedRegion(346, 348) }; // 26m54s scene fade + a late fade
-    var silence = new[] { new DetectedRegion(263, 360) }; // 28m23s → end, 97s
-
-    var outro = SegmentDetection.DetectOutroStartSeconds(
-      black, silence, offsetSeconds: 1440, runtimeSeconds: 1800,
-      minLongBlackSeconds: 15, minSilenceRunSeconds: 25, silenceEndToleranceSeconds: 15,
-      minCreditsSeconds: 20, maxCreditsSeconds: 900);
-
-    Assert.Equal(1703, outro!.Value, 3);
+    Assert.Equal(2, samples.Count);
+    Assert.Equal(0, samples[0].TimeSeconds, 3);
+    Assert.Equal(384.637, samples[0].Value, 3);
+    Assert.Equal(1, samples[1].TimeSeconds, 3);
+    Assert.Equal(72.5, samples[1].Value, 3);
   }
 
   [Fact]
-  public void DetectOutro_InternalSilence_NotReachingEnd_IsIgnored()
+  public void ParseLumaSamples_ReturnsEmpty_ForNoMatches()
   {
-    // A 40s silence that ends 200s before the file end is a mid-content quiet passage, not credits.
-    var silence = new[] { new DetectedRegion(100, 140) }; // abs 1540..1580, ends 220s before end
-    Assert.Null(SegmentDetection.DetectOutroStartSeconds(
-      NoRegions, silence, 1440, 1800, 15, 25, 15, 20, 900));
+    Assert.Empty(SegmentDetection.ParseLumaSamples("nothing here"));
+    Assert.Empty(SegmentDetection.ParseLumaSamples(string.Empty));
+  }
+
+  // ----- Segmenter -----
+
+  [Fact]
+  public void DetectOutro_DarkCardThenBrightBonus_StopsAtTheBonus()
+  {
+    // Rick & Morty shape: 240s content, a 30s dark credit card, then a 30s bright bonus to the end.
+    // window 300s, offset 1055 → runtime 1355. Dark=60, bright=500.
+    var luma = Luma(300, s => (s >= 240 && s < 270) ? 60 : 500);
+
+    var segs = SegmentDetection.DetectOutroSegments(luma, NoSilence, offsetSeconds: 1055, runtimeSeconds: 1355, Options());
+
+    var seg = Assert.Single(segs);
+    Assert.Equal(1295, seg.Start, 0);        // 1055 + 240 (card start)
+    Assert.Equal(1325, seg.End, 0);          // 1055 + 270 (bonus start) — NOT runtime
+    Assert.True(1355 - seg.End >= 15, "the post-credits bonus must be left un-skipped");
   }
 
   [Fact]
-  public void DetectOutro_ShortSilence_IsIgnored()
+  public void DetectOutro_DarkCreditsToEnd_CoversToRuntime()
   {
-    var silence = new[] { new DetectedRegion(340, 360) }; // 20s < minSilenceRun, even though it reaches the end
-    Assert.Null(SegmentDetection.DetectOutroStartSeconds(
-      NoRegions, silence, 1440, 1800, 15, 25, 15, 20, 900));
+    // Film shape: credits on black run to the very end (no bonus). window 720s, offset 6921 → runtime 7641.
+    var luma = Luma(720, s => s < 151 ? 500 : 60);
+
+    var segs = SegmentDetection.DetectOutroSegments(luma, NoSilence, 6921, 7641, Options());
+
+    var seg = Assert.Single(segs);
+    Assert.Equal(7072, seg.Start, 0);        // 6921 + 151
+    Assert.Equal(7641, seg.End, 0);          // to runtime
   }
 
-  // ----- Anchor 2: the earliest long black run (credits on black) -----
+  [Fact]
+  public void DetectOutro_SilentBrightCredits_AnchorViaSilence()
+  {
+    // Episode with a bright but silent end card (animated ED): luma stays high, a 97s silence runs to end.
+    var luma = Luma(360, _ => 500);
+    var silence = new[] { new DetectedRegion(263, 360) };
+
+    var segs = SegmentDetection.DetectOutroSegments(luma, silence, 1440, 1800, Options());
+
+    var seg = Assert.Single(segs);
+    Assert.Equal(1703, seg.Start, 0);        // 1440 + 263
+    Assert.Equal(1800, seg.End, 0);
+  }
 
   [Fact]
-  public void DetectOutro_LongBlack_AnchorsAndIgnoresShortSceneFades()
+  public void DetectOutro_MidCreditsBonus_ProducesTwoSegments()
   {
-    // 127-min film (7641s); window is the last 720s (offset 6921). Short scene fades near the tail must be
-    // ignored; the first long (30s) black at rel 151s (abs 7072 = 117m52s) anchors the credits — matching
-    // real "Michael", whose end credits have music (no silence anchor).
-    var black = new[]
+    // credits1 (30s) | bonus (30s) | credits2 (30s) | short bright tail. window 300s, offset 1055.
+    var luma = Luma(300, s =>
     {
-      new DetectedRegion(10, 13),   // 3s scene fade — ignored
-      new DetectedRegion(151, 181), // 30s credits-on-black — the anchor
-      new DetectedRegion(199, 262), // later 63s black
-    };
+      if (s >= 200 && s < 230) return 60; // credits1
+      if (s >= 260 && s < 290) return 60; // credits2
+      return 500;                         // content / bonus / tail
+    });
 
-    var outro = SegmentDetection.DetectOutroStartSeconds(
-      black, NoRegions, offsetSeconds: 6921, runtimeSeconds: 7641,
-      minLongBlackSeconds: 15, minSilenceRunSeconds: 25, silenceEndToleranceSeconds: 15,
-      minCreditsSeconds: 20, maxCreditsSeconds: 900);
+    var segs = SegmentDetection.DetectOutroSegments(luma, NoSilence, 1055, 1355, Options());
 
-    Assert.Equal(7072, outro!.Value, 3);
+    Assert.Equal(2, segs.Count);
+    Assert.Equal(1255, segs[0].Start, 0);
+    Assert.Equal(1285, segs[0].End, 0);
+    Assert.Equal(1315, segs[1].Start, 0);
+    Assert.Equal(1345, segs[1].End, 0);
+    Assert.True(segs[1].Start - segs[0].End >= 15, "the mid-credits bonus gap must be preserved between segments");
   }
 
   [Fact]
-  public void DetectOutro_SilenceAnchor_TakesPrecedenceOverBlack()
+  public void DetectOutro_ShortBrightBlipInCredits_IsBridged()
   {
-    var black = new[] { new DetectedRegion(50, 90) };      // abs 1490, a 40s long black
-    var silence = new[] { new DetectedRegion(263, 360) };  // abs 1703 → end
+    // A 5s studio card inside an otherwise 60s dark credits block must not split the segment.
+    var luma = Luma(300, s =>
+    {
+      if (s >= 220 && s < 280)
+      {
+        return (s >= 245 && s < 250) ? 500 : 60; // 5s bright blip inside the dark block
+      }
 
-    var outro = SegmentDetection.DetectOutroStartSeconds(
-      black, silence, 1440, 1800, 15, 25, 15, 20, 900);
+      return 500;
+    });
 
-    Assert.Equal(1703, outro!.Value, 3); // silence wins even though the black is earlier
+    var segs = SegmentDetection.DetectOutroSegments(luma, NoSilence, 1055, 1355, Options());
+
+    var seg = Assert.Single(segs);
+    Assert.Equal(1275, seg.Start, 0); // 1055 + 220, one contiguous block
+    Assert.Equal(1335, seg.End, 0);   // 1055 + 280
   }
 
   [Fact]
-  public void DetectOutro_ReturnsNull_WhenNoAnchorQualifies()
+  public void DetectOutro_DarkSceneFollowedByLongContent_IsRejected()
   {
-    // Only short blacks and no qualifying silence.
-    var black = new[] { new DetectedRegion(100, 105), new DetectedRegion(300, 308) }; // 5s, 8s — below minLongBlack
-    Assert.Null(SegmentDetection.DetectOutroStartSeconds(
-      black, NoRegions, 1440, 1800, 15, 25, 15, 20, 900));
+    // A 31s dark scene early in the tail, then 269s of content to the end → not credits.
+    var luma = Luma(300, s => s < 31 ? 60 : 500);
+
+    Assert.Empty(SegmentDetection.DetectOutroSegments(luma, NoSilence, 1055, 1355, Options()));
   }
 
   [Fact]
-  public void DetectOutro_RejectsAnchors_OutsideCreditsBounds()
+  public void DetectOutro_TooShortDarkRun_IsIgnored()
   {
-    // Long black so late that < minCredits remains (remaining 5s).
-    Assert.Null(SegmentDetection.DetectOutroStartSeconds(
-      new[] { new DetectedRegion(715, 740) }, NoRegions, 6921, 7641, 15, 25, 15, 20, 900));
-    // Long black so early that > maxCredits remains (remaining 1200s).
-    Assert.Null(SegmentDetection.DetectOutroStartSeconds(
-      new[] { new DetectedRegion(0, 30) }, NoRegions, 6000, 7641, 15, 25, 15, 20, 900));
+    // A 10s dark blip (< MinCreditRun) is not credits.
+    var luma = Luma(300, s => (s >= 285 && s < 295) ? 60 : 500);
+
+    Assert.Empty(SegmentDetection.DetectOutroSegments(luma, NoSilence, 1055, 1355, Options()));
+  }
+
+  [Fact]
+  public void DetectOutro_ReturnsEmpty_ForNoSignals()
+  {
+    Assert.Empty(SegmentDetection.DetectOutroSegments(Array.Empty<LumaSample>(), NoSilence, 1055, 1355, Options()));
   }
 }

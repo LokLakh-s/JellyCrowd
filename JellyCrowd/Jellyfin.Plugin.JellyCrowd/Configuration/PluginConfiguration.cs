@@ -47,8 +47,12 @@ public class PluginConfiguration : BasePluginConfiguration
     OutroAnalyzeTimeoutSeconds = 180;
     OutroMinCreditsSeconds = 20;
     OutroMaxCreditsSeconds = 900;
-    OutroMinLongBlackSeconds = 15;
-    OutroMinSilenceRunSeconds = 25;
+    OutroDarkFraction = 0.25;
+    OutroMinCreditRunSeconds = 15;
+    OutroMinBonusRunSeconds = 10;
+    OutroMaxBonusGapSeconds = 90;
+    OutroMaxTrailingBonusSeconds = 150;
+    OutroMinTrailingSilenceSeconds = 20;
     OutroSilenceEndToleranceSeconds = 15;
     BrandingEnabled = false;
     BrandingLogoUrl = string.Empty;
@@ -345,20 +349,44 @@ public class PluginConfiguration : BasePluginConfiguration
   public double OutroMaxCreditsSeconds { get; set; }
 
   /// <summary>
-  /// Gets or sets the minimum black-run length (seconds) that anchors credits-on-black. Short scene-
-  /// transition fades below this are ignored so a dramatic mid-tail fade is not mistaken for the credits.
+  /// Gets or sets the darkness threshold as a fraction of the clip's reference brightness: a second whose
+  /// luma is below this is treated as dark credits. Relative, so it works across 8- and 10-bit encodes.
   /// </summary>
-  public double OutroMinLongBlackSeconds { get; set; }
+  public double OutroDarkFraction { get; set; }
 
   /// <summary>
-  /// Gets or sets the minimum silence length (seconds) that, when it runs to the end of the item, anchors
-  /// a silent/quiet credits crawl (common on TV episode end cards).
+  /// Gets or sets the minimum length (seconds) of a dark-or-silent run for it to count as end credits
+  /// (rejects a brief dark shot at the very end of the story).
   /// </summary>
-  public double OutroMinSilenceRunSeconds { get; set; }
+  public double OutroMinCreditRunSeconds { get; set; }
 
   /// <summary>
-  /// Gets or sets how close (seconds) to the runtime end a silence must reach to count as "to the end"
-  /// for the silent-credits anchor.
+  /// Gets or sets the minimum length (seconds) of a bright-with-audio break inside the credits for it to
+  /// be treated as a bonus scene; shorter bright blips are absorbed into the credits.
+  /// </summary>
+  public double OutroMinBonusRunSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum bright gap (seconds) between two credit runs for them to be grouped into one
+  /// outro (a mid-credits bonus between them); a longer gap is the story body and stops the grouping.
+  /// </summary>
+  public double OutroMaxBonusGapSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum bright content (seconds) allowed after the last credit run while still
+  /// treating it as a post-credits bonus; more than this means the "credits" were a dark scene, so no
+  /// segment is emitted.
+  /// </summary>
+  public double OutroMaxTrailingBonusSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum length (seconds) of a silence that, running to the end of the item, counts
+  /// as a silent/quiet end card. Scattered dialogue pauses are ignored — only this trailing silence does.
+  /// </summary>
+  public double OutroMinTrailingSilenceSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets how close (seconds) to the end the trailing silence must reach to count as credits.
   /// </summary>
   public double OutroSilenceEndToleranceSeconds { get; set; }
 
