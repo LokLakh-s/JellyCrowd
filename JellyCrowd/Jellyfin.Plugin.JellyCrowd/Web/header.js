@@ -1818,5 +1818,82 @@
     }, true);
   }
 
-  loadConfigLang().then(loadStrings).then(loadBranding).then(start).then(resolveAdminVisibility);
+  // ---------- Local Intros (pre-roll) ----------
+  // The plugin can play a pre-roll before content via Jellyfin's Cinema Mode. On the web client we
+  // optionally force Cinema Mode on and make the pre-roll non-skippable: while a known pre-roll item plays
+  // we hide the video OSD and swallow the seek/skip shortcuts. The client posts /Items/{id}/PlaybackInfo
+  // and /Sessions/Playing* per queue item, so we watch those for a configured pre-roll item id.
+  var jcIntroIds = null;      // Map of pre-roll item ids (dash-less, lowercase) -> 1
+  var jcPreroll = false;
+
+  function jcNormId(x) { return String(x || '').replace(/-/g, '').toLowerCase(); }
+
+  function loadLocalIntros() {
+    return fetch(getUrl('JellyCrowd/Settings/LocalIntros'))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.Enabled) { return; }
+        jcIntroIds = {};
+        (d.ItemIds || []).forEach(function (x) { jcIntroIds[jcNormId(x)] = 1; });
+        if (d.ForceCinemaMode) { jcForceCinemaMode(); }
+        if (d.NonSkippable && (d.ItemIds || []).length) { jcInstallPrerollGuard(); }
+      })
+      .catch(function () { });
+  }
+
+  function jcForceCinemaMode() {
+    try {
+      var uid = window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId();
+      if (uid) { localStorage.setItem(uid + '-enableCinemaMode', 'true'); }
+    } catch (e) { /* best-effort */ }
+  }
+
+  function jcSetPreroll(on) {
+    if (on === jcPreroll) { return; }
+    jcPreroll = on;
+    document.documentElement.classList.toggle('jc-preroll', on);
+  }
+
+  function jcOnPlaybackItem(id) {
+    jcSetPreroll(!!(jcIntroIds && jcIntroIds[jcNormId(id)]));
+  }
+
+  function jcInstallPrerollGuard() {
+    if (!document.getElementById('jc-preroll-css')) {
+      var st = document.createElement('style'); st.id = 'jc-preroll-css';
+      // Hide the video OSD (controls + seek bar + "skip to next") and the up-next prompt during a pre-roll.
+      st.textContent = 'html.jc-preroll .videoOsdBottom,html.jc-preroll .osdControls,html.jc-preroll .upNextContainer,html.jc-preroll .skipIntro{display:none !important;visibility:hidden !important;}html.jc-preroll .videoPlayerContainer,html.jc-preroll .videoOsdBottom{cursor:none !important;}';
+      document.head.appendChild(st);
+    }
+
+    var pbInfo = /\/Items\/([0-9a-fA-F-]{16,})\/PlaybackInfo/;
+    function idFromUrl(u) { var m = pbInfo.exec(String(u || '')); return m ? m[1] : null; }
+    function idFromBody(u, b) { if (!/\/Sessions\/Playing/.test(String(u || '')) || !b) { return null; } try { var j = JSON.parse(b); return j.ItemId || j.itemId || null; } catch (e) { return null; } }
+
+    // XHR (ApiClient.ajax) — a prototype hook is timing-safe regardless of when this runs.
+    var XO = XMLHttpRequest.prototype.open, XS = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (m, u) { this._jcU = u; return XO.apply(this, arguments); };
+    XMLHttpRequest.prototype.send = function (b) {
+      try { var id = idFromUrl(this._jcU) || idFromBody(this._jcU, b); if (id) { jcOnPlaybackItem(id); } } catch (e) { }
+      return XS.apply(this, arguments);
+    };
+    // fetch — belt and suspenders.
+    var of = window.fetch;
+    window.fetch = function (input, init) {
+      try { var u = (typeof input === 'string') ? input : (input && input.url); var id = idFromUrl(u) || idFromBody(u, init && init.body); if (id) { jcOnPlaybackItem(id); } } catch (e) { }
+      return of.apply(this, arguments);
+    };
+
+    // Swallow the seek / skip-to-next shortcuts while a pre-roll plays.
+    document.addEventListener('keydown', function (e) {
+      if (!jcPreroll) { return; }
+      var k = e.key;
+      var block = ['ArrowLeft', 'ArrowRight', 'MediaTrackNext', 'MediaTrackPrevious', 'PageUp', 'PageDown', 'Home', 'End'].indexOf(k) >= 0
+        || /^[jJlL,.]$/.test(k)
+        || (e.shiftKey && /^[nNpPbBfF]$/.test(k));
+      if (block) { e.stopImmediatePropagation(); e.preventDefault(); }
+    }, true);
+  }
+
+  loadConfigLang().then(loadStrings).then(loadBranding).then(start).then(resolveAdminVisibility).then(loadLocalIntros);
 })();

@@ -126,7 +126,7 @@
                 <input id="LocalIntrosEnabled" name="LocalIntrosEnabled" type="checkbox" is="emby-checkbox" />
                 <span>Play a local intro / pre-roll before content</span>
               </label>
-              <div class="fieldDescription">Plays a pre-roll video before movies and the first episode of a series, via Jellyfin's native Cinema Mode. Create a folder with the name below beside your media libraries and drop the video(s) in it — the plugin finds and indexes it automatically. Each viewer must have <b>Cinema Mode</b> enabled in their playback settings. Off by default.</div>
+              <div class="fieldDescription">Plays a pre-roll video before movies and the first episode of a series, via Jellyfin's native Cinema Mode. Create a folder with the name below beside your media libraries and drop the video(s) in it — the plugin finds and indexes it automatically. On the web client, Cinema Mode is turned on for you; other apps need it enabled in their playback settings. Off by default.</div>
             </div>
 
             <div class="inputContainer">
@@ -147,6 +147,14 @@
                 <input id="LocalIntrosOnFirstEpisode" name="LocalIntrosOnFirstEpisode" type="checkbox" is="emby-checkbox" />
                 <span>Pre-roll before the first episode of a series (S01E01)</span>
               </label>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="LocalIntrosNonSkippable" name="LocalIntrosNonSkippable" type="checkbox" is="emby-checkbox" />
+                <span>Non-skippable pre-roll (web client)</span>
+              </label>
+              <div class="fieldDescription">On the web client, hide the player controls and block skipping/seeking while the pre-roll plays. Other apps still allow skipping.</div>
             </div>
 
             <div class="checkboxContainer checkboxContainer-withDescription">
@@ -988,6 +996,7 @@ Content-Type: application/json
             document.querySelector('#LocalIntrosFolderName').value = config.LocalIntrosFolderName || 'intros';
             document.querySelector('#LocalIntrosOnMovies').checked = !!config.LocalIntrosOnMovies;
             document.querySelector('#LocalIntrosOnFirstEpisode').checked = !!config.LocalIntrosOnFirstEpisode;
+            document.querySelector('#LocalIntrosNonSkippable').checked = !!config.LocalIntrosNonSkippable;
             document.querySelector('#ShowReviewAuthors').checked = !!config.ShowReviewAuthors;
             document.querySelector('#DiscordInviteEnabled').checked = !!config.DiscordInviteEnabled;
             document.querySelector('#DiscordInviteUrl').value = config.DiscordInviteUrl || '';
@@ -1097,6 +1106,7 @@ Content-Type: application/json
             config.LocalIntrosFolderName = document.querySelector('#LocalIntrosFolderName').value || 'intros';
             config.LocalIntrosOnMovies = document.querySelector('#LocalIntrosOnMovies').checked;
             config.LocalIntrosOnFirstEpisode = document.querySelector('#LocalIntrosOnFirstEpisode').checked;
+            config.LocalIntrosNonSkippable = document.querySelector('#LocalIntrosNonSkippable').checked;
             config.ShowReviewAuthors = document.querySelector('#ShowReviewAuthors').checked;
             config.DiscordInviteEnabled = document.querySelector('#DiscordInviteEnabled').checked;
             config.DiscordInviteUrl = document.querySelector('#DiscordInviteUrl').value.trim();
