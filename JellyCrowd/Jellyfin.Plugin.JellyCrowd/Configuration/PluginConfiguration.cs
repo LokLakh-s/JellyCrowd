@@ -41,6 +41,12 @@ public class PluginConfiguration : BasePluginConfiguration
     SupportLinkEnabled = false;
     SupportLinkUrl = string.Empty;
     StatsEnabled = true;
+    SkipOutroEnabled = false;
+    SkipIntroEnabled = false;
+    OutroAnalyzeMaxSeconds = 720;
+    OutroAnalyzeTimeoutSeconds = 180;
+    OutroMinCreditsSeconds = 20;
+    OutroMaxCreditsSeconds = 900;
     BrandingEnabled = false;
     BrandingLogoUrl = string.Empty;
     BrandingFaviconUrl = string.Empty;
@@ -298,6 +304,42 @@ public class PluginConfiguration : BasePluginConfiguration
   /// On by default; turning it off stops new capture (existing history is kept).
   /// </summary>
   public bool StatsEnabled { get; set; }
+
+  // ----- Skip intro / outro (native Jellyfin media segments) -----
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the plugin detects end credits and exposes a native
+  /// "Skip Outro" segment on movies and episodes. Off by default (analysis is CPU-heavy and heuristic).
+  /// </summary>
+  public bool SkipOutroEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the plugin detects episode intros (audio fingerprinting)
+  /// and exposes a native "Skip Intro" segment. Off by default.
+  /// </summary>
+  public bool SkipIntroEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum number of seconds of the file tail to analyze for the outro (keeps long
+  /// movie scans bounded). The window is the smaller of 20% of the runtime and this cap.
+  /// </summary>
+  public double OutroAnalyzeMaxSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the timeout (seconds) for a single outro analysis process before it is killed.
+  /// </summary>
+  public int OutroAnalyzeTimeoutSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum credits length (seconds) after the end-of-content fade for it to count as
+  /// an outro — guards against marking a brief mid-content fade.
+  /// </summary>
+  public double OutroMinCreditsSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum credits length (seconds) after the fade for it to count as an outro.
+  /// </summary>
+  public double OutroMaxCreditsSeconds { get; set; }
 
   // ----- Branding (cosmetic theming applied to the whole Jellyfin web UI by header.js) -----
 

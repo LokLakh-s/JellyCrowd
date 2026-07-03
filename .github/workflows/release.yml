@@ -109,6 +109,9 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/*.dll artifacts/
+          # The isolated Skip Outro companion assembly (not in build.yaml artifacts, so Jellyfin never
+          # scans it — kept out of harm's way on a newer Jellyfin — but bundled so the plugin can load it).
+          cp Jellyfin.Plugin.JellyCrowd.Segments/bin/Release/net9.0/Jellyfin.Plugin.JellyCrowd.Segments.dll artifacts/
           cp build.yaml artifacts/
           zipname="jelly-crowd-${{ steps.bump.outputs.tag }}.zip"
           (cd artifacts && zip "$zipname" *.dll build.yaml && md5sum "$zipname" > "$zipname.md5")

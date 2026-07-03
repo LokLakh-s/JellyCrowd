@@ -69,6 +69,7 @@ jobs:
           # Copy the plugin and its bundled runtime dependencies (MailKit/MimeKit/BouncyCastle);
           # host-provided assemblies are ExcludeAssets=runtime and absent from the output.
           cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/*.dll artifacts/
+          cp Jellyfin.Plugin.JellyCrowd.Segments/bin/Release/net9.0/Jellyfin.Plugin.JellyCrowd.Segments.dll artifacts/
           cp build.yaml artifacts/
           cd artifacts && zip jelly-crowd.zip *.dll build.yaml
 
