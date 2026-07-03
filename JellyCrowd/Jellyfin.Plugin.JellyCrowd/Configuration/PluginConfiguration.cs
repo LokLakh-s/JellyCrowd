@@ -54,6 +54,10 @@ public class PluginConfiguration : BasePluginConfiguration
     OutroMaxTrailingBonusSeconds = 150;
     OutroMinTrailingSilenceSeconds = 20;
     OutroSilenceEndToleranceSeconds = 15;
+    IntroAnalyzeSeconds = 600;
+    IntroAnalyzeTimeoutSeconds = 120;
+    IntroMinDurationSeconds = 15;
+    IntroMinConfirmations = 1;
     BrandingEnabled = false;
     BrandingLogoUrl = string.Empty;
     BrandingFaviconUrl = string.Empty;
@@ -325,6 +329,27 @@ public class PluginConfiguration : BasePluginConfiguration
   /// and exposes a native "Skip Intro" segment. Off by default.
   /// </summary>
   public bool SkipIntroEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets how many seconds from the start of each episode are fingerprinted when searching for the
+  /// shared intro (the intro can sit well past a long cold open, so this window is generous).
+  /// </summary>
+  public int IntroAnalyzeSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the timeout (seconds) for a single episode fingerprint extraction.
+  /// </summary>
+  public int IntroAnalyzeTimeoutSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum intro length (seconds); shorter shared snippets (logos, stings) are ignored.
+  /// </summary>
+  public int IntroMinDurationSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets how many sibling episodes must confirm a shared region before it is accepted as the intro.
+  /// </summary>
+  public int IntroMinConfirmations { get; set; }
 
   /// <summary>
   /// Gets or sets the maximum number of seconds of the file tail to analyze for the outro (keeps long

@@ -106,6 +106,49 @@ public sealed class ProcessRunner : IProcessRunner
     return stderr;
   }
 
+  /// <inheritdoc />
+  public async Task<byte[]> RunCaptureBytesAsync(string fileName, string? arguments, int timeoutSeconds, CancellationToken cancellationToken)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+
+    var startInfo = new ProcessStartInfo
+    {
+      FileName = fileName,
+      RedirectStandardError = true,
+      RedirectStandardOutput = true,
+      UseShellExecute = false,
+      CreateNoWindow = true
+    };
+    if (!string.IsNullOrWhiteSpace(arguments))
+    {
+      startInfo.Arguments = arguments;
+    }
+
+    using var process = new Process { StartInfo = startInfo };
+    process.Start();
+
+    // Copy stdout (the binary fingerprint) and drain stderr concurrently so neither pipe can deadlock.
+    using var stdout = new System.IO.MemoryStream();
+    var stdoutTask = process.StandardOutput.BaseStream.CopyToAsync(stdout, cancellationToken);
+    var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+    try
+    {
+      await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+    }
+    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+    {
+      TryKill(process);
+      throw new InvalidOperationException($"The analysis process did not finish within {timeoutSeconds.ToString(CultureInfo.InvariantCulture)}s.");
+    }
+
+    await stdoutTask.ConfigureAwait(false);
+    await stderrTask.ConfigureAwait(false);
+    return stdout.ToArray();
+  }
+
   private static void TryKill(Process process)
   {
     try

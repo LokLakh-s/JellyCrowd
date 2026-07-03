@@ -33,4 +33,16 @@ public interface IProcessRunner
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The process's standard-error output.</returns>
   Task<string> RunCaptureAsync(string fileName, string? arguments, int timeoutSeconds, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Starts a process with no stdin, waits up to <paramref name="timeoutSeconds"/> for it to exit, and
+  /// returns its raw standard-output <em>bytes</em> — used to capture the binary Chromaprint fingerprint
+  /// ffmpeg writes to stdout. Throws only on timeout; a non-zero exit still returns what was written.
+  /// </summary>
+  /// <param name="fileName">The executable to run.</param>
+  /// <param name="arguments">The command-line arguments.</param>
+  /// <param name="timeoutSeconds">How long to wait before killing the process.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The process's standard-output bytes.</returns>
+  Task<byte[]> RunCaptureBytesAsync(string fileName, string? arguments, int timeoutSeconds, CancellationToken cancellationToken);
 }

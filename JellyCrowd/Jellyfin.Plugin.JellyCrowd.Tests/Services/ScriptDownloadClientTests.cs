@@ -72,5 +72,8 @@ public class ScriptDownloadClientTests
 
     public Task<string> RunCaptureAsync(string fileName, string? arguments, int timeoutSeconds, CancellationToken cancellationToken)
       => Task.FromResult(string.Empty);
+
+    public Task<byte[]> RunCaptureBytesAsync(string fileName, string? arguments, int timeoutSeconds, CancellationToken cancellationToken)
+      => Task.FromResult(System.Array.Empty<byte>());
   }
 }
