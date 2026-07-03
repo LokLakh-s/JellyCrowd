@@ -22,7 +22,7 @@ docker run --rm \
   -v "$repo":/src -w /src \
   -v jellycrowd_nuget:/root/.nuget/packages \
   mcr.microsoft.com/dotnet/sdk:9.0 \
-  dotnet build "$csproj" -c Release
+  dotnet build -c Release
 
 yval() { grep -E "^$1:" "$yaml" | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/' | tr -d '\r'; }
 GUID="$(yval guid)"; NAME="$(yval name)"; VERSION="$(yval version)"
@@ -36,6 +36,9 @@ deploy() {
   # Same DLL set the CI ships: the plugin + bundled runtime deps (MailKit/MimeKit/BouncyCastle). Jellyfin
   # host assemblies are ExcludeAssets=runtime, so they are not in bin and won't be copied.
   cp "$bin"/*.dll "$target"/
+  # Isolated Skip Outro companion assembly — bundled in the folder but NOT listed in meta.json assemblies,
+  # so Jellyfin never scans it (safe on a newer Jellyfin); the plugin loads it by path when compatible.
+  cp "$repo/Jellyfin.Plugin.JellyCrowd.Segments/bin/Release/net9.0/Jellyfin.Plugin.JellyCrowd.Segments.dll" "$target"/
   cat > "$target/meta.json" <<EOF
 {
   "guid": "$GUID",

@@ -70,6 +70,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 | 🙋 **Personal dashboard** | Every user gets their own watch time, top titles, activity chart, watch-time-by-library and storage. |
 | 🔒 **Access control** | Hide the plugin while you set it up (*config mode*), with a per-user override to enable or block individuals. |
 | 📓 **Activity log** | A bounded, searchable log of admin, user and system events. |
+| ⏭️ **Skip Outro** | Detects end credits on movies & episodes (ffmpeg fade-to-black analysis) and drives Jellyfin's **native** Skip Outro button. Opt-in. |
 | 🩺 **Diagnostics & backup** | Connectivity checks (TMDB, Radarr/Sonarr, indexers) and a one-click configuration backup. |
 
 > [!NOTE]

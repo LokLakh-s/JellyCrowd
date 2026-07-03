@@ -69,5 +69,8 @@ public class ScriptDownloadClientTests
       Environment = environment;
       return Task.CompletedTask;
     }
+
+    public Task<string> RunCaptureAsync(string fileName, string? arguments, int timeoutSeconds, CancellationToken cancellationToken)
+      => Task.FromResult(string.Empty);
   }
 }

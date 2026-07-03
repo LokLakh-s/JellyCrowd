@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Isolated companion assembly holding ONLY the native media-segment provider (Skip Outro), which
+    references Jellyfin's IMediaSegmentProvider. Jellyfin 12 moved those segment types to different
+    assemblies (a breaking change vs the 10.11 SDK this targets), so on 12 loading this type throws.
+    Keeping it OUT of the main plugin assembly means the main plugin still loads fully on 12 — the main
+    registrator loads this type by reflection inside a try/catch, so skip-outro simply turns itself off
+    on an incompatible runtime. Not listed in meta.json's "assemblies" (so Jellyfin never scans it).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.10">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="10.11.10">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile-time only: the main plugin assembly is loaded separately at runtime, don't copy it here. -->
+    <ProjectReference Include="..\Jellyfin.Plugin.JellyCrowd\Jellyfin.Plugin.JellyCrowd.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

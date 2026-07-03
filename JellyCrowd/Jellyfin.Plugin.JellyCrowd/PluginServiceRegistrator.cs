@@ -78,6 +78,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IStalledDownloadRecovery, ServarrStalledRecovery>();
     serviceCollection.AddSingleton<IDiagnosticsService, DiagnosticsService>();
     serviceCollection.AddSingleton<IProcessRunner, ProcessRunner>();
+    TryRegisterSegmentProvider(serviceCollection);
     serviceCollection.AddSingleton<IDownloadClient, WebhookDownloadClient>();
     serviceCollection.AddSingleton<IDownloadClient, ServarrDownloadClient>();
     serviceCollection.AddSingleton<IDownloadClient, ScriptDownloadClient>();
@@ -98,5 +99,52 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddHostedService<PlaybackActivityEntryPoint>();
     serviceCollection.AddHostedService<PlaybackHistoryEntryPoint>();
     serviceCollection.AddHostedService<ConfigChangeLogger>();
+  }
+
+  // Skip Outro's IMediaSegmentProvider lives in an ISOLATED companion assembly
+  // (Jellyfin.Plugin.JellyCrowd.Segments). Jellyfin 12 moved the segment types to different assemblies, so
+  // a 10.11-compiled provider throws a TypeLoadException there — and if that type were in THIS assembly it
+  // would take the whole plugin down. Loading + registering it by reflection (with no compile-time
+  // reference to the segment API) keeps this assembly clean on any runtime: on an incompatible one the
+  // load throws and is swallowed, so skip-outro turns itself off while the rest of the plugin keeps working.
+  private static void TryRegisterSegmentProvider(IServiceCollection serviceCollection)
+  {
+    try
+    {
+      var mainAssembly = typeof(PluginServiceRegistrator).Assembly;
+      var directory = Path.GetDirectoryName(mainAssembly.Location);
+      if (directory is null)
+      {
+        return;
+      }
+
+      var path = Path.Combine(directory, "Jellyfin.Plugin.JellyCrowd.Segments.dll");
+      if (!File.Exists(path))
+      {
+        return;
+      }
+
+      // Load into the SAME context as the main assembly so the companion resolves this plugin's own
+      // types (PluginConfiguration, SegmentDetection) correctly.
+      var context = System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(mainAssembly)
+        ?? System.Runtime.Loader.AssemblyLoadContext.Default;
+      var assembly = context.LoadFromAssemblyPath(path);
+      var providerType = assembly.GetType("Jellyfin.Plugin.JellyCrowd.Segments.JellyCrowdSegmentProvider", throwOnError: false);
+      if (providerType is null)
+      {
+        return;
+      }
+
+      var segmentInterface = Array.Find(providerType.GetInterfaces(), i => string.Equals(i.Name, "IMediaSegmentProvider", StringComparison.Ordinal));
+      if (segmentInterface is not null)
+      {
+        serviceCollection.AddSingleton(segmentInterface, providerType);
+      }
+    }
+#pragma warning disable CA1031 // Incompatible runtime (e.g. Jellyfin 12's segment API): skip skip-outro, keep the rest of the plugin.
+    catch (Exception)
+#pragma warning restore CA1031
+    {
+    }
   }
 }
