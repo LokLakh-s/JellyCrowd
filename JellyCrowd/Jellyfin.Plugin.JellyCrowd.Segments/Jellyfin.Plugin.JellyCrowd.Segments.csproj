@@ -36,4 +36,15 @@
     </ProjectReference>
   </ItemGroup>
 
+  <!--
+    Drop the built companion DLL into the MAIN plugin's output folder so every packaging path
+    (`cp .../Jellyfin.Plugin.JellyCrowd/bin/.../*.dll`) and the dev deploy pick it up automatically.
+    The main project builds first (this one depends on it), so its output folder already exists.
+  -->
+  <Target Name="CopyToMainPluginOutput" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFolder="$(MSBuildProjectDirectory)/../Jellyfin.Plugin.JellyCrowd/bin/$(Configuration)/net9.0/"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>
