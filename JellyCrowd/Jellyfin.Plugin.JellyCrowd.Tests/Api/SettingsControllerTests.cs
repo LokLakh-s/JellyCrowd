@@ -2,6 +2,7 @@ using Jellyfin.Plugin.JellyCrowd.Api;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Xunit;
@@ -15,7 +16,7 @@ public class SettingsControllerTests
 {
   private static LanguageSettingDto GetLanguage(string? configured)
   {
-    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! }, Mock.Of<ICurrentUserAccessor>());
+    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! }, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>());
     var result = controller.GetLanguage();
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     return Assert.IsType<LanguageSettingDto>(ok.Value);
@@ -39,7 +40,7 @@ public class SettingsControllerTests
 
   private static BrandingDto GetBranding(PluginConfiguration config)
   {
-    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>());
+    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>());
     var ok = Assert.IsType<OkObjectResult>(controller.GetBranding().Result);
     return Assert.IsType<BrandingDto>(ok.Value);
   }

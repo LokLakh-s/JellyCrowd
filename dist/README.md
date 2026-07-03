@@ -72,6 +72,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 | 📓 **Activity log** | A bounded, searchable log of admin, user and system events. |
 | ⏭️ **Skip Intro** | Fingerprints each season's episodes (bundled ffmpeg audio fingerprinting) to find the shared intro and drives Jellyfin's **native** Skip Intro button. Runs as a scheduled task; episodes with no shared intro (a premiere, a recap) are left alone. Opt-in. |
 | ⏭️ **Skip Outro** | Detects end credits on movies & episodes (ffmpeg brightness & silence analysis) and drives Jellyfin's **native** Skip Outro button. Stops at a post-credits bonus scene instead of skipping it. Opt-in. |
+| 🎬 **Local intros** | Plays a pre-roll video before movies and the first episode of a series, via Jellyfin's Cinema Mode. Drop videos in a named folder beside your libraries; the plugin finds and indexes it automatically. Opt-in. |
 | 🩺 **Diagnostics & backup** | Connectivity checks (TMDB, Radarr/Sonarr, indexers) and a one-click configuration backup. |
 
 > [!NOTE]

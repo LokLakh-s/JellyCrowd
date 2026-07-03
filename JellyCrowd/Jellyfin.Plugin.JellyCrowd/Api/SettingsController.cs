@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Net.Mime;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
+using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -21,16 +25,19 @@ public class SettingsController : ControllerBase
 {
   private readonly Func<PluginConfiguration> _config;
   private readonly ICurrentUserAccessor _userAccessor;
+  private readonly ILibraryManager _libraryManager;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="SettingsController"/> class.
   /// </summary>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="userAccessor">The current-user accessor (to resolve administrator status).</param>
-  public SettingsController(Func<PluginConfiguration> config, ICurrentUserAccessor userAccessor)
+  /// <param name="libraryManager">The library manager (resolves local-intro pre-roll item ids).</param>
+  public SettingsController(Func<PluginConfiguration> config, ICurrentUserAccessor userAccessor, ILibraryManager libraryManager)
   {
     _config = config;
     _userAccessor = userAccessor;
+    _libraryManager = libraryManager;
   }
 
   /// <summary>
@@ -55,6 +62,34 @@ public class SettingsController : ControllerBase
       // Only surface a link URL when the admin enabled it (a disabled, configured URL stays private).
       DiscordInviteUrl = config.DiscordInviteEnabled ? (config.DiscordInviteUrl ?? string.Empty) : string.Empty,
       SupportLinkUrl = config.SupportLinkEnabled ? (config.SupportLinkUrl ?? string.Empty) : string.Empty
+    });
+  }
+
+  /// <summary>
+  /// Gets the Local Intros settings the web client needs: whether pre-rolls are on, whether they must be
+  /// non-skippable, and the pre-roll item ids (so the injected script can recognise a pre-roll during
+  /// playback). Anonymous and non-sensitive — item ids are opaque and the videos are already user-visible.
+  /// </summary>
+  /// <response code="200">The Local Intros settings.</response>
+  /// <returns>The pre-roll enablement, non-skippable flag and item ids.</returns>
+  [HttpGet("LocalIntros")]
+  [AllowAnonymous]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public ActionResult<LocalIntrosSettingsDto> GetLocalIntros()
+  {
+    var config = _config();
+    var itemIds = config.LocalIntrosEnabled
+      ? LocalIntrosDiscovery.FindItemIds(_libraryManager, config.LocalIntrosFolderName)
+        .Select(id => id.ToString("N", CultureInfo.InvariantCulture))
+        .ToList()
+      : new List<string>();
+
+    return Ok(new LocalIntrosSettingsDto
+    {
+      Enabled = config.LocalIntrosEnabled,
+      NonSkippable = config.LocalIntrosNonSkippable,
+      ForceCinemaMode = config.LocalIntrosForceCinemaMode,
+      ItemIds = itemIds,
     });
   }
 
