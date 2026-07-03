@@ -23,6 +23,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   private const string ActivityLogFileName = "activity.json";
   private const string UserActivityFileName = "user-activity.json";
   private const string PlaybackHistoryFileName = "playback-history.json";
+  private const string IntrosFileName = "intros.json";
 
   /// <inheritdoc />
   public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
@@ -78,6 +79,11 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IStalledDownloadRecovery, ServarrStalledRecovery>();
     serviceCollection.AddSingleton<IDiagnosticsService, DiagnosticsService>();
     serviceCollection.AddSingleton<IProcessRunner, ProcessRunner>();
+    serviceCollection.AddSingleton<IFingerprintExtractor, FingerprintExtractor>();
+    // Lazy path: the segment provider depends on this store and is resolved very early in startup, before
+    // Plugin.Instance is set — so the data path must not be touched until the store is first used.
+    serviceCollection.AddSingleton<IIntroStore>(
+      _ => new JsonIntroStore(() => Path.Combine(Plugin.Instance!.DataFolderPath, IntrosFileName)));
     TryRegisterSegmentProvider(serviceCollection);
     serviceCollection.AddSingleton<IDownloadClient, WebhookDownloadClient>();
     serviceCollection.AddSingleton<IDownloadClient, ServarrDownloadClient>();

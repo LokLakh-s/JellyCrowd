@@ -14,7 +14,7 @@ directement intégrés dans Jellyfin.
 ---
 
 > **Dépôt source privé.** La distribution publique (manifest d'installation + archives de release) vit
-> dans le dépôt public **[`LokLakh-s/jellycrowd-dist`](https://github.com/LokLakh-s/jellycrowd-dist)**, où
+> dans le dépôt public **[`LokLakh-s/JellyCrowd`](https://github.com/LokLakh-s/JellyCrowd)**, où
 > se trouve aussi la **documentation publique** (en anglais, admin + utilisateurs).
 
 **Jelly Crowd** est un **plugin Jellyfin natif**. Contrairement aux services externes type Overseerr/Jellyseerr

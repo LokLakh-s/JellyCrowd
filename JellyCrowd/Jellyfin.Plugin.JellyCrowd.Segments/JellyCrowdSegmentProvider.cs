@@ -31,6 +31,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   private readonly ILibraryManager _libraryManager;
   private readonly IMediaEncoder _mediaEncoder;
   private readonly IProcessRunner _processRunner;
+  private readonly IIntroStore _introStore;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<JellyCrowdSegmentProvider> _logger;
 
@@ -40,18 +41,21 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   /// <param name="libraryManager">The library manager (resolves the item + its file path).</param>
   /// <param name="mediaEncoder">The media encoder (supplies the ffmpeg path).</param>
   /// <param name="processRunner">The process runner (runs the ffmpeg analysis).</param>
+  /// <param name="introStore">The intro cache populated by the analysis task.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
   public JellyCrowdSegmentProvider(
     ILibraryManager libraryManager,
     IMediaEncoder mediaEncoder,
     IProcessRunner processRunner,
+    IIntroStore introStore,
     Func<PluginConfiguration> config,
     ILogger<JellyCrowdSegmentProvider> logger)
   {
     _libraryManager = libraryManager;
     _mediaEncoder = mediaEncoder;
     _processRunner = processRunner;
+    _introStore = introStore;
     _config = config;
     _logger = logger;
   }
@@ -63,7 +67,10 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   public ValueTask<bool> Supports(BaseItem item)
   {
     ArgumentNullException.ThrowIfNull(item);
-    return ValueTask.FromResult(_config().SkipOutroEnabled && item is Episode or Movie);
+    var config = _config();
+    var supported = (config.SkipOutroEnabled && item is Episode or Movie)
+      || (config.SkipIntroEnabled && item is Episode);
+    return ValueTask.FromResult(supported);
   }
 
   /// <summary>
@@ -81,13 +88,29 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     var segments = new List<MediaSegmentDto>();
 
     var config = _config();
-    if (!config.SkipOutroEnabled)
+    var item = _libraryManager.GetItemById(request.ItemId);
+    if (item is not (Episode or Movie) || string.IsNullOrEmpty(item.Path) || item.RunTimeTicks is not > 0)
     {
       return segments;
     }
 
-    var item = _libraryManager.GetItemById(request.ItemId);
-    if (item is not (Episode or Movie) || string.IsNullOrEmpty(item.Path) || item.RunTimeTicks is not > 0)
+    // Intro (episodes only): served from the cache the analysis task populated by fingerprinting the season.
+    if (config.SkipIntroEnabled && item is Episode)
+    {
+      var intro = _introStore.Get(item.Id);
+      if (intro is not null && intro.StartTicks >= 0 && intro.EndTicks > intro.StartTicks)
+      {
+        segments.Add(new MediaSegmentDto
+        {
+          ItemId = item.Id,
+          Type = MediaSegmentType.Intro,
+          StartTicks = intro.StartTicks,
+          EndTicks = intro.EndTicks
+        });
+      }
+    }
+
+    if (!config.SkipOutroEnabled)
     {
       return segments;
     }
