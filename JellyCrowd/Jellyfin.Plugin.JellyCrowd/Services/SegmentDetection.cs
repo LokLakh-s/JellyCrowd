@@ -1,19 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.JellyCrowd.Services;
 
 /// <summary>
-/// Pure helpers that parse ffmpeg <c>blackdetect</c>/<c>silencedetect</c> output and derive an outro
-/// (end-credits) start time. Network- and process-free so the detection logic is unit-tested against
+/// Pure helpers that parse ffmpeg <c>silencedetect</c>/<c>signalstats</c> output and derive the outro
+/// (end-credits) segments of an item. Network- and process-free so the logic is unit-tested against
 /// captured ffmpeg text, independent of ffmpeg itself.
 /// </summary>
+/// <remarks>
+/// End credits are recognised as a run of seconds that are <em>dark</em> (low luma) or <em>silent</em>.
+/// A post-credits bonus scene is <em>bright with audio</em>, so it breaks that run — which lets the outro
+/// stop at the bonus instead of skipping through it, and lets a mid-credits bonus split the outro into two
+/// segments (Jellyfin draws a Skip button per segment).
+/// </remarks>
 public static class SegmentDetection
 {
-  // Examples (jellyfin-ffmpeg): "black_start:15.023 black_end:19.923 black_duration:4.9",
-  // "silence_start: 15.010", "silence_end: 20.038 | silence_duration: 5.028".
+  // Examples (jellyfin-ffmpeg): "silence_start: 15.010", "silence_end: 20.038 | silence_duration: 5.028",
+  // "black_start:15.02 black_end:19.92 black_duration:4.9", "pts_time:41" and "lavfi.signalstats.YAVG=16.2".
   private static readonly Regex BlackRegex = new(
     @"black_start:(?<s>[0-9]+(?:\.[0-9]+)?)\s+black_end:(?<e>[0-9]+(?:\.[0-9]+)?)",
     RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -24,6 +31,14 @@ public static class SegmentDetection
 
   private static readonly Regex SilenceEndRegex = new(
     @"silence_end:\s*(?<e>[0-9]+(?:\.[0-9]+)?)",
+    RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+  private static readonly Regex PtsTimeRegex = new(
+    @"pts_time:(?<t>[0-9]+(?:\.[0-9]+)?)",
+    RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+  private static readonly Regex YavgRegex = new(
+    @"lavfi\.signalstats\.YAVG=(?<v>[0-9]+(?:\.[0-9]+)?)",
     RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
   /// <summary>
@@ -71,99 +86,228 @@ public static class SegmentDetection
   }
 
   /// <summary>
-  /// Derives the outro (end-credits) start time, in absolute seconds, from the detected black and silence
-  /// regions. Two anchors, tried in order:
-  /// <list type="number">
-  ///   <item>a long, uninterrupted silence that runs to the end of the item — a silent/quiet credits
-  ///   crawl (common on TV episode end cards); its start is the outro;</item>
-  ///   <item>otherwise the earliest <em>long</em> black run — credits on a black background (common on
-  ///   films). Short scene-transition fades are ignored so an isolated dramatic mid-tail fade is not
-  ///   mistaken for the credits.</item>
-  /// </list>
-  /// The chosen point must leave a credits-sized remainder. Returns <c>null</c> when neither anchor fits —
-  /// better no segment than one that skips into the content.
+  /// Parses per-frame average-luma samples from ffmpeg <c>signalstats,metadata=print</c> output. The frame
+  /// time (<c>pts_time</c>) and its <c>YAVG</c> value are printed on separate lines; each YAVG is paired
+  /// with the most recent pts_time.
   /// </summary>
-  /// <param name="black">Black regions, relative to the analyzed window.</param>
+  /// <param name="ffmpegOutput">The ffmpeg stderr text.</param>
+  /// <returns>The luma samples in encounter (time) order.</returns>
+  public static IReadOnlyList<LumaSample> ParseLumaSamples(string ffmpegOutput)
+  {
+    var samples = new List<LumaSample>();
+    if (string.IsNullOrEmpty(ffmpegOutput))
+    {
+      return samples;
+    }
+
+    double? time = null;
+    foreach (var line in ffmpegOutput.Split('\n'))
+    {
+      var pt = PtsTimeRegex.Match(line);
+      if (pt.Success)
+      {
+        time = ParseSeconds(pt.Groups["t"].Value);
+      }
+
+      var yv = YavgRegex.Match(line);
+      if (yv.Success && time is double t)
+      {
+        samples.Add(new LumaSample(t, ParseSeconds(yv.Groups["v"].Value)));
+      }
+    }
+
+    return samples;
+  }
+
+  /// <summary>
+  /// Derives the outro (end-credits) segments, in absolute seconds, from the luma and silence of the file
+  /// tail. Seconds that are dark or silent are treated as credits; a bright-with-audio stretch is content
+  /// (story body before the credits, or a bonus scene during/after them). The trailing credits — grouped
+  /// across any mid-credits bonus — become one segment each, so a post-credits bonus is never skipped.
+  /// Returns an empty list when no credible credits are found.
+  /// </summary>
+  /// <param name="luma">Luma samples, relative to the analyzed window.</param>
   /// <param name="silence">Silence regions, relative to the analyzed window.</param>
   /// <param name="offsetSeconds">Absolute start of the analyzed window (the ffmpeg seek point).</param>
   /// <param name="runtimeSeconds">Total item runtime in seconds.</param>
-  /// <param name="minLongBlackSeconds">Minimum black duration to anchor credits-on-black (excludes scene fades).</param>
-  /// <param name="minSilenceRunSeconds">Minimum silence duration to anchor a silent credits crawl.</param>
-  /// <param name="silenceEndToleranceSeconds">How close to the runtime end a silence must reach to count as "to the end".</param>
-  /// <param name="minCreditsSeconds">Credits must run at least this long after the anchor.</param>
-  /// <param name="maxCreditsSeconds">…and at most this long (rejects mid-content anchors).</param>
-  /// <returns>The absolute outro start in seconds, or <c>null</c>.</returns>
-  public static double? DetectOutroStartSeconds(
-    IReadOnlyList<DetectedRegion> black,
+  /// <param name="options">Detection tuning.</param>
+  /// <returns>The outro segments in ascending order (absolute seconds); possibly empty.</returns>
+  public static IReadOnlyList<DetectedRegion> DetectOutroSegments(
+    IReadOnlyList<LumaSample> luma,
     IReadOnlyList<DetectedRegion> silence,
     double offsetSeconds,
     double runtimeSeconds,
-    double minLongBlackSeconds,
-    double minSilenceRunSeconds,
-    double silenceEndToleranceSeconds,
-    double minCreditsSeconds,
-    double maxCreditsSeconds)
+    OutroDetectionOptions options)
   {
-    ArgumentNullException.ThrowIfNull(black);
+    ArgumentNullException.ThrowIfNull(luma);
     ArgumentNullException.ThrowIfNull(silence);
 
-    // Anchor 1: a long silence reaching the end of the item marks a silent/quiet credits crawl.
-    double? silenceAnchor = null;
-    foreach (var region in silence)
+    var windowSeconds = (int)Math.Ceiling(runtimeSeconds - offsetSeconds);
+    if (windowSeconds <= 0)
     {
-      if (region.Duration < minSilenceRunSeconds)
+      return Array.Empty<DetectedRegion>();
+    }
+
+    var creditLike = ClassifyCreditSeconds(luma, silence, windowSeconds, options);
+    var runs = ToRuns(creditLike);
+    Bridge(runs, options.MinBonusRunSeconds);
+
+    var creditRuns = runs.Where(r => r.IsCredit && (r.End - r.Start) >= options.MinCreditRunSeconds).ToList();
+    if (creditRuns.Count == 0)
+    {
+      return Array.Empty<DetectedRegion>();
+    }
+
+    // Group the trailing credit runs: start from the last and walk back while the bright gap to the
+    // previous run is short enough to be a mid-credits bonus (not the story body).
+    var cluster = new List<Run> { creditRuns[^1] };
+    for (var i = creditRuns.Count - 2; i >= 0; i--)
+    {
+      var gap = cluster[0].Start - creditRuns[i].End;
+      if (gap > options.MaxBonusGapSeconds)
       {
-        continue;
+        break;
       }
 
-      var absoluteEnd = offsetSeconds + region.End;
-      if (absoluteEnd < runtimeSeconds - silenceEndToleranceSeconds)
-      {
-        continue; // an internal quiet passage, not the end credits
-      }
+      cluster.Insert(0, creditRuns[i]);
+    }
 
-      var absoluteStart = offsetSeconds + region.Start;
-      if (silenceAnchor is null || absoluteStart < silenceAnchor.Value)
+    // Reject when too much bright content follows the last credit run (then it was a dark scene, not
+    // credits), or when the credits sit outside the plausible end-of-item window.
+    var trailingContent = windowSeconds - cluster[^1].End;
+    if (trailingContent > options.MaxTrailingBonusSeconds)
+    {
+      return Array.Empty<DetectedRegion>();
+    }
+
+    var firstStart = offsetSeconds + cluster[0].Start;
+    var remaining = runtimeSeconds - firstStart;
+    if (remaining < options.MinCreditsSeconds || remaining > options.MaxCreditsSeconds)
+    {
+      return Array.Empty<DetectedRegion>();
+    }
+
+    var segments = new List<DetectedRegion>();
+    foreach (var run in cluster)
+    {
+      var start = offsetSeconds + run.Start;
+      var end = Math.Min(offsetSeconds + run.End, runtimeSeconds);
+      if (end > start)
       {
-        silenceAnchor = absoluteStart;
+        segments.Add(new DetectedRegion(start, end));
       }
     }
 
-    if (silenceAnchor is double sa && IsCreditsSized(sa, runtimeSeconds, minCreditsSeconds, maxCreditsSeconds))
-    {
-      return sa;
-    }
-
-    // Anchor 2: the earliest long black run (credits on black).
-    double? blackAnchor = null;
-    foreach (var region in black)
-    {
-      if (region.Duration < minLongBlackSeconds)
-      {
-        continue;
-      }
-
-      var absoluteStart = offsetSeconds + region.Start;
-      if (!IsCreditsSized(absoluteStart, runtimeSeconds, minCreditsSeconds, maxCreditsSeconds))
-      {
-        continue;
-      }
-
-      if (blackAnchor is null || absoluteStart < blackAnchor.Value)
-      {
-        blackAnchor = absoluteStart;
-      }
-    }
-
-    return blackAnchor;
+    return segments;
   }
 
-  private static bool IsCreditsSized(double absoluteStart, double runtimeSeconds, double minCreditsSeconds, double maxCreditsSeconds)
+  private static bool[] ClassifyCreditSeconds(
+    IReadOnlyList<LumaSample> luma,
+    IReadOnlyList<DetectedRegion> silence,
+    int windowSeconds,
+    OutroDetectionOptions options)
   {
-    var remaining = runtimeSeconds - absoluteStart;
-    return remaining >= minCreditsSeconds && remaining <= maxCreditsSeconds;
+    // Per-second average luma (buckets), and a brightness reference (high percentile) so the dark
+    // threshold is relative to this clip's own brightness — independent of 8- vs 10-bit encoding.
+    var bucketSum = new double[windowSeconds];
+    var bucketCount = new int[windowSeconds];
+    foreach (var s in luma)
+    {
+      var idx = (int)Math.Floor(s.TimeSeconds);
+      if (idx >= 0 && idx < windowSeconds)
+      {
+        bucketSum[idx] += s.Value;
+        bucketCount[idx]++;
+      }
+    }
+
+    var darkThreshold = Percentile(luma.Select(l => l.Value).ToList(), 0.90) * options.DarkFraction;
+
+    // Silence only counts as credits when it is a single long run reaching the end (a silent/quiet end
+    // card) — not the scattered dialogue pauses that pepper the body of an episode.
+    var trailingSilence = FindTrailingSilence(silence, windowSeconds, options.MinTrailingSilenceSeconds, options.SilenceEndToleranceSeconds);
+
+    var creditLike = new bool[windowSeconds];
+    for (var s = 0; s < windowSeconds; s++)
+    {
+      var dark = bucketCount[s] > 0 && (bucketSum[s] / bucketCount[s]) < darkThreshold;
+      var silent = trailingSilence is DetectedRegion ts && ts.Start < s + 1 && ts.End > s;
+      creditLike[s] = dark || silent;
+    }
+
+    return creditLike;
+  }
+
+  private static DetectedRegion? FindTrailingSilence(
+    IReadOnlyList<DetectedRegion> silence,
+    int windowSeconds,
+    double minTrailingSilenceSeconds,
+    double silenceEndToleranceSeconds)
+  {
+    DetectedRegion? best = null;
+    foreach (var region in silence)
+    {
+      if (region.Duration >= minTrailingSilenceSeconds
+          && region.End >= windowSeconds - silenceEndToleranceSeconds
+          && (best is null || region.Start < best.Value.Start))
+      {
+        best = region;
+      }
+    }
+
+    return best;
+  }
+
+  private static List<Run> ToRuns(bool[] creditLike)
+  {
+    var runs = new List<Run>();
+    var i = 0;
+    while (i < creditLike.Length)
+    {
+      var value = creditLike[i];
+      var start = i;
+      while (i < creditLike.Length && creditLike[i] == value)
+      {
+        i++;
+      }
+
+      runs.Add(new Run(value, start, i));
+    }
+
+    return runs;
+  }
+
+  // Absorb short content runs (bright blips) that sit between two credit runs into the credits, so a
+  // studio card or a flash during the crawl does not fragment a single credits block.
+  private static void Bridge(List<Run> runs, double minBonusRunSeconds)
+  {
+    for (var i = 1; i < runs.Count - 1; i++)
+    {
+      if (!runs[i].IsCredit && runs[i - 1].IsCredit && runs[i + 1].IsCredit
+          && (runs[i].End - runs[i].Start) < minBonusRunSeconds)
+      {
+        var merged = new Run(true, runs[i - 1].Start, runs[i + 1].End);
+        runs.RemoveRange(i - 1, 3);
+        runs.Insert(i - 1, merged);
+        i = Math.Max(0, i - 2);
+      }
+    }
+  }
+
+  private static double Percentile(List<double> values, double p)
+  {
+    if (values.Count == 0)
+    {
+      return 0;
+    }
+
+    values.Sort();
+    var rank = (int)Math.Clamp(Math.Ceiling(p * values.Count) - 1, 0, values.Count - 1);
+    return values[rank];
   }
 
   private static double ParseSeconds(string value)
     => double.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture);
+
+  private readonly record struct Run(bool IsCredit, int Start, int End);
 }

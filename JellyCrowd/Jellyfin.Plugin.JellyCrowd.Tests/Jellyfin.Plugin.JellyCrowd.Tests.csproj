@@ -34,4 +34,9 @@
     <ProjectReference Include="..\Jellyfin.Plugin.JellyCrowd\Jellyfin.Plugin.JellyCrowd.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Captured jellyfin-ffmpeg output for the Skip Outro real-media regression tests. -->
+    <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
