@@ -123,6 +123,34 @@
 
             <div class="checkboxContainer checkboxContainer-withDescription">
               <label class="emby-checkbox-label">
+                <input id="LocalIntrosEnabled" name="LocalIntrosEnabled" type="checkbox" is="emby-checkbox" />
+                <span>Play a local intro / pre-roll before content</span>
+              </label>
+              <div class="fieldDescription">Plays a pre-roll video before movies and the first episode of a series, via Jellyfin's native Cinema Mode. Create a folder with the name below beside your media libraries and drop the video(s) in it — the plugin finds and indexes it automatically. Each viewer must have <b>Cinema Mode</b> enabled in their playback settings. Off by default.</div>
+            </div>
+
+            <div class="inputContainer">
+              <label class="inputLabel inputLabelUnfocused" for="LocalIntrosFolderName">Pre-roll folder name</label>
+              <input id="LocalIntrosFolderName" name="LocalIntrosFolderName" type="text" is="emby-input" />
+              <div class="fieldDescription">Name of the folder (created beside your media libraries) holding the pre-roll video(s). Default: <code>intros</code>.</div>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="LocalIntrosOnMovies" name="LocalIntrosOnMovies" type="checkbox" is="emby-checkbox" />
+                <span>Pre-roll before movies</span>
+              </label>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
+                <input id="LocalIntrosOnFirstEpisode" name="LocalIntrosOnFirstEpisode" type="checkbox" is="emby-checkbox" />
+                <span>Pre-roll before the first episode of a series (S01E01)</span>
+              </label>
+            </div>
+
+            <div class="checkboxContainer checkboxContainer-withDescription">
+              <label class="emby-checkbox-label">
                 <input id="ShowReviewAuthors" name="ShowReviewAuthors" type="checkbox" is="emby-checkbox" />
                 <span>Show review author names to everyone</span>
               </label>
@@ -956,6 +984,10 @@ Content-Type: application/json
             document.querySelector('#CommentsEnabled').checked = !!config.CommentsEnabled;
             document.querySelector('#SkipOutroEnabled').checked = !!config.SkipOutroEnabled;
             document.querySelector('#SkipIntroEnabled').checked = !!config.SkipIntroEnabled;
+            document.querySelector('#LocalIntrosEnabled').checked = !!config.LocalIntrosEnabled;
+            document.querySelector('#LocalIntrosFolderName').value = config.LocalIntrosFolderName || 'intros';
+            document.querySelector('#LocalIntrosOnMovies').checked = !!config.LocalIntrosOnMovies;
+            document.querySelector('#LocalIntrosOnFirstEpisode').checked = !!config.LocalIntrosOnFirstEpisode;
             document.querySelector('#ShowReviewAuthors').checked = !!config.ShowReviewAuthors;
             document.querySelector('#DiscordInviteEnabled').checked = !!config.DiscordInviteEnabled;
             document.querySelector('#DiscordInviteUrl').value = config.DiscordInviteUrl || '';
@@ -1061,6 +1093,10 @@ Content-Type: application/json
             config.CommentsEnabled = document.querySelector('#CommentsEnabled').checked;
             config.SkipOutroEnabled = document.querySelector('#SkipOutroEnabled').checked;
             config.SkipIntroEnabled = document.querySelector('#SkipIntroEnabled').checked;
+            config.LocalIntrosEnabled = document.querySelector('#LocalIntrosEnabled').checked;
+            config.LocalIntrosFolderName = document.querySelector('#LocalIntrosFolderName').value || 'intros';
+            config.LocalIntrosOnMovies = document.querySelector('#LocalIntrosOnMovies').checked;
+            config.LocalIntrosOnFirstEpisode = document.querySelector('#LocalIntrosOnFirstEpisode').checked;
             config.ShowReviewAuthors = document.querySelector('#ShowReviewAuthors').checked;
             config.DiscordInviteEnabled = document.querySelector('#DiscordInviteEnabled').checked;
             config.DiscordInviteUrl = document.querySelector('#DiscordInviteUrl').value.trim();

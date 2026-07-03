@@ -58,6 +58,13 @@ public class PluginConfiguration : BasePluginConfiguration
     IntroAnalyzeTimeoutSeconds = 120;
     IntroMinDurationSeconds = 15;
     IntroMinConfirmations = 1;
+    LocalIntrosEnabled = false;
+    LocalIntrosFolderName = "intros";
+    LocalIntrosOnMovies = true;
+    LocalIntrosOnFirstEpisode = true;
+    LocalIntrosRandomizeSingle = true;
+    LocalIntrosForceCinemaMode = true;
+    LocalIntrosNonSkippable = true;
     BrandingEnabled = false;
     BrandingLogoUrl = string.Empty;
     BrandingFaviconUrl = string.Empty;
@@ -350,6 +357,48 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets how many sibling episodes must confirm a shared region before it is accepted as the intro.
   /// </summary>
   public int IntroMinConfirmations { get; set; }
+
+  // ----- Local intros (pre-roll played before content via Jellyfin's Cinema Mode) -----
+
+  /// <summary>
+  /// Gets or sets a value indicating whether a local pre-roll is played before content. Off by default.
+  /// </summary>
+  public bool LocalIntrosEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the pre-roll folder name (default <c>intros</c>). The admin just creates a folder with
+  /// this name beside their libraries; the plugin discovers it under the media roots, indexes it (as a
+  /// hidden-ish "Local Intros" library so the files become playable items), and serves its videos.
+  /// </summary>
+  public string LocalIntrosFolderName { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the pre-roll plays before movies.
+  /// </summary>
+  public bool LocalIntrosOnMovies { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the pre-roll plays before the first episode of a series (S01E01).
+  /// </summary>
+  public bool LocalIntrosOnFirstEpisode { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether, when the folder holds several videos, one is picked at random
+  /// per playback; when <c>false</c>, all of them play in order.
+  /// </summary>
+  public bool LocalIntrosRandomizeSingle { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the web client's Cinema Mode is force-enabled so the pre-roll
+  /// actually plays (it is a per-user setting, off by default).
+  /// </summary>
+  public bool LocalIntrosForceCinemaMode { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the pre-roll is made non-skippable with hidden player controls
+  /// (web client only, via the injected script).
+  /// </summary>
+  public bool LocalIntrosNonSkippable { get; set; }
 
   /// <summary>
   /// Gets or sets the maximum number of seconds of the file tail to analyze for the outro (keeps long
