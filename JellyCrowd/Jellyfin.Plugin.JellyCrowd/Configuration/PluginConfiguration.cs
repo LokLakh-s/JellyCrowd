@@ -47,6 +47,9 @@ public class PluginConfiguration : BasePluginConfiguration
     OutroAnalyzeTimeoutSeconds = 180;
     OutroMinCreditsSeconds = 20;
     OutroMaxCreditsSeconds = 900;
+    OutroMinLongBlackSeconds = 15;
+    OutroMinSilenceRunSeconds = 25;
+    OutroSilenceEndToleranceSeconds = 15;
     BrandingEnabled = false;
     BrandingLogoUrl = string.Empty;
     BrandingFaviconUrl = string.Empty;
@@ -340,6 +343,24 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the maximum credits length (seconds) after the fade for it to count as an outro.
   /// </summary>
   public double OutroMaxCreditsSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum black-run length (seconds) that anchors credits-on-black. Short scene-
+  /// transition fades below this are ignored so a dramatic mid-tail fade is not mistaken for the credits.
+  /// </summary>
+  public double OutroMinLongBlackSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the minimum silence length (seconds) that, when it runs to the end of the item, anchors
+  /// a silent/quiet credits crawl (common on TV episode end cards).
+  /// </summary>
+  public double OutroMinSilenceRunSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets how close (seconds) to the runtime end a silence must reach to count as "to the end"
+  /// for the silent-credits anchor.
+  /// </summary>
+  public double OutroSilenceEndToleranceSeconds { get; set; }
 
   // ----- Branding (cosmetic theming applied to the whole Jellyfin web UI by header.js) -----
 

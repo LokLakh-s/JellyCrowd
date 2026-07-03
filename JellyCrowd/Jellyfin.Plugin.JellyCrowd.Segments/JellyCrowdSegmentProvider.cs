@@ -134,12 +134,15 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     try
     {
       var output = await _processRunner.RunCaptureAsync(ffmpeg, args, config.OutroAnalyzeTimeoutSeconds, cancellationToken).ConfigureAwait(false);
-      var (black, _) = SegmentDetection.ParseRegions(output, analyzed);
+      var (black, silence) = SegmentDetection.ParseRegions(output, analyzed);
       return SegmentDetection.DetectOutroStartSeconds(
         black,
+        silence,
         offset,
         runtimeSeconds,
-        MinBlackSeconds,
+        config.OutroMinLongBlackSeconds,
+        config.OutroMinSilenceRunSeconds,
+        config.OutroSilenceEndToleranceSeconds,
         config.OutroMinCreditsSeconds,
         config.OutroMaxCreditsSeconds);
     }
