@@ -9,6 +9,8 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Net;
+using Microsoft.AspNetCore.Http;
 
 namespace Jellyfin.Plugin.JellyCrowd.Providers;
 
@@ -29,44 +31,90 @@ public sealed class JellyCrowdIntroProvider : IIntroProvider
 {
   private readonly ILibraryManager _libraryManager;
   private readonly Func<PluginConfiguration> _config;
+  private readonly IHttpContextAccessor? _httpContextAccessor;
+  private readonly IAuthorizationContext? _authorizationContext;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="JellyCrowdIntroProvider"/> class.
   /// </summary>
   /// <param name="libraryManager">Resolves pre-roll files to their indexed library items.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
-  public JellyCrowdIntroProvider(ILibraryManager libraryManager, Func<PluginConfiguration> config)
+  /// <param name="httpContextAccessor">The ambient request accessor (used to detect the client). Optional
+  /// so the provider still instantiates if it isn't available — the client gate then fails open.</param>
+  /// <param name="authorizationContext">Resolves the request's client name. Optional (fails open).</param>
+  public JellyCrowdIntroProvider(
+    ILibraryManager libraryManager,
+    Func<PluginConfiguration> config,
+    IHttpContextAccessor? httpContextAccessor = null,
+    IAuthorizationContext? authorizationContext = null)
   {
     _libraryManager = libraryManager;
     _config = config;
+    _httpContextAccessor = httpContextAccessor;
+    _authorizationContext = authorizationContext;
   }
 
   /// <inheritdoc />
   public string Name => "Jelly Crowd Local Intros";
 
   /// <inheritdoc />
-  public Task<IEnumerable<IntroInfo>> GetIntros(BaseItem item, User user)
+  public async Task<IEnumerable<IntroInfo>> GetIntros(BaseItem item, User user)
   {
     ArgumentNullException.ThrowIfNull(item);
 
     var config = _config();
     if (!config.LocalIntrosEnabled || !AppliesTo(item, config))
     {
-      return Task.FromResult(Enumerable.Empty<IntroInfo>());
+      return Enumerable.Empty<IntroInfo>();
+    }
+
+    // Native mobile/TV apps can't run the pre-roll injection, and some (reported on iPad) fail to start
+    // playback when a raw pre-roll is prepended to the queue — so by default only web/desktop players get
+    // local intros.
+    if (config.LocalIntrosWebOnly && !await IsWebOrDesktopClientAsync().ConfigureAwait(false))
+    {
+      return Enumerable.Empty<IntroInfo>();
     }
 
     // The server plays an intro only when its item exists in the database (see remarks).
     var ids = LocalIntrosDiscovery.FindItemIds(_libraryManager, config.LocalIntrosFolderName);
     if (ids.Count == 0)
     {
-      return Task.FromResult(Enumerable.Empty<IntroInfo>());
+      return Enumerable.Empty<IntroInfo>();
     }
 
-    IEnumerable<IntroInfo> intros = config.LocalIntrosRandomizeSingle
+    return config.LocalIntrosRandomizeSingle
       ? new[] { new IntroInfo { ItemId = ids[Random.Shared.Next(ids.Count)] } }
       : ids.Select(id => new IntroInfo { ItemId = id });
+  }
 
-    return Task.FromResult(intros);
+  // Only clients that run the web UI receive intros when the web-only restriction is on: the web client
+  // and the desktop Jellyfin Media Player. Resolved from the current request's authorization; fails open
+  // (returns true) whenever the request or client can't be determined, so a detection gap never blocks
+  // playback for legitimate web users.
+  private async Task<bool> IsWebOrDesktopClientAsync()
+  {
+    var request = _httpContextAccessor?.HttpContext?.Request;
+    if (request is null || _authorizationContext is null)
+    {
+      return true;
+    }
+
+    string client;
+    try
+    {
+      var info = await _authorizationContext.GetAuthorizationInfo(request).ConfigureAwait(false);
+      client = info.Client ?? string.Empty;
+    }
+#pragma warning disable CA1031 // A detection failure must never block playback; treat it as "allowed".
+    catch (Exception)
+#pragma warning restore CA1031
+    {
+      return true;
+    }
+
+    return client.Contains("web", StringComparison.OrdinalIgnoreCase)
+        || client.Contains("media player", StringComparison.OrdinalIgnoreCase);
   }
 
   private static bool AppliesTo(BaseItem item, PluginConfiguration config) => item switch

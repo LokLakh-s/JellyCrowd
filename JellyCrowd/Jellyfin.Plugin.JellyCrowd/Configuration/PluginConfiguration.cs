@@ -65,6 +65,7 @@ public class PluginConfiguration : BasePluginConfiguration
     LocalIntrosRandomizeSingle = true;
     LocalIntrosForceCinemaMode = true;
     LocalIntrosNonSkippable = true;
+    LocalIntrosWebOnly = true;
     BrandingEnabled = false;
     BrandingLogoUrl = string.Empty;
     BrandingFaviconUrl = string.Empty;
@@ -399,6 +400,14 @@ public class PluginConfiguration : BasePluginConfiguration
   /// (web client only, via the injected script).
   /// </summary>
   public bool LocalIntrosNonSkippable { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether local intros are served only to web and desktop players
+  /// (Jellyfin Web / Jellyfin Media Player). Native mobile and TV apps can't run the pre-roll injection,
+  /// and some (e.g. iOS/iPadOS) fail to start playback when a raw pre-roll is prepended to the queue, so
+  /// they are excluded by default. Turn off to serve intros to every client.
+  /// </summary>
+  public bool LocalIntrosWebOnly { get; set; }
 
   /// <summary>
   /// Gets or sets the maximum number of seconds of the file tail to analyze for the outro (keeps long

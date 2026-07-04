@@ -28,6 +28,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   /// <inheritdoc />
   public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
   {
+    // The Local Intros provider inspects the requesting client (web/desktop vs native apps) via the
+    // ambient request; ensure the accessor is available. Idempotent — Jellyfin may already register it.
+    serviceCollection.AddHttpContextAccessor();
     serviceCollection.AddSingleton<TmdbClient>();
     serviceCollection.AddSingleton<ITmdbClient>(sp => new CachingTmdbClient(sp.GetRequiredService<TmdbClient>()));
     serviceCollection.AddSingleton<ILibraryMatcher, LibraryMatcher>();
