@@ -88,17 +88,477 @@
     if (text) { el.textContent = text; el.hidden = false; } else { el.hidden = true; }
   }
 
-  // The admin tabs. `render(container)` fills the content area for that tab.
+  // The admin tabs, ordered by how often an admin uses them (most-used first). Some tabs group related
+  // views under sub-tabs (see subTabs): Moderation = Reports + Reviews; Users = Per-user + Ownership.
+  // `render(container)` fills the content area for that tab.
   var TABS = [
     { id: 'requests', labelKey: 'tab_requests', render: renderRequests },
     { id: 'stats', labelKey: 'tab_stats', render: renderStats },
-    { id: 'reports', labelKey: 'admin_reports_title', render: renderReports },
-    { id: 'quotas', labelKey: 'tab_quotas', render: renderQuotas },
     { id: 'moderation', labelKey: 'nav_moderation', render: renderModeration },
-    { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership },
-    { id: 'branding', labelKey: 'tab_branding', render: renderBranding },
-    { id: 'logs', labelKey: 'tab_logs', render: renderLogs }
+    { id: 'users', labelKey: 'tab_users', render: renderUsers },
+    { id: 'logs', labelKey: 'tab_logs', render: renderLogs },
+    { id: 'configurations', labelKey: 'tab_configurations', render: renderConfigurations }
   ];
+
+  // Renders a secondary sub-tab bar (reusing the admin-tab styling) plus a content host inside `container`,
+  // and shows the active sub-tab. `subs` = [{ id, labelKey, render(host) }].
+  function subTabs(container, subs, initialId) {
+    var bar = document.createElement('div');
+    bar.className = 'jellycrowd-stats-period jellycrowd-admin-subtabs';
+    var host = document.createElement('div');
+    var active = initialId || subs[0].id;
+    function activateSub(id) {
+      active = id;
+      [].forEach.call(bar.querySelectorAll('.jellycrowd-admin-tab'), function (b) {
+        b.classList.toggle('jellycrowd-admin-tab-active', b.getAttribute('data-subtab') === id);
+      });
+      host.innerHTML = '';
+      subs.forEach(function (s) { if (s.id === id) { s.render(host); } });
+    }
+    subs.forEach(function (s) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'jellycrowd-admin-tab';
+      b.setAttribute('data-subtab', s.id);
+      b.textContent = t(s.labelKey);
+      b.addEventListener('click', function () { activateSub(s.id); });
+      bar.appendChild(b);
+    });
+    container.appendChild(bar);
+    container.appendChild(host);
+    activateSub(active);
+  }
+
+  // Merged tab: user-submitted reports + ratings/reviews moderation.
+  function renderModeration(container) {
+    subTabs(container, [
+      { id: 'reports', labelKey: 'admin_reports_title', render: renderReports },
+      { id: 'reviews', labelKey: 'tab_reviews', render: renderReviews }
+    ]);
+  }
+
+  // Merged tab: per-user overrides (quota + access) and media ownership.
+  function renderUsers(container) {
+    subTabs(container, [
+      { id: 'peruser', labelKey: 'tab_per_user', render: renderQuotas },
+      { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership }
+    ]);
+  }
+
+  // ---------- Configurations (the plugin settings, moved here from the Dashboard config page) ----------
+  function selectInput(cls, value, options) {
+    var s = document.createElement('select');
+    s.className = cls + ' jellycrowd-text-input';
+    options.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o[0]; opt.textContent = o[1];
+      if (String(value) === String(o[0])) { opt.selected = true; }
+      s.appendChild(opt);
+    });
+    return s;
+  }
+
+  // Builds config fields from a spec list into `host`; returns { apply(liveCfg) } to write the values back.
+  // spec: { key, label, type:'text'|'num'|'check'|'select'|'section', hint, placeholder, options, scale }
+  function cfgForm(host, cfg, specs) {
+    var controls = {};
+    specs.forEach(function (s) {
+      if (s.type === 'section') { host.appendChild(sectionHeading(s.label)); return; }
+      var cls = 'jc-c-' + s.key;
+      var v = cfg[s.key];
+      var ctrl, vc;
+      if (s.type === 'check') { ctrl = vc = checkbox(cls, v === true); }
+      else if (s.type === 'select') { ctrl = vc = selectInput(cls, v, s.options); }
+      else if (s.type === 'color') { ctrl = colorField(cls, v || ''); vc = ctrl.querySelector('.' + cls); }
+      else if (s.type === 'area') { ctrl = vc = document.createElement('textarea'); ctrl.className = cls + ' jellycrowd-text-input'; ctrl.rows = s.rows || 3; ctrl.spellcheck = false; if (v != null) { ctrl.value = v; } }
+      else if (s.type === 'num') { ctrl = vc = numberInput(cls, s.scale ? (v ? (v / s.scale) : '') : (v != null ? v : '')); }
+      else { ctrl = vc = textInput(cls, v != null ? v : '', s.placeholder); }
+      controls[s.key] = { s: s, c: vc };
+      host.appendChild(field(s.label, ctrl, s.hint));
+    });
+    return {
+      apply: function (live) {
+        Object.keys(controls).forEach(function (k) {
+          var s = controls[k].s, c = controls[k].c;
+          if (s.type === 'check') { live[k] = c.checked; }
+          else if (s.type === 'num') { var n = parseFloat(c.value || '0') || 0; live[k] = s.scale ? Math.round(n * s.scale) : Math.round(n); }
+          else { live[k] = c.value != null ? c.value.toString() : ''; }
+        });
+      }
+    };
+  }
+
+  // A Save button that re-reads the live config (so untouched settings are never clobbered), applies each
+  // form's values and persists.
+  function cfgSaveButton(forms) {
+    var save = adminBtn(t('save'), 'ok', function (btn) {
+      btn.disabled = true;
+      window.ApiClient.getPluginConfiguration(PLUGIN_GUID).then(function (live) {
+        forms.forEach(function (f) { f.apply(live); });
+        return window.ApiClient.updatePluginConfiguration(PLUGIN_GUID, live);
+      }).then(function () {
+        btn.disabled = false; btn.textContent = t('saved');
+        setTimeout(function () { btn.textContent = t('save'); }, 1500);
+      }).catch(function () { btn.disabled = false; setMessage(t('error_generic')); });
+    });
+    save.style.marginTop = '1.2em';
+    return save;
+  }
+
+  // Loads the plugin config, then calls build(host, cfg) to render a settings sub-tab.
+  function cfgLoad(container, build) {
+    container.innerHTML = '';
+    setMessage(t('loading'));
+    if (!(window.ApiClient && window.ApiClient.getPluginConfiguration && window.ApiClient.updatePluginConfiguration)) { setMessage(t('error_generic')); return; }
+    window.ApiClient.getPluginConfiguration(PLUGIN_GUID).then(function (cfg) {
+      setMessage('');
+      build(container, cfg || {});
+    }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  }
+
+  function renderConfigurations(container) {
+    subTabs(container, [
+      { id: 'general', labelKey: 'cfg_general', render: renderCfgGeneral },
+      { id: 'requests', labelKey: 'cfg_requests', render: renderCfgRequests },
+      { id: 'notifications', labelKey: 'cfg_notifications', render: renderCfgNotifications },
+      { id: 'download', labelKey: 'cfg_download', render: renderCfgDownload },
+      { id: 'branding', labelKey: 'tab_branding', render: renderBranding },
+      { id: 'diagnostics', labelKey: 'cfg_diagnostics', render: renderCfgDiagnostics }
+    ]);
+  }
+
+  function renderCfgGeneral(container) {
+    cfgLoad(container, function (host, cfg) {
+      var form = cfgForm(host, cfg, [
+        { key: 'Language', label: 'Language', type: 'select', options: [['auto', "Auto (follow each user's language)"], ['en', 'English'], ['fr', 'Français']], hint: 'Language of the Jelly Crowd user pages and notifications.' },
+        { key: 'HiddenFromUsers', label: 'Config mode — hide the plugin from regular users', type: 'check', hint: 'Hide Jelly Crowd from non-admins until it is configured and working. Admins are unaffected.' },
+        { key: 'RateLimitPerMinute', label: 'API rate limit (writes / minute / user)', type: 'num', hint: '0 disables it.' },
+        { key: 'CommentsEnabled', label: 'Enable ratings & reviews', type: 'check' },
+        { key: 'ShowReviewAuthors', label: 'Show review author names to everyone', type: 'check' },
+        { key: 'SkipOutroEnabled', label: 'Detect end credits (Skip Outro)', type: 'check' },
+        { key: 'SkipIntroEnabled', label: 'Detect episode intros (Skip Intro)', type: 'check' },
+        { key: 'TmdbApiKey', label: 'TMDB API key', type: 'text', placeholder: 'your TMDB API key' }
+      ]);
+      host.appendChild(cfgSaveButton([form]));
+    });
+  }
+
+  function renderCfgRequests(container) {
+    cfgLoad(container, function (host, cfg) {
+      var main = cfgForm(host, cfg, [
+        { type: 'section', label: 'Requests' },
+        { key: 'RequireApproval', label: 'Require admin approval for requests', type: 'check' },
+        { key: 'AllowUserRetrySearch', label: 'Let users retry the search themselves', type: 'check' },
+        { key: 'MaxRequestsPerPeriod', label: 'Max requests per period', type: 'num', hint: '0 = unlimited.' },
+        { key: 'RequestPeriod', label: 'Request period', type: 'select', options: [['Day', 'Day'], ['Week', 'Week'], ['Month', 'Month']] },
+        { key: 'AutoApproveMaxSizeBytes', label: 'Auto-approve if estimated size ≤ (GiB)', type: 'num', scale: GIB, hint: '0 disables size-based auto-approval.' },
+        { key: 'EstimatedMovieSizeBytes', label: 'Estimated movie size (GiB)', type: 'num', scale: GIB },
+        { key: 'EstimatedEpisodeSizeBytes', label: 'Estimated episode size (GiB)', type: 'num', scale: GIB },
+        { type: 'section', label: 'Quotas' },
+        { key: 'DefaultUserQuotaBytes', label: 'Default quota per user (GiB)', type: 'num', scale: GIB, hint: '0 = unlimited.' }
+      ]);
+      var adaptEnable = checkbox('jc-c-AdaptiveQuotaEnabled', cfg.AdaptiveQuotaEnabled === true);
+      host.appendChild(field('Adaptive quota (reward active users)', adaptEnable, 'Elevate active users above, and decay inactive users below, their base quota.'));
+      var adaptWrap = document.createElement('div');
+      var adapt = cfgForm(adaptWrap, cfg, [
+        { key: 'AdaptiveFloorPercent', label: 'Floor tier (% of base)', type: 'num' },
+        { key: 'AdaptiveCeilingPercent', label: 'Ceiling tier (% of base)', type: 'num' },
+        { key: 'AdaptiveWindowDays', label: 'Activity window (days)', type: 'num' },
+        { key: 'AdaptiveMinMinutes', label: 'Active: minimum watch minutes', type: 'num' },
+        { key: 'AdaptiveMinActiveDays', label: 'Active: minimum distinct days', type: 'num' },
+        { key: 'AdaptiveInactivityDays', label: 'Inactivity before decay (days)', type: 'num' },
+        { key: 'AdaptiveProbationDays', label: 'Probation length (days)', type: 'num' }
+      ]);
+      host.appendChild(adaptWrap);
+      function syncAdapt() { adaptWrap.style.display = adaptEnable.checked ? '' : 'none'; }
+      adaptEnable.addEventListener('change', syncAdapt); syncAdapt();
+      var tail = cfgForm(host, cfg, [
+        { type: 'section', label: 'Retention & cleanup' },
+        { key: 'DeletionRetentionHours', label: 'Deletion retention (hours)', type: 'num' },
+        { key: 'RemoveEmptySeries', label: 'Remove empty series left after deletion', type: 'check' },
+        { key: 'EmptySeriesMinAgeHours', label: 'Empty-series grace period (hours)', type: 'num' },
+        { key: 'MediaExpiryDays', label: 'Media ownership expiry (days)', type: 'num', hint: '0 disables expiry.' }
+      ]);
+      var adaptForm = { apply: function (live) { live.AdaptiveQuotaEnabled = adaptEnable.checked; } };
+      host.appendChild(cfgSaveButton([main, adaptForm, adapt, tail]));
+    });
+  }
+
+  function resultSpan() { var s = document.createElement('span'); s.className = 'jellycrowd-field-hint'; s.style.marginLeft = '.6em'; return s; }
+  function withResult(btn, res) { var row = document.createElement('div'); row.className = 'jellycrowd-admin-actions'; row.appendChild(btn); row.appendChild(res); return row; }
+
+  // POST a test endpoint (uses the SAVED config), showing ✅ / the server's error detail.
+  function postTest(url, resultEl, okLabel) {
+    resultEl.textContent = '…';
+    var headers = {};
+    if (window.ApiClient && window.ApiClient.accessToken) { headers.Authorization = 'MediaBrowser Token="' + window.ApiClient.accessToken() + '"'; }
+    return fetch(pluginUrl(url), { method: 'POST', headers: headers }).then(function (r) {
+      if (r.ok) { resultEl.textContent = '✅ ' + okLabel; return; }
+      return r.text().then(function (body) { var msg = body; try { msg = JSON.parse(body).detail || body; } catch (e) { /* not JSON */ } resultEl.textContent = '❌ ' + (msg || ('HTTP ' + r.status)); });
+    }).catch(function (e) { resultEl.textContent = '❌ ' + (e && e.message ? e.message : 'request failed'); });
+  }
+
+  function renderCfgNotifications(container) {
+    cfgLoad(container, function (host, cfg) {
+      var discord = cfgForm(host, cfg, [
+        { type: 'section', label: 'Discord' },
+        { key: 'DiscordWebhookUrl', label: 'Discord webhook URL', type: 'text', placeholder: 'https://discord.com/api/webhooks/…', hint: 'Empty disables Discord.' },
+        { key: 'DiscordNotifyCreated', label: 'Notify on: created', type: 'check' },
+        { key: 'DiscordNotifyApproved', label: 'Notify on: approved', type: 'check' },
+        { key: 'DiscordNotifyDenied', label: 'Notify on: denied', type: 'check' },
+        { key: 'DiscordNotifyAvailable', label: 'Notify on: available', type: 'check' },
+        { key: 'DiscordColorCreated', label: 'Color: created', type: 'color' },
+        { key: 'DiscordColorApproved', label: 'Color: approved', type: 'color' },
+        { key: 'DiscordColorDenied', label: 'Color: denied', type: 'color' },
+        { key: 'DiscordColorAvailable', label: 'Color: available', type: 'color' },
+        { key: 'DiscordShowPoster', label: 'Show poster', type: 'check' },
+        { key: 'DiscordShowSynopsis', label: 'Show synopsis', type: 'check' },
+        { key: 'DiscordShowRequestedBy', label: 'Show "requested by"', type: 'check' },
+        { key: 'DiscordShowStatus', label: 'Show status', type: 'check' },
+        { key: 'DiscordShowSeason', label: 'Show season', type: 'check' },
+        { key: 'DiscordShowLink', label: 'Link title to TMDB', type: 'check' },
+        { key: 'DiscordMention', label: 'Mention / ping', type: 'text', placeholder: '<@&roleId>' }
+      ]);
+      var email = cfgForm(host, cfg, [
+        { type: 'section', label: 'Email (SMTP)' },
+        { key: 'SmtpHost', label: 'SMTP host', type: 'text', hint: 'Empty disables email.' },
+        { key: 'SmtpPort', label: 'SMTP port', type: 'num' },
+        { key: 'SmtpUseSsl', label: 'Use SSL/TLS', type: 'check' },
+        { key: 'SmtpUsername', label: 'SMTP username', type: 'text' },
+        { key: 'SmtpPassword', label: 'SMTP password', type: 'text' },
+        { key: 'SmtpFromAddress', label: 'From address', type: 'text' },
+        { key: 'NotificationEmailTo', label: 'Ops mailbox (recipient)', type: 'text' },
+        { key: 'EmailNotifyCreated', label: 'Email ops on: created', type: 'check' },
+        { key: 'EmailNotifyApproved', label: 'Email ops on: approved', type: 'check' },
+        { key: 'EmailNotifyDenied', label: 'Email ops on: denied', type: 'check' },
+        { key: 'EmailNotifyAvailable', label: 'Email ops on: available', type: 'check' },
+        { key: 'SmtpAllowInvalidCertificate', label: 'Accept invalid/self-signed cert (insecure)', type: 'check' }
+      ]);
+      var channels = cfgForm(host, cfg, [
+        { type: 'section', label: 'More channels' },
+        { key: 'TelegramBotToken', label: 'Telegram bot token', type: 'text' },
+        { key: 'TelegramChatId', label: 'Telegram chat id', type: 'text' },
+        { key: 'NtfyServer', label: 'ntfy server', type: 'text', placeholder: 'https://ntfy.sh' },
+        { key: 'NtfyTopic', label: 'ntfy topic', type: 'text' },
+        { key: 'NtfyToken', label: 'ntfy token', type: 'text' },
+        { key: 'GotifyServer', label: 'Gotify server', type: 'text' },
+        { key: 'GotifyToken', label: 'Gotify token', type: 'text' },
+        { key: 'PushoverToken', label: 'Pushover app token', type: 'text' },
+        { key: 'PushoverUser', label: 'Pushover user key', type: 'text' },
+        { key: 'SlackWebhookUrl', label: 'Slack webhook URL', type: 'text' },
+        { key: 'NotifyWebhookUrl', label: 'Generic webhook URL', type: 'text' }
+      ]);
+      host.appendChild(cfgSaveButton([discord, email, channels]));
+      host.appendChild(sectionHeading('Test (save first)'));
+      var res = resultSpan();
+      var row = document.createElement('div'); row.className = 'jellycrowd-admin-actions';
+      [['Discord', 'discord'], ['Email', 'email'], ['Telegram', 'telegram'], ['ntfy', 'ntfy'], ['Gotify', 'gotify'], ['Pushover', 'pushover'], ['Slack', 'slack'], ['Webhook', 'webhook']].forEach(function (p) {
+        row.appendChild(adminBtn(p[0], '', function () { postTest('JellyCrowd/Notifications/Test/' + p[1], res, p[1] + ' OK'); }));
+      });
+      row.appendChild(res);
+      host.appendChild(row);
+    });
+  }
+
+  // A Servarr resource <select> pre-seeded with its saved value (so a save preserves it before "Connect").
+  function servarrSelect(saved, useName) {
+    var s = document.createElement('select');
+    s.className = 'jellycrowd-text-input';
+    if (saved !== '' && saved != null) {
+      var opt = document.createElement('option');
+      opt.value = String(saved);
+      opt.textContent = useName ? String(saved) : ('(saved id ' + saved + ')');
+      opt.selected = true;
+      s.appendChild(opt);
+    }
+    return s;
+  }
+  function fillSelect(select, items, saved, useName) {
+    select.innerHTML = '';
+    var found = false;
+    (items || []).forEach(function (item) {
+      var opt = document.createElement('option');
+      opt.value = useName ? item.Name : String(item.Id);
+      opt.textContent = item.Name;
+      if (opt.value === String(saved)) { opt.selected = true; found = true; }
+      select.appendChild(opt);
+    });
+    if (!found && saved !== '' && saved != null) {
+      var o = document.createElement('option'); o.value = String(saved); o.textContent = useName ? String(saved) : ('(saved id ' + saved + ')'); o.selected = true; select.appendChild(o);
+    }
+  }
+  function connectServarr(service, url, apiKey, resultEl, selects) {
+    resultEl.textContent = '…';
+    var headers = { 'Content-Type': 'application/json' };
+    if (window.ApiClient && window.ApiClient.accessToken) { headers.Authorization = 'MediaBrowser Token="' + window.ApiClient.accessToken() + '"'; }
+    fetch(pluginUrl('JellyCrowd/Download/Servarr/Resources'), { method: 'POST', headers: headers, body: JSON.stringify({ Service: service, Url: url, ApiKey: apiKey }) })
+      .then(function (r) {
+        if (!r.ok) { return r.text().then(function (body) { var msg = body; try { msg = JSON.parse(body).detail || body; } catch (e) { /* not JSON */ } resultEl.textContent = '❌ ' + (msg || ('HTTP ' + r.status)); }); }
+        return r.json().then(function (res) {
+          fillSelect(selects.root, res.RootFolders, selects.root.value, true);
+          fillSelect(selects.profile, res.QualityProfiles, selects.profile.value, false);
+          if (selects.lang) { fillSelect(selects.lang, res.LanguageProfiles, selects.lang.value, false); }
+          resultEl.textContent = '✅ connected';
+        });
+      })
+      .catch(function (e) { resultEl.textContent = '❌ ' + (e && e.message ? e.message : 'request failed'); });
+  }
+
+  function renderCfgDownload(container) {
+    cfgLoad(container, function (host, cfg) {
+      var backend = cfgForm(host, cfg, [
+        { key: 'DownloadBackend', label: 'Download backend', type: 'select', options: [['none', 'None (manual admin queue)'], ['webhook', 'Webhook (POST to a URL)'], ['servarr', 'Radarr / Sonarr (Servarr)'], ['script', 'Local script']], hint: 'How approved requests are fulfilled.' }
+      ]);
+      var backendSel = host.querySelector('.jc-c-DownloadBackend');
+
+      var webhookWrap = document.createElement('div');
+      var webhook = cfgForm(webhookWrap, cfg, [
+        { type: 'section', label: 'Webhook' },
+        { key: 'DownloadWebhookUrl', label: 'Webhook URL', type: 'text' },
+        { key: 'DownloadWebhookHeaders', label: 'Headers (one per line, Name: Value)', type: 'area' }
+      ]);
+      host.appendChild(webhookWrap);
+
+      var servarrWrap = document.createElement('div');
+      servarrWrap.appendChild(sectionHeading('Radarr (movies)'));
+      var radarr = cfgForm(servarrWrap, cfg, [
+        { key: 'RadarrUrl', label: 'Radarr URL', type: 'text', placeholder: 'http://localhost:7878' },
+        { key: 'RadarrApiKey', label: 'Radarr API key', type: 'text' }
+      ]);
+      var radarrRoot = servarrSelect(cfg.RadarrRootFolderPath, true);
+      servarrWrap.appendChild(field('Radarr root folder', radarrRoot));
+      var radarrProfile = servarrSelect(cfg.RadarrQualityProfileId, false);
+      servarrWrap.appendChild(field('Radarr quality profile', radarrProfile));
+      var radarrRes = resultSpan();
+      servarrWrap.appendChild(withResult(adminBtn('Connect Radarr', '', function () {
+        connectServarr('radarr', host.querySelector('.jc-c-RadarrUrl').value, host.querySelector('.jc-c-RadarrApiKey').value, radarrRes, { root: radarrRoot, profile: radarrProfile });
+      }), radarrRes));
+
+      servarrWrap.appendChild(sectionHeading('Sonarr (shows)'));
+      var sonarr = cfgForm(servarrWrap, cfg, [
+        { key: 'SonarrUrl', label: 'Sonarr URL', type: 'text', placeholder: 'http://localhost:8989' },
+        { key: 'SonarrApiKey', label: 'Sonarr API key', type: 'text' }
+      ]);
+      var sonarrRoot = servarrSelect(cfg.SonarrRootFolderPath, true);
+      servarrWrap.appendChild(field('Sonarr root folder', sonarrRoot));
+      var sonarrProfile = servarrSelect(cfg.SonarrQualityProfileId, false);
+      servarrWrap.appendChild(field('Sonarr quality profile', sonarrProfile));
+      var sonarrLang = servarrSelect(cfg.SonarrLanguageProfileId, false);
+      servarrWrap.appendChild(field('Sonarr language profile', sonarrLang));
+      var sonarrRes = resultSpan();
+      servarrWrap.appendChild(withResult(adminBtn('Connect Sonarr', '', function () {
+        connectServarr('sonarr', host.querySelector('.jc-c-SonarrUrl').value, host.querySelector('.jc-c-SonarrApiKey').value, sonarrRes, { root: sonarrRoot, profile: sonarrProfile, lang: sonarrLang });
+      }), sonarrRes));
+
+      servarrWrap.appendChild(sectionHeading('Prowlarr (optional)'));
+      var prowlarr = cfgForm(servarrWrap, cfg, [
+        { key: 'ProwlarrUrl', label: 'Prowlarr URL', type: 'text' },
+        { key: 'ProwlarrApiKey', label: 'Prowlarr API key', type: 'text' }
+      ]);
+      servarrWrap.appendChild(sectionHeading('Stalled downloads'));
+      var stalled = cfgForm(servarrWrap, cfg, [
+        { key: 'RecoverStalledDownloads', label: 'Auto-recover stalled downloads', type: 'check' },
+        { key: 'StalledRecoveryMinutes', label: 'Stalled after (minutes)', type: 'num' }
+      ]);
+      host.appendChild(servarrWrap);
+
+      var scriptWrap = document.createElement('div');
+      var script = cfgForm(scriptWrap, cfg, [
+        { type: 'section', label: 'Local script' },
+        { key: 'ScriptPath', label: 'Script path', type: 'text' },
+        { key: 'ScriptArguments', label: 'Arguments', type: 'text' }
+      ]);
+      host.appendChild(scriptWrap);
+
+      var servarrSelectsForm = { apply: function (live) {
+        live.RadarrRootFolderPath = radarrRoot.value;
+        live.RadarrQualityProfileId = parseInt(radarrProfile.value || '0', 10);
+        live.SonarrRootFolderPath = sonarrRoot.value;
+        live.SonarrQualityProfileId = parseInt(sonarrProfile.value || '0', 10);
+        live.SonarrLanguageProfileId = parseInt(sonarrLang.value || '0', 10);
+      } };
+      host.appendChild(cfgSaveButton([backend, webhook, radarr, sonarr, prowlarr, stalled, script, servarrSelectsForm]));
+
+      host.appendChild(sectionHeading('Test (save first)'));
+      var testRes = resultSpan();
+      host.appendChild(withResult(adminBtn('Test backend', '', function () { postTest('JellyCrowd/Download/Test', testRes, 'OK'); }), testRes));
+
+      function syncVis() {
+        var b = backendSel.value;
+        webhookWrap.style.display = b === 'webhook' ? '' : 'none';
+        servarrWrap.style.display = b === 'servarr' ? '' : 'none';
+        scriptWrap.style.display = b === 'script' ? '' : 'none';
+      }
+      backendSel.addEventListener('change', syncVis); syncVis();
+    });
+  }
+
+  function renderCfgDiagnostics(container) {
+    container.innerHTML = '';
+    setMessage('');
+    container.appendChild(sectionHeading('Diagnostics'));
+    var actions = document.createElement('div'); actions.className = 'jellycrowd-admin-actions';
+    var diagRes = document.createElement('div'); diagRes.style.marginTop = '.6em';
+    actions.appendChild(adminBtn('Run checks', '', function () { runDiagnostics(diagRes); }));
+    actions.appendChild(adminBtn('Download backup', '', function () { downloadBackup(); }));
+    container.appendChild(actions);
+    container.appendChild(diagRes);
+    runDiagnostics(diagRes);
+
+    container.appendChild(sectionHeading('Library cleanup'));
+    var orphans = checkbox('jc-cleanup-orphans', false);
+    container.appendChild(field('Orphans only (0 owners)', orphans));
+    var scanRow = document.createElement('div'); scanRow.className = 'jellycrowd-admin-actions';
+    var cleanupRes = document.createElement('div'); cleanupRes.style.marginTop = '.6em';
+    scanRow.appendChild(adminBtn('Scan media', '', function () { scanCleanup(orphans.checked, cleanupRes); }));
+    container.appendChild(scanRow);
+    container.appendChild(cleanupRes);
+  }
+
+  function runDiagnostics(box) {
+    box.textContent = '…';
+    apiGet('JellyCrowd/Diagnostics').then(function (rows) {
+      box.innerHTML = '';
+      var icons = { ok: '✅', warning: '⚠️', error: '❌', info: 'ℹ️' };
+      (rows || []).forEach(function (r) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:baseline;';
+        var name = document.createElement('span'); name.style.cssText = 'font-weight:600;min-width:15em;flex:0 0 auto;'; name.textContent = (icons[r.Status] || '•') + ' ' + r.Name;
+        var detail = document.createElement('span'); detail.style.cssText = 'opacity:.85;flex:1 1 auto;min-width:0;'; detail.textContent = r.Detail;
+        row.appendChild(name); row.appendChild(detail); box.appendChild(row);
+      });
+    }).catch(function () { box.textContent = t('error_generic'); });
+  }
+
+  function scanCleanup(orphansOnly, box) {
+    box.textContent = '…';
+    apiGet('JellyCrowd/Maintenance/Media?orphansOnly=' + (orphansOnly ? 'true' : 'false')).then(function (items) {
+      box.innerHTML = '';
+      if (!items || !items.length) { box.textContent = 'No matching media.'; return; }
+      items.forEach(function (m) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:center;';
+        var name = document.createElement('span'); name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        name.textContent = (m.MediaType === 'tv' ? '📺 ' : '🎬 ') + m.Title + ' — ' + fmtBytes(m.SizeBytes) + ' · ' + m.OwnerCount + ' owner(s)';
+        var del = adminBtn('Delete', '', function (btn) {
+          if (!window.confirm('Delete "' + m.Title + '" from disk? This is permanent.')) { return; }
+          btn.disabled = true;
+          apiPostNoResult('JellyCrowd/Maintenance/Media/' + m.JellyfinItemId + '/Delete').then(function () { row.remove(); }).catch(function () { btn.disabled = false; });
+        });
+        row.appendChild(name); row.appendChild(del); box.appendChild(row);
+      });
+    }).catch(function () { box.textContent = t('error_generic'); });
+  }
+
+  function downloadBackup() {
+    var headers = {};
+    if (window.ApiClient && window.ApiClient.accessToken) { headers.Authorization = 'MediaBrowser Token="' + window.ApiClient.accessToken() + '"'; }
+    fetch(pluginUrl('JellyCrowd/Diagnostics/Export'), { headers: headers }).then(function (r) { return r.blob(); }).then(function (blob) {
+      var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'jellycrowd-backup.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }).catch(function () { /* ignore */ });
+  }
+
+  function fmtBytes(n) { n = Number(n) || 0; var u = ['B', 'KiB', 'MiB', 'GiB', 'TiB']; var i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i]; }
 
   // ---------- User quotas (per-user quota + policy, saved into the plugin configuration) ----------
   function renderQuotas(container) {
@@ -918,10 +1378,13 @@
       container.appendChild(field(t('branding_background'), bgF.wrap));
       container.appendChild(field(t('branding_background_color'), colorField('jc-b-bgcolor', b.BrandingBackgroundColor || '')));
       container.appendChild(field(t('branding_accent'), colorField('jc-b-accent', b.BrandingAccentColor || '')));
-      var fontFamily = textInput('jc-b-font', b.BrandingFontFamily || '', 'Inter, sans-serif');
+      var fontOptions = [['', 'Default (Jellyfin)'], ['system-ui, sans-serif', 'System'], ['Inter, sans-serif', 'Inter'], ['Roboto, sans-serif', 'Roboto'], ['"Open Sans", sans-serif', 'Open Sans'], ['Lato, sans-serif', 'Lato'], ['Montserrat, sans-serif', 'Montserrat'], ['Poppins, sans-serif', 'Poppins'], ['Nunito, sans-serif', 'Nunito'], ['Georgia, serif', 'Georgia (serif)'], ['"Courier New", monospace', 'Courier (mono)']];
+      var fontVal = b.BrandingFontFamily || '';
+      if (fontVal && !fontOptions.some(function (o) { return o[0] === fontVal; })) { fontOptions.push([fontVal, fontVal + ' (current)']); }
+      var fontFamily = selectInput('jc-b-font', fontVal, fontOptions);
       container.appendChild(field(t('branding_font'), fontFamily));
+      // The font stylesheet URL is rendered lower down, just above Custom CSS (kept here only as a variable).
       var fontUrl = textInput('jc-b-fonturl', b.BrandingFontUrl || '', 'https://fonts.googleapis.com/…');
-      container.appendChild(field(t('branding_font_url'), fontUrl, t('branding_font_url_hint')));
 
       container.appendChild(sectionHeading(t('branding_presets')));
       var pCompact = checkbox('jc-b-p-compact', b.BrandingPresetCompactEpisodes === true);
@@ -947,7 +1410,35 @@
       var addLink = adminBtn(t('branding_drawer_add'), '', function () { drawerWrap.appendChild(drawerLinkRow({})); });
       container.appendChild(addLink);
 
+      container.appendChild(sectionHeading('Header icons'));
+      var discEnable = checkbox('jc-b-disc-en', b.DiscordInviteEnabled === true);
+      container.appendChild(field('Show Discord icon in the header', discEnable));
+      var discUrl = textInput('jc-b-disc-url', b.DiscordInviteUrl || '', 'https://discord.gg/…');
+      container.appendChild(field('Discord invite link', discUrl));
+      var supEnable = checkbox('jc-b-sup-en', b.SupportLinkEnabled === true);
+      container.appendChild(field('Show support / donation icon in the header', supEnable));
+      var supUrl = textInput('jc-b-sup-url', b.SupportLinkUrl || '', 'https://…');
+      container.appendChild(field('Support / donation link', supUrl));
+
+      container.appendChild(sectionHeading('Local intros (pre-roll)'));
+      var liEnable = checkbox('jc-b-li-en', b.LocalIntrosEnabled === true);
+      container.appendChild(field('Play a pre-roll before content', liEnable, 'Drop video(s) in a folder with the name below beside your media libraries; the plugin finds and indexes it. On the web client the pre-roll is non-skippable with hidden controls.'));
+      var liFolder = textInput('jc-b-li-folder', b.LocalIntrosFolderName || 'intros', 'intros');
+      container.appendChild(field('Pre-roll folder name', liFolder));
+      var liMovies = checkbox('jc-b-li-mov', b.LocalIntrosOnMovies !== false);
+      container.appendChild(field('Before movies', liMovies));
+      var liFirst = checkbox('jc-b-li-first', b.LocalIntrosOnFirstEpisode !== false);
+      container.appendChild(field('Before the first episode of a series (S01E01)', liFirst));
+      var liNonSkip = checkbox('jc-b-li-ns', b.LocalIntrosNonSkippable !== false);
+      container.appendChild(field('Non-skippable (web client)', liNonSkip));
+
+      container.appendChild(field(t('branding_font_url'), fontUrl, t('branding_font_url_hint')));
+
       container.appendChild(sectionHeading(t('branding_custom_css')));
+      var cssNote = document.createElement('p');
+      cssNote.className = 'jellycrowd-field-hint';
+      cssNote.textContent = "Injected after Jellyfin's own styles, so your rules override the default appearance (last one wins).";
+      container.appendChild(cssNote);
       var cssArea = document.createElement('textarea');
       cssArea.className = 'jc-b-css jellycrowd-css-input';
       cssArea.rows = 12;
@@ -976,6 +1467,15 @@
           live.BrandingPresetButtonTweaks = pButtons.checked;
           live.BrandingCustomCss = cssArea.value;
           live.BrandingDrawerLinks = collectDrawerLinks(drawerWrap);
+          live.DiscordInviteEnabled = discEnable.checked;
+          live.DiscordInviteUrl = discUrl.value.trim();
+          live.SupportLinkEnabled = supEnable.checked;
+          live.SupportLinkUrl = supUrl.value.trim();
+          live.LocalIntrosEnabled = liEnable.checked;
+          live.LocalIntrosFolderName = liFolder.value.trim() || 'intros';
+          live.LocalIntrosOnMovies = liMovies.checked;
+          live.LocalIntrosOnFirstEpisode = liFirst.checked;
+          live.LocalIntrosNonSkippable = liNonSkip.checked;
           return window.ApiClient.updatePluginConfiguration(PLUGIN_GUID, live);
         }).then(function () {
           btn.disabled = false;
@@ -1048,8 +1548,8 @@
       .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
-  // ---------- Moderation ----------
-  function renderModeration(container) {
+  // ---------- Reviews moderation (sub-tab of Moderation) ----------
+  function renderReviews(container) {
     setMessage(t('loading'));
     apiGet('JellyCrowd/Comments/All')
       .then(function (reviews) {
