@@ -1566,7 +1566,14 @@
       img.addEventListener('click', function () { window.location.hash = '#/home'; });
     }
     if (img.getAttribute('src') !== branding.LogoUrl) { img.src = branding.LogoUrl; }
-    if (img.parentNode !== host) { host.insertBefore(img, host.firstChild); } // re-attach if the client wiped it
+    // Sit the logo just to the RIGHT of the menu: after the drawer/menu button on the classic header
+    // (10.11), else after the nav cluster on the Jellyfin 12 MUI toolbar. Falls back to the front. The
+    // position check keeps this idempotent so the re-insert only fires when the client has moved it.
+    var afterEl = host.querySelector('.mainDrawerButton') || host.querySelector('.MuiStack-root');
+    var anchor = afterEl ? afterEl.nextSibling : host.firstChild;
+    if (img.parentNode !== host || img.previousElementSibling !== afterEl) {
+      host.insertBefore(img, anchor);
+    }
   }
 
   function applyDrawerLinks() {
