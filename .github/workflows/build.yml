@@ -1,10 +1,9 @@
 name: CI
 
+# Runs on pull requests and manual dispatch only. Pushes to `main` are handled by the Release workflow,
+# which builds and runs the full test suite before publishing — so a separate CI run on main-push would
+# just duplicate that work (both queued on the single self-hosted runner).
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - '**/*.md'
   pull_request:
     branches: [ main ]
     paths-ignore:
