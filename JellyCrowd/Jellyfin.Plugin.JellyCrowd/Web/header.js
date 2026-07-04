@@ -696,6 +696,130 @@
     }
   }
 
+  // ---------- Avatar dropdown ----------
+  // Clicking the header avatar opens our own popover instead of navigating to the native prefs page: a
+  // replica of the native "My preferences" links (same client routes), admin shortcuts, native SyncPlay /
+  // Cast triggers, the optional Discord / Support links, and sign out. tryInsert() re-wires the button
+  // whenever the client rebuilds the header.
+  var avatarMenu = null;
+
+  function closeAvatarMenu() {
+    if (!avatarMenu) { return; }
+    avatarMenu.remove();
+    avatarMenu = null;
+    document.removeEventListener('click', onAvatarDocClick, true);
+    document.removeEventListener('keydown', onAvatarKey, true);
+    window.removeEventListener('resize', closeAvatarMenu);
+  }
+
+  function onAvatarDocClick(e) { if (avatarMenu && !avatarMenu.contains(e.target)) { closeAvatarMenu(); } }
+  function onAvatarKey(e) { if (e.key === 'Escape') { closeAvatarMenu(); } }
+
+  function clickNative(sel) { var el = document.querySelector(sel); if (el) { el.click(); } }
+
+  // Match the native "Sign Out": invalidate the session, then return to the login screen. Defensive
+  // across versions — prefer the app's own logout, else ApiClient + reload.
+  function jcLogout() {
+    try { if (window.Dashboard && typeof window.Dashboard.logout === 'function') { window.Dashboard.logout(); return; } } catch (e) { /* fall through */ }
+    try {
+      if (window.ApiClient && window.ApiClient.logout) {
+        window.ApiClient.logout().then(function () { window.location.reload(); }, function () { window.location.reload(); });
+        return;
+      }
+    } catch (e) { /* fall through */ }
+    window.location.reload();
+  }
+
+  function avatarItem(icon, label, href, onClick, newTab) {
+    var el = document.createElement(href ? 'a' : 'button');
+    el.className = 'jcAvatarItem';
+    if (href) { el.href = href; if (newTab) { el.target = '_blank'; el.rel = 'noopener noreferrer'; } }
+    else { el.type = 'button'; }
+    var ic = document.createElement('span');
+    ic.className = 'material-icons jcAvatarItemIcon';
+    ic.setAttribute('aria-hidden', 'true');
+    ic.textContent = icon;
+    var tx = document.createElement('span');
+    tx.textContent = label;
+    el.appendChild(ic);
+    el.appendChild(tx);
+    el.addEventListener('click', function () { if (onClick) { onClick(); } closeAvatarMenu(); });
+    return el;
+  }
+
+  function avatarSep() { var s = document.createElement('div'); s.className = 'jcAvatarSep'; return s; }
+
+  function buildAvatarMenu(btn) {
+    var menu = document.createElement('div');
+    menu.className = 'jcAvatarMenu';
+    var uid = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+    var q = uid ? ('?userId=' + encodeURIComponent(uid)) : '';
+
+    var head = document.createElement('div');
+    head.className = 'jcAvatarMenuHead';
+    head.textContent = (btn && (btn.title || btn.getAttribute('title'))) || '';
+    if (head.textContent) { menu.appendChild(head); }
+
+    // Native "My preferences" replica — same client routes Jellyfin uses (stable across 10.x / 12).
+    [
+      ['person', t('avm_profile'), '#/userprofile' + q],
+      ['flash_on', t('avm_quickconnect'), '#/quickconnect' + q],
+      ['tv', t('avm_display'), '#/mypreferencesdisplay' + q],
+      ['home', t('avm_home'), '#/mypreferenceshome' + q],
+      ['play_arrow', t('avm_playback'), '#/mypreferencesplayback' + q],
+      ['closed_caption', t('avm_subtitles'), '#/mypreferencessubtitles' + q],
+      ['tune', t('avm_controls'), '#/mypreferencescontrols' + q]
+    ].forEach(function (r) { menu.appendChild(avatarItem(r[0], r[1], r[2])); });
+
+    if (isAdmin) {
+      menu.appendChild(avatarSep());
+      menu.appendChild(avatarItem('dashboard', t('avm_dashboard'), '#/dashboard'));
+      menu.appendChild(avatarItem('mode_edit', t('avm_metadata'), '#/metadata'));
+    }
+
+    // Native SyncPlay / Cast — trigger the real header buttons so behaviour is 100% native.
+    menu.appendChild(avatarSep());
+    menu.appendChild(avatarItem('group', t('avm_syncplay'), null, function () { clickNative('.headerSyncButton'); }));
+    menu.appendChild(avatarItem('cast', t('avm_cast'), null, function () { clickNative('.headerCastButton'); }));
+
+    if (discordUrl || supportUrl) {
+      menu.appendChild(avatarSep());
+      if (discordUrl) { menu.appendChild(avatarItem('forum', t('discord_link_title'), discordUrl, null, true)); }
+      if (supportUrl) { menu.appendChild(avatarItem('favorite', t('support_link_title'), supportUrl, null, true)); }
+    }
+
+    menu.appendChild(avatarSep());
+    menu.appendChild(avatarItem('logout', t('avm_signout'), null, jcLogout));
+    return menu;
+  }
+
+  function toggleAvatarMenu(btn) {
+    if (avatarMenu) { closeAvatarMenu(); return; }
+    avatarMenu = buildAvatarMenu(btn);
+    document.body.appendChild(avatarMenu);
+    var r = btn.getBoundingClientRect();
+    avatarMenu.style.top = Math.round(r.bottom + 6) + 'px';
+    avatarMenu.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+    // Defer so the opening click doesn't immediately dismiss it.
+    setTimeout(function () {
+      document.addEventListener('click', onAvatarDocClick, true);
+      document.addEventListener('keydown', onAvatarKey, true);
+      window.addEventListener('resize', closeAvatarMenu);
+    }, 0);
+  }
+
+  function installAvatarMenu() {
+    var btn = document.querySelector('.headerUserButton');
+    if (!btn || btn.getAttribute('data-jc-avatar') === '1') { return; }
+    btn.setAttribute('data-jc-avatar', '1');
+    // Capture + stopImmediatePropagation so Jellyfin's own handler never navigates to the prefs page.
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      toggleAvatarMenu(btn);
+    }, true);
+  }
+
   // Quota bar lives in .headerRight, placed between the search icon and the user avatar
   // (i.e. just before the .headerUserButton), per request.
   function insertQuota() {
@@ -1314,7 +1438,14 @@
       'body:has(.videoPlayerContainer) .jcHeaderBell,' +
       'body:has(.videoPlayerContainer) .jcHeaderQuota,' +
       'body:has(.videoPlayerContainer) .jcHeaderAnnounce,' +
-      'body:has(.videoPlayerContainer) #jcBrandLogo{display:none !important;}';
+      'body:has(.videoPlayerContainer) #jcBrandLogo{display:none !important;}' +
+      // Avatar dropdown popover.
+      '.jcAvatarMenu{position:fixed;z-index:10000;min-width:15em;max-width:min(92vw,20em);background:#1a1a1a;color:#fff;border-radius:.45em;box-shadow:0 8px 30px rgba(0,0,0,.55);padding:.4em 0;font-size:.95em;max-height:82vh;overflow-y:auto;}' +
+      '.jcAvatarMenuHead{padding:.55em 1.2em .5em;opacity:.6;font-size:.78em;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}' +
+      '.jcAvatarItem{display:flex;align-items:center;gap:.95em;width:100%;box-sizing:border-box;padding:.62em 1.2em;background:none;border:0;color:#fff;text-decoration:none;cursor:pointer;font:inherit;font-size:1em;text-align:left;}' +
+      '.jcAvatarItem:hover,.jcAvatarItem:focus{background:rgba(255,255,255,.1);outline:none;}' +
+      '.jcAvatarItemIcon{font-size:1.35em;opacity:.85;flex:0 0 auto;}' +
+      '.jcAvatarSep{height:1px;background:rgba(255,255,255,.13);margin:.35em 0;}';
     document.head.appendChild(style);
   }
 
@@ -1484,6 +1615,7 @@
     insertBell();
     insertAnnouncement();
     insertHeaderLinks(); // after the announcement, so we can anchor the links just left of it
+    installAvatarMenu(); // hijack the header avatar to open our dropdown instead of the prefs page
     insertMuiNav();      // Jellyfin 12 (MUI) toolbar — no-op on 10.11
     watchMuiToolbar();   // re-inject our MUI tabs when React re-renders the toolbar
   }
