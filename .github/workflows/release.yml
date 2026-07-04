@@ -62,24 +62,34 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
-          latest=$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)
-          if [ -z "$latest" ]; then base="0.1.0.0"; else base="${latest#v}"; fi
-          IFS='.' read -r major minor patch revision <<< "$base"
-          major=${major:-0}; minor=${minor:-0}; patch=${patch:-0}; revision=${revision:-0}
-          if printf '%s' "$COMMIT_MSG" | grep -qiE '\[major\]|#major'; then
-            major=$((major+1)); minor=0; patch=0; revision=0
-          elif printf '%s' "$COMMIT_MSG" | grep -qiE '\[minor\]|#minor'; then
-            minor=$((minor+1)); patch=0; revision=0
-          elif printf '%s' "$COMMIT_MSG" | grep -qiE '\[revision\]|#revision|\[hotfix\]|\[build\]'; then
-            revision=$((revision+1))
+          # Explicit override (used for the beta reset): [version=X.Y.Z.W] pins the exact version and
+          # bypasses the tag-based bump. Everything downstream (tag, stamp, manifest) uses it verbatim.
+          override=$(printf '%s' "$COMMIT_MSG" | grep -oiE '\[version=[0-9.]+\]' | head -n1 | tr -dc '0-9.')
+          if [ -n "$override" ]; then
+            version="$override"
           else
-            patch=$((patch+1)); revision=0
+            latest=$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)
+            if [ -z "$latest" ]; then base="0.1.0.0"; else base="${latest#v}"; fi
+            IFS='.' read -r major minor patch revision <<< "$base"
+            major=${major:-0}; minor=${minor:-0}; patch=${patch:-0}; revision=${revision:-0}
+            if printf '%s' "$COMMIT_MSG" | grep -qiE '\[major\]|#major'; then
+              major=$((major+1)); minor=0; patch=0; revision=0
+            elif printf '%s' "$COMMIT_MSG" | grep -qiE '\[minor\]|#minor'; then
+              minor=$((minor+1)); patch=0; revision=0
+            elif printf '%s' "$COMMIT_MSG" | grep -qiE '\[revision\]|#revision|\[hotfix\]|\[build\]'; then
+              revision=$((revision+1))
+            else
+              patch=$((patch+1)); revision=0
+            fi
+            version="${major}.${minor}.${patch}.${revision}"
           fi
-          version="${major}.${minor}.${patch}.${revision}"
+          # History reset: fresh manifest (this version only) + wipe of prior public releases/tags.
+          if printf '%s' "$COMMIT_MSG" | grep -qiE '\[reset-history\]'; then reset=1; else reset=0; fi
           echo "version=$version"   >> "$GITHUB_OUTPUT"
           echo "assembly=$version"  >> "$GITHUB_OUTPUT"
           echo "tag=v$version"      >> "$GITHUB_OUTPUT"
-          echo "Next version: $version"
+          echo "reset=$reset"       >> "$GITHUB_OUTPUT"
+          echo "Next version: $version (reset=$reset)"
 
       - name: Abort if tag already exists
         run: |
@@ -168,8 +178,9 @@ jobs:
             --arg sum "$checksum" \
             --arg ts "$timestamp" \
             '{version: $v, changelog: $c, targetAbi: $abi, sourceUrl: $url, checksum: $sum, timestamp: $ts}')
-          jq --argjson e "$entry" --arg guid "$guid" \
-            'map(if .guid == $guid then .versions = (([$e] + (.versions // [])) | .[0:3]) else . end)' \
+          # Normal release: keep the 3 newest versions. History reset: publish ONLY this version.
+          jq --argjson e "$entry" --arg guid "$guid" --arg reset "${{ steps.bump.outputs.reset }}" \
+            'map(if .guid == $guid then .versions = (if $reset == "1" then [$e] else (([$e] + (.versions // [])) | .[0:3]) end) else . end)' \
             "${RUNNER_TEMP}/dist-repo/manifest.json" > "${RUNNER_TEMP}/manifest.json"
 
           # Assemble the public repo: updated manifest + the distribution assets kept in THIS (private)
@@ -186,6 +197,45 @@ jobs:
           git add -A
           git commit -q -m "Jelly Crowd ${tag}"
           git push -f "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" HEAD:main
+
+      - name: Reset public releases & tags (history wipe)
+        if: steps.bump.outputs.reset == '1'
+        working-directory: ${{ github.workspace }}
+        env:
+          DIST_TOKEN: ${{ secrets.DIST_TOKEN }}
+        run: |
+          # Best-effort (no `set -e`): the release + manifest are already published, so a wipe hiccup must
+          # never fail the ship. Delete every public GitHub Release and tag EXCEPT the one just published.
+          set -uo pipefail
+          keep="${{ steps.bump.outputs.tag }}"
+          api="https://api.github.com/repos/${DIST_REPO}"
+          auth=(-H "Authorization: Bearer ${DIST_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          echo "Wiping public releases & tags except ${keep}"
+          # Collect all release ids across pages BEFORE deleting (deleting shifts pagination).
+          ids=""; page=1
+          while :; do
+            rels=$(curl -fsS "${auth[@]}" "${api}/releases?per_page=100&page=${page}" || echo '[]')
+            n=$(printf '%s' "$rels" | jq 'length'); [ "$n" -eq 0 ] && break
+            ids="$ids $(printf '%s' "$rels" | jq -r --arg keep "$keep" '.[] | select(.tag_name != $keep) | .id')"
+            page=$((page+1))
+          done
+          for id in $ids; do
+            echo "  delete release id=$id"
+            curl -fsS -X DELETE "${auth[@]}" "${api}/releases/${id}" || echo "    (release $id delete failed; continuing)"
+          done
+          # Collect all tag names across pages, then delete each ref.
+          names=""; page=1
+          while :; do
+            tags=$(curl -fsS "${auth[@]}" "${api}/tags?per_page=100&page=${page}" || echo '[]')
+            n=$(printf '%s' "$tags" | jq 'length'); [ "$n" -eq 0 ] && break
+            names="$names $(printf '%s' "$tags" | jq -r --arg keep "$keep" '.[] | select(.name != $keep) | .name')"
+            page=$((page+1))
+          done
+          for name in $names; do
+            echo "  delete tag $name"
+            curl -fsS -X DELETE "${auth[@]}" "${api}/git/refs/tags/${name}" || echo "    (tag $name delete failed; continuing)"
+          done
+          echo "Public reset done; kept ${keep}."
 
       - name: Cleanup workspace
         if: always()
