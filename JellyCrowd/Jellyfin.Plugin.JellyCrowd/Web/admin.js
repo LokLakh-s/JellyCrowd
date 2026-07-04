@@ -245,7 +245,7 @@
 
   function renderCfgRequests(container) {
     cfgLoad(container, function (host, cfg) {
-      var main = cfgForm(host, cfg, [
+      var reqForm = cfgForm(host, cfg, [
         { type: 'section', label: 'Requests' },
         { key: 'RequireApproval', label: 'Require admin approval for requests', type: 'check' },
         { key: 'AllowUserRetrySearch', label: 'Let users retry the search themselves', type: 'check' },
@@ -253,7 +253,12 @@
         { key: 'RequestPeriod', label: 'Request period', type: 'select', options: [['Day', 'Day'], ['Week', 'Week'], ['Month', 'Month']] },
         { key: 'AutoApproveMaxSizeBytes', label: 'Auto-approve if estimated size ≤ (GiB)', type: 'num', scale: GIB, hint: '0 disables size-based auto-approval.' },
         { key: 'EstimatedMovieSizeBytes', label: 'Estimated movie size (GiB)', type: 'num', scale: GIB },
-        { key: 'EstimatedEpisodeSizeBytes', label: 'Estimated episode size (GiB)', type: 'num', scale: GIB },
+        { key: 'EstimatedEpisodeSizeBytes', label: 'Estimated episode size (GiB)', type: 'num', scale: GIB }
+      ]);
+      var genresInput = textInput('jc-c-AutoApproveGenres', (cfg.AutoApproveGenres || []).join(', '), 'Action, Comedy, Documentary…');
+      host.appendChild(field('Auto-approve genres (optional)', genresInput, 'Comma-separated TMDB genre names. When set, the size rule above only auto-approves a title with at least one of these genres. Empty = all genres. Trusted users always bypass.'));
+      var genresForm = { apply: function (live) { live.AutoApproveGenres = genresInput.value.split(',').map(function (g) { return g.trim(); }).filter(Boolean); } };
+      var quotaForm = cfgForm(host, cfg, [
         { type: 'section', label: 'Quotas' },
         { key: 'DefaultUserQuotaBytes', label: 'Default quota per user (GiB)', type: 'num', scale: GIB, hint: '0 = unlimited.' }
       ]);
@@ -280,7 +285,7 @@
         { key: 'MediaExpiryDays', label: 'Media ownership expiry (days)', type: 'num', hint: '0 disables expiry.' }
       ]);
       var adaptForm = { apply: function (live) { live.AdaptiveQuotaEnabled = adaptEnable.checked; } };
-      host.appendChild(cfgSaveButton([main, adaptForm, adapt, tail]));
+      host.appendChild(cfgSaveButton([reqForm, genresForm, quotaForm, adaptForm, adapt, tail]));
     });
   }
 
