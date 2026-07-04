@@ -64,7 +64,9 @@ jobs:
           set -euo pipefail
           # Explicit override (used for the beta reset): [version=X.Y.Z.W] pins the exact version and
           # bypasses the tag-based bump. Everything downstream (tag, stamp, manifest) uses it verbatim.
-          override=$(printf '%s' "$COMMIT_MSG" | grep -oiE '\[version=[0-9.]+\]' | head -n1 | tr -dc '0-9.')
+          # `|| true`: grep exits non-zero when there's no [version=] tag, which would abort the step
+          # under `set -euo pipefail` and fail every normal (non-override) release.
+          override=$(printf '%s' "$COMMIT_MSG" | grep -oiE '\[version=[0-9.]+\]' | head -n1 | tr -dc '0-9.' || true)
           if [ -n "$override" ]; then
             version="$override"
           else
