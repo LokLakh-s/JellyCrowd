@@ -1377,12 +1377,22 @@
     ensureBrandingLib(function (L) {
       var css = L.buildBrandingCss(branding);
       // Structural rules the pure builder doesn't own (sized to the runtime-injected elements):
-      if (branding.LogoUrl) { css += '\n.jcBrandLogo{height:1.7em;width:auto;cursor:pointer;margin:0 .5em;vertical-align:middle;}'; }
+      if (branding.LogoUrl) {
+        css += '\n.jcBrandLogo{height:1.7em;width:auto;cursor:pointer;margin:0 .5em;vertical-align:middle;}';
+        // Replace the native Jellyfin header logo instead of showing a second one beside it.
+        css += '\n.pageTitleWithLogo{display:none !important;}';
+      }
       if (branding.DefaultAvatarUrl) {
         // Best-effort: paint the configured image over the placeholder shown for users with no photo.
         css += '\n.headerUserButtonRound .material-icons,.userButtonIcon,.cardImageIcon.person{'
           + 'background-image:url("' + branding.DefaultAvatarUrl + '") !important;background-size:cover !important;'
           + 'background-position:center !important;color:transparent !important;border-radius:50%;}';
+      }
+      if (branding.BackgroundUrl || branding.BackgroundColor) {
+        // Extend the custom background onto the Jelly Crowd overlay panels too.
+        var jcBg = (branding.BackgroundColor ? 'background-color:' + branding.BackgroundColor + ' !important;' : '')
+          + (branding.BackgroundUrl ? 'background-image:url("' + branding.BackgroundUrl + '") !important;background-size:cover !important;background-position:center !important;background-attachment:fixed !important;' : '');
+        css += '\n.jellycrowd-overlay{' + jcBg + '}';
       }
       if (css === brandingCss && document.getElementById('jcBrandingStyle')) { return; }
       brandingCss = css;
