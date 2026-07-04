@@ -12,6 +12,10 @@
   var cfgLang = 'auto';
   var statusTimer = null;        // live status polling interval
   var STATUS_POLL_MS = 2000;
+  // Hold back the "Blocked" badge until a dispatch error has persisted this long. A fresh error is
+  // usually transient (media already on disk → reconciler flips it to Available; backend recovers add
+  // races) and showing "Blocked" in that window needlessly alarms users into opening a ticket.
+  var BLOCK_GRACE_MS = 10 * 60 * 1000;
   var lastSignature = null;      // fingerprint of the rendered list, to re-render only on change
   var downloadingIds = {};       // requestId -> true for actively downloading/importing/queued items (for sort)
   var allowRetry = false;        // admin opt-in: regular users may trigger a manual retry-search
@@ -169,8 +173,11 @@
 
     // A dispatched-but-still-approved request that carries a backend error is "blocked" (not found /
     // backend issue) — surfaced distinctly from a normal in-progress request, with the reason on hover.
+    // Only once the error has persisted past the reconcile window (see BLOCK_GRACE_MS): a fresh error is
+    // usually transient, so until then the request keeps its normal in-progress badge.
     var approved = (request.Status === 1 || request.Status === 'Approved');
-    if (approved && request.DispatchError && !request.DeletionRequestedAt) {
+    var errAgeMs = request.DispatchAttemptedAt ? (Date.now() - new Date(request.DispatchAttemptedAt).getTime()) : Infinity;
+    if (approved && request.DispatchError && !request.DeletionRequestedAt && errAgeMs > BLOCK_GRACE_MS) {
       var blocked = document.createElement('span');
       blocked.className = 'jellycrowd-status jellycrowd-status-denied';
       blocked.textContent = t('status_blocked');

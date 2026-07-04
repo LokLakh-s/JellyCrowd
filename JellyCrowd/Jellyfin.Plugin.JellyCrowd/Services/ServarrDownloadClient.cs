@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Net.Http;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -114,18 +115,33 @@ public sealed class ServarrDownloadClient : IDownloadClient
       }
 
       var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
-      if (movie?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var movieId) && movieId > 0)
+      if (TryGetId(movie, out var movieId))
       {
         // Already in Radarr — just (re)search it instead of re-adding (which would 400).
-        var command = new JsonObject { ["name"] = "MoviesSearch", ["movieIds"] = new JsonArray(movieId) };
-        await _servarr.CommandAsync(config.RadarrUrl, config.RadarrApiKey, command, cancellationToken).ConfigureAwait(false);
+        await SearchMovieAsync(config, movieId, cancellationToken).ConfigureAwait(false);
         return;
       }
 
       var lookup = await _servarr.LookupMovieAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Radarr could not find TMDB movie {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)}.");
       var body = ServarrPayload.BuildMovieAdd(lookup, config.RadarrQualityProfileId, config.RadarrRootFolderPath);
-      await _servarr.AddMovieAsync(config.RadarrUrl, config.RadarrApiKey, body, cancellationToken).ConfigureAwait(false);
+      try
+      {
+        await _servarr.AddMovieAsync(config.RadarrUrl, config.RadarrApiKey, body, cancellationToken).ConfigureAwait(false);
+      }
+      catch (HttpRequestException)
+      {
+        // A concurrent request (e.g. several titles grabbed at once) may have added it first, so this add
+        // 400s ("movie already exists"). If it's there now, recover by searching it instead of failing the
+        // dispatch — a failed dispatch would surface a spurious "Blocked" until reconciliation.
+        var added = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+        if (!TryGetId(added, out var addedMovieId))
+        {
+          throw;
+        }
+
+        await SearchMovieAsync(config, addedMovieId, cancellationToken).ConfigureAwait(false);
+      }
     }
     else if (string.Equals(dispatch.MediaType, "tv", StringComparison.Ordinal))
     {
@@ -137,32 +153,71 @@ public sealed class ServarrDownloadClient : IDownloadClient
       var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)}.");
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
-      if (series is not null && series["id"] is JsonValue seriesIdValue && seriesIdValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
+      if (series is not null && TryGetId(series, out var seriesId))
       {
-        // Already in Sonarr — but a series added for an earlier season leaves later seasons
-        // UNMONITORED, and a season search on an unmonitored season grabs nothing. So monitor the
-        // requested season first (persist the change), then search it (or the whole series).
-        if (ServarrPayload.EnsureSeasonsMonitored(series, dispatch.Season))
-        {
-          await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
-        }
-
-        var command = dispatch.Season is int season
-          ? new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season }
-          : new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };
-        await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
+        await SearchSeriesAsync(config, series, seriesId, dispatch, cancellationToken).ConfigureAwait(false);
         return;
       }
 
       var lookup = await _servarr.LookupSeriesAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Sonarr could not find TVDB series {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
       var body = ServarrPayload.BuildSeriesAdd(lookup, config.SonarrQualityProfileId, config.SonarrLanguageProfileId, config.SonarrRootFolderPath, dispatch.Season);
-      await _servarr.AddSeriesAsync(config.SonarrUrl, config.SonarrApiKey, body, cancellationToken).ConfigureAwait(false);
+      try
+      {
+        await _servarr.AddSeriesAsync(config.SonarrUrl, config.SonarrApiKey, body, cancellationToken).ConfigureAwait(false);
+      }
+      catch (HttpRequestException)
+      {
+        // A concurrent request (e.g. two seasons of the same show grabbed at once) may have added the
+        // series first, so this add 400s ("series already added"). If it's there now, monitor + search the
+        // requested season instead of failing the dispatch (which would show a spurious "Blocked").
+        var added = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
+        if (added is null || !TryGetId(added, out var addedSeriesId))
+        {
+          throw;
+        }
+
+        await SearchSeriesAsync(config, added, addedSeriesId, dispatch, cancellationToken).ConfigureAwait(false);
+      }
     }
     else
     {
       throw new InvalidOperationException($"Unsupported media type '{dispatch.MediaType}'.");
     }
+  }
+
+  // (Re)search a movie already present in Radarr.
+  private Task SearchMovieAsync(PluginConfiguration config, int movieId, CancellationToken cancellationToken)
+  {
+    var command = new JsonObject { ["name"] = "MoviesSearch", ["movieIds"] = new JsonArray(movieId) };
+    return _servarr.CommandAsync(config.RadarrUrl, config.RadarrApiKey, command, cancellationToken);
+  }
+
+  // Monitor the requested season (a series added for an earlier season leaves later seasons UNMONITORED,
+  // and a search on an unmonitored season grabs nothing), persist that, then search the season (or series).
+  private async Task SearchSeriesAsync(PluginConfiguration config, JsonObject series, int seriesId, DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
+    if (ServarrPayload.EnsureSeasonsMonitored(series, dispatch.Season))
+    {
+      await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
+    }
+
+    var command = dispatch.Season is int season
+      ? new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season }
+      : new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };
+    await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
+  }
+
+  private static bool TryGetId(JsonObject? obj, out int id)
+  {
+    if (obj?["id"] is JsonValue value && value.TryGetValue<int>(out var parsed) && parsed > 0)
+    {
+      id = parsed;
+      return true;
+    }
+
+    id = 0;
+    return false;
   }
 
   /// <inheritdoc />

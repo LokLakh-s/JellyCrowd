@@ -1,4 +1,5 @@
 using System;
+using System.Net.Http;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -123,6 +124,77 @@ public class ServarrDownloadClientTests
 
     servarr.Verify(s => s.UpdateSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
     servarr.Verify(s => s.CommandAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_Movie_AddRaces_RecoversBySearchingInsteadOfFailing()
+  {
+    // Two requests grabbed at once: the first add wins, so this add 400s ("movie already exists"). The
+    // client must recover by searching the now-present movie rather than surfacing a spurious dispatch
+    // error (which the UI would show as a transient "Blocked").
+    var servarr = new Mock<IServarrClient>();
+    servarr.SetupSequence(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync((JsonObject?)null)                // pre-check: not in Radarr yet
+      .ReturnsAsync(new JsonObject { ["id"] = 9 });   // after the failed add: the race winner added it
+    servarr.Setup(s => s.LookupMovieAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["title"] = "The Matrix", ["tmdbId"] = 603 });
+    servarr.Setup(s => s.AddMovieAsync("http://localhost:7878", "rk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()))
+      .ThrowsAsync(new HttpRequestException("400 (Bad Request) — movie already exists"));
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), RadarrConfig);
+
+    await client.DispatchAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
+
+    servarr.Verify(s => s.CommandAsync("http://localhost:7878", "rk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_Movie_AddFailsAndStillAbsent_Rethrows()
+  {
+    // A genuine add failure (not a race): the movie is still absent afterwards, so the error must
+    // propagate (retried/surfaced) rather than being silently swallowed.
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync((JsonObject?)null);
+    servarr.Setup(s => s.LookupMovieAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["title"] = "The Matrix", ["tmdbId"] = 603 });
+    servarr.Setup(s => s.AddMovieAsync("http://localhost:7878", "rk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()))
+      .ThrowsAsync(new HttpRequestException("500 (Server Error)"));
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), RadarrConfig);
+
+    await Assert.ThrowsAsync<HttpRequestException>(() =>
+      client.DispatchAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None));
+    servarr.Verify(s => s.CommandAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_Show_AddRaces_RecoversByMonitoringAndSearching()
+  {
+    // Two seasons of the same show grabbed at once: the first add wins, so this add 400s ("series already
+    // added"). Recover by monitoring the requested season on the now-present series and searching it —
+    // no spurious "Blocked".
+    var added = new JsonObject
+    {
+      ["id"] = 7,
+      ["monitored"] = true,
+      ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 2, ["monitored"] = false })
+    };
+    var servarr = new Mock<IServarrClient>();
+    servarr.SetupSequence(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
+      .ReturnsAsync((JsonObject?)null)     // pre-check: not in Sonarr yet
+      .ReturnsAsync(added);                // after the failed add: the race winner added it
+    servarr.Setup(s => s.LookupSeriesAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["title"] = "BB", ["tvdbId"] = 81189, ["seasons"] = new JsonArray() });
+    servarr.Setup(s => s.AddSeriesAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()))
+      .ThrowsAsync(new HttpRequestException("400 (Bad Request) — series already added"));
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.DispatchAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 2 }, CancellationToken.None);
+
+    servarr.Verify(s => s.UpdateSeriesAsync("http://localhost:8989", "sk", 7, It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.CommandAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+    Assert.True(added["seasons"]![0]!["monitored"]!.GetValue<bool>());
   }
 
   [Fact]
