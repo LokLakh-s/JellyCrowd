@@ -1303,7 +1303,18 @@
       // (announcement, bell, quota) up to line up with it.
       '.skinHeader .jcHeaderLinks,.skinHeader .jcHeaderAnnounce,.skinHeader .jcHeaderBell,.skinHeader .jcHeaderQuota{position:relative;top:-4px;}' +
       // Compact bullet lists inside the (markdown) announcement.
-      '.jcAnnounceText ul{margin:.15em 0;padding-left:1.1em;}.jcAnnounceText li{margin:0;}';
+      '.jcAnnounceText ul{margin:.15em 0;padding-left:1.1em;}.jcAnnounceText li{margin:0;}' +
+      // During fullscreen video playback (incl. a local-intro pre-roll) the plugin's header chrome must
+      // not overlay the video — mirror how Jellyfin hides its own header. Keyed on the video player
+      // container, present only while a video plays; covers both layouts (.jcHeaderNav on 10.11,
+      // [data-jc-nav] links on 12) and hides the group parents (which also hides their tabs/links).
+      'body:has(.videoPlayerContainer) .jcHeaderNav,' +
+      'body:has(.videoPlayerContainer) [data-jc-nav],' +
+      'body:has(.videoPlayerContainer) .jcHeaderLinks,' +
+      'body:has(.videoPlayerContainer) .jcHeaderBell,' +
+      'body:has(.videoPlayerContainer) .jcHeaderQuota,' +
+      'body:has(.videoPlayerContainer) .jcHeaderAnnounce,' +
+      'body:has(.videoPlayerContainer) #jcBrandLogo{display:none !important;}';
     document.head.appendChild(style);
   }
 
