@@ -1455,6 +1455,8 @@
       container.appendChild(field('Before the first episode of a series (S01E01)', liFirst));
       var liNonSkip = checkbox('jc-b-li-ns', b.LocalIntrosNonSkippable !== false);
       container.appendChild(field('Non-skippable (web client)', liNonSkip));
+      var liWebOnly = checkbox('jc-b-li-webonly', b.LocalIntrosWebOnly !== false);
+      container.appendChild(field('Web & desktop players only (recommended)', liWebOnly, 'Native mobile and TV apps can fail to start playback when a pre-roll is prepended (reported on iPad). When on, only the web client and Jellyfin Media Player receive intros.'));
 
       container.appendChild(field(t('branding_font_url'), fontUrl, t('branding_font_url_hint')));
 
@@ -1500,6 +1502,7 @@
           live.LocalIntrosOnMovies = liMovies.checked;
           live.LocalIntrosOnFirstEpisode = liFirst.checked;
           live.LocalIntrosNonSkippable = liNonSkip.checked;
+          live.LocalIntrosWebOnly = liWebOnly.checked;
           return window.ApiClient.updatePluginConfiguration(PLUGIN_GUID, live);
         }).then(function () {
           btn.disabled = false;
