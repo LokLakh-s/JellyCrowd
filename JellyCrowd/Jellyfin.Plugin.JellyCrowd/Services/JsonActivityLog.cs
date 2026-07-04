@@ -31,7 +31,11 @@ public sealed class JsonActivityLog : IActivityLog, IDisposable
   public JsonActivityLog(string filePath) => _filePath = filePath;
 
   /// <inheritdoc />
-  public async Task LogAsync(string level, string category, string message, CancellationToken cancellationToken)
+  public Task LogAsync(string level, string category, string message, CancellationToken cancellationToken)
+    => LogAsync(level, category, message, null, cancellationToken);
+
+  /// <inheritdoc />
+  public async Task LogAsync(string level, string category, string message, string? user, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
     try
@@ -43,6 +47,7 @@ public sealed class JsonActivityLog : IActivityLog, IDisposable
         Timestamp = DateTime.UtcNow,
         Level = string.IsNullOrWhiteSpace(level) ? "info" : level,
         Category = string.IsNullOrWhiteSpace(category) ? "system" : category,
+        User = string.IsNullOrWhiteSpace(user) ? null : user,
         Message = message ?? string.Empty
       });
       Prune(items);
@@ -55,7 +60,7 @@ public sealed class JsonActivityLog : IActivityLog, IDisposable
   }
 
   /// <inheritdoc />
-  public async Task<IReadOnlyList<ActivityEntry>> QueryAsync(string? term, string? category, string? level, int limit, CancellationToken cancellationToken)
+  public async Task<IReadOnlyList<ActivityEntry>> QueryAsync(string? term, string? category, string? level, string? user, int limit, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
     try
@@ -70,6 +75,11 @@ public sealed class JsonActivityLog : IActivityLog, IDisposable
       if (!string.IsNullOrWhiteSpace(level))
       {
         query = query.Where(e => string.Equals(e.Level, level, StringComparison.OrdinalIgnoreCase));
+      }
+
+      if (!string.IsNullOrWhiteSpace(user))
+      {
+        query = query.Where(e => string.Equals(e.User, user, StringComparison.OrdinalIgnoreCase));
       }
 
       if (!string.IsNullOrWhiteSpace(term))

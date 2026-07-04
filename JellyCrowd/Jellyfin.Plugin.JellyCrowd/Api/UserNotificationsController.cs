@@ -129,7 +129,7 @@ public class UserNotificationsController : ControllerBase
         NotifyQuotaExpiry = dto?.NotifyQuotaExpiry ?? false
       },
       cancellationToken).ConfigureAwait(false);
-    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " updated their notification preferences", CancellationToken.None);
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " updated their notification preferences", _resolveUserName(userId), CancellationToken.None);
     return Ok(saved);
   }
 

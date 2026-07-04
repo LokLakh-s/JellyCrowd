@@ -121,7 +121,7 @@ public sealed class NotificationService : INotificationService
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
 
-    _ = _activityLog.LogAsync("info", "request", subject + " — " + username, CancellationToken.None);
+    _ = _activityLog.LogAsync("info", "request", subject + " — " + username, username, CancellationToken.None);
 
     await NotifyUserAsync(request, notificationEvent, subject, body, cancellationToken).ConfigureAwait(false);
 

@@ -64,7 +64,7 @@ public sealed class ActivityLogFlowTests : IDisposable
 
     // Read it back the way the admin Logs tab does.
     var controller = new LogsController(_activityLog);
-    var result = await controller.Get(term: "Matrix", category: "download", level: "info", limit: 50, CancellationToken.None);
+    var result = await controller.Get(term: "Matrix", category: "download", level: "info", user: null, limit: 50, CancellationToken.None);
     var entries = Assert.IsAssignableFrom<System.Collections.Generic.IReadOnlyList<ActivityEntry>>(
       Assert.IsType<OkObjectResult>(result.Result).Value);
     Assert.Single(entries);
@@ -95,7 +95,7 @@ public sealed class ActivityLogFlowTests : IDisposable
     // Dispatch logging is fire-and-forget; poll briefly until the entry lands.
     for (var i = 0; i < 50; i++)
     {
-      var all = await _activityLog.QueryAsync(null, null, null, 100, CancellationToken.None);
+      var all = await _activityLog.QueryAsync(null, null, null, null, 100, CancellationToken.None);
       var match = all.FirstOrDefault(predicate);
       if (match is not null)
       {

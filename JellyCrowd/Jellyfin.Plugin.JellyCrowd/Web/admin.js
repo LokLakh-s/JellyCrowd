@@ -717,24 +717,35 @@
     search.type = 'search';
     search.placeholder = t('log_search');
     var cat = document.createElement('select');
-    [['', t('admin_filter_all')], ['request', 'request'], ['download', 'download'], ['admin', 'admin'], ['user', 'user'], ['system', 'system']]
+    [['', t('admin_filter_all')], ['request', 'request'], ['download', 'download'], ['report', 'report'], ['admin', 'admin'], ['user', 'user'], ['system', 'system']]
       .forEach(function (o) { var x = document.createElement('option'); x.value = o[0]; x.textContent = o[1]; cat.appendChild(x); });
     var level = document.createElement('select');
     [['', t('admin_filter_all')], ['info', 'info'], ['warning', 'warning'], ['error', 'error']]
       .forEach(function (o) { var x = document.createElement('option'); x.value = o[0]; x.textContent = o[1]; level.appendChild(x); });
+    // User filter — options are filled from the actors present in recent activity (one unfiltered read).
+    var user = document.createElement('select');
+    var userAll = document.createElement('option'); userAll.value = ''; userAll.textContent = t('log_user_all'); user.appendChild(userAll);
     bar.appendChild(search);
     bar.appendChild(cat);
     bar.appendChild(level);
+    bar.appendChild(user);
     container.appendChild(bar);
 
     var box = document.createElement('div');
     box.className = 'jellycrowd-logs';
     container.appendChild(box);
 
+    apiGet('JellyCrowd/Logs?limit=500').then(function (rows) {
+      var seen = {};
+      (rows || []).forEach(function (r) { if (r.User) { seen[r.User] = 1; } });
+      Object.keys(seen).sort(function (a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); })
+        .forEach(function (u) { var o = document.createElement('option'); o.value = u; o.textContent = u; user.appendChild(o); });
+    }).catch(function () { /* keep just "all users" on failure */ });
+
     function load() {
       box.textContent = t('loading');
       var qs = 'term=' + encodeURIComponent(search.value || '') + '&category=' + encodeURIComponent(cat.value || '')
-        + '&level=' + encodeURIComponent(level.value || '') + '&limit=200';
+        + '&level=' + encodeURIComponent(level.value || '') + '&user=' + encodeURIComponent(user.value || '') + '&limit=200';
       apiGet('JellyCrowd/Logs?' + qs).then(function (rows) {
         box.innerHTML = '';
         if (!rows || !rows.length) { box.textContent = t('log_empty'); return; }
@@ -748,10 +759,17 @@
           var c = document.createElement('span');
           c.className = 'jellycrowd-log-cat';
           c.textContent = (icons[r.Level] || '•') + ' ' + r.Category;
-          var m = document.createElement('span');
-          m.textContent = r.Message;
           row.appendChild(when);
           row.appendChild(c);
+          if (r.User) {
+            var us = document.createElement('span');
+            us.className = 'jellycrowd-log-user';
+            us.style.cssText = 'opacity:.85;white-space:nowrap;';
+            us.textContent = '👤 ' + r.User;
+            row.appendChild(us);
+          }
+          var m = document.createElement('span');
+          m.textContent = r.Message;
           row.appendChild(m);
           box.appendChild(row);
         });
@@ -762,6 +780,7 @@
     search.addEventListener('input', function () { clearTimeout(deb); deb = setTimeout(load, 250); });
     cat.addEventListener('change', load);
     level.addEventListener('change', load);
+    user.addEventListener('change', load);
     load();
   }
 

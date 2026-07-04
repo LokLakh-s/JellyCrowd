@@ -106,7 +106,7 @@ public class ReportsController : ControllerBase
       cancellationToken).ConfigureAwait(false);
 
     await _activityLog.LogAsync(
-      "info", "report", $"New report ({created.Type}): {created.Title} — {created.UserName}", cancellationToken).ConfigureAwait(false);
+      "info", "report", $"New report ({created.Type}): {created.Title} — {created.UserName}", created.UserName, cancellationToken).ConfigureAwait(false);
     return Ok(created);
   }
 
@@ -145,7 +145,7 @@ public class ReportsController : ControllerBase
       return NotFound();
     }
 
-    await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", cancellationToken).ConfigureAwait(false);
+    await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", updated.UserName, cancellationToken).ConfigureAwait(false);
 
     // Tell the reporter their ticket was handled (in-app bell always; personal channels are un-gated here).
     var body = string.IsNullOrWhiteSpace(updated.AdminResponse)
