@@ -223,7 +223,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
         request.Id.ToString("N", CultureInfo.InvariantCulture),
         request.Title,
         client.Backend);
-      _ = _activityLog.LogAsync("info", "download", "Retry search for " + request.Title, CancellationToken.None);
+      _ = _activityLog.LogAsync("info", "download", "Retry search for " + request.Title, name, CancellationToken.None);
       return true;
     }
 #pragma warning disable CA1031 // A retry failure is surfaced via the persisted dispatch error, not thrown.
@@ -233,7 +233,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       var message = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
       await _store.SetDispatchErrorAsync(request.Id, message, nowUtc, cancellationToken).ConfigureAwait(false);
       _logger.LogWarning(ex, "Retry failed for request {RequestId}.", request.Id.ToString("N", CultureInfo.InvariantCulture));
-      _ = _activityLog.LogAsync("error", "download", "Retry failed for " + request.Title + ": " + message, CancellationToken.None);
+      _ = _activityLog.LogAsync("error", "download", "Retry failed for " + request.Title + ": " + message, _resolveUserName(request.UserId), CancellationToken.None);
       return false;
     }
   }
@@ -304,7 +304,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
         request.Id.ToString("N", CultureInfo.InvariantCulture),
         request.Title,
         client.Backend);
-      _ = _activityLog.LogAsync("info", "download", "Dispatched " + request.Title + " to " + client.Backend, CancellationToken.None);
+      _ = _activityLog.LogAsync("info", "download", "Dispatched " + request.Title + " to " + client.Backend, name, CancellationToken.None);
       return true;
     }
 #pragma warning disable CA1031 // A backend failure must not break the request flow; it is retried by the scheduled task.
@@ -324,7 +324,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       // Notify the requester only on the first failure (transition into error), not on every retry.
       var firstFailure = string.IsNullOrEmpty(request.DispatchError);
       await _store.SetDispatchErrorAsync(request.Id, message, nowUtc, cancellationToken).ConfigureAwait(false);
-      _ = _activityLog.LogAsync("error", "download", "Dispatch failed for " + request.Title + ": " + message, CancellationToken.None);
+      _ = _activityLog.LogAsync("error", "download", "Dispatch failed for " + request.Title + ": " + message, _resolveUserName(request.UserId), CancellationToken.None);
       if (firstFailure)
       {
         _ = _notificationService.NotifyRequestEventAsync(request, NotificationEvent.Failed, CancellationToken.None);

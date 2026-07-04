@@ -14,6 +14,9 @@ internal sealed class NoOpActivityLog : IActivityLog
   public Task LogAsync(string level, string category, string message, CancellationToken cancellationToken)
     => Task.CompletedTask;
 
-  public Task<IReadOnlyList<ActivityEntry>> QueryAsync(string? term, string? category, string? level, int limit, CancellationToken cancellationToken)
+  public Task LogAsync(string level, string category, string message, string? user, CancellationToken cancellationToken)
+    => Task.CompletedTask;
+
+  public Task<IReadOnlyList<ActivityEntry>> QueryAsync(string? term, string? category, string? level, string? user, int limit, CancellationToken cancellationToken)
     => Task.FromResult<IReadOnlyList<ActivityEntry>>(new List<ActivityEntry>());
 }

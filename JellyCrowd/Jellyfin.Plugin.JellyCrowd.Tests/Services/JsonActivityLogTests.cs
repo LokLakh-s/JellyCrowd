@@ -32,7 +32,7 @@ public sealed class JsonActivityLogTests : IDisposable
     await _log.LogAsync("info", "request", "first", CancellationToken.None);
     await _log.LogAsync("error", "download", "second", CancellationToken.None);
 
-    var all = await _log.QueryAsync(null, null, null, 100, CancellationToken.None);
+    var all = await _log.QueryAsync(null, null, null, null, 100, CancellationToken.None);
 
     Assert.Equal(2, all.Count);
     Assert.Equal("second", all[0].Message);
@@ -46,15 +46,33 @@ public sealed class JsonActivityLogTests : IDisposable
     await _log.LogAsync("error", "download", "Dispatch failed for Dune", CancellationToken.None);
     await _log.LogAsync("info", "download", "Dispatched Dune to radarr", CancellationToken.None);
 
-    var byCategory = await _log.QueryAsync(null, "download", null, 100, CancellationToken.None);
+    var byCategory = await _log.QueryAsync(null, "download", null, null, 100, CancellationToken.None);
     Assert.Equal(2, byCategory.Count);
 
-    var byLevel = await _log.QueryAsync(null, null, "error", 100, CancellationToken.None);
+    var byLevel = await _log.QueryAsync(null, null, "error", null, 100, CancellationToken.None);
     Assert.Single(byLevel);
     Assert.Equal("Dispatch failed for Dune", byLevel[0].Message);
 
-    var byTerm = await _log.QueryAsync("matrix", null, null, 100, CancellationToken.None);
+    var byTerm = await _log.QueryAsync("matrix", null, null, null, 100, CancellationToken.None);
     Assert.Single(byTerm);
+  }
+
+  [Fact]
+  public async Task QueryAsync_FiltersByUser()
+  {
+    await _log.LogAsync("info", "user", "Alice added Dune", "Alice", CancellationToken.None);
+    await _log.LogAsync("info", "user", "Bob added Arrival", "Bob", CancellationToken.None);
+    await _log.LogAsync("info", "system", "cache warmed", CancellationToken.None); // no user
+
+    var byUser = await _log.QueryAsync(null, null, null, "Alice", 100, CancellationToken.None);
+    Assert.Single(byUser);
+    Assert.Equal("Alice added Dune", byUser[0].Message);
+    Assert.Equal("Alice", byUser[0].User);
+
+    // Case-insensitive, and entries with no user are excluded from a user-filtered query.
+    var byBob = await _log.QueryAsync(null, null, null, "bob", 100, CancellationToken.None);
+    Assert.Single(byBob);
+    Assert.Equal("Bob", byBob[0].User);
   }
 
   [Fact]
@@ -65,7 +83,7 @@ public sealed class JsonActivityLogTests : IDisposable
       await _log.LogAsync("info", "system", "entry " + i, CancellationToken.None);
     }
 
-    var limited = await _log.QueryAsync(null, null, null, 2, CancellationToken.None);
+    var limited = await _log.QueryAsync(null, null, null, null, 2, CancellationToken.None);
     Assert.Equal(2, limited.Count);
   }
 
@@ -74,7 +92,7 @@ public sealed class JsonActivityLogTests : IDisposable
   {
     await _log.LogAsync(" ", " ", "msg", CancellationToken.None);
 
-    var all = await _log.QueryAsync(null, null, null, 100, CancellationToken.None);
+    var all = await _log.QueryAsync(null, null, null, null, 100, CancellationToken.None);
     Assert.Single(all);
     Assert.Equal("info", all[0].Level);
     Assert.Equal("system", all[0].Category);

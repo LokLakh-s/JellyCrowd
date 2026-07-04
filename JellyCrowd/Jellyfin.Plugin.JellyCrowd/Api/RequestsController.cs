@@ -256,7 +256,7 @@ public class RequestsController : ControllerBase
       },
       cancellationToken).ConfigureAwait(false);
 
-    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " added " + created.Title + " to their library", CancellationToken.None);
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " added " + created.Title + " to their library", _resolveUserName(userId), CancellationToken.None);
     return Ok(created);
   }
 
@@ -457,7 +457,7 @@ public class RequestsController : ControllerBase
       return NotFound();
     }
 
-    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " requested deletion of " + updated.Title, CancellationToken.None);
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " requested deletion of " + updated.Title, _resolveUserName(userId), CancellationToken.None);
     return Ok(updated);
   }
 
@@ -498,7 +498,7 @@ public class RequestsController : ControllerBase
       return NotFound();
     }
 
-    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " cancelled deletion of " + updated.Title, CancellationToken.None);
+    _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " cancelled deletion of " + updated.Title, _resolveUserName(userId), CancellationToken.None);
     return Ok(updated);
   }
 

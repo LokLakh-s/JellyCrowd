@@ -307,6 +307,7 @@
   "dashboard_req_denied": "Denied",
   "tab_logs": "Logs",
   "log_search": "Search",
+  "log_user_all": "All users",
   "log_refresh": "Refresh",
   "log_empty": "No activity recorded yet."
 }
