@@ -38,6 +38,40 @@ public class SegmentDetectionTests
     return list;
   }
 
+  // ----- ffmpeg argument building (GPU hardware acceleration) -----
+
+  [Theory]
+  [InlineData("auto", "-hwaccel auto ")]
+  [InlineData("AUTO", "-hwaccel auto ")]
+  [InlineData(" vaapi ", "-hwaccel vaapi ")]
+  [InlineData("qsv", "-hwaccel qsv ")]
+  [InlineData("cuda", "-hwaccel cuda ")]
+  [InlineData("videotoolbox", "-hwaccel videotoolbox ")]
+  [InlineData("none", "")]
+  [InlineData("", "")]
+  [InlineData(null, "")]
+  [InlineData("bogus", "")]
+  public void HwAccelArg_MapsModeToFfmpegOption(string? mode, string expected)
+  {
+    Assert.Equal(expected, SegmentDetection.HwAccelArg(mode));
+  }
+
+  [Fact]
+  public void BuildOutroAnalyzeArgs_Auto_InsertsHwAccelBeforeInput()
+  {
+    Assert.Equal(
+      "-hide_banner -nostats -hwaccel auto -ss 1234.5 -i \"/media/movie.mkv\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
+      SegmentDetection.BuildOutroAnalyzeArgs("auto", 1234.5, "/media/movie.mkv"));
+  }
+
+  [Fact]
+  public void BuildOutroAnalyzeArgs_Cpu_HasNoHwAccel()
+  {
+    Assert.Equal(
+      "-hide_banner -nostats -ss 60 -i \"/x.mp4\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
+      SegmentDetection.BuildOutroAnalyzeArgs("none", 60, "/x.mp4"));
+  }
+
   // ----- Parsing -----
 
   [Fact]

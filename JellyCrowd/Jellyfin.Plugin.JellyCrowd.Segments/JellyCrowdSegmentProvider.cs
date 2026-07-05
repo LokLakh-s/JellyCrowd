@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Enums;
@@ -155,12 +154,9 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     var analyzed = runtimeSeconds - offset;
 
     // One decode of the tail yields both signals: per-second average luma (signalstats) to tell dark
-    // credits from a bright bonus, and audio silence (a quiet credits crawl).
-    var args = string.Format(
-      CultureInfo.InvariantCulture,
-      "-hide_banner -nostats -ss {0:0.###} -i \"{1}\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
-      offset,
-      path);
+    // credits from a bright bonus, and audio silence (a quiet credits crawl). The video decode — the heavy
+    // part of the Media Segment Scan — is offloaded to the GPU per the configured hardware-accel mode.
+    var args = SegmentDetection.BuildOutroAnalyzeArgs(config.SegmentHwAccel, offset, path);
 
     var options = new OutroDetectionOptions(
       config.OutroDarkFraction,
