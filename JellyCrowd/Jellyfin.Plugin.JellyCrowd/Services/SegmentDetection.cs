@@ -42,6 +42,39 @@ public static class SegmentDetection
     RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
   /// <summary>
+  /// Builds the ffmpeg arguments for the outro (end-credits) analysis: one decode of the file tail from
+  /// <paramref name="offsetSeconds"/>, sampled at 1 fps for per-second average luma (signalstats) plus audio
+  /// silence detection. The video decode can be offloaded to the GPU via <paramref name="hwAccel"/>.
+  /// </summary>
+  /// <param name="hwAccel">Hardware-accel mode (auto/none/vaapi/qsv/cuda/videotoolbox).</param>
+  /// <param name="offsetSeconds">The seek point (absolute seconds) where the analyzed tail starts.</param>
+  /// <param name="path">The media file path.</param>
+  /// <returns>The ffmpeg argument string.</returns>
+  public static string BuildOutroAnalyzeArgs(string? hwAccel, double offsetSeconds, string path)
+    => string.Format(
+      CultureInfo.InvariantCulture,
+      "-hide_banner -nostats {0}-ss {1:0.###} -i \"{2}\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
+      HwAccelArg(hwAccel),
+      offsetSeconds,
+      path);
+
+  /// <summary>
+  /// Maps a hardware-acceleration mode to the ffmpeg <c>-hwaccel</c> input option (with a trailing space),
+  /// or an empty string for CPU decoding. Unknown, empty or <c>none</c> values fall back to CPU.
+  /// </summary>
+  /// <param name="mode">The configured mode.</param>
+  /// <returns>The ffmpeg input-option prefix (e.g. <c>"-hwaccel auto "</c>) or an empty string.</returns>
+  public static string HwAccelArg(string? mode) => mode?.Trim().ToUpperInvariant() switch
+  {
+    "AUTO" => "-hwaccel auto ",
+    "VAAPI" => "-hwaccel vaapi ",
+    "QSV" => "-hwaccel qsv ",
+    "CUDA" => "-hwaccel cuda ",
+    "VIDEOTOOLBOX" => "-hwaccel videotoolbox ",
+    _ => string.Empty,
+  };
+
+  /// <summary>
   /// Parses the black-frame and silence regions from captured ffmpeg output. Silence starts/ends are
   /// paired in order; a trailing unmatched silence_start is closed at <paramref name="fallbackEnd"/>.
   /// </summary>

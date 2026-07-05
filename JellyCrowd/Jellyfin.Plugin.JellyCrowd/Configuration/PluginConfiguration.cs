@@ -45,6 +45,7 @@ public class PluginConfiguration : BasePluginConfiguration
     SkipIntroEnabled = false;
     OutroAnalyzeMaxSeconds = 720;
     OutroAnalyzeTimeoutSeconds = 180;
+    SegmentHwAccel = "auto";
     OutroMinCreditsSeconds = 20;
     OutroMaxCreditsSeconds = 900;
     OutroDarkFraction = 0.25;
@@ -419,6 +420,13 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the timeout (seconds) for a single outro analysis process before it is killed.
   /// </summary>
   public int OutroAnalyzeTimeoutSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets the ffmpeg hardware-acceleration mode for the Skip Outro video decode (the Media Segment
+  /// Scan's heavy cost): <c>auto</c> (GPU if available, else CPU), <c>none</c>, <c>vaapi</c>, <c>qsv</c>,
+  /// <c>cuda</c> or <c>videotoolbox</c>. Only the decode is offloaded; the analysis filters run on 1 fps.
+  /// </summary>
+  public string SegmentHwAccel { get; set; }
 
   /// <summary>
   /// Gets or sets the minimum credits length (seconds) after the end-of-content fade for it to count as

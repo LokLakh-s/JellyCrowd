@@ -237,6 +237,7 @@
         { key: 'ShowReviewAuthors', label: 'Show review author names to everyone', type: 'check' },
         { key: 'SkipOutroEnabled', label: 'Detect end credits (Skip Outro)', type: 'check' },
         { key: 'SkipIntroEnabled', label: 'Detect episode intros (Skip Intro)', type: 'check' },
+        { key: 'SegmentHwAccel', label: 'Skip Outro — GPU acceleration', type: 'select', options: [['auto', 'Auto (GPU if available)'], ['none', 'CPU only'], ['vaapi', 'Intel / AMD (VAAPI)'], ['qsv', 'Intel QuickSync (QSV)'], ['cuda', 'NVIDIA (CUDA)'], ['videotoolbox', 'macOS (VideoToolbox)']], hint: 'Offloads the end-credits video decode to the GPU during the Media Segment Scan — the heavy part. Auto falls back to CPU when no GPU decoder is available. (The Skip Intro fingerprint is audio-only, so it is unaffected.)' },
         { key: 'TmdbApiKey', label: 'TMDB API key', type: 'text', placeholder: 'your TMDB API key' }
       ]);
       host.appendChild(cfgSaveButton([form]));
