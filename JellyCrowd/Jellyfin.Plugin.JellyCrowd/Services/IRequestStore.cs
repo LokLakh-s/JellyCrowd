@@ -132,6 +132,16 @@ public interface IRequestStore
   Task<RequestRecord?> RequestDeletionAsync(Guid id, Guid userId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Flags an available request's media for deletion regardless of owner (administrator action). The
+  /// scheduled task purges the backend and removes the files after the retention period; cancellable until
+  /// then. Shared media is only physically removed once no other active request still wants it.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found, not available, or already flagged.</returns>
+  Task<RequestRecord?> AdminFlagDeletionAsync(Guid id, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Clears a pending deletion flag on one of the user's available requests (the user changed their mind).
   /// </summary>
   /// <param name="id">The request identifier.</param>

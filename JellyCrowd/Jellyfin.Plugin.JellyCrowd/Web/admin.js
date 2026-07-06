@@ -814,6 +814,7 @@
     function reload() { load(); }
     function decide(id, action) { apiPostNoResult('JellyCrowd/Requests/' + id + '/' + action).then(reload).catch(function () {}); }
     function adminDelete(id) { apiPostNoResult('JellyCrowd/Requests/' + id + '/Delete').then(reload).catch(function () {}); }
+    function adminDeleteMedia(id) { apiPostNoResult('JellyCrowd/Requests/' + id + '/DeleteMedia').then(reload).catch(function () {}); }
     function adminEdit(request, partial) {
       var body = {
         Status: partial.Status != null ? partial.Status : statusToInt(request.Status),
@@ -836,7 +837,7 @@
       table.innerHTML = '<thead><tr><th></th><th>' + t('col_title') + '</th><th>' + t('admin_requested_by') + '</th><th>' + t('col_date')
         + '</th><th>' + t('col_status') + '</th><th></th></tr></thead>';
       var tbody = document.createElement('tbody');
-      all.forEach(function (request) { tbody.appendChild(requestRow(request, decide, adminEdit, adminDelete)); });
+      all.forEach(function (request) { tbody.appendChild(requestRow(request, decide, adminEdit, adminDelete, adminDeleteMedia)); });
       table.appendChild(tbody);
       listHost.appendChild(table);
       loadDownloadStatus();
@@ -873,7 +874,7 @@
     load();
   }
 
-  function requestRow(request, decide, adminEdit, adminDelete) {
+  function requestRow(request, decide, adminEdit, adminDelete, adminDeleteMedia) {
     var tr = document.createElement('tr');
     tr.setAttribute('data-req-id', request.Id);
 
@@ -943,7 +944,19 @@
     if (request.DesiredAt) { date.value = String(request.DesiredAt).slice(0, 10); }
     date.addEventListener('change', function () { adminEdit(request, { DesiredAt: date.value || null }); });
     tdA.appendChild(date);
-    tdA.appendChild(adminBtn(t('admin_delete'), 'danger', function () { adminDelete(request.Id); }));
+    // Two distinct destructive actions: "Delete media" flags the actual files for removal (via the
+    // retention task); "Remove request" only drops the plugin's request record and keeps the files.
+    if (isAvailable && !request.DeletionRequestedAt) {
+      tdA.appendChild(adminBtn(t('admin_delete_media'), 'danger', function () {
+        if (window.confirm(t('confirm_delete_media'))) { adminDeleteMedia(request.Id); }
+      }));
+    } else if (request.DeletionRequestedAt) {
+      var pend = document.createElement('span');
+      pend.className = 'jellycrowd-status jellycrowd-status-denied';
+      pend.textContent = t('deletion_pending');
+      tdA.appendChild(pend);
+    }
+    tdA.appendChild(adminBtn(t('admin_remove_request'), 'danger', function () { adminDelete(request.Id); }));
     tr.appendChild(tdA);
     return tr;
   }

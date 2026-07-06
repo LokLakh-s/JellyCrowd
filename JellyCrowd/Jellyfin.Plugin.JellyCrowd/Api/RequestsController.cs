@@ -601,6 +601,33 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
+  /// Flags a request's media for deletion (administrators only): the scheduled task purges the download
+  /// backend and removes the files after the retention period. Cancellable until then. Unlike
+  /// <see cref="Delete"/> (which only removes the request record), this deletes the actual media.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The media was flagged for deletion.</response>
+  /// <response code="404">No such request, or its media is not available.</response>
+  /// <returns>The updated request, or 404.</returns>
+  [HttpPost("{id}/DeleteMedia")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  public async Task<ActionResult<RequestRecord>> DeleteMedia(Guid id, CancellationToken cancellationToken)
+  {
+    var updated = await _store.AdminFlagDeletionAsync(id, cancellationToken).ConfigureAwait(false);
+    if (updated is null)
+    {
+      return NotFound();
+    }
+
+    var adminId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    _ = _activityLog.LogAsync("info", "admin", _resolveUserName(adminId) + " flagged \"" + updated.Title + "\" for media deletion", _resolveUserName(adminId), CancellationToken.None);
+    return Ok(updated);
+  }
+
+  /// <summary>
   /// Edits a request's status, season/episode and desired date (administrators only).
   /// </summary>
   /// <param name="id">The request identifier.</param>

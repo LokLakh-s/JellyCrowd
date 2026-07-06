@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -120,6 +121,56 @@ public sealed class JsonRequestStoreTests : IDisposable
     Assert.NotNull(updated);
     Assert.Null(updated!.DeletionRequestedAt);
     Assert.Null(await _store.CancelDeletionAsync(created.Id, user, CancellationToken.None)); // nothing to cancel now
+  }
+
+  [Fact]
+  public async Task AdminFlagDeletionAsync_FlagsAvailableRegardlessOfOwner()
+  {
+    var created = await _store.CreateAsync(NewRecord(Guid.NewGuid()), CancellationToken.None);
+    await _store.MarkAvailableAsync(created.Id, "item", CancellationToken.None);
+
+    // No userId is passed — an admin flags it regardless of who owns it.
+    var flagged = await _store.AdminFlagDeletionAsync(created.Id, CancellationToken.None);
+
+    Assert.NotNull(flagged);
+    Assert.NotNull(flagged!.DeletionRequestedAt);
+    Assert.Null(await _store.AdminFlagDeletionAsync(created.Id, CancellationToken.None)); // already flagged -> null
+  }
+
+  [Fact]
+  public async Task AdminFlagDeletionAsync_RejectsNonAvailableOrMissing()
+  {
+    var pending = await _store.CreateAsync(NewRecord(Guid.NewGuid()), CancellationToken.None); // Pending
+    Assert.Null(await _store.AdminFlagDeletionAsync(pending.Id, CancellationToken.None));
+    Assert.Null(await _store.AdminFlagDeletionAsync(Guid.NewGuid(), CancellationToken.None)); // no such request
+  }
+
+  [Fact]
+  public async Task AdminUpdateAsync_StampsAvailableAt_WhenMadeAvailable()
+  {
+    var created = await _store.CreateAsync(NewRecord(Guid.NewGuid()), CancellationToken.None); // Pending, no AvailableAt
+    Assert.Null(created.AvailableAt);
+
+    var updated = await _store.AdminUpdateAsync(created.Id, RequestStatus.Available, null, null, null, CancellationToken.None);
+    Assert.NotNull(updated!.AvailableAt);
+
+    // Re-applying Available keeps the original stamp (doesn't restart the expiry clock).
+    var stamped = updated.AvailableAt;
+    var again = await _store.AdminUpdateAsync(created.Id, RequestStatus.Available, null, null, null, CancellationToken.None);
+    Assert.Equal(stamped, again!.AvailableAt);
+  }
+
+  [Fact]
+  public async Task LoadAsync_BackfillsAvailableAt_ForLegacyAvailableRecords()
+  {
+    // A record persisted as Available with no AvailableAt (older data / admin status edit).
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 271347, MediaType = "tv", Title = "Shtisel", Season = 1, Status = RequestStatus.Available }, CancellationToken.None);
+
+    // A fresh store over the same file backfills on first load (mirrors a server restart after upgrade).
+    var reopened = new JsonRequestStore(_path);
+    var all = await reopened.GetAllAsync(CancellationToken.None);
+
+    Assert.NotNull(all.First(r => r.TmdbId == 271347).AvailableAt);
   }
 
   [Fact]

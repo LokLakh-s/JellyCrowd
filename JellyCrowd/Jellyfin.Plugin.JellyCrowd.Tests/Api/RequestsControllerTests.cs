@@ -616,6 +616,18 @@ public class RequestsControllerTests
       return Task.FromResult<RequestRecord?>(record);
     }
 
+    public Task<RequestRecord?> AdminFlagDeletionAsync(Guid id, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.Status != RequestStatus.Available || record.DeletionRequestedAt is not null)
+      {
+        return Task.FromResult<RequestRecord?>(null);
+      }
+
+      record.DeletionRequestedAt = DateTime.UtcNow;
+      return Task.FromResult<RequestRecord?>(record);
+    }
+
     public Task<RequestRecord?> CancelDeletionAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
       var record = _items.FirstOrDefault(r => r.Id == id);
