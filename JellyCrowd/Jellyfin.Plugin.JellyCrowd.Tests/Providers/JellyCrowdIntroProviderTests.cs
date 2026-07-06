@@ -96,16 +96,32 @@ public class JellyCrowdIntroProviderTests
   }
 
   [Fact]
-  public async Task GetIntros_NoRequestContext_FailsOpen()
+  public async Task GetIntros_NoRequestContext_FailsClosed()
   {
-    // Web-only ON but no accessor → the client can't be identified → fail open (never block playback).
+    // Web-only ON but no accessor → the client can't be identified → fail CLOSED: don't risk a broken
+    // pre-roll on a native app. The gate short-circuits, so the library is never queried.
     var library = new Mock<ILibraryManager>();
-    library.Setup(l => l.GetVirtualFolders()).Returns(new List<VirtualFolderInfo>());
     var cfg = WebOnlyConfig();
     var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, httpContextAccessor: null, authorizationContext: null);
 
-    await provider.GetIntros(new Movie(), null!);
+    var result = await provider.GetIntros(new Movie(), null!);
 
-    library.Verify(l => l.GetVirtualFolders(), Times.AtLeastOnce);
+    Assert.Empty(result);
+    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+  }
+
+  [Fact]
+  public async Task GetIntros_NativeClientContainingWeb_IsBlocked()
+  {
+    // "Jellyfin webOS" (LG TV) contains "web" but is a native client — precise matching must block it.
+    var library = new Mock<ILibraryManager>();
+    var (http, auth) = ClientContext("Jellyfin webOS");
+    var cfg = WebOnlyConfig();
+    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
+
+    var result = await provider.GetIntros(new Movie(), null!);
+
+    Assert.Empty(result);
+    library.Verify(l => l.GetVirtualFolders(), Times.Never);
   }
 }
