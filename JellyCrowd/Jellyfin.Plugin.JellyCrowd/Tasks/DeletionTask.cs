@@ -109,6 +109,14 @@ public sealed class DeletionTask : IScheduledTask
         {
           _mediaDeleter.Delete(itemId);
         }
+        else
+        {
+          // Resolution failed (e.g. the title isn't matched in the library): the request is still cleared
+          // below, but the files stay on disk — surface it so a stale item doesn't linger silently.
+          _logger.LogWarning(
+            "Jelly Crowd deletion: could not resolve the library item for {Title}; its files may remain — verify it still exists in the library.",
+            request.Title);
+        }
       }
 
       await _store.DeleteAsync(request.Id, cancellationToken).ConfigureAwait(false);
@@ -184,7 +192,10 @@ public sealed class DeletionTask : IScheduledTask
         return _libraryMatcher.FindEpisodeItemId(request.TmdbId, season, episode) ?? request.JellyfinItemId;
       }
 
-      return _libraryMatcher.FindSeasonItemId(request.TmdbId, season) ?? request.JellyfinItemId;
+      // Season deletion must target the whole Season item (folder). The stored JellyfinItemId for a
+      // season request is a single episode, so falling back to it would delete only one episode and
+      // orphan the rest — better to resolve the season live, or delete nothing (and warn) if it can't be.
+      return _libraryMatcher.FindSeasonItemId(request.TmdbId, season);
     }
 
     return request.JellyfinItemId;

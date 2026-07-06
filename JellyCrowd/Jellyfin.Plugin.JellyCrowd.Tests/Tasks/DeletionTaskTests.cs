@@ -108,6 +108,41 @@ public sealed class DeletionTaskTests : IDisposable
   }
 
   [Fact]
+  public async Task Execute_Season_DeletesTheSeasonItem_NotASingleEpisode()
+  {
+    var user = Guid.NewGuid();
+    var created = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 271347, MediaType = "tv", Title = "Shtisel", Season = 1 }, CancellationToken.None);
+    await _store.MarkAvailableAsync(created.Id, "episode-item", CancellationToken.None); // reconciler stores a single EPISODE id
+    await _store.RequestDeletionAsync(created.Id, user, CancellationToken.None);
+
+    var deleter = new RecordingDeleter();
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(seasonItemId: "season-item"), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Contains("season-item", deleter.Deleted);        // deletes the resolved Season (whole folder)
+    Assert.DoesNotContain("episode-item", deleter.Deleted); // not the single stored episode
+    Assert.Null(await _store.GetByIdAsync(created.Id, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Execute_Season_WhenSeasonUnresolved_DeletesNothing_NotASingleEpisode()
+  {
+    var user = Guid.NewGuid();
+    var created = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "S", Season = 2 }, CancellationToken.None);
+    await _store.MarkAvailableAsync(created.Id, "episode-item", CancellationToken.None);
+    await _store.RequestDeletionAsync(created.Id, user, CancellationToken.None);
+
+    var deleter = new RecordingDeleter();
+    // StubMatcher() → FindSeasonItemId returns null: the season can't be resolved.
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Empty(deleter.Deleted); // must not fall back to deleting a single episode of the season
+  }
+
+  [Fact]
   public async Task Execute_SweepsEmptySeries_AndProtectsActiveRequests_WhenEnabled()
   {
     // An active (Approved) request must be handed to the cleaner as "wanted" so its series is spared.
@@ -148,13 +183,17 @@ public sealed class DeletionTaskTests : IDisposable
 
   private sealed class StubMatcher : ILibraryMatcher
   {
+    private readonly string? _seasonItemId;
+
+    public StubMatcher(string? seasonItemId = null) => _seasonItemId = seasonItemId;
+
     public bool Exists(string mediaType, int tmdbId) => false;
 
     public string? FindItemId(string mediaType, int tmdbId) => null;
 
     public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => null;
 
-    public string? FindSeasonItemId(int seriesTmdbId, int season) => null;
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => _seasonItemId;
 
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
 
