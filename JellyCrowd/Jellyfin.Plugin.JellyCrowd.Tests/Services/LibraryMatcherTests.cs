@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using MediaBrowser.Controller.Entities;
@@ -48,6 +49,31 @@ public class LibraryMatcherTests
     manager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem>());
 
     Assert.Null(new LibraryMatcher(manager.Object).FindItemId("movie", 1));
+  }
+
+  [Fact]
+  public void FindSeasonItemId_ResolvesSeasonByTmdbAndIndex()
+  {
+    var seasonId = Guid.NewGuid();
+    var manager = new Mock<ILibraryManager>();
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes != null && q.IncludeItemTypes.Contains(BaseItemKind.Series))))
+      .Returns(new List<BaseItem> { new Series { Id = Guid.NewGuid() } });
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes != null && q.IncludeItemTypes.Contains(BaseItemKind.Season))))
+      .Returns(new List<BaseItem> { new Season { Id = Guid.NewGuid(), IndexNumber = 1 }, new Season { Id = seasonId, IndexNumber = 2 } });
+
+    var matcher = new LibraryMatcher(manager.Object);
+
+    // Resolves the exact season (index 2) under the TMDB-matched series — the item the deletion targets.
+    Assert.Equal(seasonId.ToString("N"), matcher.FindSeasonItemId(1396, 2));
+  }
+
+  [Fact]
+  public void FindSeasonItemId_ReturnsNull_WhenSeriesMissing()
+  {
+    var manager = new Mock<ILibraryManager>();
+    manager.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(new List<BaseItem>());
+
+    Assert.Null(new LibraryMatcher(manager.Object).FindSeasonItemId(1, 1));
   }
 
   [Fact]
