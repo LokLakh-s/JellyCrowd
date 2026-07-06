@@ -115,15 +115,33 @@ public sealed class JellyCrowdIntroProvider : IIntroProvider
       return false;
     }
 
-    return IsWebOrDesktopClient(client);
+    return IsWebOrDesktopClient(client, request.Headers.UserAgent.ToString());
   }
 
-  // Match precisely: the browser client identifies as exactly "Jellyfin Web", and the desktop player's name
-  // contains "Media Player". A loose "web" substring would wrongly allow native clients whose name merely
-  // contains it — e.g. the LG TV client "Jellyfin webOS" — and hand them a pre-roll they can't play.
-  private static bool IsWebOrDesktopClient(string client)
-    => client.Equals("Jellyfin Web", StringComparison.OrdinalIgnoreCase)
-       || client.Contains("Media Player", StringComparison.OrdinalIgnoreCase);
+  // The clients that reliably play a prepended pre-roll: the desktop Jellyfin Media Player, and the browser
+  // web client ONLY on a desktop browser. A mobile browser reports the same "Jellyfin Web" client yet chokes
+  // on a prepended pre-roll exactly like the native mobile apps (a friend hit this on Android), so it is told
+  // apart by its User-Agent. A loose "web" substring is avoided so a native client whose name merely contains
+  // it — e.g. the LG TV "Jellyfin webOS" — is not mistaken for the browser.
+  private static bool IsWebOrDesktopClient(string client, string userAgent)
+  {
+    if (client.Contains("Media Player", StringComparison.OrdinalIgnoreCase))
+    {
+      return true;
+    }
+
+    return client.Equals("Jellyfin Web", StringComparison.OrdinalIgnoreCase)
+        && !IsMobileBrowser(userAgent);
+  }
+
+  // Recognises the common mobile-browser markers (Android phones/tablets and iOS). iPadOS Safari defaults to
+  // a desktop User-Agent and can't be told apart here — a known limitation.
+  private static bool IsMobileBrowser(string userAgent)
+    => userAgent.Contains("Mobi", StringComparison.OrdinalIgnoreCase)
+    || userAgent.Contains("Android", StringComparison.OrdinalIgnoreCase)
+    || userAgent.Contains("iPhone", StringComparison.OrdinalIgnoreCase)
+    || userAgent.Contains("iPad", StringComparison.OrdinalIgnoreCase)
+    || userAgent.Contains("iPod", StringComparison.OrdinalIgnoreCase);
 
   private static bool AppliesTo(BaseItem item, PluginConfiguration config) => item switch
   {

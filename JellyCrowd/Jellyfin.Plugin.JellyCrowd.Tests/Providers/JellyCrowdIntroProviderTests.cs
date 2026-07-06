@@ -28,10 +28,16 @@ public class JellyCrowdIntroProviderTests
     LocalIntrosFolderName = "intros"
   };
 
-  private static (IHttpContextAccessor Http, IAuthorizationContext Auth) ClientContext(string client)
+  private const string DesktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36";
+  private const string AndroidUserAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
+  private const string IPhoneUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605 Version/17 Mobile/15E148 Safari/604";
+
+  private static (IHttpContextAccessor Http, IAuthorizationContext Auth) ClientContext(string client, string userAgent = DesktopUserAgent)
   {
+    var ctx = new DefaultHttpContext();
+    ctx.Request.Headers.UserAgent = userAgent;
     var http = new Mock<IHttpContextAccessor>();
-    http.Setup(h => h.HttpContext).Returns(new DefaultHttpContext());
+    http.Setup(h => h.HttpContext).Returns(ctx);
     var auth = new Mock<IAuthorizationContext>();
     auth.Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpRequest>()))
       .ReturnsAsync(new AuthorizationInfo { Client = client });
@@ -103,6 +109,36 @@ public class JellyCrowdIntroProviderTests
     var library = new Mock<ILibraryManager>();
     var cfg = WebOnlyConfig();
     var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, httpContextAccessor: null, authorizationContext: null);
+
+    var result = await provider.GetIntros(new Movie(), null!);
+
+    Assert.Empty(result);
+    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+  }
+
+  [Fact]
+  public async Task GetIntros_MobileWebBrowser_IsBlocked()
+  {
+    // A phone browser reports the "Jellyfin Web" client but chokes on a prepended pre-roll — tell it apart
+    // from a desktop browser by the mobile User-Agent and block it (the reported Android case).
+    var library = new Mock<ILibraryManager>();
+    var (http, auth) = ClientContext("Jellyfin Web", AndroidUserAgent);
+    var cfg = WebOnlyConfig();
+    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
+
+    var result = await provider.GetIntros(new Movie(), null!);
+
+    Assert.Empty(result);
+    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+  }
+
+  [Fact]
+  public async Task GetIntros_IPhoneWebBrowser_IsBlocked()
+  {
+    var library = new Mock<ILibraryManager>();
+    var (http, auth) = ClientContext("Jellyfin Web", IPhoneUserAgent);
+    var cfg = WebOnlyConfig();
+    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
 
     var result = await provider.GetIntros(new Movie(), null!);
 
