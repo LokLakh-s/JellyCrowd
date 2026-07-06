@@ -88,16 +88,18 @@ public sealed class JellyCrowdIntroProvider : IIntroProvider
       : ids.Select(id => new IntroInfo { ItemId = id });
   }
 
-  // Only clients that run the web UI receive intros when the web-only restriction is on: the web client
-  // and the desktop Jellyfin Media Player. Resolved from the current request's authorization; fails open
-  // (returns true) whenever the request or client can't be determined, so a detection gap never blocks
-  // playback for legitimate web users.
+  // Only the clients that reliably play a prepended pre-roll receive local intros when the web-only
+  // restriction is on: the browser web client and the desktop Jellyfin Media Player. Resolved from the
+  // current request's authorization. Fails CLOSED (returns false) when the client can't be positively
+  // identified — the restriction exists to keep a pre-roll off native apps, where it breaks playback, so an
+  // unidentified client is treated as "not web/desktop". The normal web flow always carries the request, so
+  // this never blocks a genuine web user.
   private async Task<bool> IsWebOrDesktopClientAsync()
   {
     var request = _httpContextAccessor?.HttpContext?.Request;
     if (request is null || _authorizationContext is null)
     {
-      return true;
+      return false;
     }
 
     string client;
@@ -106,16 +108,22 @@ public sealed class JellyCrowdIntroProvider : IIntroProvider
       var info = await _authorizationContext.GetAuthorizationInfo(request).ConfigureAwait(false);
       client = info.Client ?? string.Empty;
     }
-#pragma warning disable CA1031 // A detection failure must never block playback; treat it as "allowed".
+#pragma warning disable CA1031 // A detection failure must not risk a broken pre-roll on native: treat as "not web".
     catch (Exception)
 #pragma warning restore CA1031
     {
-      return true;
+      return false;
     }
 
-    return client.Contains("web", StringComparison.OrdinalIgnoreCase)
-        || client.Contains("media player", StringComparison.OrdinalIgnoreCase);
+    return IsWebOrDesktopClient(client);
   }
+
+  // Match precisely: the browser client identifies as exactly "Jellyfin Web", and the desktop player's name
+  // contains "Media Player". A loose "web" substring would wrongly allow native clients whose name merely
+  // contains it — e.g. the LG TV client "Jellyfin webOS" — and hand them a pre-roll they can't play.
+  private static bool IsWebOrDesktopClient(string client)
+    => client.Equals("Jellyfin Web", StringComparison.OrdinalIgnoreCase)
+       || client.Contains("Media Player", StringComparison.OrdinalIgnoreCase);
 
   private static bool AppliesTo(BaseItem item, PluginConfiguration config) => item switch
   {
