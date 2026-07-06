@@ -229,4 +229,30 @@ public class SegmentDetectionTests
   {
     Assert.Empty(SegmentDetection.DetectOutroSegments(Array.Empty<LumaSample>(), NoSilence, 1055, 1355, Options()));
   }
+
+  [Fact]
+  public void OutroOptionsSignature_IsStable_ForTheSameTuning()
+  {
+    Assert.Equal(
+      SegmentDetection.OutroOptionsSignature(Options(), 720),
+      SegmentDetection.OutroOptionsSignature(Options(), 720));
+  }
+
+  [Fact]
+  public void OutroOptionsSignature_Changes_WhenATuningValueChanges()
+  {
+    var baseline = SegmentDetection.OutroOptionsSignature(Options(), 720);
+    var tweaked = Options() with { DarkFraction = 0.30 };
+
+    Assert.NotEqual(baseline, SegmentDetection.OutroOptionsSignature(tweaked, 720));
+  }
+
+  [Fact]
+  public void OutroOptionsSignature_Changes_WhenTheAnalysisWindowCapChanges()
+  {
+    // OutroAnalyzeMaxSeconds caps the analyzed tail, so it affects the result and must invalidate the cache.
+    Assert.NotEqual(
+      SegmentDetection.OutroOptionsSignature(Options(), 720),
+      SegmentDetection.OutroOptionsSignature(Options(), 900));
+  }
 }

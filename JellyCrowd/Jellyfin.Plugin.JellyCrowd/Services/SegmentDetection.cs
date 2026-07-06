@@ -75,6 +75,29 @@ public static class SegmentDetection
   };
 
   /// <summary>
+  /// Builds a compact, stable signature of the outro-detection tuning, so a cached analysis can be
+  /// invalidated when the tuning changes. Includes only inputs that change the detection RESULT — not the
+  /// ffmpeg speed knobs (hardware acceleration, analysis timeout), which never alter what is detected.
+  /// </summary>
+  /// <param name="options">The detection tuning.</param>
+  /// <param name="analyzeMaxSeconds">The maximum analyzed tail length (it caps the analysis window).</param>
+  /// <returns>A signature string that changes iff the effective tuning changes.</returns>
+  public static string OutroOptionsSignature(OutroDetectionOptions options, double analyzeMaxSeconds)
+    => string.Format(
+      CultureInfo.InvariantCulture,
+      "{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}",
+      options.DarkFraction,
+      options.MinCreditRunSeconds,
+      options.MinBonusRunSeconds,
+      options.MaxBonusGapSeconds,
+      options.MaxTrailingBonusSeconds,
+      options.MinTrailingSilenceSeconds,
+      options.SilenceEndToleranceSeconds,
+      options.MinCreditsSeconds,
+      options.MaxCreditsSeconds,
+      analyzeMaxSeconds);
+
+  /// <summary>
   /// Parses the black-frame and silence regions from captured ffmpeg output. Silence starts/ends are
   /// paired in order; a trailing unmatched silence_start is closed at <paramref name="fallbackEnd"/>.
   /// </summary>
