@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Net.Mime;
 using System.Threading;
@@ -54,14 +53,18 @@ public class LibraryMaintenanceController : ControllerBase
     var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
     var owners = all
       .Where(r => r.Status == RequestStatus.Available && r.DeletionRequestedAt is null)
-      .GroupBy(r => r.MediaType + ":" + r.TmdbId.ToString(CultureInfo.InvariantCulture))
-      .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+      .ToList();
 
     var media = _libraryMatcher.ListLibraryMedia();
     var result = new List<LibraryMediaItem>(media.Count);
     foreach (var item in media)
     {
-      item.OwnerCount = owners.TryGetValue(item.MediaType + ":" + item.TmdbId.ToString(CultureInfo.InvariantCulture), out var c) ? c : 0;
+      // Count only the requests whose scope overlaps this entry — a per-season entry is owned by a
+      // whole-series request or a request for that same season, not by a request for a different season.
+      item.OwnerCount = owners.Count(r =>
+        r.TmdbId == item.TmdbId
+        && string.Equals(r.MediaType, item.MediaType, StringComparison.Ordinal)
+        && MediaScope.Overlaps(item.Season, null, r.Season, r.Episode));
       if (!orphansOnly || item.OwnerCount == 0)
       {
         result.Add(item);

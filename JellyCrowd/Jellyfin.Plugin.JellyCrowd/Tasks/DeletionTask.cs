@@ -86,8 +86,10 @@ public sealed class DeletionTask : IScheduledTask
 
       var request = due[i];
 
-      // Only remove the media when no other active request still wants this title (shared media).
-      var sharedWithOthers = await _store.AnyActiveReferenceAsync(request.Id, request.TmdbId, request.MediaType, cancellationToken).ConfigureAwait(false);
+      // Only remove the media when no other active request still wants content that overlaps this scope
+      // (shared media). Matching is per season/episode, so deleting one season is not blocked by another
+      // season of the same series still being owned.
+      var sharedWithOthers = await _store.AnyActiveReferenceAsync(request.Id, request.TmdbId, request.MediaType, request.Season, request.Episode, cancellationToken).ConfigureAwait(false);
       if (!sharedWithOthers)
       {
         // Purge from the download backend (Radarr movie / whole Sonarr series + active downloads) so a

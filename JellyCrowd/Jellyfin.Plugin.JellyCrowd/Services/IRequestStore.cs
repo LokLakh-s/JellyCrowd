@@ -152,14 +152,18 @@ public interface IRequestStore
 
   /// <summary>
   /// Determines whether another request (different id, not flagged for deletion, not denied) still
-  /// references the same title — i.e. another user/season still wants the media.
+  /// references the same media — i.e. another user still wants content that overlaps this scope. Matching is
+  /// per season/episode (see <see cref="MediaScope.Overlaps"/>): deleting one season is not blocked by
+  /// another season of the same series still being owned.
   /// </summary>
   /// <param name="excludeId">The request to exclude (the one being deleted).</param>
   /// <param name="tmdbId">The TMDB identifier.</param>
   /// <param name="mediaType">The media type.</param>
+  /// <param name="season">The season being deleted (<c>null</c> = movie or whole series).</param>
+  /// <param name="episode">The episode being deleted (<c>null</c> = whole season).</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <returns><c>true</c> when another active reference exists.</returns>
-  Task<bool> AnyActiveReferenceAsync(Guid excludeId, int tmdbId, string mediaType, CancellationToken cancellationToken);
+  /// <returns><c>true</c> when another active reference overlaps this scope.</returns>
+  Task<bool> AnyActiveReferenceAsync(Guid excludeId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken);
 
   /// <summary>
   /// Gets requests whose deletion was requested at or before the given cutoff (retention elapsed).
