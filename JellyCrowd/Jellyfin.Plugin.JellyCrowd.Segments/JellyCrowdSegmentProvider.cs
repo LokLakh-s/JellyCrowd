@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Enums;
@@ -31,6 +32,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   private readonly IMediaEncoder _mediaEncoder;
   private readonly IProcessRunner _processRunner;
   private readonly IIntroStore _introStore;
+  private readonly IOutroStore _outroStore;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<JellyCrowdSegmentProvider> _logger;
 
@@ -41,6 +43,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   /// <param name="mediaEncoder">The media encoder (supplies the ffmpeg path).</param>
   /// <param name="processRunner">The process runner (runs the ffmpeg analysis).</param>
   /// <param name="introStore">The intro cache populated by the analysis task.</param>
+  /// <param name="outroStore">The outro cache: remembers each item's analysis so a scan doesn't re-run ffmpeg.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
   public JellyCrowdSegmentProvider(
@@ -48,6 +51,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     IMediaEncoder mediaEncoder,
     IProcessRunner processRunner,
     IIntroStore introStore,
+    IOutroStore outroStore,
     Func<PluginConfiguration> config,
     ILogger<JellyCrowdSegmentProvider> logger)
   {
@@ -55,6 +59,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     _mediaEncoder = mediaEncoder;
     _processRunner = processRunner;
     _introStore = introStore;
+    _outroStore = outroStore;
     _config = config;
     _logger = logger;
   }
@@ -73,12 +78,18 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   }
 
   /// <summary>
-  /// Removes any extracted analysis data for an item. No-op — this provider caches nothing on disk.
+  /// Forgets the remembered outro analysis for an item, so it is analyzed afresh next scan. Jellyfin calls
+  /// this when it cleans an item's extracted data (item removal / a forced regeneration), not on a routine
+  /// scan — so the cache survives ordinary runs.
   /// </summary>
-  /// <param name="itemId">The item whose extracted data would be cleaned.</param>
+  /// <param name="itemId">The item whose extracted data is being cleaned.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A completed task.</returns>
-  public Task CleanupExtractedData(Guid itemId, CancellationToken cancellationToken) => Task.CompletedTask;
+  public Task CleanupExtractedData(Guid itemId, CancellationToken cancellationToken)
+  {
+    _outroStore.Remove(itemId);
+    return Task.CompletedTask;
+  }
 
   /// <inheritdoc />
   public async Task<IReadOnlyList<MediaSegmentDto>> GetMediaSegments(MediaSegmentGenerationRequest request, CancellationToken cancellationToken)
@@ -115,37 +126,80 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     }
 
     var runtimeTicks = item.RunTimeTicks.Value;
-    var runtimeSeconds = runtimeTicks / (double)TicksPerSecond;
-    var outroSegments = await DetectOutroAsync(item.Path, runtimeSeconds, config, cancellationToken).ConfigureAwait(false);
-    foreach (var seg in outroSegments)
+    var options = BuildOutroOptions(config);
+    var signature = SegmentDetection.OutroOptionsSignature(options, config.OutroAnalyzeMaxSeconds);
+    var sizeBytes = item.Size ?? -1;
+    var modifiedTicks = item.DateModified.Ticks;
+
+    // Serve a remembered analysis when the file and the tuning are unchanged — the whole point is to not
+    // re-run the ffmpeg tail decode on every Media Segment Scan. An empty cached region list is a genuine
+    // result ("analyzed, no outro"), so it is reused too rather than re-analyzed.
+    var cached = _outroStore.Get(item.Id);
+    IReadOnlyList<OutroRegion> regions;
+    if (cached is not null && cached.Matches(sizeBytes, modifiedTicks, runtimeTicks, signature))
+    {
+      regions = cached.Regions ?? Array.Empty<OutroRegion>();
+    }
+    else
+    {
+      var runtimeSeconds = runtimeTicks / (double)TicksPerSecond;
+      var detected = await DetectOutroAsync(item.Path, runtimeSeconds, config, options, cancellationToken).ConfigureAwait(false);
+      if (detected is null)
+      {
+        // Analysis could not run (no ffmpeg, timeout, decode error): don't remember a failure as "no
+        // outro" — leave the item uncached so the next scan retries it.
+        return segments;
+      }
+
+      regions = detected
+        .Select(r => new OutroRegion((long)(r.Start * TicksPerSecond), (long)(r.End * TicksPerSecond)))
+        .ToList();
+      _outroStore.Set(item.Id, new OutroAnalysis(sizeBytes, modifiedTicks, runtimeTicks, signature, regions));
+    }
+
+    foreach (var region in regions)
     {
       segments.Add(new MediaSegmentDto
       {
         ItemId = item.Id,
         Type = MediaSegmentType.Outro,
-        StartTicks = (long)(seg.Start * TicksPerSecond),
-        EndTicks = (long)(seg.End * TicksPerSecond)
+        StartTicks = region.StartTicks,
+        EndTicks = region.EndTicks
       });
     }
 
-    if (outroSegments.Count > 0)
+    if (regions.Count > 0)
     {
       _logger.LogInformation(
         "Jelly Crowd: {Count} outro segment(s) for {Name}, first at {Start:0}s.",
-        outroSegments.Count,
+        regions.Count,
         item.Name,
-        outroSegments[0].Start);
+        regions[0].StartTicks / (double)TicksPerSecond);
     }
 
     return segments;
   }
 
-  private async Task<IReadOnlyList<DetectedRegion>> DetectOutroAsync(string path, double runtimeSeconds, PluginConfiguration config, CancellationToken cancellationToken)
+  private static OutroDetectionOptions BuildOutroOptions(PluginConfiguration config)
+    => new(
+      config.OutroDarkFraction,
+      config.OutroMinCreditRunSeconds,
+      config.OutroMinBonusRunSeconds,
+      config.OutroMaxBonusGapSeconds,
+      config.OutroMaxTrailingBonusSeconds,
+      config.OutroMinTrailingSilenceSeconds,
+      config.OutroSilenceEndToleranceSeconds,
+      config.OutroMinCreditsSeconds,
+      config.OutroMaxCreditsSeconds);
+
+  // Returns the detected outro regions (possibly empty), or null when the analysis itself could not run
+  // (no ffmpeg / timeout / decode error) — so the caller can retry next scan instead of caching a failure.
+  private async Task<IReadOnlyList<DetectedRegion>?> DetectOutroAsync(string path, double runtimeSeconds, PluginConfiguration config, OutroDetectionOptions options, CancellationToken cancellationToken)
   {
     var ffmpeg = _mediaEncoder.EncoderPath;
     if (string.IsNullOrEmpty(ffmpeg))
     {
-      return Array.Empty<DetectedRegion>();
+      return null;
     }
 
     // Analyze only the tail — the last 20% of the runtime, capped so a long movie scan stays fast.
@@ -158,17 +212,6 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     // part of the Media Segment Scan — is offloaded to the GPU per the configured hardware-accel mode.
     var args = SegmentDetection.BuildOutroAnalyzeArgs(config.SegmentHwAccel, offset, path);
 
-    var options = new OutroDetectionOptions(
-      config.OutroDarkFraction,
-      config.OutroMinCreditRunSeconds,
-      config.OutroMinBonusRunSeconds,
-      config.OutroMaxBonusGapSeconds,
-      config.OutroMaxTrailingBonusSeconds,
-      config.OutroMinTrailingSilenceSeconds,
-      config.OutroSilenceEndToleranceSeconds,
-      config.OutroMinCreditsSeconds,
-      config.OutroMaxCreditsSeconds);
-
     try
     {
       var output = await _processRunner.RunCaptureAsync(ffmpeg, args, config.OutroAnalyzeTimeoutSeconds, cancellationToken).ConfigureAwait(false);
@@ -176,12 +219,12 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
       var luma = SegmentDetection.ParseLumaSamples(output);
       return SegmentDetection.DetectOutroSegments(luma, silence, offset, runtimeSeconds, options);
     }
-#pragma warning disable CA1031 // Detection is best-effort; a failure just yields no segment.
+#pragma warning disable CA1031 // Detection is best-effort; a failure just yields no segment this run.
     catch (Exception ex)
 #pragma warning restore CA1031
     {
       _logger.LogDebug(ex, "Jelly Crowd outro detection failed for {Path}.", path);
-      return Array.Empty<DetectedRegion>();
+      return null;
     }
   }
 }
