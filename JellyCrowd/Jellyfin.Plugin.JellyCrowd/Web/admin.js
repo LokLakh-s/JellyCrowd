@@ -544,10 +544,11 @@
       items.forEach(function (m) {
         var row = document.createElement('div');
         row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:center;';
+        var label = m.Title + (m.Season != null ? ' — Season ' + m.Season : '');
         var name = document.createElement('span'); name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-        name.textContent = (m.MediaType === 'tv' ? '📺 ' : '🎬 ') + m.Title + ' — ' + fmtBytes(m.SizeBytes) + ' · ' + m.OwnerCount + ' owner(s)';
+        name.textContent = (m.MediaType === 'tv' ? '📺 ' : '🎬 ') + label + ' — ' + fmtBytes(m.SizeBytes) + ' · ' + m.OwnerCount + ' owner(s)';
         var del = adminBtn('Delete', '', function (btn) {
-          if (!window.confirm('Delete "' + m.Title + '" from disk? This is permanent.')) { return; }
+          if (!window.confirm('Delete "' + label + '" from disk? This is permanent.')) { return; }
           btn.disabled = true;
           apiPostNoResult('JellyCrowd/Maintenance/Media/' + m.JellyfinItemId + '/Delete').then(function () { row.remove(); }).catch(function () { btn.disabled = false; });
         });

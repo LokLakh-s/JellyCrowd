@@ -356,7 +356,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
-  public async Task<bool> AnyActiveReferenceAsync(Guid excludeId, int tmdbId, string mediaType, CancellationToken cancellationToken)
+  public async Task<bool> AnyActiveReferenceAsync(Guid excludeId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
     try
@@ -367,7 +367,8 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
         && r.TmdbId == tmdbId
         && string.Equals(r.MediaType, mediaType, StringComparison.Ordinal)
         && r.DeletionRequestedAt is null
-        && r.Status != RequestStatus.Denied);
+        && r.Status != RequestStatus.Denied
+        && MediaScope.Overlaps(season, episode, r.Season, r.Episode));
     }
     finally
     {

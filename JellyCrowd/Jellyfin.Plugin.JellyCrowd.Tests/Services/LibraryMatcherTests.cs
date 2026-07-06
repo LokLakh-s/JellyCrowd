@@ -7,6 +7,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using Moq;
 using Xunit;
 
@@ -122,6 +123,53 @@ public class LibraryMatcherTests
     var matcher = new LibraryMatcher(manager.Object);
 
     Assert.Equal(1000, matcher.GetSizeBytes("movie", 1));
+  }
+
+  [Fact]
+  public void ListLibraryMedia_ListsShowsPerSeason()
+  {
+    var series = new Series { Id = Guid.NewGuid(), Name = "For All Mankind" };
+    series.SetProviderId(MetadataProvider.Tmdb, "555");
+
+    var manager = new Mock<ILibraryManager>();
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
+      .Returns(new List<BaseItem>());
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Series))))
+      .Returns(new List<BaseItem> { series });
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Season))))
+      .Returns(new List<BaseItem> { new Season { Id = Guid.NewGuid(), IndexNumber = 1 }, new Season { Id = Guid.NewGuid(), IndexNumber = 2 } });
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Episode))))
+      .Returns(new List<BaseItem> { new Episode { Size = 100 } });
+
+    var media = new LibraryMatcher(manager.Object).ListLibraryMedia();
+
+    var tv = media.Where(m => m.MediaType == "tv").OrderBy(m => m.Season).ToList();
+    Assert.Equal(2, tv.Count); // one entry per season, not one for the whole series
+    Assert.Equal(new int?[] { 1, 2 }, tv.Select(m => m.Season).ToArray());
+    Assert.All(tv, m => Assert.Equal(555, m.TmdbId));
+    Assert.All(tv, m => Assert.Equal("For All Mankind", m.Title));
+  }
+
+  [Fact]
+  public void ListLibraryMedia_FallsBackToWholeSeries_WhenNoSeasons()
+  {
+    var series = new Series { Id = Guid.NewGuid(), Name = "Flat Show" };
+    series.SetProviderId(MetadataProvider.Tmdb, "42");
+
+    var manager = new Mock<ILibraryManager>();
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
+      .Returns(new List<BaseItem>());
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Series))))
+      .Returns(new List<BaseItem> { series });
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Season))))
+      .Returns(new List<BaseItem>());
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Episode))))
+      .Returns(new List<BaseItem>());
+
+    var tv = new LibraryMatcher(manager.Object).ListLibraryMedia().Where(m => m.MediaType == "tv").ToList();
+
+    Assert.Single(tv);
+    Assert.Null(tv[0].Season);
   }
 
   [Fact]

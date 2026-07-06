@@ -170,35 +170,83 @@ public sealed class LibraryMatcher : ILibraryMatcher
   public IReadOnlyList<LibraryMediaItem> ListLibraryMedia()
   {
     var result = new List<LibraryMediaItem>();
-    var kinds = new[] { (Kind: BaseItemKind.Movie, MediaType: "movie"), (Kind: BaseItemKind.Series, MediaType: "tv") };
-    foreach (var (kind, mediaType) in kinds)
+
+    // Movies: one entry each.
+    foreach (var movie in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Movie }, Recursive = true }))
     {
-      var items = _libraryManager.GetItemList(new InternalItemsQuery
+      if (!TryGetTmdbId(movie, out var tmdbId))
       {
-        IncludeItemTypes = new[] { kind },
+        continue;
+      }
+
+      result.Add(new LibraryMediaItem
+      {
+        JellyfinItemId = movie.Id.ToString("N", CultureInfo.InvariantCulture),
+        TmdbId = tmdbId,
+        MediaType = "movie",
+        Title = movie.Name ?? string.Empty,
+        SizeBytes = movie.Size ?? 0
+      });
+    }
+
+    // Shows: one entry per season, since ownership is per season — so a season owned by nobody surfaces as
+    // its own orphan and is deleted on its own. A series with no season items falls back to one entry.
+    foreach (var series in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Series }, Recursive = true }))
+    {
+      if (!TryGetTmdbId(series, out var tmdbId))
+      {
+        continue;
+      }
+
+      var seasons = _libraryManager.GetItemList(new InternalItemsQuery
+      {
+        IncludeItemTypes = new[] { BaseItemKind.Season },
+        AncestorIds = new[] { series.Id },
         Recursive = true
       });
 
-      foreach (var item in items)
+      var emitted = 0;
+      foreach (var season in seasons)
       {
-        var tmdb = item.GetProviderId(MetadataProvider.Tmdb);
-        if (string.IsNullOrEmpty(tmdb) || !int.TryParse(tmdb, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tmdbId))
+        if (season.IndexNumber is not int seasonNumber)
         {
           continue;
         }
 
         result.Add(new LibraryMediaItem
         {
-          JellyfinItemId = item.Id.ToString("N", CultureInfo.InvariantCulture),
+          JellyfinItemId = season.Id.ToString("N", CultureInfo.InvariantCulture),
           TmdbId = tmdbId,
-          MediaType = mediaType,
-          Title = item.Name ?? string.Empty,
-          SizeBytes = kind == BaseItemKind.Series ? SumEpisodeSizes(item) : item.Size ?? 0
+          MediaType = "tv",
+          Season = seasonNumber,
+          Title = series.Name ?? string.Empty,
+          SizeBytes = SumEpisodeSizes(series, seasonNumber)
+        });
+        emitted++;
+      }
+
+      if (emitted == 0)
+      {
+        result.Add(new LibraryMediaItem
+        {
+          JellyfinItemId = series.Id.ToString("N", CultureInfo.InvariantCulture),
+          TmdbId = tmdbId,
+          MediaType = "tv",
+          Title = series.Name ?? string.Empty,
+          SizeBytes = SumEpisodeSizes(series)
         });
       }
     }
 
     return result;
+  }
+
+  private static bool TryGetTmdbId(BaseItem item, out int tmdbId)
+  {
+    tmdbId = 0;
+    var tmdb = item.GetProviderId(MetadataProvider.Tmdb);
+    return !string.IsNullOrEmpty(tmdb)
+      && int.TryParse(tmdb, NumberStyles.Integer, CultureInfo.InvariantCulture, out tmdbId);
   }
 
   private long SumEpisodeSizes(BaseItem series, int? season = null, int? episode = null)

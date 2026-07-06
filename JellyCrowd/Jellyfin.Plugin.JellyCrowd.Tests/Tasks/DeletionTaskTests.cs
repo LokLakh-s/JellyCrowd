@@ -143,6 +143,29 @@ public sealed class DeletionTaskTests : IDisposable
   }
 
   [Fact]
+  public async Task Execute_Season_NotBlocked_ByAnotherSeasonStillOwned()
+  {
+    var userA = Guid.NewGuid();
+    var userB = Guid.NewGuid();
+    var s1 = await _store.CreateAsync(new RequestRecord { UserId = userA, TmdbId = 271347, MediaType = "tv", Title = "Show", Season = 1 }, CancellationToken.None);
+    await _store.MarkAvailableAsync(s1.Id, "s1-episode", CancellationToken.None);
+    await _store.RequestDeletionAsync(s1.Id, userA, CancellationToken.None);
+
+    // Season 2 is still owned by another user — this must NOT block season 1's deletion (the reported bug).
+    var s2 = await _store.CreateAsync(new RequestRecord { UserId = userB, TmdbId = 271347, MediaType = "tv", Title = "Show", Season = 2 }, CancellationToken.None);
+    await _store.MarkAvailableAsync(s2.Id, "s2-episode", CancellationToken.None);
+
+    var deleter = new RecordingDeleter();
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(seasonItemId: "season-item"), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Contains("season-item", deleter.Deleted);                          // season 1 deleted…
+    Assert.Null(await _store.GetByIdAsync(s1.Id, CancellationToken.None));    // …and its request cleared
+    Assert.NotNull(await _store.GetByIdAsync(s2.Id, CancellationToken.None)); // season 2 left untouched
+  }
+
+  [Fact]
   public async Task Execute_SweepsEmptySeries_AndProtectsActiveRequests_WhenEnabled()
   {
     // An active (Approved) request must be handed to the cleaner as "wanted" so its series is spared.

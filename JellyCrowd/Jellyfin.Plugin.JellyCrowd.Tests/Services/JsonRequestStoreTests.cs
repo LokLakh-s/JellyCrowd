@@ -328,4 +328,29 @@ public sealed class JsonRequestStoreTests : IDisposable
     Assert.Contains("\"SchemaVersion\"", json, StringComparison.Ordinal);
     Assert.Contains("\"Items\"", json, StringComparison.Ordinal);
   }
+
+  [Fact]
+  public async Task AnyActiveReferenceAsync_IsScopedPerSeason()
+  {
+    // Two seasons of the same show owned by different users.
+    var s1 = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 100, MediaType = "tv", Title = "Show", Season = 1, Status = RequestStatus.Available }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 100, MediaType = "tv", Title = "Show", Season = 2, Status = RequestStatus.Available }, CancellationToken.None);
+
+    // Deleting season 1 must NOT be blocked by season 2 still being owned (the reported bug).
+    Assert.False(await _store.AnyActiveReferenceAsync(s1.Id, 100, "tv", 1, null, CancellationToken.None));
+
+    // A whole-series owner (season == null) DOES still reference season 1.
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 100, MediaType = "tv", Title = "Show", Season = null, Status = RequestStatus.Available }, CancellationToken.None);
+    Assert.True(await _store.AnyActiveReferenceAsync(s1.Id, 100, "tv", 1, null, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task AnyActiveReferenceAsync_SameSeasonSharedByAnotherUser_IsBlocked()
+  {
+    var mine = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 100, MediaType = "tv", Title = "Show", Season = 1, Status = RequestStatus.Available }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 100, MediaType = "tv", Title = "Show", Season = 1, Status = RequestStatus.Available }, CancellationToken.None);
+
+    // Another user still wants season 1 → its files must not be deleted.
+    Assert.True(await _store.AnyActiveReferenceAsync(mine.Id, 100, "tv", 1, null, CancellationToken.None));
+  }
 }

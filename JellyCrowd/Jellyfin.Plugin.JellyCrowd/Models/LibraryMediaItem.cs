@@ -15,6 +15,13 @@ public class LibraryMediaItem
   /// <summary>Gets or sets the media type (<c>movie</c> or <c>tv</c>).</summary>
   public string MediaType { get; set; } = string.Empty;
 
+  /// <summary>
+  /// Gets or sets the season number this entry covers, for a TV show listed per season. <c>null</c> for a
+  /// movie or a whole series with no seasons. Ownership is tracked per season, so each season is its own
+  /// deletable entry.
+  /// </summary>
+  public int? Season { get; set; }
+
   /// <summary>Gets or sets the title.</summary>
   public string Title { get; set; } = string.Empty;
 
