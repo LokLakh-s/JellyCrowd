@@ -310,6 +310,29 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<RequestRecord?> AdminFlagDeletionAsync(Guid id, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.Status != RequestStatus.Available || record.DeletionRequestedAt is not null)
+      {
+        return null;
+      }
+
+      record.DeletionRequestedAt = DateTime.UtcNow;
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<RequestRecord?> CancelDeletionAsync(Guid id, Guid userId, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -401,6 +424,13 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.Episode = episode;
       record.DesiredAt = desiredAt;
       record.HeldForQuota = false; // an explicit admin edit supersedes the quota hold
+      // Stamp the ownership start when an admin flips a request to Available (as MarkAvailableAsync does),
+      // so the expiry countdown (My media) and the ownership-expiry task have a reference point.
+      if (status == RequestStatus.Available && record.AvailableAt is null)
+      {
+        record.AvailableAt = DateTime.UtcNow;
+      }
+
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }
@@ -492,6 +522,26 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
     }
 
     _cache = await VersionedJsonFile.ReadAsync<RequestRecord>(_filePath, SchemaVersion, migrate: null, SerializerOptions, cancellationToken).ConfigureAwait(false);
+
+    // One-time backfill: records made Available via an older admin status edit never got an AvailableAt
+    // stamp, so their expiry countdown and ownership-expiry had no reference point (no expiry shown, and
+    // they never lapsed). Stamp them now — a fresh window from here, to avoid a surprise lapse on upgrade.
+    var now = DateTime.UtcNow;
+    var backfilled = false;
+    foreach (var record in _cache)
+    {
+      if (record.Status == RequestStatus.Available && record.AvailableAt is null)
+      {
+        record.AvailableAt = now;
+        backfilled = true;
+      }
+    }
+
+    if (backfilled)
+    {
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     return _cache;
   }
 
