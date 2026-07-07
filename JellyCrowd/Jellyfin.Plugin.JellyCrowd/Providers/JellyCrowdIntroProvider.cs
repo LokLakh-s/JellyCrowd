@@ -83,9 +83,23 @@ public sealed class JellyCrowdIntroProvider : IIntroProvider
       return Enumerable.Empty<IntroInfo>();
     }
 
+    // Only offer pre-rolls the user can actually access. A user without access to the pre-roll's library
+    // would be handed an item with no playable media source, which aborts the whole playback with
+    // "no valid media source" — while an admin (who sees every library) plays fine. Filtering here keeps
+    // playback working for restricted users (they simply get no intro).
+    var accessible = ids
+      .Select(id => _libraryManager.GetItemById(id))
+      .Where(preroll => preroll is not null && (user is null || preroll.IsVisibleStandalone(user)))
+      .Select(preroll => preroll!.Id)
+      .ToList();
+    if (accessible.Count == 0)
+    {
+      return Enumerable.Empty<IntroInfo>();
+    }
+
     return config.LocalIntrosRandomizeSingle
-      ? new[] { new IntroInfo { ItemId = ids[Random.Shared.Next(ids.Count)] } }
-      : ids.Select(id => new IntroInfo { ItemId = id });
+      ? new[] { new IntroInfo { ItemId = accessible[Random.Shared.Next(accessible.Count)] } }
+      : accessible.Select(id => new IntroInfo { ItemId = id });
   }
 
   // Only the clients that reliably play a prepended pre-roll receive local intros when the web-only
