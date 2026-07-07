@@ -156,6 +156,7 @@
   "save": "Enregistrer",
   "saved": "Enregistré",
   "no_media": "Vous n'avez aucun média disponible.",
+  "owners_count": "{n} membre(s) ont ce média dans leur bibliothèque",
   "season_label": "Saison",
   "episode_label": "Épisode",
   "delete_series": "Supprimer la série",

@@ -95,6 +95,22 @@
     return countdown ? (t('deletes_in') + ' ' + countdown) : t('deletion_imminent');
   }
 
+  // A privacy-safe "how many people own this" badge — only the count, never who. Hidden when nobody else
+  // and the item is unflagged (count 0 only happens on a flagged item once its owner is discounted).
+  function ownerBadge(count) {
+    if (!count || count < 1) { return null; }
+    var b = document.createElement('span');
+    b.className = 'jellycrowd-status jellycrowd-owners';
+    b.textContent = '👥 ' + count;
+    b.title = t('owners_count').replace('{n}', count);
+    return b;
+  }
+
+  function appendOwnerBadge(row, count) {
+    var b = ownerBadge(count);
+    if (b) { row.appendChild(b); }
+  }
+
   function renderRow(item) {
     var row = document.createElement('div');
     row.className = 'jellycrowd-request-row';
@@ -129,6 +145,7 @@
     size.className = 'jellycrowd-status jellycrowd-size';
     size.textContent = lib.formatBytes(item.SizeBytes || 0);
     row.appendChild(size);
+    appendOwnerBadge(row, item.OwnerCount);
 
     if (item.DeletionRequestedAt) {
       row.appendChild(flaggedBadge(deletionText(item)));
@@ -346,6 +363,7 @@
       seasonSize.className = 'jellycrowd-status jellycrowd-size';
       seasonSize.textContent = lib.formatBytes(season.items.reduce(function (s, r) { return s + (r.SizeBytes || 0); }, 0));
       seasonRow.appendChild(seasonSize);
+      appendOwnerBadge(seasonRow, season.items.reduce(function (m, r) { return Math.max(m, r.OwnerCount || 0); }, 0));
       seasonRow.appendChild(nodeActions(season.items, t('delete_season')));
       childrenBox.appendChild(seasonRow);
 
@@ -359,6 +377,7 @@
         epLabel.textContent = t('episode_label') + ' ' + ep.Episode;
         epMain.appendChild(epLabel);
         epRow.appendChild(epMain);
+        appendOwnerBadge(epRow, ep.OwnerCount);
         epRow.appendChild(nodeActions([ep], t('request_deletion')));
         epBox.appendChild(epRow);
       });

@@ -156,6 +156,7 @@
   "save": "Save",
   "saved": "Saved",
   "no_media": "You have no available media yet.",
+  "owners_count": "{n} member(s) have this in their library",
   "season_label": "Season",
   "episode_label": "Episode",
   "delete_series": "Delete series",

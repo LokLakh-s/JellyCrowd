@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Mime;
@@ -101,12 +102,16 @@ public class QuotaController : ControllerBase
   public async Task<ActionResult<IReadOnlyList<MediaUsageDto>>> MyMedia(CancellationToken cancellationToken)
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
-    var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+    var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
     var retentionHours = Plugin.Instance?.Configuration.DeletionRetentionHours ?? 0;
     var expiryDays = Plugin.Instance?.Configuration.MediaExpiryDays ?? 0;
 
-    var media = requests
-      .Where(r => r.Status == RequestStatus.Available)
+    // Active owners across everyone (for the per-title "how many people own this" count). Only the count is
+    // ever surfaced to the user — never who the owners are.
+    var owners = all.Where(r => r.Status == RequestStatus.Available && r.DeletionRequestedAt is null).ToList();
+
+    var media = all
+      .Where(r => r.UserId == userId && r.Status == RequestStatus.Available)
       .Select(r => new MediaUsageDto
       {
         RequestId = r.Id,
@@ -118,6 +123,13 @@ public class QuotaController : ControllerBase
         Episode = r.Episode,
         JellyfinItemId = r.JellyfinItemId,
         SizeBytes = _libraryMatcher.GetSizeBytes(r.MediaType, r.TmdbId, r.Season, r.Episode),
+        OwnerCount = owners
+          .Where(o => o.TmdbId == r.TmdbId
+            && string.Equals(o.MediaType, r.MediaType, StringComparison.Ordinal)
+            && MediaScope.Overlaps(r.Season, r.Episode, o.Season, o.Episode))
+          .Select(o => o.UserId)
+          .Distinct()
+          .Count(),
         DeletionRequestedAt = r.DeletionRequestedAt,
         DeletionAt = r.DeletionRequestedAt?.AddHours(retentionHours),
         ExpiresAt = (expiryDays > 0 && r.AvailableAt is { } at) ? at.AddDays(expiryDays) : null
