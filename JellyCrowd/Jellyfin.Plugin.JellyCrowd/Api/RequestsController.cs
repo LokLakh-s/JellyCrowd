@@ -199,7 +199,7 @@ public class RequestsController : ControllerBase
   /// Adds an already-available title to the current user's media (shared ownership). It counts toward
   /// the user's quota; the caller is expected to have shown the quota warning.
   /// </summary>
-  /// <param name="dto">The title to claim (season/episode are ignored).</param>
+  /// <param name="dto">The title to claim; an optional <c>Season</c> claims just that season of a show.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">The created available request.</response>
   /// <response code="400">Invalid payload, or the title is not in the library.</response>
@@ -223,18 +223,27 @@ public class RequestsController : ControllerBase
     }
 
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
-    var itemId = _libraryMatcher.FindItemId(dto.MediaType, dto.TmdbId);
+
+    // A claim can be scoped to one season (the "Add to my library" button on a season page): resolve and
+    // own that season's item, otherwise the whole movie/series.
+    var itemId = string.Equals(dto.MediaType, "tv", StringComparison.Ordinal) && dto.Season is int season
+      ? (dto.Episode is int episode
+          ? _libraryMatcher.FindEpisodeItemId(dto.TmdbId, season, episode)
+          : _libraryMatcher.FindSeasonItemId(dto.TmdbId, season))
+      : _libraryMatcher.FindItemId(dto.MediaType, dto.TmdbId);
     if (string.IsNullOrEmpty(itemId))
     {
       return BadRequest("This title is not available in the library.");
     }
 
-    // Already owned → just renew the ownership (resets the expiry countdown) rather than rejecting.
+    // Already owned — this exact scope, or a broader one that covers it (e.g. the whole series covers a
+    // season) → renew the ownership (resets the expiry countdown) rather than duplicating.
     var mine = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
     var owned = mine.FirstOrDefault(r =>
       r.TmdbId == dto.TmdbId
       && string.Equals(r.MediaType, dto.MediaType, StringComparison.Ordinal)
-      && r.Status == RequestStatus.Available);
+      && r.Status == RequestStatus.Available
+      && MediaScope.Overlaps(dto.Season, dto.Episode, r.Season, r.Episode));
     if (owned is not null)
     {
       var renewed = await _store.RenewAvailableAsync(owned.Id, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
@@ -250,6 +259,8 @@ public class RequestsController : ControllerBase
         Title = dto.Title,
         PosterPath = dto.PosterPath,
         ReleaseDate = dto.ReleaseDate,
+        Season = dto.Season,
+        Episode = dto.Episode,
         Status = RequestStatus.Available,
         JellyfinItemId = itemId,
         AvailableAt = DateTime.UtcNow

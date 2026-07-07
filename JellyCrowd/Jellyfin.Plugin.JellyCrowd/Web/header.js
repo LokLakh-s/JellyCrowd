@@ -1842,6 +1842,14 @@
     detailClaimPendingId = null;
   }
 
+  // Mirrors the server's MediaScope.Overlaps: do two season/episode scopes share content? (null = whole
+  // series / whole season). Used to hide the claim button when a broader ownership already covers a season.
+  function jcScopeOverlaps(sa, ea, sb, eb) {
+    if (sa == null || sb == null) { return true; }
+    if (sa !== sb) { return false; }
+    return ea == null || eb == null || ea === eb;
+  }
+
   function buildDetailClaim(item) {
     var wrap = document.createElement('span');
     wrap.id = 'jcDetailClaim';
@@ -1856,7 +1864,8 @@
       apiAjax('POST', 'JellyCrowd/Requests/Claim', {
         TmdbId: item.tmdbId,
         MediaType: item.mediaType,
-        Title: item.title
+        Title: item.title,
+        Season: item.season != null ? item.season : null
       })
         .then(function () { btn.textContent = t('added'); })
         .catch(function (e) {
@@ -1885,40 +1894,64 @@
     }
 
     detailClaimPendingId = id;
-    window.ApiClient.getItem(window.ApiClient.getCurrentUserId(), id)
+    var uid = window.ApiClient.getCurrentUserId();
+
+    // Runs the ownership check + injection for a resolved claim target { mediaType, tmdbId, season, title }.
+    function proceed(target) {
+      if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
+
+      function injectClaim() {
+        if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
+        var old = document.getElementById('jcDetailClaim');
+        if (old && old.parentNode) { old.parentNode.removeChild(old); }
+        if (!anchor.isConnected) { detailClaimPendingId = null; return; }
+        anchor.appendChild(buildDetailClaim(target));
+        detailClaimLoadedId = id;
+      }
+
+      // N32: only offer "Add to my library" if the user doesn't already own this scope (a whole-series
+      // ownership also covers a season).
+      window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Requests/Mine'), dataType: 'json' })
+        .then(function (mine) {
+          if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
+          var owned = (mine || []).some(function (r) {
+            return r.TmdbId === target.tmdbId && r.MediaType === target.mediaType
+              && (r.Status === 3 || r.Status === 'Available') && !r.DeletionRequestedAt
+              && jcScopeOverlaps(target.season, null, r.Season, r.Episode);
+          });
+          if (owned) {
+            removeDetailClaim();
+            detailClaimLoadedId = id;
+            return;
+          }
+          injectClaim();
+        })
+        .catch(injectClaim); // ownership check failed: show it anyway (the 409 still guards the claim).
+    }
+
+    window.ApiClient.getItem(uid, id)
       .then(function (it) {
         if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
         var type = it && it.Type;
         var tmdb = it && it.ProviderIds && (it.ProviderIds.Tmdb || it.ProviderIds.tmdb);
-        var mediaType = type === 'Movie' ? 'movie' : (type === 'Series' ? 'tv' : null);
-        if (!mediaType || !tmdb) { detailClaimPendingId = null; return; } // not a claimable title
-        var tmdbId = parseInt(tmdb, 10);
-
-        function injectClaim() {
-          if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
-          var old = document.getElementById('jcDetailClaim');
-          if (old && old.parentNode) { old.parentNode.removeChild(old); }
-          if (!anchor.isConnected) { detailClaimPendingId = null; return; }
-          anchor.appendChild(buildDetailClaim({ mediaType: mediaType, tmdbId: tmdbId, title: it.Name || '' }));
-          detailClaimLoadedId = id;
+        if (type === 'Movie' && tmdb) {
+          proceed({ mediaType: 'movie', tmdbId: parseInt(tmdb, 10), season: null, title: it.Name || '' });
+        } else if (type === 'Series' && tmdb) {
+          proceed({ mediaType: 'tv', tmdbId: parseInt(tmdb, 10), season: null, title: it.Name || '' });
+        } else if (type === 'Season' && it.SeriesId && it.IndexNumber != null) {
+          // A season carries no TMDB id of its own — it lives on the parent series. Fetch it, then claim
+          // just this season (the requested item is the season, the ownership is scoped to it).
+          window.ApiClient.getItem(uid, it.SeriesId)
+            .then(function (series) {
+              if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
+              var stmdb = series && series.ProviderIds && (series.ProviderIds.Tmdb || series.ProviderIds.tmdb);
+              if (!stmdb) { detailClaimPendingId = null; return; }
+              proceed({ mediaType: 'tv', tmdbId: parseInt(stmdb, 10), season: it.IndexNumber, title: series.Name || it.SeriesName || '' });
+            })
+            .catch(function () { detailClaimPendingId = null; });
+        } else {
+          detailClaimPendingId = null; // not a claimable page
         }
-
-        // N32: only offer "Add to my library" if the user doesn't already own this title.
-        window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Requests/Mine'), dataType: 'json' })
-          .then(function (mine) {
-            if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
-            var owned = (mine || []).some(function (r) {
-              return r.TmdbId === tmdbId && r.MediaType === mediaType
-                && (r.Status === 3 || r.Status === 'Available') && !r.DeletionRequestedAt;
-            });
-            if (owned) {
-              removeDetailClaim();
-              detailClaimLoadedId = id;
-              return;
-            }
-            injectClaim();
-          })
-          .catch(injectClaim); // ownership check failed: show it anyway (the 409 still guards the claim).
       })
       .catch(function () { detailClaimPendingId = null; });
   }
