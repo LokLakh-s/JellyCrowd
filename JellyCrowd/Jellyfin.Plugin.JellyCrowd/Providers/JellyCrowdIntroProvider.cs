@@ -23,33 +23,38 @@ namespace Jellyfin.Plugin.JellyCrowd.Providers;
 /// <para>Lives in the MAIN assembly because Jellyfin discovers <see cref="IIntroProvider"/> implementations
 /// by scanning the plugin's listed assemblies (the legacy <c>AddParts</c>/<c>GetExports</c> path), not via
 /// DI. Safe on Jellyfin 12: <see cref="IIntroProvider"/>/<see cref="IntroInfo"/> are unchanged there.</para>
-/// <para>The pre-roll files must be indexed by a Jellyfin library: the server plays an intro only when its
-/// resolved item exists in the database (<c>GetItemById</c>), so a bare file in an unscanned folder is
-/// silently ignored. <see cref="LocalIntrosEntryPoint"/> indexes the folder, and this returns item ids.</para>
+/// <para>The server plays an intro only when its item exists in the database (<c>GetItemById</c>), so the
+/// pre-rolls are registered as standalone, library-less items by <see cref="IIntroFileRegistry"/> — indexed
+/// enough to play, but not part of any browsable library the users would see.</para>
 /// </remarks>
 public sealed class JellyCrowdIntroProvider : IIntroProvider
 {
   private readonly ILibraryManager _libraryManager;
   private readonly Func<PluginConfiguration> _config;
+  private readonly IIntroFileRegistry? _registry;
   private readonly IHttpContextAccessor? _httpContextAccessor;
   private readonly IAuthorizationContext? _authorizationContext;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="JellyCrowdIntroProvider"/> class.
   /// </summary>
-  /// <param name="libraryManager">Resolves pre-roll files to their indexed library items.</param>
+  /// <param name="libraryManager">Owns the pre-roll items and resolves the pre-roll folders.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
+  /// <param name="registry">Registers the pre-roll files as standalone items and yields their ids. Optional
+  /// so the provider still instantiates without it — it then serves no intro.</param>
   /// <param name="httpContextAccessor">The ambient request accessor (used to detect the client). Optional
-  /// so the provider still instantiates if it isn't available — the client gate then fails open.</param>
-  /// <param name="authorizationContext">Resolves the request's client name. Optional (fails open).</param>
+  /// so the provider still instantiates if it isn't available — the client gate then fails closed.</param>
+  /// <param name="authorizationContext">Resolves the request's client name. Optional (fails closed).</param>
   public JellyCrowdIntroProvider(
     ILibraryManager libraryManager,
     Func<PluginConfiguration> config,
+    IIntroFileRegistry? registry = null,
     IHttpContextAccessor? httpContextAccessor = null,
     IAuthorizationContext? authorizationContext = null)
   {
     _libraryManager = libraryManager;
     _config = config;
+    _registry = registry;
     _httpContextAccessor = httpContextAccessor;
     _authorizationContext = authorizationContext;
   }
@@ -76,30 +81,18 @@ public sealed class JellyCrowdIntroProvider : IIntroProvider
       return Enumerable.Empty<IntroInfo>();
     }
 
-    // The server plays an intro only when its item exists in the database (see remarks).
-    var ids = LocalIntrosDiscovery.FindItemIds(_libraryManager, config.LocalIntrosFolderName);
+    // The pre-rolls are registered as standalone (library-less) items so Cinema Mode can play them without a
+    // browsable "Local Intros" library — and because they belong to no library, per-library access can't hand
+    // a restricted user an unplayable item (which used to abort playback with "no valid media source").
+    var ids = _registry?.EnsureAndGetIds(_libraryManager, config.LocalIntrosFolderName) ?? System.Array.Empty<Guid>();
     if (ids.Count == 0)
     {
       return Enumerable.Empty<IntroInfo>();
     }
 
-    // Only offer pre-rolls the user can actually access. A user without access to the pre-roll's library
-    // would be handed an item with no playable media source, which aborts the whole playback with
-    // "no valid media source" — while an admin (who sees every library) plays fine. Filtering here keeps
-    // playback working for restricted users (they simply get no intro).
-    var accessible = ids
-      .Select(id => _libraryManager.GetItemById(id))
-      .Where(preroll => preroll is not null && (user is null || preroll.IsVisibleStandalone(user)))
-      .Select(preroll => preroll!.Id)
-      .ToList();
-    if (accessible.Count == 0)
-    {
-      return Enumerable.Empty<IntroInfo>();
-    }
-
     return config.LocalIntrosRandomizeSingle
-      ? new[] { new IntroInfo { ItemId = accessible[Random.Shared.Next(accessible.Count)] } }
-      : accessible.Select(id => new IntroInfo { ItemId = id });
+      ? new[] { new IntroInfo { ItemId = ids[Random.Shared.Next(ids.Count)] } }
+      : ids.Select(id => new IntroInfo { ItemId = id });
   }
 
   // Only the clients that reliably play a prepended pre-roll receive local intros when the web-only

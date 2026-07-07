@@ -26,18 +26,21 @@ public class SettingsController : ControllerBase
   private readonly Func<PluginConfiguration> _config;
   private readonly ICurrentUserAccessor _userAccessor;
   private readonly ILibraryManager _libraryManager;
+  private readonly IIntroFileRegistry _introRegistry;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="SettingsController"/> class.
   /// </summary>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="userAccessor">The current-user accessor (to resolve administrator status).</param>
-  /// <param name="libraryManager">The library manager (resolves local-intro pre-roll item ids).</param>
-  public SettingsController(Func<PluginConfiguration> config, ICurrentUserAccessor userAccessor, ILibraryManager libraryManager)
+  /// <param name="libraryManager">The library manager.</param>
+  /// <param name="introRegistry">Resolves the local-intro pre-roll item ids.</param>
+  public SettingsController(Func<PluginConfiguration> config, ICurrentUserAccessor userAccessor, ILibraryManager libraryManager, IIntroFileRegistry introRegistry)
   {
     _config = config;
     _userAccessor = userAccessor;
     _libraryManager = libraryManager;
+    _introRegistry = introRegistry;
   }
 
   /// <summary>
@@ -79,7 +82,7 @@ public class SettingsController : ControllerBase
   {
     var config = _config();
     var itemIds = config.LocalIntrosEnabled
-      ? LocalIntrosDiscovery.FindItemIds(_libraryManager, config.LocalIntrosFolderName)
+      ? _introRegistry.EnsureAndGetIds(_libraryManager, config.LocalIntrosFolderName)
         .Select(id => id.ToString("N", CultureInfo.InvariantCulture))
         .ToList()
       : new List<string>();
