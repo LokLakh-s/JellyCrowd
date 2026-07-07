@@ -67,6 +67,33 @@ public sealed class QuotaControllerTests : IDisposable
     Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<MediaUsageDto>>(ok.Value));
   }
 
+  [Fact]
+  public async Task MyMedia_OwnerCount_KeepsFlaggedOwnersUntilDeletionCompletes()
+  {
+    // The test user and another user own the same movie.
+    var mine = await _store.CreateAsync(new RequestRecord { UserId = User, TmdbId = 700, MediaType = "movie", Title = "Shared" }, CancellationToken.None);
+    await _store.MarkAvailableAsync(mine.Id, "a", CancellationToken.None);
+    var other = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 700, MediaType = "movie", Title = "Shared" }, CancellationToken.None);
+    await _store.MarkAvailableAsync(other.Id, "a", CancellationToken.None);
+
+    Assert.Equal(2, await OwnerCountOfMine());
+
+    // The other owner requests deletion — ownership must NOT drop yet (they can still cancel during the grace).
+    await _store.RequestDeletionAsync(other.Id, other.UserId, CancellationToken.None);
+    Assert.Equal(2, await OwnerCountOfMine());
+
+    // Only when the deletion actually completes (its request is removed) does the count drop.
+    await _store.DeleteAsync(other.Id, CancellationToken.None);
+    Assert.Equal(1, await OwnerCountOfMine());
+  }
+
+  private async Task<int> OwnerCountOfMine()
+  {
+    var result = await CreateController().MyMedia(CancellationToken.None);
+    var media = Assert.IsAssignableFrom<IReadOnlyList<MediaUsageDto>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    return Assert.Single(media).OwnerCount;
+  }
+
   private sealed class FakeMatcher : ILibraryMatcher
   {
     public bool Exists(string mediaType, int tmdbId) => true;

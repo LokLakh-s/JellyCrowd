@@ -51,8 +51,12 @@ public class LibraryMaintenanceController : ControllerBase
   public async Task<ActionResult<IReadOnlyList<LibraryMediaItem>>> GetMedia([FromQuery] bool orphansOnly, CancellationToken cancellationToken)
   {
     var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+
+    // Ownership persists until a deletion actually completes (not the moment it is requested), so a title
+    // still within its deletion grace period is not an orphan yet — count those owners too, matching the
+    // user-facing "My library" count. The count drops only when the scheduled deletion removes the request.
     var owners = all
-      .Where(r => r.Status == RequestStatus.Available && r.DeletionRequestedAt is null)
+      .Where(r => r.Status == RequestStatus.Available)
       .ToList();
 
     var media = _libraryMatcher.ListLibraryMedia();
