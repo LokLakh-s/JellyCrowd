@@ -95,14 +95,15 @@
     return countdown ? (t('deletes_in') + ' ' + countdown) : t('deletion_imminent');
   }
 
-  // A privacy-safe "how many people own this" badge — only the count, never who. Hidden when nobody else
-  // and the item is unflagged (count 0 only happens on a flagged item once its owner is discounted).
+  // A privacy-safe, self-describing "who else has this" label — a plain count only, never who. The count
+  // includes the viewer, so "others" is count - 1: 1 = only them, 2 = shared with one other, etc.
   function ownerBadge(count) {
     if (!count || count < 1) { return null; }
     var b = document.createElement('span');
     b.className = 'jellycrowd-status jellycrowd-owners';
-    b.textContent = '👥 ' + count;
-    b.title = t('owners_count').replace('{n}', count);
+    if (count <= 1) { b.textContent = t('owners_only_you'); }
+    else if (count === 2) { b.textContent = t('owners_shared_one'); }
+    else { b.textContent = t('owners_shared').replace('{n}', count - 1); }
     return b;
   }
 
