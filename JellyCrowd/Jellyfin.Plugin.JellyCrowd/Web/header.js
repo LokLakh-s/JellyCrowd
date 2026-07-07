@@ -1439,6 +1439,15 @@
       'body:has(.videoPlayerContainer) .jcHeaderQuota,' +
       'body:has(.videoPlayerContainer) .jcHeaderAnnounce,' +
       'body:has(.videoPlayerContainer) #jcBrandLogo{display:none !important;}' +
+      // The login page shows the header shell but no user is signed in yet — hide all of our chrome (nav
+      // tabs, links, bell, quota, announcement) there so a logged-out visitor never sees plugin controls.
+      'body:has(#loginPage:not(.hide)) .jcHeaderNav,' +
+      'body:has(#loginPage:not(.hide)) [data-jc-nav],' +
+      'body:has(#loginPage:not(.hide)) .jcHeaderLinks,' +
+      'body:has(#loginPage:not(.hide)) .jcHeaderLink,' +
+      'body:has(#loginPage:not(.hide)) .jcHeaderBell,' +
+      'body:has(#loginPage:not(.hide)) .jcHeaderQuota,' +
+      'body:has(#loginPage:not(.hide)) .jcHeaderAnnounce{display:none !important;}' +
       // Avatar dropdown popover.
       '.jcAvatarMenu{position:fixed;z-index:10000;min-width:15em;max-width:min(92vw,20em);background:#1a1a1a;color:#fff;border-radius:.45em;box-shadow:0 8px 30px rgba(0,0,0,.55);padding:.4em 0;font-size:.95em;max-height:82vh;overflow-y:auto;}' +
       '.jcAvatarMenuHead{padding:.55em 1.2em .5em;opacity:.6;font-size:.78em;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}' +
@@ -2055,7 +2064,11 @@
     if (!document.getElementById('jc-preroll-css')) {
       var st = document.createElement('style'); st.id = 'jc-preroll-css';
       // Hide the video OSD (controls + seek bar + "skip to next") and the up-next prompt during a pre-roll.
-      st.textContent = 'html.jc-preroll .videoOsdBottom,html.jc-preroll .osdControls,html.jc-preroll .upNextContainer,html.jc-preroll .skipIntro{display:none !important;visibility:hidden !important;}html.jc-preroll .videoPlayerContainer,html.jc-preroll .videoOsdBottom{cursor:none !important;}';
+      st.textContent = 'html.jc-preroll .videoOsdBottom,html.jc-preroll .osdControls,html.jc-preroll .upNextContainer,html.jc-preroll .skipIntro{display:none !important;visibility:hidden !important;}html.jc-preroll .videoPlayerContainer,html.jc-preroll .videoOsdBottom{cursor:none !important;}' +
+        // During a non-skippable pre-roll the top bar must show ONLY the back arrow — hide the title and
+        // every other header button (SyncPlay, Cast, search, user, home, drawer, and our own chrome), but
+        // keep .headerBackButton so the user can still bail out.
+        'html.jc-preroll .skinHeader .headerButton:not(.headerBackButton),html.jc-preroll .skinHeader .pageTitle,html.jc-preroll .skinHeader .headerTabs,html.jc-preroll .osdTitle{display:none !important;visibility:hidden !important;}';
       document.head.appendChild(st);
     }
 
