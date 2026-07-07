@@ -1448,6 +1448,14 @@
       'body:has(#loginPage:not(.hide)) .jcHeaderBell,' +
       'body:has(#loginPage:not(.hide)) .jcHeaderQuota,' +
       'body:has(#loginPage:not(.hide)) .jcHeaderAnnounce{display:none !important;}' +
+      // On a phone the header is too narrow for everything, and it can't scroll — items get cut off and
+      // become unreachable (esp. the "My library" box). Drop the Discord/Support links (they're also in the
+      // avatar menu) to free room, and let the header strip scroll sideways as a fallback so nothing is lost.
+      '@media (max-width:600px){' +
+      '.jcHeaderLink{display:none !important;}' +
+      '.MuiToolbar-root,.headerTabs{overflow-x:auto;scrollbar-width:none;}' +
+      '.MuiToolbar-root::-webkit-scrollbar,.headerTabs::-webkit-scrollbar{display:none;}' +
+      '}' +
       // Avatar dropdown popover.
       '.jcAvatarMenu{position:fixed;z-index:10000;min-width:15em;max-width:min(92vw,20em);background:#1a1a1a;color:#fff;border-radius:.45em;box-shadow:0 8px 30px rgba(0,0,0,.55);padding:.4em 0;font-size:.95em;max-height:82vh;overflow-y:auto;}' +
       '.jcAvatarMenuHead{padding:.55em 1.2em .5em;opacity:.6;font-size:.78em;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}' +
