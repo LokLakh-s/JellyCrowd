@@ -16,7 +16,7 @@ public class SettingsControllerTests
 {
   private static LanguageSettingDto GetLanguage(string? configured)
   {
-    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! }, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>());
+    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! }, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>());
     var result = controller.GetLanguage();
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     return Assert.IsType<LanguageSettingDto>(ok.Value);
@@ -40,7 +40,7 @@ public class SettingsControllerTests
 
   private static BrandingDto GetBranding(PluginConfiguration config)
   {
-    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>());
+    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>());
     var ok = Assert.IsType<OkObjectResult>(controller.GetBranding().Result);
     return Assert.IsType<BrandingDto>(ok.Value);
   }

@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+using System;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Providers;
+using Jellyfin.Plugin.JellyCrowd.Services;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
-using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Http;
 using Moq;
 using Xunit;
@@ -14,12 +14,16 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Providers;
 
 /// <summary>
 /// Tests for <see cref="JellyCrowdIntroProvider"/>, focused on the web/desktop-only client gate that keeps
-/// local intros away from native apps (which can fail to start playback when a pre-roll is prepended).
-/// The gate short-circuits before <see cref="ILibraryManager.GetVirtualFolders"/>, so verifying whether that
-/// call is reached distinguishes "gate blocked" from "gate passed".
+/// local intros away from native apps and mobile browsers (which can fail to start playback when a pre-roll
+/// is prepended). The gate short-circuits before the pre-roll registry is queried, so verifying whether the
+/// registry is reached distinguishes "gate blocked" from "gate passed".
 /// </summary>
 public class JellyCrowdIntroProviderTests
 {
+  private const string DesktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36";
+  private const string AndroidUserAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
+  private const string IPhoneUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605 Version/17 Mobile/15E148 Safari/604";
+
   private static PluginConfiguration WebOnlyConfig() => new()
   {
     LocalIntrosEnabled = true,
@@ -27,10 +31,6 @@ public class JellyCrowdIntroProviderTests
     LocalIntrosWebOnly = true,
     LocalIntrosFolderName = "intros"
   };
-
-  private const string DesktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36";
-  private const string AndroidUserAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
-  private const string IPhoneUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605 Version/17 Mobile/15E148 Safari/604";
 
   private static (IHttpContextAccessor Http, IAuthorizationContext Auth) ClientContext(string client, string userAgent = DesktopUserAgent)
   {
@@ -44,76 +44,82 @@ public class JellyCrowdIntroProviderTests
     return (http.Object, auth.Object);
   }
 
-  [Fact]
-  public async Task GetIntros_NativeClient_ReturnsNoneWithoutTouchingLibrary()
+  // A registry that yields one pre-roll id, so a gate that passes produces an intro.
+  private static Mock<IIntroFileRegistry> Registry()
   {
-    var library = new Mock<ILibraryManager>();
-    var (http, auth) = ClientContext("Jellyfin iOS");
-    var cfg = WebOnlyConfig();
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
+    var registry = new Mock<IIntroFileRegistry>();
+    registry.Setup(r => r.EnsureAndGetIds(It.IsAny<ILibraryManager>(), It.IsAny<string>()))
+      .Returns(new[] { Guid.NewGuid() });
+    return registry;
+  }
 
-    var result = await provider.GetIntros(new Movie(), null!);
+  private static JellyCrowdIntroProvider Provider(Mock<IIntroFileRegistry> registry, IHttpContextAccessor? http, IAuthorizationContext? auth, PluginConfiguration cfg)
+    => new(new Mock<ILibraryManager>().Object, () => cfg, registry.Object, http, auth);
+
+  private static void VerifyRegistry(Mock<IIntroFileRegistry> registry, Times times)
+    => registry.Verify(r => r.EnsureAndGetIds(It.IsAny<ILibraryManager>(), It.IsAny<string>()), times);
+
+  [Fact]
+  public async Task GetIntros_NativeClient_ReturnsNoneWithoutQueryingTheRegistry()
+  {
+    var registry = Registry();
+    var (http, auth) = ClientContext("Jellyfin iOS");
+
+    var result = await Provider(registry, http, auth, WebOnlyConfig()).GetIntros(new Movie(), null!);
 
     Assert.Empty(result);
-    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+    VerifyRegistry(registry, Times.Never());
   }
 
   [Fact]
   public async Task GetIntros_WebClient_PassesGate()
   {
-    var library = new Mock<ILibraryManager>();
-    library.Setup(l => l.GetVirtualFolders()).Returns(new List<VirtualFolderInfo>());
+    var registry = Registry();
     var (http, auth) = ClientContext("Jellyfin Web");
-    var cfg = WebOnlyConfig();
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
 
-    await provider.GetIntros(new Movie(), null!);
+    var result = await Provider(registry, http, auth, WebOnlyConfig()).GetIntros(new Movie(), null!);
 
-    library.Verify(l => l.GetVirtualFolders(), Times.AtLeastOnce);
+    Assert.NotEmpty(result);
+    VerifyRegistry(registry, Times.Once());
   }
 
   [Fact]
   public async Task GetIntros_DesktopMediaPlayer_PassesGate()
   {
-    var library = new Mock<ILibraryManager>();
-    library.Setup(l => l.GetVirtualFolders()).Returns(new List<VirtualFolderInfo>());
+    var registry = Registry();
     var (http, auth) = ClientContext("Jellyfin Media Player");
-    var cfg = WebOnlyConfig();
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
 
-    await provider.GetIntros(new Movie(), null!);
+    var result = await Provider(registry, http, auth, WebOnlyConfig()).GetIntros(new Movie(), null!);
 
-    library.Verify(l => l.GetVirtualFolders(), Times.AtLeastOnce);
+    Assert.NotEmpty(result);
+    VerifyRegistry(registry, Times.Once());
   }
 
   [Fact]
   public async Task GetIntros_RestrictionOff_AllowsNativeClient()
   {
-    var library = new Mock<ILibraryManager>();
-    library.Setup(l => l.GetVirtualFolders()).Returns(new List<VirtualFolderInfo>());
+    var registry = Registry();
     var (http, auth) = ClientContext("Jellyfin iOS");
     var cfg = WebOnlyConfig();
     cfg.LocalIntrosWebOnly = false;
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
 
-    await provider.GetIntros(new Movie(), null!);
+    var result = await Provider(registry, http, auth, cfg).GetIntros(new Movie(), null!);
 
-    library.Verify(l => l.GetVirtualFolders(), Times.AtLeastOnce);
+    Assert.NotEmpty(result);
+    VerifyRegistry(registry, Times.Once());
   }
 
   [Fact]
   public async Task GetIntros_NoRequestContext_FailsClosed()
   {
     // Web-only ON but no accessor → the client can't be identified → fail CLOSED: don't risk a broken
-    // pre-roll on a native app. The gate short-circuits, so the library is never queried.
-    var library = new Mock<ILibraryManager>();
-    var cfg = WebOnlyConfig();
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, httpContextAccessor: null, authorizationContext: null);
+    // pre-roll on a native app. The gate short-circuits, so the registry is never queried.
+    var registry = Registry();
 
-    var result = await provider.GetIntros(new Movie(), null!);
+    var result = await Provider(registry, null, null, WebOnlyConfig()).GetIntros(new Movie(), null!);
 
     Assert.Empty(result);
-    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+    VerifyRegistry(registry, Times.Never());
   }
 
   [Fact]
@@ -121,43 +127,37 @@ public class JellyCrowdIntroProviderTests
   {
     // A phone browser reports the "Jellyfin Web" client but chokes on a prepended pre-roll — tell it apart
     // from a desktop browser by the mobile User-Agent and block it (the reported Android case).
-    var library = new Mock<ILibraryManager>();
+    var registry = Registry();
     var (http, auth) = ClientContext("Jellyfin Web", AndroidUserAgent);
-    var cfg = WebOnlyConfig();
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
 
-    var result = await provider.GetIntros(new Movie(), null!);
+    var result = await Provider(registry, http, auth, WebOnlyConfig()).GetIntros(new Movie(), null!);
 
     Assert.Empty(result);
-    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+    VerifyRegistry(registry, Times.Never());
   }
 
   [Fact]
   public async Task GetIntros_IPhoneWebBrowser_IsBlocked()
   {
-    var library = new Mock<ILibraryManager>();
+    var registry = Registry();
     var (http, auth) = ClientContext("Jellyfin Web", IPhoneUserAgent);
-    var cfg = WebOnlyConfig();
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
 
-    var result = await provider.GetIntros(new Movie(), null!);
+    var result = await Provider(registry, http, auth, WebOnlyConfig()).GetIntros(new Movie(), null!);
 
     Assert.Empty(result);
-    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+    VerifyRegistry(registry, Times.Never());
   }
 
   [Fact]
   public async Task GetIntros_NativeClientContainingWeb_IsBlocked()
   {
     // "Jellyfin webOS" (LG TV) contains "web" but is a native client — precise matching must block it.
-    var library = new Mock<ILibraryManager>();
+    var registry = Registry();
     var (http, auth) = ClientContext("Jellyfin webOS");
-    var cfg = WebOnlyConfig();
-    var provider = new JellyCrowdIntroProvider(library.Object, () => cfg, http, auth);
 
-    var result = await provider.GetIntros(new Movie(), null!);
+    var result = await Provider(registry, http, auth, WebOnlyConfig()).GetIntros(new Movie(), null!);
 
     Assert.Empty(result);
-    library.Verify(l => l.GetVirtualFolders(), Times.Never);
+    VerifyRegistry(registry, Times.Never());
   }
 }
