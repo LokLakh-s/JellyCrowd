@@ -34,6 +34,12 @@ public class MediaUsageDto
   /// <summary>Gets or sets the on-disk size in bytes (summed over episodes for shows).</summary>
   public long SizeBytes { get; set; }
 
+  /// <summary>
+  /// Gets or sets the number of distinct users who own this same media (overlapping scope). A privacy-safe
+  /// count only — who they are is never exposed to a regular user.
+  /// </summary>
+  public int OwnerCount { get; set; }
+
   /// <summary>Gets or sets the UTC time deletion was requested, if any.</summary>
   public DateTime? DeletionRequestedAt { get; set; }
 
