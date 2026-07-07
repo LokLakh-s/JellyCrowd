@@ -106,9 +106,11 @@ public class QuotaController : ControllerBase
     var retentionHours = Plugin.Instance?.Configuration.DeletionRetentionHours ?? 0;
     var expiryDays = Plugin.Instance?.Configuration.MediaExpiryDays ?? 0;
 
-    // Active owners across everyone (for the per-title "how many people own this" count). Only the count is
-    // ever surfaced to the user — never who the owners are.
-    var owners = all.Where(r => r.Status == RequestStatus.Available && r.DeletionRequestedAt is null).ToList();
+    // Everyone who owns a title, for the per-title "how many people own this" count. A pending deletion does
+    // NOT drop ownership: the media (and the ability to cancel) survives until the retention elapses, so a
+    // flagged owner still counts until the deletion actually completes and its request is removed. Only the
+    // count is ever surfaced to a user — never who the owners are.
+    var owners = all.Where(r => r.Status == RequestStatus.Available).ToList();
 
     var media = all
       .Where(r => r.UserId == userId && r.Status == RequestStatus.Available)
