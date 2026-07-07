@@ -195,6 +195,33 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Claim_Season_CreatesSeasonScopedOwnership()
+  {
+    var dto = new CreateRequestDto { TmdbId = 200, MediaType = "tv", Title = "Show", Season = 2 };
+
+    var result = await CreateController(new FakeRequestStore()).Claim(dto, CancellationToken.None);
+
+    var created = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(RequestStatus.Available, created.Status);
+    Assert.Equal(2, created.Season);
+    Assert.Equal("season-200", created.JellyfinItemId); // resolved via FindSeasonItemId, not the whole series
+  }
+
+  [Fact]
+  public async Task Claim_Season_NotRenewedByADifferentSeason()
+  {
+    var store = new FakeRequestStore();
+    await CreateController(store).Claim(new CreateRequestDto { TmdbId = 200, MediaType = "tv", Title = "Show", Season = 1 }, CancellationToken.None);
+
+    // Claiming season 2 must create its own ownership, not renew season 1.
+    var result = await CreateController(store).Claim(new CreateRequestDto { TmdbId = 200, MediaType = "tv", Title = "Show", Season = 2 }, CancellationToken.None);
+
+    var created = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(2, created.Season);
+    Assert.Equal(2, (await store.GetByUserAsync(created.UserId, CancellationToken.None)).Count);
+  }
+
+  [Fact]
   public async Task CancelDeletion_UnknownRequest_NotFound()
   {
     var result = await CreateController(new FakeRequestStore()).CancelDeletion(Guid.NewGuid(), CancellationToken.None);
