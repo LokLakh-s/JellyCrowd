@@ -24,6 +24,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
 
   private readonly IReadOnlyList<IDownloadClient> _clients;
   private readonly IRequestStore _store;
+  private readonly IQuotaService _quotaService;
   private readonly Func<Guid, string> _resolveUserName;
   private readonly Func<PluginConfiguration> _config;
   private readonly IActivityLog _activityLog;
@@ -35,6 +36,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   /// </summary>
   /// <param name="clients">The available download backends.</param>
   /// <param name="store">The request store.</param>
+  /// <param name="quotaService">The quota service (re-checks quota when a deferred title becomes due).</param>
   /// <param name="resolveUserName">Resolves a user id to a display name.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="activityLog">The plugin activity log.</param>
@@ -43,6 +45,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   public DownloadDispatcher(
     IEnumerable<IDownloadClient> clients,
     IRequestStore store,
+    IQuotaService quotaService,
     Func<Guid, string> resolveUserName,
     Func<PluginConfiguration> config,
     IActivityLog activityLog,
@@ -52,6 +55,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     ArgumentNullException.ThrowIfNull(clients);
     _clients = clients.ToList();
     _store = store;
+    _quotaService = quotaService;
     _resolveUserName = resolveUserName;
     _config = config;
     _activityLog = activityLog;
@@ -92,6 +96,28 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     var due = await _store.GetDueForDispatchAsync(now, cancellationToken).ConfigureAwait(false);
     foreach (var request in due)
     {
+      // A title whose dispatch was deferred to its release date is quota-checked HERE — at the moment it
+      // would download — not when it was requested (an unreleased title reserves no quota until it is out).
+      // If the user is now over quota, hold it (it resumes via the quota-hold promoter once space frees)
+      // instead of downloading over quota.
+      if (!await _quotaService.IsWithinQuotaAsync(request.UserId, cancellationToken).ConfigureAwait(false))
+      {
+        var held = await _store.HoldForQuotaAsync(request.Id, cancellationToken).ConfigureAwait(false);
+        if (held is not null)
+        {
+          _ = _notificationService.NotifyPersonalAsync(
+            held.UserId,
+            PersonalNotifyKind.QuotaExpiry,
+            held.Title,
+            "Request held — storage quota reached",
+            $"\"{held.Title}\" is now available to download, but you have reached your storage quota, so it is on hold. Free space (let some media expire, or request its deletion) and it will resume automatically.",
+            held.PosterPath,
+            CancellationToken.None);
+        }
+
+        continue;
+      }
+
       await DispatchOneAsync(request, client, now, cancellationToken).ConfigureAwait(false);
     }
   }

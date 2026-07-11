@@ -146,7 +146,14 @@ public class RequestsController : ControllerBase
     }
 
     var requireApproval = (config?.RequireApproval ?? true) && !autoApprove;
-    var withinQuota = await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false);
+
+    // A not-yet-released title reserves no quota yet — it can't download until it is out, so it is allowed
+    // now regardless of quota and re-checked when it becomes due (see the download dispatcher). Only a
+    // title that is downloadable now is gated against the quota here.
+    var now = DateTime.UtcNow;
+    var desiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, dto.DesiredAt, now);
+    var downloadableNow = desiredAt <= now;
+    var withinQuota = !downloadableNow || await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false);
     var status = (requireApproval || !withinQuota) ? RequestStatus.Pending : RequestStatus.Approved;
 
     // Held purely by the quota (it did not need an admin): flag it so it resumes automatically — i.e. is
@@ -164,7 +171,7 @@ public class RequestsController : ControllerBase
         ReleaseDate = dto.ReleaseDate,
         Season = dto.Season,
         Episode = dto.Episode,
-        DesiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, dto.DesiredAt, DateTime.UtcNow),
+        DesiredAt = desiredAt,
         Status = status,
         HeldForQuota = heldForQuota
       },
