@@ -38,4 +38,7 @@ public class LanguageSettingDto
 
   /// <summary>Gets or sets the support/donation URL for the header icon (empty = icon hidden).</summary>
   public string SupportLinkUrl { get; set; } = string.Empty;
+
+  /// <summary>Gets or sets the user-guide URL for the header icon (empty = icon hidden).</summary>
+  public string GuideLinkUrl { get; set; } = string.Empty;
 }

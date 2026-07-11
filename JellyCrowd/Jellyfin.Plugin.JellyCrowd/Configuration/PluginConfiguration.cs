@@ -40,6 +40,8 @@ public class PluginConfiguration : BasePluginConfiguration
     DiscordInviteUrl = string.Empty;
     SupportLinkEnabled = false;
     SupportLinkUrl = string.Empty;
+    GuideLinkEnabled = false;
+    GuideLinkUrl = string.Empty;
     StatsEnabled = true;
     SkipOutroEnabled = false;
     SkipIntroEnabled = false;
@@ -318,6 +320,17 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets the support/donation URL the header icon links to.
   /// </summary>
   public string SupportLinkUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether a "user guide" icon is shown in the header (admin opt-in,
+  /// off by default). Only rendered when enabled and <see cref="GuideLinkUrl"/> is set.
+  /// </summary>
+  public bool GuideLinkEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the user-guide URL the header icon links to.
+  /// </summary>
+  public string GuideLinkUrl { get; set; }
 
   /// <summary>
   /// Gets or sets a value indicating whether playback history is captured for the statistics screens.

@@ -91,6 +91,7 @@
   var announcement = { text: '', level: 'green' };
   var discordUrl = '';        // admin opt-in: Discord invite link shown as a header icon ('' = hidden)
   var supportUrl = '';        // admin opt-in: support/donation link shown as a header icon ('' = hidden)
+  var guideUrl = '';          // admin opt-in: user-guide link shown as a header icon ('' = hidden)
 
   function loadConfigLang() {
     // Token-free request (works before ApiClient is ready): gives us the language, the raw config-mode
@@ -106,6 +107,7 @@
         if (d) { announcement = { text: d.AnnouncementText || '', level: d.AnnouncementLevel || 'green' }; }
         discordUrl = (d && d.DiscordInviteUrl) ? String(d.DiscordInviteUrl) : '';
         supportUrl = (d && d.SupportLinkUrl) ? String(d.SupportLinkUrl) : '';
+        guideUrl = (d && d.GuideLinkUrl) ? String(d.GuideLinkUrl) : '';
       })
       .catch(function () { /* keep defaults on failure */ });
   }
@@ -649,6 +651,8 @@
   // strict CSP would block remote images anyway). `currentColor` so they inherit the header text colour.
   var DISCORD_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.369A19.79 19.79 0 0 0 15.885 3c-.21.375-.45.88-.617 1.28a18.27 18.27 0 0 0-5.535 0A12.6 12.6 0 0 0 9.11 3 19.7 19.7 0 0 0 4.677 4.37C1.99 8.38 1.26 12.29 1.62 16.14a19.9 19.9 0 0 0 6.07 3.06c.49-.67.93-1.38 1.3-2.13-.71-.27-1.39-.6-2.03-.99.17-.13.34-.26.5-.4 3.93 1.84 8.18 1.84 12.06 0 .16.14.33.27.5.4-.65.39-1.33.72-2.04.99.37.75.81 1.46 1.3 2.13a19.84 19.84 0 0 0 6.07-3.06c.42-4.46-.73-8.34-3.05-11.77ZM8.52 13.79c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.21 0 2.18 1.09 2.16 2.42 0 1.33-.95 2.41-2.16 2.41Zm6.96 0c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.21 0 2.18 1.09 2.16 2.42 0 1.33-.95 2.41-2.16 2.41Z"/></svg>';
   var SUPPORT_SVG = '<svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M5.5 9.511c.076.954.83 1.697 2.182 1.785V12h.6v-.709c1.4-.098 2.218-.846 2.218-1.932 0-.987-.626-1.496-1.745-1.76l-.473-.112V5.57c.6.068.982.396 1.074.85h1.052c-.076-.919-.864-1.638-2.126-1.716V4h-.6v.719c-1.195.117-2.01.836-2.01 1.853 0 .9.606 1.472 1.613 1.707l.397.098v2.034c-.615-.093-1.022-.43-1.114-.9H5.5zm2.177-2.166c-.59-.137-.91-.416-.91-.836 0-.47.345-.822.915-.925v1.76h-.005zm.692 1.193c.717.166 1.048.435 1.048.91 0 .542-.412.914-1.135.982V8.518l.087.02z"/><path d="M8 13.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11zm0 .5A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg>';
+  // A circled question mark for the optional user-guide link.
+  var GUIDE_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/><path d="M12 6.4c-1.72 0-2.94.9-3.42 2.4l1.63.62c.24-.72.73-1.22 1.6-1.22.82 0 1.42.5 1.42 1.2 0 .58-.32.92-1.02 1.44-.82.6-1.24 1.13-1.24 2.12v.4h1.72v-.32c0-.6.3-.94 1.02-1.46.82-.6 1.32-1.24 1.32-2.35 0-1.6-1.3-2.63-3.05-2.63Z"/><circle cx="12" cy="16.5" r="1.15"/></svg>';
 
   function brandLinkIcon(svg, href, title, cls) {
     var a = document.createElement('a');
@@ -671,7 +675,7 @@
   // (and thus right of the native search button), so they line up with the bell/announcement/quota.
   // Idempotent (admin config can resolve after the first insert) and gated on a configured URL.
   function insertHeaderLinks() {
-    if (!discordUrl && !supportUrl) {
+    if (!discordUrl && !supportUrl && !guideUrl) {
       return;
     }
     var host = rightHost();
@@ -693,6 +697,9 @@
     }
     if (supportUrl && !group.querySelector('.jcHeaderLink-support')) {
       group.appendChild(brandLinkIcon(SUPPORT_SVG, supportUrl, t('support_link_title'), 'jcHeaderLink-support'));
+    }
+    if (guideUrl && !group.querySelector('.jcHeaderLink-guide')) {
+      group.appendChild(brandLinkIcon(GUIDE_SVG, guideUrl, t('guide_link_title'), 'jcHeaderLink-guide'));
     }
   }
 
@@ -782,10 +789,11 @@
     menu.appendChild(avatarItem('group', t('avm_syncplay'), null, function () { clickNative('.headerSyncButton'); }));
     menu.appendChild(avatarItem('cast', t('avm_cast'), null, function () { clickNative('.headerCastButton'); }));
 
-    if (discordUrl || supportUrl) {
+    if (discordUrl || supportUrl || guideUrl) {
       menu.appendChild(avatarSep());
       if (discordUrl) { menu.appendChild(avatarItem('forum', t('discord_link_title'), discordUrl, null, true)); }
       if (supportUrl) { menu.appendChild(avatarItem('favorite', t('support_link_title'), supportUrl, null, true)); }
+      if (guideUrl) { menu.appendChild(avatarItem('help', t('guide_link_title'), guideUrl, null, true)); }
     }
 
     menu.appendChild(avatarSep());
