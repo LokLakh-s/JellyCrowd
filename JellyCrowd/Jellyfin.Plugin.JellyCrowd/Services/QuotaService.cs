@@ -132,9 +132,13 @@ public sealed class QuotaService : IQuotaService
 
   // The user's committed footprint: in-flight requests (Pending/Approved) at the configured estimate,
   // fulfilled (Available) requests at their real on-disk size, de-duplicated by title for the latter.
+  // A not-yet-released request (its dispatch is deferred to the release date, so DesiredAt is in the
+  // future) reserves NO quota — it won't occupy disk until it is out. It starts counting only once it is
+  // due, at which point the quota is re-checked before it downloads (see the download dispatcher).
   private async Task<long> ComputeCommittedAsync(Guid userId, CancellationToken cancellationToken)
   {
     var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
+    var now = DateTime.UtcNow;
 
     long committed = 0;
     var counted = new HashSet<string>(StringComparer.Ordinal);
@@ -147,7 +151,8 @@ public sealed class QuotaService : IQuotaService
           committed += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
         }
       }
-      else if (request.Status is RequestStatus.Pending or RequestStatus.Approved)
+      else if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
+        && (request.DesiredAt is null || request.DesiredAt <= now))
       {
         committed += EstimateBytes(request.MediaType);
       }

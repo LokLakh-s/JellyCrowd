@@ -149,6 +149,33 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<RequestRecord?> HoldForQuotaAsync(Guid id, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+
+      // Only an approved, not-yet-dispatched request can be put back on a quota hold — never touch one
+      // already dispatched/available/denied (nor re-hold a pending one).
+      if (record is null || record.Status != RequestStatus.Approved || record.DispatchedAt is not null)
+      {
+        return null;
+      }
+
+      record.Status = RequestStatus.Pending;
+      record.HeldForQuota = true;
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<bool> ExistsActiveAsync(Guid userId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

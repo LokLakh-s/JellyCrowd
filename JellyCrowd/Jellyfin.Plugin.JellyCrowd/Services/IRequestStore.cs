@@ -64,6 +64,17 @@ public interface IRequestStore
   Task<RequestRecord?> PromoteFromQuotaHoldAsync(Guid id, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Puts an <see cref="RequestStatus.Approved"/>, not-yet-dispatched request back on a quota hold
+  /// (<see cref="RequestStatus.Pending"/> + <see cref="RequestRecord.HeldForQuota"/>) — used when a title
+  /// becomes due but no longer fits the user's quota. The <see cref="IQuotaHoldPromoter"/> resumes it once
+  /// space frees. A no-op (returns <c>null</c>) if it is not approved or has already been dispatched.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The held request, or <c>null</c> when it was not eligible.</returns>
+  Task<RequestRecord?> HoldForQuotaAsync(Guid id, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Determines whether the user already has a non-denied request for the same title.
   /// </summary>
   /// <param name="userId">The user identifier.</param>

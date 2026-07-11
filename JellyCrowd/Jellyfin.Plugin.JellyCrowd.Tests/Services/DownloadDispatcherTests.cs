@@ -36,8 +36,8 @@ public sealed class DownloadDispatcherTests : IDisposable
     }
   }
 
-  private DownloadDispatcher CreateDispatcher()
-    => new(new IDownloadClient[] { _client }, _store, _ => "tester", () => _config, new NoOpActivityLog(), _notifier, NullLogger<DownloadDispatcher>.Instance);
+  private DownloadDispatcher CreateDispatcher(bool withinQuota = true)
+    => new(new IDownloadClient[] { _client }, _store, new StubQuotaService(withinQuota), _ => "tester", () => _config, new NoOpActivityLog(), _notifier, NullLogger<DownloadDispatcher>.Instance);
 
   private async Task<RequestRecord> SeedApprovedAsync()
   {
@@ -137,6 +137,36 @@ public sealed class DownloadDispatcherTests : IDisposable
     await CreateDispatcher().DispatchDueAsync(CancellationToken.None);
 
     Assert.Equal(2, _client.Dispatched.Count);
+  }
+
+  [Fact]
+  public async Task DispatchDueAsync_OverQuota_HoldsInsteadOfDispatching()
+  {
+    var request = await SeedApprovedAsync();
+
+    await CreateDispatcher(withinQuota: false).DispatchDueAsync(CancellationToken.None);
+
+    // Nothing is sent to the backend; the request is demoted back to a quota hold.
+    Assert.Empty(_client.Dispatched);
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.Equal(RequestStatus.Pending, stored!.Status);
+    Assert.True(stored.HeldForQuota);
+    Assert.Null(stored.DispatchedAt);
+    // The requester is told the download is on hold.
+    Assert.Contains(_notifier.Personal, e => e.Kind == PersonalNotifyKind.QuotaExpiry);
+  }
+
+  [Fact]
+  public async Task DispatchDueAsync_WithinQuota_Dispatches()
+  {
+    var request = await SeedApprovedAsync();
+
+    await CreateDispatcher(withinQuota: true).DispatchDueAsync(CancellationToken.None);
+
+    Assert.Single(_client.Dispatched);
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.Equal(RequestStatus.Approved, stored!.Status);
+    Assert.NotNull(stored.DispatchedAt);
   }
 
   [Fact]

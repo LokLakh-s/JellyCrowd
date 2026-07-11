@@ -47,7 +47,7 @@ public sealed class ActivityLogFlowTests : IDisposable
     var client = new RecordingDownloadClient();
     var config = new PluginConfiguration { DownloadBackend = "webhook", DownloadWebhookUrl = "http://example/hook" };
     var dispatcher = new DownloadDispatcher(
-      new IDownloadClient[] { client }, _store, _ => "victor", () => config, _activityLog, new RecordingNotificationService(), NullLogger<DownloadDispatcher>.Instance);
+      new IDownloadClient[] { client }, _store, new StubQuotaService(within: true), _ => "victor", () => config, _activityLog, new RecordingNotificationService(), NullLogger<DownloadDispatcher>.Instance);
 
     var created = await _store.CreateAsync(
       new RequestRecord { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
@@ -77,7 +77,7 @@ public sealed class ActivityLogFlowTests : IDisposable
     var client = new RecordingDownloadClient { Throw = true };
     var config = new PluginConfiguration { DownloadBackend = "webhook", DownloadWebhookUrl = "http://example/hook" };
     var dispatcher = new DownloadDispatcher(
-      new IDownloadClient[] { client }, _store, _ => "victor", () => config, _activityLog, new RecordingNotificationService(), NullLogger<DownloadDispatcher>.Instance);
+      new IDownloadClient[] { client }, _store, new StubQuotaService(within: true), _ => "victor", () => config, _activityLog, new RecordingNotificationService(), NullLogger<DownloadDispatcher>.Instance);
 
     var created = await _store.CreateAsync(
       new RequestRecord { TmdbId = 438631, MediaType = "movie", Title = "Dune" }, CancellationToken.None);

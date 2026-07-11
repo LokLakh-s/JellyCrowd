@@ -20,9 +20,9 @@ public class RequestsControllerTests
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false)
+  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false, FakeQuotaService? quota = null)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), _ => "tester")
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota ?? new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -84,6 +84,36 @@ public class RequestsControllerTests
 
     var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
     Assert.Equal(new DateTime(2030, 1, 15, 0, 0, 0, DateTimeKind.Utc), record.DesiredAt);
+  }
+
+  [Fact]
+  public async Task Create_FutureRelease_DoesNotConsultQuota()
+  {
+    // A not-yet-released title can't download yet, so its footprint must NOT be reserved and the
+    // quota must NOT be gated at request time — it is re-checked when the title becomes due. Even
+    // with the user over quota (canRequest: false), the request is accepted and never held for quota.
+    var quota = new FakeQuotaService(canRequest: false);
+    var controller = CreateController(new FakeRequestStore(), canRequest: false, quota: quota);
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 1, MediaType = "movie", Title = "Future", ReleaseDate = "2030-01-15" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.False(record.HeldForQuota);
+    Assert.Equal(0, quota.CanRequestCalls);
+  }
+
+  [Fact]
+  public async Task Create_ReleasedTitle_ConsultsQuota()
+  {
+    // Contrast: a title that is downloadable now IS gated against the quota at request time.
+    var quota = new FakeQuotaService(canRequest: true);
+    var controller = CreateController(new FakeRequestStore(), quota: quota);
+
+    await controller.Create(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(1, quota.CanRequestCalls);
   }
 
   [Fact]
@@ -454,6 +484,9 @@ public class RequestsControllerTests
 
     public FakeQuotaService(bool canRequest) => _canRequest = canRequest;
 
+    /// <summary>Gets the number of times <see cref="CanRequestAsync"/> was invoked (the create-time quota gate).</summary>
+    public int CanRequestCalls { get; private set; }
+
     public long GetQuotaBytes(Guid userId) => 0;
 
     public long GetBaseQuotaBytes(Guid userId) => 0;
@@ -462,7 +495,10 @@ public class RequestsControllerTests
       => Task.FromResult(new QuotaInfo());
 
     public Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken)
-      => Task.FromResult(_canRequest);
+    {
+      CanRequestCalls++;
+      return Task.FromResult(_canRequest);
+    }
 
     public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken)
       => Task.FromResult(_canRequest);
@@ -574,6 +610,19 @@ public class RequestsControllerTests
 
       record.Status = RequestStatus.Approved;
       record.HeldForQuota = false;
+      return Task.FromResult<RequestRecord?>(record);
+    }
+
+    public Task<RequestRecord?> HoldForQuotaAsync(Guid id, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.Status != RequestStatus.Approved || record.DispatchedAt is not null)
+      {
+        return Task.FromResult<RequestRecord?>(null);
+      }
+
+      record.Status = RequestStatus.Pending;
+      record.HeldForQuota = true;
       return Task.FromResult<RequestRecord?>(record);
     }
 

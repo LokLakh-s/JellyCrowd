@@ -217,6 +217,42 @@ public sealed class QuotaServiceTests : IDisposable
     Assert.True(await service.IsWithinQuotaAsync(user, CancellationToken.None));
   }
 
+  [Fact]
+  public async Task IsWithinQuotaAsync_IgnoresNotYetReleasedRequests()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 6 * Gib });
+    // One released movie commits 4 GiB. A second, not-yet-released movie (DesiredAt in the future)
+    // must NOT reserve quota until its release date — so the user stays within the 6 GiB quota,
+    // whereas two released movies (8 GiB) would exceed it (see the test above).
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "A" }, CancellationToken.None);
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "B", DesiredAt = DateTime.UtcNow.AddDays(30) },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.True(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task CanRequestAsync_IgnoresNotYetReleasedInFlightRequests()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 6 * Gib });
+    // Two not-yet-released movies are in flight; they don't reserve quota yet, so a new released
+    // request (4 GiB) still fits under the 6 GiB quota. This is the reported bug: a batch of
+    // unreleased requests must not block a released film that fits on disk.
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "A", DesiredAt = DateTime.UtcNow.AddDays(30) },
+      CancellationToken.None);
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "B", DesiredAt = DateTime.UtcNow.AddDays(30) },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.True(await service.CanRequestAsync(user, "movie", CancellationToken.None));
+  }
+
   private async Task SeedAsync(Guid user, RequestStatus status)
   {
     var created = await _store.CreateAsync(
