@@ -38,6 +38,36 @@ public class SettingsControllerTests
     Assert.Equal("auto", GetLanguage(configured).Language);
   }
 
+  private static LanguageSettingDto GetLanguageFor(PluginConfiguration config)
+  {
+    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>());
+    var ok = Assert.IsType<OkObjectResult>(controller.GetLanguage().Result);
+    return Assert.IsType<LanguageSettingDto>(ok.Value);
+  }
+
+  [Fact]
+  public void GetLanguage_ExposesGuideLink_OnlyWhenEnabled()
+  {
+    var dto = GetLanguageFor(new PluginConfiguration
+    {
+      GuideLinkEnabled = true,
+      GuideLinkUrl = "https://keeklah.fr/jellycrowd-guide"
+    });
+    Assert.Equal("https://keeklah.fr/jellycrowd-guide", dto.GuideLinkUrl);
+  }
+
+  [Fact]
+  public void GetLanguage_HidesGuideLink_WhenConfiguredButDisabled()
+  {
+    // A disabled-but-configured URL stays private, like the Discord/Support links.
+    var dto = GetLanguageFor(new PluginConfiguration
+    {
+      GuideLinkEnabled = false,
+      GuideLinkUrl = "https://keeklah.fr/jellycrowd-guide"
+    });
+    Assert.Equal(string.Empty, dto.GuideLinkUrl);
+  }
+
   private static BrandingDto GetBranding(PluginConfiguration config)
   {
     var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>());

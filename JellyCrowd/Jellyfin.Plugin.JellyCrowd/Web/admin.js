@@ -1458,6 +1458,10 @@
       container.appendChild(field('Show support / donation icon in the header', supEnable));
       var supUrl = textInput('jc-b-sup-url', b.SupportLinkUrl || '', 'https://…');
       container.appendChild(field('Support / donation link', supUrl));
+      var guideEnable = checkbox('jc-b-guide-en', b.GuideLinkEnabled === true);
+      container.appendChild(field('Show user-guide icon (?) in the header', guideEnable));
+      var guideUrl = textInput('jc-b-guide-url', b.GuideLinkUrl || '', 'https://…');
+      container.appendChild(field('User-guide link', guideUrl));
 
       container.appendChild(sectionHeading('Local intros (pre-roll)'));
       var liEnable = checkbox('jc-b-li-en', b.LocalIntrosEnabled === true);
@@ -1512,6 +1516,8 @@
           live.DiscordInviteUrl = discUrl.value.trim();
           live.SupportLinkEnabled = supEnable.checked;
           live.SupportLinkUrl = supUrl.value.trim();
+          live.GuideLinkEnabled = guideEnable.checked;
+          live.GuideLinkUrl = guideUrl.value.trim();
           live.LocalIntrosEnabled = liEnable.checked;
           live.LocalIntrosFolderName = liFolder.value.trim() || 'intros';
           live.LocalIntrosOnMovies = liMovies.checked;
