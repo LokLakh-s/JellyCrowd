@@ -109,7 +109,7 @@ public sealed class IntroAnalysisTask : IScheduledTask
       foreach (var episode in episodes)
       {
         cancellationToken.ThrowIfCancellationRequested();
-        fingerprints.Add(await _extractor.ExtractAsync(episode.Path, window, timeout, cancellationToken).ConfigureAwait(false));
+        fingerprints.Add(await _extractor.ExtractAsync(episode.Path, 0, window, timeout, cancellationToken).ConfigureAwait(false));
       }
 
       var sample = fingerprints.FirstOrDefault(f => f.Length > 0);

@@ -33,6 +33,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   private readonly IProcessRunner _processRunner;
   private readonly IIntroStore _introStore;
   private readonly IOutroStore _outroStore;
+  private readonly IOutroSegmentStore _outroSegmentStore;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<JellyCrowdSegmentProvider> _logger;
 
@@ -44,6 +45,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
   /// <param name="processRunner">The process runner (runs the ffmpeg analysis).</param>
   /// <param name="introStore">The intro cache populated by the analysis task.</param>
   /// <param name="outroStore">The outro cache: remembers each item's analysis so a scan doesn't re-run ffmpeg.</param>
+  /// <param name="outroSegmentStore">The end-credits found by fingerprinting a season's episode tails.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
   public JellyCrowdSegmentProvider(
@@ -52,6 +54,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     IProcessRunner processRunner,
     IIntroStore introStore,
     IOutroStore outroStore,
+    IOutroSegmentStore outroSegmentStore,
     Func<PluginConfiguration> config,
     ILogger<JellyCrowdSegmentProvider> logger)
   {
@@ -60,6 +63,7 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     _processRunner = processRunner;
     _introStore = introStore;
     _outroStore = outroStore;
+    _outroSegmentStore = outroSegmentStore;
     _config = config;
     _logger = logger;
   }
@@ -122,6 +126,22 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
 
     if (!config.SkipOutroEnabled)
     {
+      return segments;
+    }
+
+    // A season's shared end-credits, found by fingerprint, wins over the brightness/silence heuristic:
+    // it is exact, it costs nothing here (the task already did the work), and it is the ONLY thing that
+    // sees credits that are bright and sung — an anime ED, which the heuristic is blind to by construction.
+    var fingerprinted = _outroSegmentStore.Get(item.Id);
+    if (fingerprinted is { StartTicks: >= 0 } credits && credits.EndTicks > credits.StartTicks)
+    {
+      segments.Add(new MediaSegmentDto
+      {
+        ItemId = item.Id,
+        Type = MediaSegmentType.Outro,
+        StartTicks = credits.StartTicks,
+        EndTicks = credits.EndTicks
+      });
       return segments;
     }
 

@@ -31,7 +31,7 @@ public sealed class FingerprintExtractor : IFingerprintExtractor
   }
 
   /// <inheritdoc />
-  public async Task<uint[]> ExtractAsync(string path, int seconds, int timeoutSeconds, CancellationToken cancellationToken)
+  public async Task<uint[]> ExtractAsync(string path, double offsetSeconds, int seconds, int timeoutSeconds, CancellationToken cancellationToken)
   {
     var ffmpeg = _mediaEncoder.EncoderPath;
     if (string.IsNullOrEmpty(ffmpeg) || string.IsNullOrEmpty(path))
@@ -39,11 +39,16 @@ public sealed class FingerprintExtractor : IFingerprintExtractor
       return Array.Empty<uint>();
     }
 
-    // Decode the first N seconds of the primary audio track to mono 22.05 kHz and print the raw
-    // Chromaprint sub-fingerprints (one uint32 per ~0.12s) to stdout.
+    // Decode N seconds of the primary audio track (from the given offset) to mono 22.05 kHz and print
+    // the raw Chromaprint sub-fingerprints (one uint32 per ~0.12s) to stdout. -ss before -i is an input
+    // seek, so fingerprinting a tail costs no more than fingerprinting a head.
+    var seek = offsetSeconds > 0
+      ? string.Format(CultureInfo.InvariantCulture, "-ss {0:0.###} ", offsetSeconds)
+      : string.Empty;
     var args = string.Format(
       CultureInfo.InvariantCulture,
-      "-hide_banner -nostats -t {0} -i \"{1}\" -map 0:a:0 -ac 1 -ar 22050 -f chromaprint -fp_format raw -",
+      "-hide_banner -nostats {0}-t {1} -i \"{2}\" -map 0:a:0 -ac 1 -ar 22050 -f chromaprint -fp_format raw -",
+      seek,
       seconds,
       path);
 

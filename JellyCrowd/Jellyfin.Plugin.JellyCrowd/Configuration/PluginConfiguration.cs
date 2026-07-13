@@ -58,6 +58,7 @@ public class PluginConfiguration : BasePluginConfiguration
     OutroMaxTrailingBonusSeconds = 150;
     OutroMinTrailingSilenceSeconds = 20;
     OutroSilenceEndToleranceSeconds = 15;
+    OutroFingerprintSeconds = 300;
     IntroAnalyzeSeconds = 600;
     IntroAnalyzeTimeoutSeconds = 120;
     IntroMinDurationSeconds = 15;
@@ -437,6 +438,14 @@ public class PluginConfiguration : BasePluginConfiguration
   /// movie scans bounded). The window is the smaller of 20% of the runtime and this cap.
   /// </summary>
   public double OutroAnalyzeMaxSeconds { get; set; }
+
+  /// <summary>
+  /// Gets or sets how many seconds of each episode's TAIL are fingerprinted when looking for a season's
+  /// shared end-credits sequence. The brightness/silence heuristic above cannot see credits that are
+  /// bright and sung (an anime ED) — but those are identical in every episode, so a fingerprint finds
+  /// them, exactly as it already does for intros.
+  /// </summary>
+  public int OutroFingerprintSeconds { get; set; }
 
   /// <summary>
   /// Gets or sets the timeout (seconds) for a single outro analysis process before it is killed.
