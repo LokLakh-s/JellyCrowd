@@ -33,6 +33,7 @@ public class PluginConfiguration : BasePluginConfiguration
     RequireApproval = true;
     HiddenFromUsers = false;
     RateLimitPerMinute = 120;
+    RateLimitGetPerMinute = 600;
     CommentsEnabled = false;
     AnnouncementText = string.Empty;
     AnnouncementLevel = "green";
@@ -276,6 +277,14 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Defends against rapid-fire abuse (e.g. spamming requests faster than the quota refreshes).
   /// </summary>
   public int RateLimitPerMinute { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum number of read (GET) requests a single non-admin user may make per minute
+  /// to the plugin's API. 0 disables it. Set well above normal browsing (a catalog page is ~15 GETs):
+  /// this only exists to stop a scripted loop from hammering the catalog endpoints, which fan out to
+  /// TMDB (up to ~30 detail calls per "Popular"/"Calendar" call) and can exhaust the shared TMDB key.
+  /// </summary>
+  public int RateLimitGetPerMinute { get; set; }
 
   /// <summary>
   /// Gets or sets a value indicating whether community comments/reviews are enabled. Off by default so

@@ -109,13 +109,42 @@ public sealed class UserNotificationsControllerTests : IDisposable
   public async Task SetPrefs_PersistsAndForcesCurrentUser()
   {
     await CreateController().SetPrefs(
-      new UserNotificationPrefs { UserId = Guid.NewGuid(), Enabled = false, Email = "u@example", NtfyTopic = "t" },
+      new UserNotificationPrefs { UserId = Guid.NewGuid(), Enabled = false, Email = "u@example.com", NtfyTopic = "t" },
       CancellationToken.None);
 
     var prefs = await _prefs.GetAsync(User, CancellationToken.None);
     Assert.False(prefs.Enabled);
-    Assert.Equal("u@example", prefs.Email);
+    Assert.Equal("u@example.com", prefs.Email);
     Assert.Equal("t", prefs.NtfyTopic);
+  }
+
+  [Fact]
+  public async Task SetPrefs_BlankEmail_TurnsEmailOff()
+  {
+    var result = await CreateController().SetPrefs(
+      new UserNotificationPrefs { Email = "   ", NtfyTopic = "t" },
+      CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+    var prefs = await _prefs.GetAsync(User, CancellationToken.None);
+    Assert.Null(prefs.Email);
+  }
+
+  [Theory]
+  [InlineData("not-an-email")]
+  [InlineData("someone@localhost")]        // no dot in the domain
+  [InlineData("has space@example.com")]
+  [InlineData("two@@example.com")]
+  [InlineData("victim@example.com\nBcc: spam@evil.com")] // header-injection shaped input
+  public async Task SetPrefs_InvalidEmail_IsRejected_AndNotStored(string email)
+  {
+    var result = await CreateController().SetPrefs(
+      new UserNotificationPrefs { Email = email },
+      CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result.Result);
+    var prefs = await _prefs.GetAsync(User, CancellationToken.None);
+    Assert.Null(prefs.Email); // never reached the store
   }
 
   private sealed class FakeUserAccessor : ICurrentUserAccessor

@@ -233,6 +233,7 @@
         { key: 'Language', label: 'Language', type: 'select', options: [['auto', "Auto (follow each user's language)"], ['en', 'English'], ['fr', 'Français']], hint: 'Language of the Jelly Crowd user pages and notifications.' },
         { key: 'HiddenFromUsers', label: 'Config mode — hide the plugin from regular users', type: 'check', hint: 'Hide Jelly Crowd from non-admins until it is configured and working. Admins are unaffected.' },
         { key: 'RateLimitPerMinute', label: 'API rate limit (writes / minute / user)', type: 'num', hint: '0 disables it.' },
+        { key: 'RateLimitGetPerMinute', label: 'API rate limit (reads / minute / user)', type: 'num', hint: 'Generous cap so a scripted loop cannot hammer the TMDB-backed catalog. 0 disables it.' },
         { key: 'CommentsEnabled', label: 'Enable ratings & reviews', type: 'check' },
         { key: 'ShowReviewAuthors', label: 'Show review author names to everyone', type: 'check' },
         { key: 'SkipOutroEnabled', label: 'Detect end credits (Skip Outro)', type: 'check' },
