@@ -25,6 +25,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   private const string PlaybackHistoryFileName = "playback-history.json";
   private const string IntrosFileName = "intros.json";
   private const string OutrosFileName = "outros.json";
+  private const string OutroSegmentsFileName = "outro-segments.json";
   private const string PrerollRegistryFileName = "local-intros.json";
 
   /// <inheritdoc />
@@ -93,6 +94,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     // Remembers each item's outro analysis so the Media Segment Scan doesn't re-run ffmpeg every pass.
     serviceCollection.AddSingleton<IOutroStore>(
       _ => new JsonOutroStore(() => Path.Combine(Plugin.Instance!.DataFolderPath, OutrosFileName)));
+
+    serviceCollection.AddSingleton<IOutroSegmentStore>(
+      _ => new JsonOutroSegmentStore(() => Path.Combine(Plugin.Instance!.DataFolderPath, OutroSegmentsFileName)));
     // Registers local pre-roll videos as standalone items (no browsable "Local Intros" library).
     serviceCollection.AddSingleton<IIntroFileRegistry>(
       _ => new IntroFileRegistry(() => Path.Combine(Plugin.Instance!.DataFolderPath, PrerollRegistryFileName)));

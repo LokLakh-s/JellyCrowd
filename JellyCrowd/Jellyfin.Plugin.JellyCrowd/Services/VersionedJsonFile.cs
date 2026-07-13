@@ -64,10 +64,11 @@ internal static class VersionedJsonFile
     catch (JsonException)
     {
       // A corrupt file (partial write from a crash, external tampering) must not brick the store: every
-      // read would otherwise throw and the endpoint would 500 forever. Quarantine it so the data can be
-      // inspected/recovered, and start fresh — the next write recreates a clean file.
+      // read would otherwise throw and the endpoint would 500 forever. Quarantine it so the bytes can be
+      // inspected, then fall back to the copy taken before the last write — for the request store, that
+      // is every user's media ownership and quota, which nothing else in Jellyfin knows.
       Quarantine(path);
-      return new List<T>();
+      return await ReadBackupAsync<T>(path, currentVersion, migrate, options, cancellationToken).ConfigureAwait(false);
     }
 
     if (migrate is not null && storedVersion < currentVersion)
@@ -106,7 +107,62 @@ internal static class VersionedJsonFile
     var bytes = JsonSerializer.SerializeToUtf8Bytes(envelope, options);
     var tempPath = path + ".tmp";
     await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken).ConfigureAwait(false);
+
+    // Keep the version we are about to replace. The move below is atomic, but the bytes it replaces are
+    // the only copy that exists — a bad write, a truncated file or a bug would otherwise be unrecoverable.
+    Backup(path);
     File.Move(tempPath, path, overwrite: true);
+  }
+
+  // Best-effort copy of the current file, kept as the one-deep undo of the next write.
+  private static void Backup(string path)
+  {
+    try
+    {
+      if (File.Exists(path))
+      {
+        File.Copy(path, path + ".bak", overwrite: true);
+      }
+    }
+#pragma warning disable CA1031 // Backing up must never break a write.
+    catch (IOException)
+    {
+    }
+    catch (UnauthorizedAccessException)
+    {
+    }
+#pragma warning restore CA1031
+  }
+
+  // Re-read the pre-write copy after the live file turned out to be corrupt. Empty when there is none (or
+  // it is corrupt too), which leaves the store empty rather than throwing.
+  private static async Task<List<T>> ReadBackupAsync<T>(
+    string path,
+    int currentVersion,
+    Func<int, List<T>, List<T>>? migrate,
+    JsonSerializerOptions options,
+    CancellationToken cancellationToken)
+  {
+    var backup = path + ".bak";
+    if (!File.Exists(backup))
+    {
+      return new List<T>();
+    }
+
+    try
+    {
+      var items = await ReadAsync<T>(backup, currentVersion, migrate, options, cancellationToken).ConfigureAwait(false);
+
+      // Reinstate it as the live file, so the recovered data is what the next write builds on.
+      File.Copy(backup, path, overwrite: true);
+      return items;
+    }
+#pragma warning disable CA1031 // Recovery is best-effort; an unusable backup just yields an empty store.
+    catch (Exception)
+#pragma warning restore CA1031
+    {
+      return new List<T>();
+    }
   }
 
   // Move a corrupt store aside (best-effort) so it is not re-read on every call, keeping the bytes for
