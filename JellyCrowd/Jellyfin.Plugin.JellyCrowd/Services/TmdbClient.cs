@@ -292,7 +292,7 @@ public class TmdbClient : ITmdbClient
     var uri = new Uri($"{_baseUrl}{relativePathWithQuery}{separator}api_key={Escape(apiKey)}");
 
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.GetAsync(client, uri, UpstreamTimeout.Tmdb, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
     return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
   }

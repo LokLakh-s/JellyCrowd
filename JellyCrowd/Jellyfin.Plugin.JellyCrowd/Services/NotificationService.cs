@@ -465,7 +465,8 @@ public sealed class NotificationService : INotificationService
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
     var json = JsonSerializer.Serialize(payload);
     using var content = new StringContent(json, Encoding.UTF8, "application/json");
-    using var response = await client.PostAsync(new Uri(config.DiscordWebhookUrl), content, cancellationToken).ConfigureAwait(false);
+    using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(config.DiscordWebhookUrl)) { Content = content };
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Outbound, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 

@@ -101,7 +101,7 @@ public sealed class WebhookDownloadClient : IDownloadClient
       request.Headers.TryAddWithoutValidation(header.Key, header.Value);
     }
 
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Outbound, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 }

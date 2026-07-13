@@ -155,7 +155,7 @@ public sealed class ServarrClient : IServarrClient
       deleteFiles ? "true" : "false");
     using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Servarr, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 
@@ -169,7 +169,7 @@ public sealed class ServarrClient : IServarrClient
       deleteFiles ? "true" : "false");
     using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Servarr, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 
@@ -179,7 +179,7 @@ public sealed class ServarrClient : IServarrClient
     var path = "/episodefile/" + episodeFileId.ToString(CultureInfo.InvariantCulture);
     using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Servarr, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 
@@ -208,7 +208,7 @@ public sealed class ServarrClient : IServarrClient
       blocklist ? "true" : "false");
     using var request = CreateRequest(HttpMethod.Delete, baseUrl, apiKey, path);
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Servarr, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 
@@ -236,7 +236,7 @@ public sealed class ServarrClient : IServarrClient
   {
     using var request = CreateRequest(HttpMethod.Get, baseUrl, apiKey, path, apiVersion);
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Servarr, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
     return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
   }
@@ -247,7 +247,7 @@ public sealed class ServarrClient : IServarrClient
     using var request = CreateRequest(HttpMethod.Post, baseUrl, apiKey, path);
     request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Servarr, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 
@@ -257,7 +257,7 @@ public sealed class ServarrClient : IServarrClient
     using var request = CreateRequest(HttpMethod.Put, baseUrl, apiKey, path);
     request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
     var client = _httpClientFactory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Servarr, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 }
