@@ -194,6 +194,14 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
 
   // Returns the detected outro regions (possibly empty), or null when the analysis itself could not run
   // (no ffmpeg / timeout / decode error) — so the caller can retry next scan instead of caching a failure.
+  // Turn one ffmpeg run's output (per-second luma + silences) into the outro regions.
+  private static IReadOnlyList<DetectedRegion> Interpret(string output, double analyzed, double offset, double runtimeSeconds, OutroDetectionOptions options)
+  {
+    var (_, silence) = SegmentDetection.ParseRegions(output, analyzed);
+    var luma = SegmentDetection.ParseLumaSamples(output);
+    return SegmentDetection.DetectOutroSegments(luma, silence, offset, runtimeSeconds, options);
+  }
+
   private async Task<IReadOnlyList<DetectedRegion>?> DetectOutroAsync(string path, double runtimeSeconds, PluginConfiguration config, OutroDetectionOptions options, CancellationToken cancellationToken)
   {
     var ffmpeg = _mediaEncoder.EncoderPath;
@@ -210,20 +218,43 @@ public sealed class JellyCrowdSegmentProvider : IMediaSegmentProvider
     // One decode of the tail yields both signals: per-second average luma (signalstats) to tell dark
     // credits from a bright bonus, and audio silence (a quiet credits crawl). The video decode — the heavy
     // part of the Media Segment Scan — is offloaded to the GPU per the configured hardware-accel mode.
+    // A fixed timeout cannot serve both a 20-minute SD episode and a 4K HEVC one, so give the decode at
+    // least a second of budget per second of video analyzed: too little and heavy files fail forever,
+    // never caching a result and re-burning the whole budget on every scan.
+    var timeout = Math.Max(config.OutroAnalyzeTimeoutSeconds, (int)Math.Ceiling(analyzed));
     var args = SegmentDetection.BuildOutroAnalyzeArgs(config.SegmentHwAccel, offset, path);
 
     try
     {
-      var output = await _processRunner.RunCaptureAsync(ffmpeg, args, config.OutroAnalyzeTimeoutSeconds, cancellationToken).ConfigureAwait(false);
-      var (_, silence) = SegmentDetection.ParseRegions(output, analyzed);
-      var luma = SegmentDetection.ParseLumaSamples(output);
-      return SegmentDetection.DetectOutroSegments(luma, silence, offset, runtimeSeconds, options);
+      var output = await _processRunner.RunCaptureAsync(ffmpeg, args, timeout, cancellationToken).ConfigureAwait(false);
+      return Interpret(output, analyzed, offset, runtimeSeconds, options);
     }
 #pragma warning disable CA1031 // Detection is best-effort; a failure just yields no segment this run.
     catch (Exception ex)
 #pragma warning restore CA1031
     {
-      _logger.LogDebug(ex, "Jelly Crowd outro detection failed for {Path}.", path);
+      // The accelerated pipeline can fail on a driver that lacks the hardware scaler, or on an exotic
+      // pixel format. Retry once on the CPU before giving up, so such a setup still gets its outros.
+      if (!string.IsNullOrEmpty(SegmentDetection.HwAccelArg(config.SegmentHwAccel)))
+      {
+        try
+        {
+          _logger.LogWarning(ex, "Jelly Crowd: accelerated outro analysis failed for {Path}; retrying on the CPU.", path);
+          var output = await _processRunner.RunCaptureAsync(ffmpeg, SegmentDetection.BuildOutroAnalyzeFallbackArgs(offset, path), timeout, cancellationToken).ConfigureAwait(false);
+          return Interpret(output, analyzed, offset, runtimeSeconds, options);
+        }
+#pragma warning disable CA1031 // Same best-effort contract as above.
+        catch (Exception fallbackEx)
+#pragma warning restore CA1031
+        {
+          // Warning, not debug: until now this failed in complete silence, so an admin had no way to see
+          // that a whole show would never get a Skip Outro button.
+          _logger.LogWarning(fallbackEx, "Jelly Crowd: outro analysis failed for {Path} (CPU fallback too). No outro will be offered.", path);
+          return null;
+        }
+      }
+
+      _logger.LogWarning(ex, "Jelly Crowd: outro analysis failed for {Path}. No outro will be offered.", path);
       return null;
     }
   }
