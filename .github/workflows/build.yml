@@ -53,6 +53,18 @@ jobs:
           (cd tests/js && npm ci)
           node --test tests/js/*.test.js
 
+      # Boots a REAL Jellyfin with this build and asserts what unit tests structurally cannot: that the
+      # plugin loads, its services resolve out of Jellyfin's DI, its scheduled tasks register, its routes
+      # answer, its authorization holds against an actual non-admin user, and its web shell is injected.
+      # Needs docker on the runner; skipped (not failed) when there is none.
+      - name: Test (E2E, real Jellyfin)
+        run: |
+          if ! docker info >/dev/null 2>&1; then
+            echo "::warning::docker unavailable on this runner — skipping the E2E check"
+            exit 0
+          fi
+          ./tests/e2e/run-e2e.sh
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
