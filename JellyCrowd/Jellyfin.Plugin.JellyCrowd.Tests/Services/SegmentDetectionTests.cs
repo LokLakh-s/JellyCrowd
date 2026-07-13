@@ -43,9 +43,9 @@ public class SegmentDetectionTests
   [Theory]
   [InlineData("auto", "-hwaccel auto ")]
   [InlineData("AUTO", "-hwaccel auto ")]
-  [InlineData(" vaapi ", "-hwaccel vaapi ")]
-  [InlineData("qsv", "-hwaccel qsv ")]
-  [InlineData("cuda", "-hwaccel cuda ")]
+  [InlineData(" vaapi ", "-hwaccel vaapi -hwaccel_output_format vaapi ")]
+  [InlineData("qsv", "-hwaccel qsv -hwaccel_output_format qsv ")]
+  [InlineData("cuda", "-hwaccel cuda -hwaccel_output_format cuda ")]
   [InlineData("videotoolbox", "-hwaccel videotoolbox ")]
   [InlineData("none", "")]
   [InlineData("", "")]
@@ -57,19 +57,32 @@ public class SegmentDetectionTests
   }
 
   [Fact]
-  public void BuildOutroAnalyzeArgs_Auto_InsertsHwAccelBeforeInput()
+  public void BuildOutroAnalyzeArgs_Cuda_DownscalesOnTheGpuBeforeReadback()
   {
-    Assert.Equal(
-      "-hide_banner -nostats -hwaccel auto -ss 1234.5 -i \"/media/movie.mkv\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
-      SegmentDetection.BuildOutroAnalyzeArgs("auto", 1234.5, "/media/movie.mkv"));
+    var args = SegmentDetection.BuildOutroAnalyzeArgs("cuda", 1234.5, "/media/movie.mkv");
+
+    // Frames stay on the GPU, are thinned to 1 fps and shrunk to the analyze width there, then only the
+    // small frame is copied back — this is what keeps a 4K HEVC tail scan under the timeout.
+    Assert.Contains("-hwaccel cuda -hwaccel_output_format cuda ", args, StringComparison.Ordinal);
+    Assert.Contains("-vf fps=1,scale_cuda=320:-2:format=nv12,hwdownload,format=nv12,signalstats,metadata=print", args, StringComparison.Ordinal);
+    Assert.Contains("-ss 1234.5 -i \"/media/movie.mkv\"", args, StringComparison.Ordinal);
+    Assert.Contains("silencedetect=noise=-45dB:d=0.8", args, StringComparison.Ordinal);
   }
 
   [Fact]
-  public void BuildOutroAnalyzeArgs_Cpu_HasNoHwAccel()
+  public void BuildOutroAnalyzeArgs_Cpu_ScalesOnTheCpu_NoHwAccel()
   {
     Assert.Equal(
-      "-hide_banner -nostats -ss 60 -i \"/x.mp4\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
+      "-hide_banner -nostats -ss 60 -i \"/x.mp4\" -vf fps=1,scale=320:-2,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
       SegmentDetection.BuildOutroAnalyzeArgs("none", 60, "/x.mp4"));
+  }
+
+  [Fact]
+  public void BuildOutroAnalyzeFallbackArgs_IsAlwaysCpu()
+  {
+    Assert.Equal(
+      SegmentDetection.BuildOutroAnalyzeArgs("none", 42, "/x.mp4"),
+      SegmentDetection.BuildOutroAnalyzeFallbackArgs(42, "/x.mp4"));
   }
 
   // ----- Parsing -----

@@ -19,6 +19,10 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </remarks>
 public static class SegmentDetection
 {
+  // Frames are shrunk to this width before signalstats: only their average luma is used, and that
+  // survives a downscale. Small enough to make the GPU→CPU readback negligible.
+  private const int AnalyzeWidth = 320;
+
   // Examples (jellyfin-ffmpeg): "silence_start: 15.010", "silence_end: 20.038 | silence_duration: 5.028",
   // "black_start:15.02 black_end:19.92 black_duration:4.9", "pts_time:41" and "lavfi.signalstats.YAVG=16.2".
   private static readonly Regex BlackRegex = new(
@@ -53,10 +57,34 @@ public static class SegmentDetection
   public static string BuildOutroAnalyzeArgs(string? hwAccel, double offsetSeconds, string path)
     => string.Format(
       CultureInfo.InvariantCulture,
-      "-hide_banner -nostats {0}-ss {1:0.###} -i \"{2}\" -vf fps=1,signalstats,metadata=print -af silencedetect=noise=-45dB:d=0.8 -f null -",
+      "-hide_banner -nostats {0}-ss {1:0.###} -i \"{2}\" -vf {3} -af silencedetect=noise=-45dB:d=0.8 -f null -",
       HwAccelArg(hwAccel),
       offsetSeconds,
-      path);
+      path,
+      VideoFilter(hwAccel));
+
+  /// <summary>
+  /// Builds the CPU-only analyze arguments, used as a fallback when the accelerated pipeline fails (a
+  /// driver without the scale filter, an exotic pixel format…). Slower, but it works everywhere.
+  /// </summary>
+  /// <param name="offsetSeconds">Where in the file to start analyzing.</param>
+  /// <param name="path">The media path.</param>
+  /// <returns>The ffmpeg arguments.</returns>
+  public static string BuildOutroAnalyzeFallbackArgs(double offsetSeconds, string path)
+    => BuildOutroAnalyzeArgs(null, offsetSeconds, path);
+
+  // Only one luma sample per second is ever used, so decoded frames are thinned to 1 fps and shrunk
+  // BEFORE they leave the GPU: reading back every full-size 4K frame — not the decode — is what made a
+  // 2160p HEVC episode take minutes and blow the analysis timeout, leaving such files with no outro at
+  // all. signalstats' average luma survives the downscale, and the dark threshold is relative to the
+  // clip's own brightness (see ClassifyCreditSeconds), so an 8-bit readback changes nothing.
+  private static string VideoFilter(string? hwAccel) => hwAccel?.Trim().ToUpperInvariant() switch
+  {
+    "CUDA" => "fps=1,scale_cuda=" + AnalyzeWidth + ":-2:format=nv12,hwdownload,format=nv12,signalstats,metadata=print",
+    "VAAPI" => "fps=1,scale_vaapi=" + AnalyzeWidth + ":-2:format=nv12,hwdownload,format=nv12,signalstats,metadata=print",
+    "QSV" => "fps=1,scale_qsv=" + AnalyzeWidth + ":-2:format=nv12,hwdownload,format=nv12,signalstats,metadata=print",
+    _ => "fps=1,scale=" + AnalyzeWidth + ":-2,signalstats,metadata=print",
+  };
 
   /// <summary>
   /// Maps a hardware-acceleration mode to the ffmpeg <c>-hwaccel</c> input option (with a trailing space),
@@ -67,9 +95,11 @@ public static class SegmentDetection
   public static string HwAccelArg(string? mode) => mode?.Trim().ToUpperInvariant() switch
   {
     "AUTO" => "-hwaccel auto ",
-    "VAAPI" => "-hwaccel vaapi ",
-    "QSV" => "-hwaccel qsv ",
-    "CUDA" => "-hwaccel cuda ",
+    // Keep decoded frames in GPU memory so they can be thinned and shrunk there (see VideoFilter);
+    // without this every frame is copied back at full size, which is the expensive part.
+    "VAAPI" => "-hwaccel vaapi -hwaccel_output_format vaapi ",
+    "QSV" => "-hwaccel qsv -hwaccel_output_format qsv ",
+    "CUDA" => "-hwaccel cuda -hwaccel_output_format cuda ",
     "VIDEOTOOLBOX" => "-hwaccel videotoolbox ",
     _ => string.Empty,
   };
