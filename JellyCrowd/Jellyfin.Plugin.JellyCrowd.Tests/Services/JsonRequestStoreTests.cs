@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -352,5 +353,93 @@ public sealed class JsonRequestStoreTests : IDisposable
 
     // Another user still wants season 1 → its files must not be deleted.
     Assert.True(await _store.AnyActiveReferenceAsync(mine.Id, 100, "tv", 1, null, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task SetJellyfinItemIdAsync_RepointsWithoutTouchingTheOwnershipClock()
+  {
+    var created = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 1, MediaType = "movie", Title = "X" }, CancellationToken.None);
+    var available = await _store.MarkAvailableAsync(created.Id, "old-id", CancellationToken.None);
+    var ownedSince = available!.AvailableAt;
+
+    var updated = await _store.SetJellyfinItemIdAsync(created.Id, "new-id", CancellationToken.None);
+
+    Assert.Equal("new-id", updated!.JellyfinItemId);
+    Assert.Equal(RequestStatus.Available, updated.Status);
+    Assert.Equal(ownedSince, updated.AvailableAt); // re-pointing must not restart the expiry countdown
+  }
+
+  [Fact]
+  public async Task SetJellyfinItemIdAsync_SameId_IsANoOp()
+  {
+    var created = await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 1, MediaType = "movie", Title = "X" }, CancellationToken.None);
+    await _store.MarkAvailableAsync(created.Id, "same-id", CancellationToken.None);
+
+    Assert.Null(await _store.SetJellyfinItemIdAsync(created.Id, "same-id", CancellationToken.None));
+    Assert.Null(await _store.SetJellyfinItemIdAsync(Guid.NewGuid(), "x", CancellationToken.None));
+  }
+
+  private static List<RequestRecord> Records(int count, RequestStatus status, DateTime start)
+    => Enumerable.Range(0, count).Select(i => new RequestRecord
+    {
+      Id = Guid.NewGuid(),
+      TmdbId = i,
+      MediaType = "movie",
+      Title = status + "-" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+      Status = status,
+      RequestedAt = start.AddSeconds(i)
+    }).ToList();
+
+  [Fact]
+  public void Trim_UnderTheCeiling_DropsNothing()
+  {
+    var items = Records(10, RequestStatus.Denied, DateTime.UtcNow);
+
+    JsonRequestStore.Trim(items);
+
+    Assert.Equal(10, items.Count);
+  }
+
+  [Fact]
+  public void Trim_OverTheCeiling_DropsTheOldestDeniedFirst()
+  {
+    var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    var items = Records(5100, RequestStatus.Denied, start);
+    var oldest = items[0];
+    var newest = items[^1];
+
+    JsonRequestStore.Trim(items);
+
+    Assert.Equal(5000, items.Count);
+    Assert.DoesNotContain(oldest, items);   // dead history, oldest first
+    Assert.Contains(newest, items);
+  }
+
+  [Fact]
+  public void Trim_NeverDropsLiveOrOwnedRequests_EvenOverTheCeiling()
+  {
+    var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    // Only real state: ownership (Available, what the quota is computed from) and live work.
+    var items = Records(3000, RequestStatus.Available, start);
+    items.AddRange(Records(2500, RequestStatus.Approved, start));
+
+    JsonRequestStore.Trim(items);
+
+    // The ceiling is exceeded on purpose rather than losing ownership or pending work.
+    Assert.Equal(5500, items.Count);
+  }
+
+  [Fact]
+  public void Trim_OverTheCeiling_PrunesOnlyTheExcess()
+  {
+    var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    var items = Records(4900, RequestStatus.Available, start);
+    items.AddRange(Records(300, RequestStatus.Denied, start)); // 5200 total → 200 over
+
+    JsonRequestStore.Trim(items);
+
+    Assert.Equal(5000, items.Count);
+    Assert.Equal(4900, items.Count(r => r.Status == RequestStatus.Available)); // ownership untouched
+    Assert.Equal(100, items.Count(r => r.Status == RequestStatus.Denied));     // only the excess pruned
   }
 }

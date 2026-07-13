@@ -43,6 +43,7 @@ public sealed class RequestReconciler : IRequestReconciler
     var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
     var justAvailable = new List<RequestRecord>();
     var reverted = 0;
+    var repointed = 0;
 
     foreach (var request in all)
     {
@@ -72,13 +73,23 @@ public sealed class RequestReconciler : IRequestReconciler
           justAvailable.Add(request);
         }
       }
-      else if (request.Status == RequestStatus.Available
-               && request.DeletionRequestedAt is null
-               && ResolveItemId(request) is null)
+      else if (request.Status == RequestStatus.Available && request.DeletionRequestedAt is null)
       {
-        // The media is gone (e.g. deleted by another user / removed externally): no longer available.
-        await _store.UpdateStatusAsync(request.Id, RequestStatus.Approved, request.DecidedBy ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
-        reverted++;
+        var live = ResolveItemId(request);
+        if (live is null)
+        {
+          // The media is gone (e.g. deleted by another user / removed externally): no longer available.
+          await _store.UpdateStatusAsync(request.Id, RequestStatus.Approved, request.DecidedBy ?? Guid.Empty, cancellationToken).ConfigureAwait(false);
+          reverted++;
+        }
+        else if (!string.Equals(live, request.JellyfinItemId, StringComparison.OrdinalIgnoreCase))
+        {
+          // The media is still there, but under a NEW item id: a library rescan or a metadata refresh
+          // regenerates Jellyfin's GUIDs. The stored id then dangles, and a later deletion silently finds
+          // nothing. Re-point the request at the live item (its ownership clock is untouched).
+          await _store.SetJellyfinItemIdAsync(request.Id, live, cancellationToken).ConfigureAwait(false);
+          repointed++;
+        }
       }
     }
 
@@ -90,9 +101,13 @@ public sealed class RequestReconciler : IRequestReconciler
     }
 
     var resolved = justAvailable.Count;
-    if (resolved > 0 || reverted > 0)
+    if (resolved > 0 || reverted > 0 || repointed > 0)
     {
-      _logger.LogInformation("Jelly Crowd reconcile: {Resolved} available, {Reverted} reverted.", resolved, reverted);
+      _logger.LogInformation(
+        "Jelly Crowd reconcile: {Resolved} available, {Reverted} reverted, {Repointed} re-pointed at a new library item id.",
+        resolved,
+        reverted,
+        repointed);
     }
 
     return resolved;

@@ -17,6 +17,13 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 public sealed class JsonRequestStore : IRequestStore, IDisposable
 {
   private const int SchemaVersion = 1;
+
+  // Ceiling on stored requests, so the file cannot grow without bound (a user can create one request per
+  // distinct title, faster than they are ever completed). Only DENIED requests are pruned, oldest first:
+  // they are dead history, whereas Pending/Approved are live work and Available IS the ownership record
+  // the quota is computed from — dropping either would lose real state, so we never do.
+  private const int MaxStoredRequests = 5000;
+
   private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
   private readonly string _filePath;
@@ -44,6 +51,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.Id = record.Id == Guid.Empty ? Guid.NewGuid() : record.Id;
       record.RequestedAt = DateTime.UtcNow;
       items.Add(record);
+      Trim(items);
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }
@@ -518,6 +526,29 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<RequestRecord?> SetJellyfinItemIdAsync(Guid id, string jellyfinItemId, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null || string.Equals(record.JellyfinItemId, jellyfinItemId, StringComparison.OrdinalIgnoreCase))
+      {
+        return null;
+      }
+
+      record.JellyfinItemId = jellyfinItemId;
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<RequestRecord?> MarkNotFoundNotifiedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -598,4 +629,30 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
 
   private Task SaveAsync(CancellationToken cancellationToken)
     => VersionedJsonFile.WriteAsync(_filePath, SchemaVersion, _cache ?? new List<RequestRecord>(), SerializerOptions, cancellationToken);
+
+  /// <summary>
+  /// Drops the oldest denied requests once the store is over its ceiling. Nothing else is ever discarded:
+  /// if only live/owned requests remain, the store is allowed to exceed the ceiling rather than lose real
+  /// state. Internal so the bound can be unit-tested without writing thousands of files.
+  /// </summary>
+  /// <param name="items">The records, trimmed in place.</param>
+  internal static void Trim(List<RequestRecord> items)
+  {
+    var excess = items.Count - MaxStoredRequests;
+    if (excess <= 0)
+    {
+      return;
+    }
+
+    var prunable = items
+      .Where(r => r.Status == RequestStatus.Denied)
+      .OrderBy(r => r.RequestedAt)
+      .Take(excess)
+      .ToList();
+
+    foreach (var record in prunable)
+    {
+      items.Remove(record);
+    }
+  }
 }

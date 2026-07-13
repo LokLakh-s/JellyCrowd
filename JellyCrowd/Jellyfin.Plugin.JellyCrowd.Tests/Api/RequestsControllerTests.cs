@@ -754,6 +754,18 @@ public class RequestsControllerTests
       return Task.FromResult(record);
     }
 
+    public Task<RequestRecord?> SetJellyfinItemIdAsync(Guid id, string jellyfinItemId, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is null || string.Equals(record.JellyfinItemId, jellyfinItemId, StringComparison.OrdinalIgnoreCase))
+      {
+        return Task.FromResult<RequestRecord?>(null);
+      }
+
+      record.JellyfinItemId = jellyfinItemId;
+      return Task.FromResult<RequestRecord?>(record);
+    }
+
     public Task<RequestRecord?> MarkNotFoundNotifiedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken)
     {
       var record = _items.FirstOrDefault(r => r.Id == id);
