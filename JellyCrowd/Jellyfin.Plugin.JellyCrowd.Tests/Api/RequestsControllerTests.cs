@@ -491,6 +491,9 @@ public class RequestsControllerTests
 
     public long GetBaseQuotaBytes(Guid userId) => 0;
 
+public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyDictionary<Guid, QuotaInfo>>(userIds.ToDictionary(id => id, _ => new QuotaInfo()));
+
     public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken)
       => Task.FromResult(new QuotaInfo());
 

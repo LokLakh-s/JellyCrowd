@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -20,6 +22,9 @@ internal sealed class StubQuotaService : IQuotaService
   public long GetBaseQuotaBytes(Guid userId) => 0;
 
   public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(new QuotaInfo());
+
+  public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
+    => Task.FromResult<IReadOnlyDictionary<Guid, QuotaInfo>>(userIds.ToDictionary(id => id, _ => new QuotaInfo()));
 
   public Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken) => Task.FromResult(_within);
 
