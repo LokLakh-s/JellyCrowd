@@ -73,10 +73,14 @@ public class QuotaController : ControllerBase
     var requests = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
     var userIds = requests.Select(r => r.UserId).Distinct().ToList();
 
+    // One sweep, one shared size lookup: the same title owned by several people costs a single library
+    // query instead of one per owner — the whole point of a shared library.
+    var usages = await _quotaService.GetUsageAsync(userIds, cancellationToken).ConfigureAwait(false);
+
     var result = new List<UserQuotaInfoDto>();
     foreach (var userId in userIds)
     {
-      var info = await _quotaService.GetUsageAsync(userId, cancellationToken).ConfigureAwait(false);
+      var info = usages[userId];
       result.Add(new UserQuotaInfoDto
       {
         UserId = userId,

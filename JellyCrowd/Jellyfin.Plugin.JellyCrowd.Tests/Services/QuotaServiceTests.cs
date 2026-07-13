@@ -281,6 +281,72 @@ public sealed class QuotaServiceTests : IDisposable
     }
   }
 
+  [Fact]
+  public async Task GetUsageAsync_ForManyUsers_LooksUpEachTitleOnce_NotOncePerOwner()
+  {
+    // A shared library: the same media is owned by several people. Its size on disk is a property of the
+    // file, not of who owns it — and each lookup is a real library query, the expensive part of a sweep.
+    var users = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+    foreach (var user in users)
+    {
+      var shared = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "Shared" }, CancellationToken.None);
+      await _store.UpdateStatusAsync(shared.Id, RequestStatus.Available, Guid.NewGuid(), CancellationToken.None);
+      var own = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "AlsoShared" }, CancellationToken.None);
+      await _store.UpdateStatusAsync(own.Id, RequestStatus.Available, Guid.NewGuid(), CancellationToken.None);
+    }
+
+    var matcher = new CountingMatcher(3 * Gib);
+    var usages = await Create(matcher).GetUsageAsync(users, CancellationToken.None);
+
+    // Every user still gets the right figure...
+    Assert.Equal(3, usages.Count);
+    Assert.All(users, u => Assert.Equal(6 * Gib, usages[u].UsedBytes));
+
+    // ...but the library was asked twice (two distinct titles), not six times (two titles x three owners).
+    Assert.Equal(2, matcher.Lookups);
+  }
+
+  [Fact]
+  public async Task GetUsageAsync_PerUser_StillWorksOnItsOwn()
+  {
+    var user = Guid.NewGuid();
+    var created = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "X" }, CancellationToken.None);
+    await _store.UpdateStatusAsync(created.Id, RequestStatus.Available, Guid.NewGuid(), CancellationToken.None);
+
+    var usage = await Create(new SizeMatcher(3 * Gib)).GetUsageAsync(user, CancellationToken.None);
+
+    Assert.Equal(3 * Gib, usage.UsedBytes);
+  }
+
+  // Counts how many times the library is actually queried for a size.
+  private sealed class CountingMatcher : ILibraryMatcher
+  {
+    private readonly long _size;
+
+    public CountingMatcher(long size) => _size = size;
+
+    public int Lookups { get; private set; }
+
+    public bool Exists(string mediaType, int tmdbId) => true;
+
+    public string? FindItemId(string mediaType, int tmdbId) => "x";
+
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => "x";
+
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => "x";
+
+    public long GetSizeBytes(string mediaType, int tmdbId) => _size;
+
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode)
+    {
+      Lookups++;
+      return _size;
+    }
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia()
+      => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+  }
+
   private sealed class SizeMatcher : ILibraryMatcher
   {
     private readonly long _size;

@@ -64,7 +64,27 @@ public sealed class QuotaService : IQuotaService
   }
 
   /// <inheritdoc />
-  public async Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken)
+  public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken)
+    => GetUsageAsync(userId, new Dictionary<string, long>(StringComparer.Ordinal), cancellationToken);
+
+  /// <inheritdoc />
+  public async Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(userIds);
+
+    // One memo for the whole sweep: a title owned by several users is looked up once, not once per owner.
+    // Its size on disk is a property of the file, not of who owns it.
+    var sizes = new Dictionary<string, long>(StringComparer.Ordinal);
+    var result = new Dictionary<Guid, QuotaInfo>(userIds.Count);
+    foreach (var userId in userIds)
+    {
+      result[userId] = await GetUsageAsync(userId, sizes, cancellationToken).ConfigureAwait(false);
+    }
+
+    return result;
+  }
+
+  private async Task<QuotaInfo> GetUsageAsync(Guid userId, Dictionary<string, long> sizes, CancellationToken cancellationToken)
   {
     var config = _configurationProvider();
     var quota = GetQuotaBytes(userId);
@@ -79,7 +99,7 @@ public sealed class QuotaService : IQuotaService
     {
       if (request.Status == RequestStatus.Available && counted.Add(TitleKey(request)))
       {
-        used += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
+        used += SizeOf(request, sizes);
       }
     }
 
@@ -159,6 +179,20 @@ public sealed class QuotaService : IQuotaService
     }
 
     return committed;
+  }
+
+  // The library query behind a size is the expensive part of a quota sweep; the same title never has two
+  // sizes, so remember it for the life of the caller's computation (no cross-request cache, no staleness).
+  private long SizeOf(RequestRecord request, Dictionary<string, long> sizes)
+  {
+    var key = TitleKey(request);
+    if (!sizes.TryGetValue(key, out var size))
+    {
+      size = _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
+      sizes[key] = size;
+    }
+
+    return size;
   }
 
   private static string TitleKey(RequestRecord request)

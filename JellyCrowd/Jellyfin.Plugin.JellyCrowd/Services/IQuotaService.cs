@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -33,6 +34,16 @@ public interface IQuotaService
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The usage snapshot.</returns>
   Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets the usage of several users in one pass, sharing a single size lookup across them. Usage is
+  /// summed by querying the library for the size of each owned title — and in a shared library the same
+  /// title is owned by many people, so computing users one by one re-asks for sizes that cannot differ.
+  /// </summary>
+  /// <param name="userIds">The users to measure.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>Each user's usage, keyed by user id.</returns>
+  Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken);
 
   /// <summary>
   /// Determines whether the user can make a new request of the given media type without exceeding their quota.
