@@ -105,6 +105,17 @@ public interface IRequestStore
   Task<RequestRecord?> MarkAvailableAsync(Guid id, string jellyfinItemId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Re-points an already-available request at its library item, without touching its status or its
+  /// ownership clock. A library rescan or metadata refresh regenerates Jellyfin item ids, leaving the
+  /// stored one dangling — deletion and the "open in Jellyfin" link would then miss.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="jellyfinItemId">The current Jellyfin library item id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found.</returns>
+  Task<RequestRecord?> SetJellyfinItemIdAsync(Guid id, string jellyfinItemId, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Resets an available request's ownership clock (its <see cref="RequestRecord.AvailableAt"/>) to the
   /// given time, restarting the expiry countdown ("renew" / re-claim).
   /// </summary>

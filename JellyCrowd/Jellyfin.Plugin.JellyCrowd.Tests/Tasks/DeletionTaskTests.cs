@@ -54,6 +54,36 @@ public sealed class DeletionTaskTests : IDisposable
   }
 
   [Fact]
+  public async Task Execute_StaleStoredItemId_DeletesTheLiveItem()
+  {
+    // A library rescan / metadata refresh regenerates item ids, so the id recorded when the media landed
+    // can dangle. Trusting it blindly deleted nothing at all — resolve the title live instead.
+    var id = await SeedFlaggedAsync("stale-id-from-before-the-rescan");
+    var deleter = new RecordingDeleter();
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(itemId: "live-id"), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Contains("live-id", deleter.Deleted);
+    Assert.DoesNotContain("stale-id-from-before-the-rescan", deleter.Deleted);
+    Assert.Null(await _store.GetByIdAsync(id, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Execute_MatcherCannotIdentifyTheTitle_FallsBackToTheStoredItemId()
+  {
+    // The matcher can lose a title (its provider id was stripped) while the item is still there under the
+    // id we recorded — so the stored id stays the fallback rather than deleting nothing.
+    await SeedFlaggedAsync("item-abc");
+    var deleter = new RecordingDeleter();
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Contains("item-abc", deleter.Deleted);
+  }
+
+  [Fact]
   public async Task Execute_KeepsMedia_WhenRetentionNotElapsed()
   {
     var id = await SeedFlaggedAsync("item-xyz");
@@ -207,12 +237,17 @@ public sealed class DeletionTaskTests : IDisposable
   private sealed class StubMatcher : ILibraryMatcher
   {
     private readonly string? _seasonItemId;
+    private readonly string? _itemId;
 
-    public StubMatcher(string? seasonItemId = null) => _seasonItemId = seasonItemId;
+    public StubMatcher(string? seasonItemId = null, string? itemId = null)
+    {
+      _seasonItemId = seasonItemId;
+      _itemId = itemId;
+    }
 
     public bool Exists(string mediaType, int tmdbId) => false;
 
-    public string? FindItemId(string mediaType, int tmdbId) => null;
+    public string? FindItemId(string mediaType, int tmdbId) => _itemId;
 
     public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => null;
 

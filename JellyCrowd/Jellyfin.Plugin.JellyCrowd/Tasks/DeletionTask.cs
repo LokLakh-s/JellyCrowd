@@ -200,7 +200,11 @@ public sealed class DeletionTask : IScheduledTask
       return _libraryMatcher.FindSeasonItemId(request.TmdbId, season);
     }
 
-    return request.JellyfinItemId;
+    // Movie / whole-series: resolve live first. A library rescan or metadata refresh regenerates item
+    // ids, so the stored one can dangle — trusting it blindly would delete nothing, silently. The stored
+    // id remains the fallback for a title the matcher can no longer identify (e.g. its provider id was
+    // stripped) but which is still in the library under the id we recorded.
+    return _libraryMatcher.FindItemId(request.MediaType, request.TmdbId) ?? request.JellyfinItemId;
   }
 
   private static bool PurgeGraceElapsed(Models.RequestRecord request, int retentionHours)
