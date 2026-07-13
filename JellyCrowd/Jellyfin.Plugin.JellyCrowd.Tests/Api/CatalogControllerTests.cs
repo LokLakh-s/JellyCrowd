@@ -30,7 +30,11 @@ public class CatalogControllerTests
       w.GetByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())
         == Task.FromResult<IReadOnlyList<WatchlistEntry>>(new List<WatchlistEntry>()));
     var accessor = Mock.Of<ICurrentUserAccessor>(a => a.GetUserIdAsync(It.IsAny<HttpRequest>()) == Task.FromResult(Guid.Empty));
-    return new CatalogController(client, new FakeLibraryMatcher(), store, watchlist, accessor, NullLogger<CatalogController>.Instance);
+    // No Sonarr backend configured, so the structure provider falls back to TMDB — the behaviour these
+    // tests assert. The Sonarr-authoritative path has its own tests (SeriesStructureProviderTests).
+    var config = new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration();
+    var structure = new SeriesStructureProvider(client, Mock.Of<IServarrClient>(), () => config, NullLogger<SeriesStructureProvider>.Instance);
+    return new CatalogController(client, structure, new FakeLibraryMatcher(), store, watchlist, accessor, NullLogger<CatalogController>.Instance);
   }
 
   private sealed class FakeLibraryMatcher : ILibraryMatcher

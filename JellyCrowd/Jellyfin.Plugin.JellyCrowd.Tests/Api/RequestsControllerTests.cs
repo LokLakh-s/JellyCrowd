@@ -754,6 +754,18 @@ public class RequestsControllerTests
       return Task.FromResult(record);
     }
 
+    public Task<RequestRecord?> MarkNotFoundNotifiedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.NotFoundNotifiedAt is not null)
+      {
+        return Task.FromResult<RequestRecord?>(null);
+      }
+
+      record.NotFoundNotifiedAt = whenUtc;
+      return Task.FromResult<RequestRecord?>(record);
+    }
+
     public Task<IReadOnlyList<RequestRecord>> GetDueForDispatchAsync(DateTime nowUtc, CancellationToken cancellationToken)
       => Task.FromResult<IReadOnlyList<RequestRecord>>(_items.Where(r =>
         r.Status == RequestStatus.Approved && r.DispatchedAt is null

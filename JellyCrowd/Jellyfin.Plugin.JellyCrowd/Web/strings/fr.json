@@ -329,5 +329,6 @@
   "log_search": "Rechercher",
   "log_user_all": "Tous les utilisateurs",
   "log_refresh": "Actualiser",
-  "log_empty": "Aucune activité enregistrée pour l'instant."
+  "log_empty": "Aucune activité enregistrée pour l'instant.",
+  "season_number": "Saison {n}"
 }

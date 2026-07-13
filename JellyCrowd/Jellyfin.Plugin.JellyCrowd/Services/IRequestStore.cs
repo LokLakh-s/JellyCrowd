@@ -225,6 +225,16 @@ public interface IRequestStore
   Task<RequestRecord?> SetDispatchErrorAsync(Guid id, string? error, DateTime whenUtc, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Stamps the moment the requester was told the media could not be found, so the warning is sent once.
+  /// Returns <c>null</c> when the request is gone or was already stamped.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="whenUtc">The moment the warning was sent (UTC).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found or already notified.</returns>
+  Task<RequestRecord?> MarkNotFoundNotifiedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Gets approved requests that are due for download dispatch: not yet dispatched and whose desired
   /// time (if any) is at or before the given instant.
   /// </summary>

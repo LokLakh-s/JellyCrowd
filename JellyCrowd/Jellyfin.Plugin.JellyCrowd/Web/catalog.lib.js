@@ -65,6 +65,18 @@
     return status === 503 ? 'error_not_configured' : 'error_generic';
   }
 
+  // Label a season row. The name can be missing (a season the download backend knows about but TMDB does
+  // not, e.g. the later seasons of an anime TMDB serves as one), so fall back to a localized "Season N".
+  // The episode count is appended only when it is known: null means "not known", never "no episodes".
+  function seasonLabel(season, translate) {
+    if (!season) {
+      return '';
+    }
+
+    var name = season.Name || String(translate('season_number')).replace('{n}', String(season.SeasonNumber));
+    return season.EpisodeCount ? name + ' (' + season.EpisodeCount + ')' : name;
+  }
+
   // Format a TMDB vote average as a one-decimal string, or '' when there is no rating.
   function formatRating(vote) {
     var n = Number(vote);
@@ -430,6 +442,7 @@
     formatTitle: formatTitle,
     formatRating: formatRating,
     errorKey: errorKey,
+    seasonLabel: seasonLabel,
     statusLabelKey: statusLabelKey,
     requestStatusLabelKey: requestStatusLabelKey,
     statusRank: statusRank,

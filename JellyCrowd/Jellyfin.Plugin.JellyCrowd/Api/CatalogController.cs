@@ -36,6 +36,7 @@ public class CatalogController : ControllerBase
   private static readonly string[] ExtraCalendarRegions = { "FR", "ES", "IT", "GB", "US" };
 
   private readonly ITmdbClient _tmdbClient;
+  private readonly ISeriesStructureProvider _seriesStructure;
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly IRequestStore _requestStore;
   private readonly IWatchlistStore _watchlistStore;
@@ -46,6 +47,7 @@ public class CatalogController : ControllerBase
   /// Initializes a new instance of the <see cref="CatalogController"/> class.
   /// </summary>
   /// <param name="tmdbClient">The TMDB client.</param>
+  /// <param name="seriesStructure">Supplies the seasons/episodes a show can actually be requested by.</param>
   /// <param name="libraryMatcher">The library matcher used to flag already-available titles.</param>
   /// <param name="requestStore">The request store, used to resolve the user's followed shows / recommendation seeds.</param>
   /// <param name="watchlistStore">The watchlist store, used as recommendation seeds.</param>
@@ -53,6 +55,7 @@ public class CatalogController : ControllerBase
   /// <param name="logger">The logger.</param>
   public CatalogController(
     ITmdbClient tmdbClient,
+    ISeriesStructureProvider seriesStructure,
     ILibraryMatcher libraryMatcher,
     IRequestStore requestStore,
     IWatchlistStore watchlistStore,
@@ -60,6 +63,7 @@ public class CatalogController : ControllerBase
     ILogger<CatalogController> logger)
   {
     _tmdbClient = tmdbClient;
+    _seriesStructure = seriesStructure;
     _libraryMatcher = libraryMatcher;
     _requestStore = requestStore;
     _watchlistStore = watchlistStore;
@@ -341,7 +345,7 @@ public class CatalogController : ControllerBase
   {
     try
     {
-      var seasons = await _tmdbClient.GetSeasonsAsync(tmdbId, Normalize(language), cancellationToken).ConfigureAwait(false);
+      var seasons = await _seriesStructure.GetSeasonsAsync(tmdbId, Normalize(language), cancellationToken).ConfigureAwait(false);
       return Ok(seasons);
     }
     catch (InvalidOperationException ex)
@@ -375,7 +379,7 @@ public class CatalogController : ControllerBase
   {
     try
     {
-      var episodes = await _tmdbClient.GetSeasonEpisodesAsync(tmdbId, season, Normalize(language), cancellationToken).ConfigureAwait(false);
+      var episodes = await _seriesStructure.GetEpisodesAsync(tmdbId, season, Normalize(language), cancellationToken).ConfigureAwait(false);
       return Ok(episodes);
     }
     catch (InvalidOperationException ex)

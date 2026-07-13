@@ -120,4 +120,10 @@ public class RequestRecord
   /// Gets or sets the UTC time of the last dispatch attempt (success or failure), if any.
   /// </summary>
   public DateTime? DispatchAttemptedAt { get; set; }
+
+  /// <summary>
+  /// Gets or sets the moment the requester was told the media could not be found, so they are told once
+  /// and not on every sweep. Null while the search is still within its retry window.
+  /// </summary>
+  public DateTime? NotFoundNotifiedAt { get; set; }
 }
