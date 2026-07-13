@@ -1,0 +1,37 @@
+[
+  {
+    "guid": "a1994160-4ea2-4d81-bd3c-ffe825700d98",
+    "name": "Jelly Crowd",
+    "description": "One plugin to rule them all! Jelly Crowd turns Jellyfin into a complete media request & discovery platform — with no third-party plugins required.\n\n• Discovery catalog (TMDB): browse, filter and search movies & shows, with a release calendar of what's coming.\n• Requests: users request titles; admins approve or auto-approve through a queue, with automatic fulfilment via Radarr/Sonarr, a webhook or a custom script.\n• Per-user disk quotas: configurable, with an optional adaptive quota that rewards active viewers, and media expiry to free space.\n• Reviews, ratings & problem reports, with admin moderation.\n• Notifications: Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or webhook.\n• Branding: theme the whole interface — logo, favicon, colours, font, background, custom CSS and left-menu links.\n• Statistics & dashboards: built-in playback stats for admins (top media & users, activity charts, live 'now playing') plus a personal dashboard for every user.\n\nEntirely self-hosted by Jelly Crowd. For Jellyfin 10.11+.",
+    "overview": "One plugin to rule them all — TMDB catalog, media requests, per-user quotas, branding and stats, inside Jellyfin.",
+    "owner": "LokLakh-s",
+    "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/logo.png",
+    "versions": [
+      {
+        "version": "0.80.20.0",
+        "changelog": "Release v0.80.20.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/LokLakh-s/JellyCrowd/releases/download/v0.80.20.0/jelly-crowd-v0.80.20.0.zip",
+        "checksum": "0f410cd8137d0eccc34ce7173df3b2c9",
+        "timestamp": "2026-07-13T01:48:05.0000000Z"
+      },
+      {
+        "version": "0.80.19.0",
+        "changelog": "Release v0.80.19.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/LokLakh-s/JellyCrowd/releases/download/v0.80.19.0/jelly-crowd-v0.80.19.0.zip",
+        "checksum": "fac661a0f3c224e56fd981feac857b3f",
+        "timestamp": "2026-07-11T17:03:18.0000000Z"
+      },
+      {
+        "version": "0.80.18.0",
+        "changelog": "Release v0.80.18.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/LokLakh-s/JellyCrowd/releases/download/v0.80.18.0/jelly-crowd-v0.80.18.0.zip",
+        "checksum": "0353f5a7a7ac18b852e40f87c4fbff60",
+        "timestamp": "2026-07-11T12:31:02.0000000Z"
+      }
+    ]
+  }
+]
