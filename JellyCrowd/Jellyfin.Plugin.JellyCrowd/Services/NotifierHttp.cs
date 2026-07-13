@@ -39,7 +39,7 @@ internal static class NotifierHttp
   public static async Task SendAsync(IHttpClientFactory factory, HttpRequestMessage request, CancellationToken cancellationToken)
   {
     var client = factory.CreateClient(NamedClient.Default);
-    using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    using var response = await UpstreamTimeout.SendAsync(client, request, UpstreamTimeout.Outbound, cancellationToken).ConfigureAwait(false);
     response.EnsureSuccessStatusCode();
   }
 }
