@@ -595,7 +595,7 @@
       row.className = 'jellycrowd-season-row';
 
       var label = document.createElement('span');
-      label.textContent = season.Name + (season.EpisodeCount ? ' (' + season.EpisodeCount + ')' : '');
+      label.textContent = lib.seasonLabel(season, t);
       row.appendChild(label);
 
       var actions = document.createElement('span');

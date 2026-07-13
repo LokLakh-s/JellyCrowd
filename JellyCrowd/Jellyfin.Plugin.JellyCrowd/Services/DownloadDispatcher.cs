@@ -287,8 +287,10 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       }
 
       // Give up on genuinely-unavailable media after the window — manual retry only past that point.
+      // Tell the requester once: until now the request simply sat on "Missing" forever, in silence.
       if (now - request.RequestedAt > RetryStuckMaxAge)
       {
+        await NotifyNotFoundAsync(request, now, cancellationToken).ConfigureAwait(false);
         continue;
       }
 
@@ -315,6 +317,37 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
 
     return _clients.FirstOrDefault(c =>
       string.Equals(c.Backend, config.DownloadBackend, StringComparison.OrdinalIgnoreCase) && c.IsConfigured(config));
+  }
+
+  // Warn the requester, exactly once, that a request has been searched for the whole retry window without
+  // ever finding the media. It stays Approved (an admin can still retry) but the user now knows why it has
+  // been sitting on "Missing" — before this, the search gave up in complete silence.
+  private async Task NotifyNotFoundAsync(RequestRecord request, DateTime nowUtc, CancellationToken cancellationToken)
+  {
+    if (request.NotFoundNotifiedAt is not null)
+    {
+      return;
+    }
+
+    var stamped = await _store.MarkNotFoundNotifiedAsync(request.Id, nowUtc, cancellationToken).ConfigureAwait(false);
+    if (stamped is null)
+    {
+      return; // Gone, or another sweep got there first.
+    }
+
+    _logger.LogInformation(
+      "Request {RequestId} ({Title}) was never found within the retry window; warning the requester.",
+      request.Id.ToString("N", CultureInfo.InvariantCulture),
+      request.Title);
+
+    _ = _notificationService.NotifyPersonalAsync(
+      request.UserId,
+      PersonalNotifyKind.Decision,
+      request.Title,
+      "Not found — we couldn't get it",
+      $"We searched for \"{request.Title}\" for two weeks and no source turned up, so we have stopped looking. It does not count against your quota. Ask an admin if you would like them to try again or find it another way.",
+      request.PosterPath,
+      CancellationToken.None);
   }
 
   private async Task<bool> DispatchOneAsync(RequestRecord request, IDownloadClient client, DateTime nowUtc, CancellationToken cancellationToken)

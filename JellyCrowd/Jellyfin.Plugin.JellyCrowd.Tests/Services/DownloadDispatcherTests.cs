@@ -234,6 +234,25 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   [Fact]
+  public async Task RetryStuckAsync_PastTheRetryWindow_WarnsTheRequesterOnce()
+  {
+    var request = await SeedApprovedAsync();
+    await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+    // Age the request past the 14-day search window: the media was never found.
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    stored!.RequestedAt = DateTime.UtcNow.AddDays(-20);
+    await _store.SetDispatchErrorAsync(request.Id, null, DateTime.UtcNow.AddHours(-7), CancellationToken.None);
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None); // a second sweep must stay silent
+
+    Assert.Empty(_client.Retried); // past the window we stop searching...
+    Assert.Single(_notifier.Personal, e => e.Kind == PersonalNotifyKind.Decision); // ...but say so, once
+    var after = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    Assert.NotNull(after!.NotFoundNotifiedAt);
+  }
+
+  [Fact]
   public async Task RetryStuckAsync_SkipsNotYetDispatched()
   {
     await SeedApprovedAsync(); // approved but DispatchedAt == null → DispatchDueAsync handles it, not the retry backstop

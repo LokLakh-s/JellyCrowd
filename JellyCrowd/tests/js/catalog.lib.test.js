@@ -268,3 +268,16 @@ test('buildBrandingCss appends free custom CSS last so it wins', () => {
 test('buildBrandingCss with only custom CSS still emits it', () => {
   assert.strictEqual(lib.buildBrandingCss({ Enabled: true, CustomCss: '.x{top:0;}' }), '.x{top:0;}');
 });
+
+test('seasonLabel appends the episode count only when it is known', () => {
+  const t = (key) => (key === 'season_number' ? 'Season {n}' : key);
+
+  // TMDB knows this season: it has a localized name and a count.
+  assert.strictEqual(lib.seasonLabel({ SeasonNumber: 1, Name: 'Season 1', EpisodeCount: 24 }, t), 'Season 1 (24)');
+
+  // A season only the download backend knows about (an anime TMDB serves as one season): no name, and
+  // the count is unknown — never render "(0)", which would read as "this season has no episodes".
+  assert.strictEqual(lib.seasonLabel({ SeasonNumber: 3, Name: '', EpisodeCount: null }, t), 'Season 3');
+
+  assert.strictEqual(lib.seasonLabel(null, t), '');
+});

@@ -329,5 +329,6 @@
   "log_search": "Search",
   "log_user_all": "All users",
   "log_refresh": "Refresh",
-  "log_empty": "No activity recorded yet."
+  "log_empty": "No activity recorded yet.",
+  "season_number": "Season {n}"
 }
