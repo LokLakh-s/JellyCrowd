@@ -9,8 +9,9 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace Jellyfin.Plugin.JellyCrowd.Api;
 
 /// <summary>
-/// Per-user rate limit on mutating (POST/PUT/DELETE/PATCH) requests to the plugin's API, on top of the
-/// per-period request cap. Administrators are exempt. Returns 429 when the limit is exceeded.
+/// Per-user rate limit on the plugin's API, on top of the per-period request cap. Writes and reads have
+/// independent per-minute budgets (a small write cap; a generous read cap that only stops scripted loops
+/// hammering the TMDB-backed catalog GETs). Administrators are exempt. Returns 429 when a limit is hit.
 /// </summary>
 public sealed class RateLimitFilter : IAsyncActionFilter
 {
@@ -40,19 +41,25 @@ public sealed class RateLimitFilter : IAsyncActionFilter
     ArgumentNullException.ThrowIfNull(next);
 
     var request = context.HttpContext.Request;
-    var max = _config().RateLimitPerMinute;
-    var mutating = !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method);
+    var config = _config();
+    var isGet = HttpMethods.IsGet(request.Method);
+    var isMutating = !isGet && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method);
 
-    if (max <= 0 || !mutating || await _userAccessor.IsAdministratorAsync(request).ConfigureAwait(false))
+    // Reads and writes get separate budgets (and separate buckets) so a heavy read backend — the catalog
+    // GETs fan out to TMDB — is capped without spending, or being blocked by, the write budget. HEAD and
+    // OPTIONS are never limited.
+    var max = isMutating ? config.RateLimitPerMinute : (isGet ? config.RateLimitGetPerMinute : 0);
+    if (max <= 0 || await _userAccessor.IsAdministratorAsync(request).ConfigureAwait(false))
     {
       await next().ConfigureAwait(false);
       return;
     }
 
     var userId = await _userAccessor.GetUserIdAsync(request).ConfigureAwait(false);
-    var key = userId == Guid.Empty
+    var identity = userId == Guid.Empty
       ? (context.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous")
       : userId.ToString("N");
+    var key = isGet ? identity + ":get" : identity;
 
     if (!_limiter.TryAcquire(key, max, Window, DateTime.UtcNow))
     {

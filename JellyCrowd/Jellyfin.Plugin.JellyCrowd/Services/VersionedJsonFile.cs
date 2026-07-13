@@ -46,17 +46,28 @@ internal static class VersionedJsonFile
 
     int storedVersion;
     List<T> items;
-    if (json.TrimStart().StartsWith('['))
+    try
     {
-      // Legacy format: a bare array, written before versioning existed.
-      storedVersion = 0;
-      items = JsonSerializer.Deserialize<List<T>>(json, options) ?? new List<T>();
+      if (json.TrimStart().StartsWith('['))
+      {
+        // Legacy format: a bare array, written before versioning existed.
+        storedVersion = 0;
+        items = JsonSerializer.Deserialize<List<T>>(json, options) ?? new List<T>();
+      }
+      else
+      {
+        var envelope = JsonSerializer.Deserialize<StoreEnvelope<T>>(json, options) ?? new StoreEnvelope<T>();
+        storedVersion = envelope.SchemaVersion;
+        items = envelope.Items ?? new List<T>();
+      }
     }
-    else
+    catch (JsonException)
     {
-      var envelope = JsonSerializer.Deserialize<StoreEnvelope<T>>(json, options) ?? new StoreEnvelope<T>();
-      storedVersion = envelope.SchemaVersion;
-      items = envelope.Items ?? new List<T>();
+      // A corrupt file (partial write from a crash, external tampering) must not brick the store: every
+      // read would otherwise throw and the endpoint would 500 forever. Quarantine it so the data can be
+      // inspected/recovered, and start fresh — the next write recreates a clean file.
+      Quarantine(path);
+      return new List<T>();
     }
 
     if (migrate is not null && storedVersion < currentVersion)
@@ -96,5 +107,23 @@ internal static class VersionedJsonFile
     var tempPath = path + ".tmp";
     await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken).ConfigureAwait(false);
     File.Move(tempPath, path, overwrite: true);
+  }
+
+  // Move a corrupt store aside (best-effort) so it is not re-read on every call, keeping the bytes for
+  // forensics/recovery rather than silently discarding them.
+  private static void Quarantine(string path)
+  {
+    try
+    {
+      File.Move(path, path + ".corrupt", overwrite: true);
+    }
+#pragma warning disable CA1031 // Recovery must never throw — the caller falls back to an empty store.
+    catch (IOException)
+    {
+    }
+    catch (UnauthorizedAccessException)
+    {
+    }
+#pragma warning restore CA1031
   }
 }

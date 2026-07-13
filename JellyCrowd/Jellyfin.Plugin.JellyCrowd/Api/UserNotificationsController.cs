@@ -116,12 +116,21 @@ public class UserNotificationsController : ControllerBase
   public async Task<ActionResult<UserNotificationPrefs>> SetPrefs([FromBody] UserNotificationPrefs dto, CancellationToken cancellationToken)
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+
+    // A blank e-mail simply disables e-mail delivery; a non-blank one must be a real address before we
+    // ever use it as an SMTP recipient (it should not be possible to point delivery at arbitrary text).
+    var email = string.IsNullOrWhiteSpace(dto?.Email) ? null : dto!.Email!.Trim();
+    if (email is not null && !IsValidEmail(email))
+    {
+      return BadRequest("Enter a valid e-mail address, or leave it blank to turn e-mail off.");
+    }
+
     var saved = await _prefs.SetAsync(
       new UserNotificationPrefs
       {
         UserId = userId,
         Enabled = dto?.Enabled ?? true,
-        Email = dto?.Email,
+        Email = email,
         NtfyTopic = dto?.NtfyTopic,
         NotifyAvailableUnreleased = dto?.NotifyAvailableUnreleased ?? false,
         NotifyAvailableReleased = dto?.NotifyAvailableReleased ?? false,
@@ -147,5 +156,23 @@ public class UserNotificationsController : ControllerBase
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     await _store.ClearAsync(userId, id, cancellationToken).ConfigureAwait(false);
     return NoContent();
+  }
+
+  // A pragmatic address check: a single "@" with non-empty, dot-bearing, whitespace-free parts. Enough
+  // to keep free text out of the SMTP "To" field without pretending to fully validate RFC 5322.
+  private static bool IsValidEmail(string email)
+  {
+    var at = email.IndexOf('@', StringComparison.Ordinal);
+    if (at <= 0 || at != email.LastIndexOf('@') || at == email.Length - 1)
+    {
+      return false;
+    }
+
+    var local = email[..at];
+    var domain = email[(at + 1)..];
+    return !email.Any(char.IsWhiteSpace)
+      && local.Length > 0
+      && domain.Contains('.', StringComparison.Ordinal)
+      && !domain.StartsWith('.') && !domain.EndsWith('.');
   }
 }
