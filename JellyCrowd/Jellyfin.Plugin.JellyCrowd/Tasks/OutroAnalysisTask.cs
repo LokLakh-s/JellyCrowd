@@ -106,8 +106,12 @@ public sealed class OutroAnalysisTask : IScheduledTask
         .OrderBy(e => e.IndexNumber ?? int.MaxValue)
         .ToList();
 
-      // Need at least two episodes to find a shared sequence; skip a season already fully analyzed.
-      if (episodes.Count < 2 || episodes.All(e => _store.Get(e.Id) is not null))
+      // Need at least two episodes to find a shared sequence. Re-analyze unless every episode already has
+      // a FOUND end-credits region: an episode cached as "analyzed, none" (a transient extraction hiccup,
+      // a special/absent ED, or too few siblings to confirm at the time) is retried on the next run, so
+      // re-running the task actually fills gaps instead of skipping them forever. Found episodes in a
+      // covered season are still skipped, so a routine re-run over a fully-detected library is cheap.
+      if (episodes.Count < 2 || episodes.All(e => IsFoundOutro(_store.Get(e.Id))))
       {
         continue;
       }
@@ -184,6 +188,15 @@ public sealed class OutroAnalysisTask : IScheduledTask
     var endTicks = (long)((offsetSeconds + ((endFrame + 1) * secondsPerFrame)) * TicksPerSecond);
     return new OutroRegion(startTicks, endTicks);
   }
+
+  /// <summary>
+  /// Whether a cached result is a real end-credits region (found), as opposed to the "analyzed, none"
+  /// sentinel or an absent entry — the two cases a re-run should retry.
+  /// </summary>
+  /// <param name="cached">The store's cached region for an episode, or <c>null</c>.</param>
+  /// <returns><c>true</c> when it is a usable region.</returns>
+  internal static bool IsFoundOutro(OutroRegion? cached)
+    => cached is { StartTicks: >= 0 } region && region.EndTicks > region.StartTicks;
 
   /// <inheritdoc />
   public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => Array.Empty<TaskTriggerInfo>();
