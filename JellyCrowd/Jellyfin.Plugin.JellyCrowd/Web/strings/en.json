@@ -330,5 +330,7 @@
   "log_user_all": "All users",
   "log_refresh": "Refresh",
   "log_empty": "No activity recorded yet.",
-  "season_number": "Season {n}"
+  "season_number": "Season {n}",
+  "outro_next_episode": "Next episode",
+  "outro_skip_bonus": "Skip to bonus"
 }

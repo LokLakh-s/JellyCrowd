@@ -65,7 +65,8 @@ public class SettingsController : ControllerBase
       // Only surface a link URL when the admin enabled it (a disabled, configured URL stays private).
       DiscordInviteUrl = config.DiscordInviteEnabled ? (config.DiscordInviteUrl ?? string.Empty) : string.Empty,
       SupportLinkUrl = config.SupportLinkEnabled ? (config.SupportLinkUrl ?? string.Empty) : string.Empty,
-      GuideLinkUrl = config.GuideLinkEnabled ? (config.GuideLinkUrl ?? string.Empty) : string.Empty
+      GuideLinkUrl = config.GuideLinkEnabled ? (config.GuideLinkUrl ?? string.Empty) : string.Empty,
+      SkipOutroEnabled = config.SkipOutroEnabled
     });
   }
 

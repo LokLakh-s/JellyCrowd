@@ -92,6 +92,7 @@
   var discordUrl = '';        // admin opt-in: Discord invite link shown as a header icon ('' = hidden)
   var supportUrl = '';        // admin opt-in: support/donation link shown as a header icon ('' = hidden)
   var guideUrl = '';          // admin opt-in: user-guide link shown as a header icon ('' = hidden)
+  var jcSkipOutro = false;    // whether the smart Skip Outro control is enabled (install the watcher if so)
 
   function loadConfigLang() {
     // Token-free request (works before ApiClient is ready): gives us the language, the raw config-mode
@@ -108,6 +109,7 @@
         discordUrl = (d && d.DiscordInviteUrl) ? String(d.DiscordInviteUrl) : '';
         supportUrl = (d && d.SupportLinkUrl) ? String(d.SupportLinkUrl) : '';
         guideUrl = (d && d.GuideLinkUrl) ? String(d.GuideLinkUrl) : '';
+        jcSkipOutro = !!(d && d.SkipOutroEnabled);
       })
       .catch(function () { /* keep defaults on failure */ });
   }
@@ -2046,6 +2048,44 @@
 
   function jcNormId(x) { return String(x || '').replace(/-/g, '').toLowerCase(); }
 
+  // Shared playback-item detection. The client posts /Items/{id}/PlaybackInfo and /Sessions/Playing* per
+  // queue item; we intercept both transports (XHR — ApiClient.ajax — and fetch) ONCE and fan the item id
+  // out to every registered listener (the pre-roll guard, the Skip Outro control).
+  var jcPlaybackListeners = [];
+  var jcPlaybackWatchInstalled = false;
+
+  function jcOnPlayback(cb) {
+    jcPlaybackListeners.push(cb);
+    jcInstallPlaybackWatch();
+  }
+
+  function jcFirePlayback(id) {
+    for (var i = 0; i < jcPlaybackListeners.length; i++) {
+      try { jcPlaybackListeners[i](id); } catch (e) { /* one listener must not break the others */ }
+    }
+  }
+
+  function jcInstallPlaybackWatch() {
+    if (jcPlaybackWatchInstalled) { return; }
+    jcPlaybackWatchInstalled = true;
+    var pbInfo = /\/Items\/([0-9a-fA-F-]{16,})\/PlaybackInfo/;
+    function idFromUrl(u) { var m = pbInfo.exec(String(u || '')); return m ? m[1] : null; }
+    function idFromBody(u, b) { if (!/\/Sessions\/Playing/.test(String(u || '')) || !b) { return null; } try { var j = JSON.parse(b); return j.ItemId || j.itemId || null; } catch (e) { return null; } }
+
+    // A prototype hook is timing-safe regardless of when this runs.
+    var XO = XMLHttpRequest.prototype.open, XS = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (m, u) { this._jcU = u; return XO.apply(this, arguments); };
+    XMLHttpRequest.prototype.send = function (b) {
+      try { var id = idFromUrl(this._jcU) || idFromBody(this._jcU, b); if (id) { jcFirePlayback(id); } } catch (e) { }
+      return XS.apply(this, arguments);
+    };
+    var of = window.fetch;
+    window.fetch = function (input, init) {
+      try { var u = (typeof input === 'string') ? input : (input && input.url); var id = idFromUrl(u) || idFromBody(u, init && init.body); if (id) { jcFirePlayback(id); } } catch (e) { }
+      return of.apply(this, arguments);
+    };
+  }
+
   function loadLocalIntros() {
     return fetch(getUrl('JellyCrowd/Settings/LocalIntros'))
       .then(function (r) { return r.json(); })
@@ -2088,23 +2128,7 @@
       document.head.appendChild(st);
     }
 
-    var pbInfo = /\/Items\/([0-9a-fA-F-]{16,})\/PlaybackInfo/;
-    function idFromUrl(u) { var m = pbInfo.exec(String(u || '')); return m ? m[1] : null; }
-    function idFromBody(u, b) { if (!/\/Sessions\/Playing/.test(String(u || '')) || !b) { return null; } try { var j = JSON.parse(b); return j.ItemId || j.itemId || null; } catch (e) { return null; } }
-
-    // XHR (ApiClient.ajax) — a prototype hook is timing-safe regardless of when this runs.
-    var XO = XMLHttpRequest.prototype.open, XS = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.open = function (m, u) { this._jcU = u; return XO.apply(this, arguments); };
-    XMLHttpRequest.prototype.send = function (b) {
-      try { var id = idFromUrl(this._jcU) || idFromBody(this._jcU, b); if (id) { jcOnPlaybackItem(id); } } catch (e) { }
-      return XS.apply(this, arguments);
-    };
-    // fetch — belt and suspenders.
-    var of = window.fetch;
-    window.fetch = function (input, init) {
-      try { var u = (typeof input === 'string') ? input : (input && input.url); var id = idFromUrl(u) || idFromBody(u, init && init.body); if (id) { jcOnPlaybackItem(id); } } catch (e) { }
-      return of.apply(this, arguments);
-    };
+    jcOnPlayback(jcOnPlaybackItem);
 
     // Swallow the seek / skip-to-next shortcuts while a pre-roll plays.
     document.addEventListener('keydown', function (e) {
@@ -2117,5 +2141,129 @@
     }, true);
   }
 
-  loadConfigLang().then(loadStrings).then(loadBranding).then(start).then(resolveAdminVisibility).then(loadLocalIntros);
+  // ---------- Skip Outro (smart) ----------
+  // Native Jellyfin just seeks past an outro segment. We do more, driven by the plugin's own end-credits
+  // data (the fingerprinted ED first, then the brightness/silence heuristic) and decided by the tested
+  // outroSkipPlan: when the credits run to the END of the episode, advance to the NEXT one automatically
+  // after a short countdown; when a post-credits bonus remains, offer to jump to it and never auto-skip.
+  var jcOutro = null;         // { OutroStartTicks, OutroEndTicks, RunTimeTicks } for the current item
+  var jcOutroTick = null;     // poll interval reading the video position
+  var jcOutroBtn = null;      // the button element (null when hidden)
+  var jcOutroDeadline = 0;    // epoch ms at which the 'next' auto-skip fires; 0 = no countdown running
+
+  function jcInstallOutroSkip() {
+    // The decision helper lives in catalog.lib.js, which the catalog page loads lazily — pull it in now so
+    // it is ready by the time an outro plays.
+    if (!window.JellyCrowdLib) {
+      var lib = document.createElement('script');
+      lib.src = getUrl('JellyCrowd/Web/catalog.lib.js');
+      document.head.appendChild(lib);
+    }
+    if (!document.getElementById('jc-outro-css')) {
+      var st = document.createElement('style'); st.id = 'jc-outro-css';
+      st.textContent =
+        '.jc-outro-btn{position:fixed;right:5%;bottom:13%;z-index:1000;padding:.7em 1.15em;border:0;border-radius:.4em;'
+        + 'background:rgba(0,0,0,.72);color:#fff;font:600 1.05em/1 inherit;cursor:pointer;'
+        + 'box-shadow:0 2px 14px rgba(0,0,0,.55);}'
+        + '.jc-outro-btn:hover,.jc-outro-btn:focus-visible{background:' + NAV_BLUE + ';outline:none;}'
+        // While our control shows, hide the native segment skip button so there is only one (the intro is
+        // long over by the outro, so hiding .skipIntro here is safe).
+        + 'html.jc-outro-on .skipIntro{display:none !important;}';
+      document.head.appendChild(st);
+    }
+    jcOnPlayback(jcOutroLoad);
+  }
+
+  function jcOutroLoad(id) {
+    jcOutroReset();
+    apiAjax('GET', 'JellyCrowd/Playback/Outro/' + id)
+      .then(function (d) {
+        if (d && d.OutroEndTicks > d.OutroStartTicks && d.RunTimeTicks > 0) {
+          jcOutro = d;
+          jcOutroStopWatch();
+          jcOutroTick = setInterval(jcOutroPoll, 400);
+        }
+      })
+      .catch(function () { /* 204 (no outro for this item) or offline — nothing to do */ });
+  }
+
+  function jcVideo() { return document.querySelector('video'); }
+  function jcOutroStopWatch() { if (jcOutroTick) { clearInterval(jcOutroTick); jcOutroTick = null; } }
+
+  function jcOutroPoll() {
+    var v = jcVideo();
+    var lib = window.JellyCrowdLib;
+    if (!v || !jcOutro || !lib || !lib.outroSkipPlan) { return; }
+
+    var TPS = 10000000;
+    var startS = jcOutro.OutroStartTicks / TPS;
+    var endS = jcOutro.OutroEndTicks / TPS;
+    var t = v.currentTime || 0;
+    if (t < startS || t >= endS - 0.4) { jcOutroHide(); return; } // outside the credits: no control
+
+    var plan = lib.outroSkipPlan(jcOutro.OutroStartTicks, jcOutro.OutroEndTicks, jcOutro.RunTimeTicks);
+    if (plan) { jcOutroShow(v, plan); }
+  }
+
+  function jcOutroShow(v, plan) {
+    if (!jcOutroBtn) {
+      jcOutroBtn = document.createElement('button');
+      jcOutroBtn.type = 'button';
+      jcOutroBtn.className = 'jc-outro-btn';
+      jcOutroBtn.addEventListener('click', function () { jcOutroAct(jcOutroBtn && jcOutroBtn._plan); });
+      document.body.appendChild(jcOutroBtn);
+      document.documentElement.classList.add('jc-outro-on');
+      jcOutroBtn._mode = null;
+    }
+    jcOutroBtn._plan = plan;
+
+    if (plan.mode === 'bonus') {
+      jcOutroDeadline = 0;
+      jcOutroBtn.textContent = '⏭ ' + t('outro_skip_bonus');
+      return;
+    }
+
+    // 'next': auto-skip after a countdown — but only while actually playing. A paused viewer keeps the
+    // full countdown, so pausing during the credits never yanks them into the next episode.
+    if (v.paused || jcOutroBtn._mode !== 'next') {
+      jcOutroDeadline = Date.now() + (plan.autoSkipSeconds * 1000);
+    }
+    jcOutroBtn._mode = 'next';
+    var remaining = Math.max(0, Math.ceil((jcOutroDeadline - Date.now()) / 1000));
+    jcOutroBtn.textContent = '⏭ ' + t('outro_next_episode') + ' (' + remaining + ')';
+    if (remaining <= 0) { jcOutroAct(plan); }
+  }
+
+  function jcOutroAct(plan) {
+    if (!plan) { return; }
+    var v = jcVideo();
+    if (v) {
+      // 'next': seek to the very end (the credits ARE the end) so the item finishes and Jellyfin plays the
+      // next one; 'bonus': land the viewer exactly where the credits end.
+      var target = plan.mode === 'next'
+        ? ((isFinite(v.duration) && v.duration > 0) ? v.duration : plan.seekSeconds)
+        : plan.seekSeconds;
+      try { v.currentTime = target; } catch (e) { /* some players clamp — best-effort */ }
+    }
+    jcOutroHide();
+  }
+
+  function jcOutroHide() {
+    jcOutroDeadline = 0;
+    if (jcOutroBtn) {
+      jcOutroBtn.remove();
+      jcOutroBtn = null;
+      document.documentElement.classList.remove('jc-outro-on');
+    }
+  }
+
+  function jcOutroReset() {
+    jcOutro = null;
+    jcOutroStopWatch();
+    jcOutroHide();
+  }
+
+  loadConfigLang().then(loadStrings).then(loadBranding).then(start).then(resolveAdminVisibility)
+    .then(loadLocalIntros)
+    .then(function () { if (jcSkipOutro) { jcInstallOutroSkip(); } });
 })();
