@@ -611,7 +611,18 @@ body.jellycrowd-overlay-open {
   margin-bottom: 0.4em;
 }
 
-.jellycrowd-own-title { font-weight: 600; }
+/* The title is a TMDB link; without this it takes the dashboard's default link blue, which is unreadable
+   on the dark card. Inherit the card's text colour and only hint at the link on hover. */
+.jellycrowd-own-title {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+
+.jellycrowd-own-title:hover,
+.jellycrowd-own-title:focus-visible {
+  text-decoration: underline;
+}
 
 .jellycrowd-own-scope {
   background: rgba(0, 164, 220, 0.85);

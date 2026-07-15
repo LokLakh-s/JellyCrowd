@@ -65,6 +65,36 @@
     return status === 503 ? 'error_not_configured' : 'error_generic';
   }
 
+  // Below this many seconds of content after the credits end, there is nothing to skip TO but the next
+  // episode (a few seconds of black / a studio logo). Above it, a real bonus remains (a post-credits
+  // scene), which the viewer may want to watch — so we offer to jump to it rather than past it.
+  var OUTRO_BONUS_MIN_SECONDS = 15;
+  var OUTRO_TICKS_PER_SECOND = 10000000;
+
+  // Decide what the Skip Outro control should do for a detected end-credits region. Pure so it can be
+  // unit-tested; the DOM/player wiring in header.js consumes the result. Returns null when the region is
+  // unusable (no region, or a runtime we don't trust).
+  //  - "next":  the credits run to (nearly) the end → advance to the next episode, automatically after a
+  //             short countdown. seekSeconds is the end of the file, which ends playback and lets the
+  //             client move on.
+  //  - "bonus": content remains after the credits → offer to jump to it, and never auto-skip (the viewer
+  //             chose to keep watching). seekSeconds is where the credits end.
+  function outroSkipPlan(startTicks, endTicks, runTimeTicks) {
+    var start = Number(startTicks);
+    var end = Number(endTicks);
+    var runtime = Number(runTimeTicks);
+    if (!(end > start) || !(runtime > 0) || end > runtime) {
+      return null;
+    }
+
+    var tailSeconds = (runtime - end) / OUTRO_TICKS_PER_SECOND;
+    if (tailSeconds <= OUTRO_BONUS_MIN_SECONDS) {
+      return { mode: 'next', autoSkipSeconds: 5, seekSeconds: runtime / OUTRO_TICKS_PER_SECOND };
+    }
+
+    return { mode: 'bonus', autoSkipSeconds: 0, seekSeconds: end / OUTRO_TICKS_PER_SECOND };
+  }
+
   // Label a season row. The name can be missing (a season the download backend knows about but TMDB does
   // not, e.g. the later seasons of an anime TMDB serves as one), so fall back to a localized "Season N".
   // The episode count is appended only when it is known: null means "not known", never "no episodes".
@@ -443,6 +473,7 @@
     formatRating: formatRating,
     errorKey: errorKey,
     seasonLabel: seasonLabel,
+    outroSkipPlan: outroSkipPlan,
     statusLabelKey: statusLabelKey,
     requestStatusLabelKey: requestStatusLabelKey,
     statusRank: statusRank,

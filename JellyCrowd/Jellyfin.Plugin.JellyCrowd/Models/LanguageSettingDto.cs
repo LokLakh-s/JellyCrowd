@@ -41,4 +41,8 @@ public class LanguageSettingDto
 
   /// <summary>Gets or sets the user-guide URL for the header icon (empty = icon hidden).</summary>
   public string GuideLinkUrl { get; set; } = string.Empty;
+
+  /// <summary>Gets or sets a value indicating whether the smart Skip Outro control is enabled, so the
+  /// injected client only installs its playback watcher when the feature is on.</summary>
+  public bool SkipOutroEnabled { get; set; }
 }

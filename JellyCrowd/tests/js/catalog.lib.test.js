@@ -281,3 +281,29 @@ test('seasonLabel appends the episode count only when it is known', () => {
 
   assert.strictEqual(lib.seasonLabel(null, t), '');
 });
+
+test('outroSkipPlan: credits running to the end → next episode with a 5s auto-skip', () => {
+  const TPS = 10000000;
+  // A 24-min episode, credits from 22:00 to 23:55 → only 5s of tail after them.
+  const plan = lib.outroSkipPlan(22 * 60 * TPS, (23 * 60 + 55) * TPS, 24 * 60 * TPS);
+  assert.strictEqual(plan.mode, 'next');
+  assert.strictEqual(plan.autoSkipSeconds, 5);
+  assert.strictEqual(plan.seekSeconds, 24 * 60); // ends the file → the client advances
+});
+
+test('outroSkipPlan: a real bonus after the credits → skip to bonus, never auto', () => {
+  const TPS = 10000000;
+  // Credits end at 22:30 but the file runs to 24:00 → 90s of post-credits bonus.
+  const plan = lib.outroSkipPlan(21 * 60 * TPS, (22 * 60 + 30) * TPS, 24 * 60 * TPS);
+  assert.strictEqual(plan.mode, 'bonus');
+  assert.strictEqual(plan.autoSkipSeconds, 0);
+  assert.strictEqual(plan.seekSeconds, 22 * 60 + 30); // lands the viewer on the bonus, not past it
+});
+
+test('outroSkipPlan: unusable regions return null', () => {
+  const TPS = 10000000;
+  assert.strictEqual(lib.outroSkipPlan(0, 0, 24 * 60 * TPS), null);        // empty region
+  assert.strictEqual(lib.outroSkipPlan(100 * TPS, 50 * TPS, 60 * TPS), null); // end before start
+  assert.strictEqual(lib.outroSkipPlan(10 * TPS, 20 * TPS, 0), null);      // unknown runtime
+  assert.strictEqual(lib.outroSkipPlan(10 * TPS, 9999 * TPS, 60 * TPS), null); // end past runtime
+});

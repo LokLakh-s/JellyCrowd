@@ -105,6 +105,11 @@ async function login(name, password) {
   check(requests.status === 200, 'GET Requests/Mine (as a user) → 200');
   check(Array.isArray(requests.json), 'Requests/Mine returns a list');
 
+  // The Skip Outro endpoint: proves PlaybackController + its outro stores resolved out of DI and the
+  // route is mapped. No media here, so a real item id would 204 — a random one does too, without a 500.
+  const outro = await api('/JellyCrowd/Playback/Outro/' + '00000000000000000000000000000000', { token: user.token });
+  check(outro.status === 204 || outro.status === 200, `GET Playback/Outro (as a user) → ${outro.status}, not a 500`);
+
   console.log('\n\x1b[1mAuthorization holds against a real non-admin\x1b[0m');
   // GET /JellyCrowd/Requests (no suffix) is the admin listing — RequiresElevation.
   const all = await api('/JellyCrowd/Requests', { token: user.token });
