@@ -1,15 +1,75 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.JellyCrowd.Configuration;
+using Jellyfin.Plugin.JellyCrowd.Services;
 using Jellyfin.Plugin.JellyCrowd.Tasks;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
+using MediaBrowser.Controller.Library;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 namespace Jellyfin.Plugin.JellyCrowd.Tests.Tasks;
 
 /// <summary>
 /// Tests for <see cref="OutroAnalysisTask"/>'s frame→time mapping, which is what places the Skip Outro
-/// button. Fingerprint frames are relative to the episode's TAIL window, not to the start of the file.
+/// button, and its re-scan (coverage) logic.
 /// </summary>
 public class OutroAnalysisTaskTests
 {
   private const long TicksPerSecond = 10_000_000;
+
+  private static OutroRegion? Found() => new(1200 * TicksPerSecond, 1290 * TicksPerSecond);
+  private static OutroRegion? None() => new(-1, -1); // "analyzed, no outro" sentinel
+
+  [Theory]
+  [InlineData(false)]  // covered season → skipped
+  [InlineData(true)]   // one episode still uncovered → re-analyzed
+  public async Task ReRun_RetriesUncoveredEpisodes_ButSkipsAFullyFoundSeason(bool oneUncovered)
+  {
+    var seasonId = Guid.NewGuid();
+    var ep1 = new Episode { Id = Guid.NewGuid(), Path = "/tv/s01e01.mkv", RunTimeTicks = 1400 * TicksPerSecond, IndexNumber = 1 };
+    var ep2 = new Episode { Id = Guid.NewGuid(), Path = "/tv/s01e02.mkv", RunTimeTicks = 1400 * TicksPerSecond, IndexNumber = 2 };
+
+    var library = new Mock<ILibraryManager>();
+    library.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Season))))
+      .Returns(new List<BaseItem> { new Season { Id = seasonId } });
+    library.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.Episode))))
+      .Returns(new List<BaseItem> { ep1, ep2 });
+
+    var store = new Mock<IOutroSegmentStore>();
+    store.Setup(s => s.Get(ep1.Id)).Returns(Found());
+    store.Setup(s => s.Get(ep2.Id)).Returns(oneUncovered ? None() : Found());
+
+    var extractor = new Mock<IFingerprintExtractor>();
+    extractor.Setup(e => e.ExtractAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(Array.Empty<uint>());
+
+    var config = new PluginConfiguration { SkipOutroEnabled = true };
+    var task = new OutroAnalysisTask(library.Object, extractor.Object, store.Object, () => config, NullLogger<OutroAnalysisTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    // A NoOutro episode makes the whole season re-analyze (so the gap can be filled); a fully-found season
+    // is skipped, so a routine re-run over a detected library costs nothing.
+    extractor.Verify(
+      e => e.ExtractAsync(It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+      oneUncovered ? Times.Exactly(2) : Times.Never());
+  }
+
+  [Fact]
+  public void IsFoundOutro_TellsAFoundRegionApartFromTheNoneSentinelAndAbsent()
+  {
+    Assert.True(OutroAnalysisTask.IsFoundOutro(Found()));
+    Assert.False(OutroAnalysisTask.IsFoundOutro(None()));   // analyzed, none → retry
+    Assert.False(OutroAnalysisTask.IsFoundOutro(null));     // never analyzed → analyze
+    Assert.False(OutroAnalysisTask.IsFoundOutro(new OutroRegion(50, 50))); // empty region → retry
+  }
 
   [Fact]
   public void ToAbsoluteRegion_ShiftsFramesByTheWindowOffset()
