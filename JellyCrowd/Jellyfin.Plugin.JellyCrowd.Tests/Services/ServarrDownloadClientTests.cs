@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -102,6 +103,38 @@ public class ServarrDownloadClientTests
     servarr.Verify(s => s.CommandAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
     servarr.Verify(s => s.AddSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
     Assert.True(series["seasons"]![1]!["monitored"]!.GetValue<bool>());
+  }
+
+  [Fact]
+  public async Task DispatchAsync_Season_ReMonitorsItsEpisodes_BeforeSearching()
+  {
+    // The reported bug: a season re-requested after some episodes were deleted downloaded nothing, because
+    // deletion unmonitors episodes and the season flag alone doesn't bring them back. Dispatch must
+    // re-monitor the season's episodes (so the search re-grabs the missing ones), and only THAT season's.
+    var series = new JsonObject
+    {
+      ["id"] = 7,
+      ["monitored"] = true,
+      ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 3, ["monitored"] = true })
+    };
+    var episodes = "[ { \"id\": 31, \"seasonNumber\": 3, \"episodeNumber\": 1 },"
+      + " { \"id\": 32, \"seasonNumber\": 3, \"episodeNumber\": 2 },"
+      + " { \"id\": 41, \"seasonNumber\": 4, \"episodeNumber\": 1 } ]";
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>())).ReturnsAsync(series);
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 7, It.IsAny<CancellationToken>())).ReturnsAsync(episodes);
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.DispatchAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "HotD", Season = 3 }, CancellationToken.None);
+
+    servarr.Verify(
+      s => s.SetEpisodesMonitoredAsync("http://localhost:8989", "sk",
+        It.Is<System.Collections.Generic.IReadOnlyList<int>>(l => l.SequenceEqual(new[] { 31, 32 })),
+        true, It.IsAny<CancellationToken>()),
+      Times.Once);
+    servarr.Verify(s => s.CommandAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
   }
 
   [Fact]

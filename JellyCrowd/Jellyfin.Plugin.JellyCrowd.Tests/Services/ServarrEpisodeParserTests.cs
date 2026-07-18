@@ -55,4 +55,27 @@ public class ServarrEpisodeParserTests
     Assert.Empty(fileIds);
     Assert.Empty(ServarrEpisodeParser.Select("[]", 1, null).EpisodeIds);
   }
+
+  private const string TwoSeasons = """
+  [
+    { "id": 11, "seasonNumber": 0, "episodeNumber": 1 },
+    { "id": 12, "seasonNumber": 1, "episodeNumber": 1 },
+    { "id": 13, "seasonNumber": 1, "episodeNumber": 2 },
+    { "id": 21, "seasonNumber": 2, "episodeNumber": 1 }
+  ]
+  """;
+
+  [Fact]
+  public void EpisodeIdsToMonitor_ForASeason_ReturnsThatSeasonsEpisodes()
+  {
+    Assert.Equal(new[] { 12, 13 }, ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, 1));
+    Assert.Equal(new[] { 21 }, ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, 2));
+  }
+
+  [Fact]
+  public void EpisodeIdsToMonitor_ForTheWholeSeries_ExcludesSpecials()
+  {
+    // A whole-series request monitors every real episode, but never season 0 (specials).
+    Assert.Equal(new[] { 12, 13, 21 }, ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, null));
+  }
 }
