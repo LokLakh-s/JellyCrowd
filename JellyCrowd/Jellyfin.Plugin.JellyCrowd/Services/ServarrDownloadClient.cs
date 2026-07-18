@@ -202,6 +202,20 @@ public sealed class ServarrDownloadClient : IDownloadClient
       await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
     }
 
+    // Re-monitor the individual episodes too. A prior deletion unmonitors them at the episode level, and
+    // setting only the season flag does not reliably cascade back to episodes that were unmonitored one by
+    // one — so without this the search below would skip exactly the episodes a re-request is meant to bring
+    // back (the reported case: a season re-requested after some episodes were deleted downloaded nothing).
+    var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
+    if (!string.IsNullOrEmpty(episodesJson))
+    {
+      var episodeIds = ServarrEpisodeParser.EpisodeIdsToMonitor(episodesJson, dispatch.Season);
+      if (episodeIds.Count > 0)
+      {
+        await _servarr.SetEpisodesMonitoredAsync(config.SonarrUrl, config.SonarrApiKey, episodeIds, monitored: true, cancellationToken).ConfigureAwait(false);
+      }
+    }
+
     var command = dispatch.Season is int season
       ? new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season }
       : new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };

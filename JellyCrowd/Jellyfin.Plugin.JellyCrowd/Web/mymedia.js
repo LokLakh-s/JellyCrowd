@@ -379,7 +379,9 @@
         epMain.appendChild(epLabel);
         epRow.appendChild(epMain);
         appendOwnerBadge(epRow, ep.OwnerCount);
-        epRow.appendChild(nodeActions([ep], t('request_deletion')));
+        // Episodes are listed for visibility only. Deletion is season-level (the button on the season row
+        // above): letting a viewer delete individual episodes leaves a half-present season that looks
+        // complete to the next person but starts them mid-way through.
         epBox.appendChild(epRow);
       });
 

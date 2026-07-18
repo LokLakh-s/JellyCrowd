@@ -58,6 +58,43 @@ public static class ServarrEpisodeParser
     return (episodeIds, fileIds);
   }
 
+  /// <summary>
+  /// Lists the episode ids to (re)monitor for a request: one season's episodes, or — for a whole-series
+  /// request — every real episode (season 0 / specials excluded). A previous deletion unmonitors episodes
+  /// so Sonarr won't immediately re-grab them; re-requesting must re-monitor them, or the season search
+  /// skips the unmonitored ones and the deleted episodes never come back.
+  /// </summary>
+  /// <param name="json">The raw Sonarr episodes JSON array.</param>
+  /// <param name="season">The season number, or <c>null</c> for the whole series.</param>
+  /// <returns>The episode ids to monitor.</returns>
+  public static IReadOnlyList<int> EpisodeIdsToMonitor(string json, int? season)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+    var ids = new List<int>();
+
+    using var doc = JsonDocument.Parse(json);
+    if (doc.RootElement.ValueKind != JsonValueKind.Array)
+    {
+      return ids;
+    }
+
+    foreach (var el in doc.RootElement.EnumerateArray())
+    {
+      if (el.ValueKind != JsonValueKind.Object || !TryGetInt(el, "seasonNumber", out var s))
+      {
+        continue;
+      }
+
+      var wanted = season is int number ? s == number : s > 0;
+      if (wanted && TryGetInt(el, "id", out var id))
+      {
+        ids.Add(id);
+      }
+    }
+
+    return ids;
+  }
+
   private static bool TryGetInt(JsonElement parent, string property, out int value)
   {
     value = 0;
