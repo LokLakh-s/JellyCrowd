@@ -1982,3 +1982,98 @@ body.jellycrowd-overlay-open {
 .jellycrowd-confirm-danger {
   background: #d64541;
 }
+
+/* Preferences page */
+.jellycrowd-prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6em;
+  max-width: 34em;
+}
+
+.jellycrowd-prefs-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+  margin: 0;
+  padding: 1.1em 1.2em 1.2em;
+  border: 1px solid rgba(127, 127, 127, 0.28);
+  border-radius: 0.5em;
+}
+
+.jellycrowd-prefs-group > legend {
+  padding: 0 0.4em;
+  font-weight: 600;
+}
+
+.jellycrowd-prefs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.jellycrowd-prefs-label {
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.jellycrowd-prefs-input {
+  padding: 0.5em 0.6em;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  border-radius: 0.3em;
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+}
+
+.jellycrowd-prefs-input:disabled {
+  opacity: 0.45;
+}
+
+.jellycrowd-prefs-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6em;
+  cursor: pointer;
+}
+
+.jellycrowd-prefs-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+.jellycrowd-prefs-off {
+  opacity: 0.5;
+}
+
+.jellycrowd-prefs-actions {
+  display: flex;
+  gap: 0.6em;
+  flex-wrap: wrap;
+}
+
+.jellycrowd-prefs-button {
+  padding: 0.55em 1.1em;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  border-radius: 0.3em;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.jellycrowd-prefs-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.jellycrowd-prefs-primary {
+  border-color: transparent;
+  background: #00a4dc;
+  color: #fff;
+}
+
+.jellycrowd-message-error {
+  color: #ff8d85;
+}

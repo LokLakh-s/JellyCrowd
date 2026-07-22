@@ -1,0 +1,48 @@
+<!--
+  Jelly Crowd "Preferences" page: where a user decides how Jelly Crowd reaches them. Reached from the
+  avatar menu (next to Jellyfin's own preferences) and from the bell panel. Fetched as a fragment;
+  assets load via absolute URLs.
+-->
+<div id="jellyCrowdPrefs" class="jellycrowd">
+  <header class="jellycrowd-header">
+    <div class="jellycrowd-brand">
+      <img id="jcPrefsLogo" class="jellycrowd-logo" alt="" />
+      <h1 id="jcPrefsTitle" class="jellycrowd-title"></h1>
+    </div>
+  </header>
+  <section class="jellycrowd-section">
+    <p id="jcPrefsMessage" class="jellycrowd-message" hidden aria-live="polite"></p>
+    <form id="jcPrefsForm" class="jellycrowd-prefs" novalidate></form>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var get = (window.ApiClient && window.ApiClient.getUrl)
+      ? function (p) { return window.ApiClient.getUrl(p); }
+      : function (p) { return '/' + p; };
+
+    if (!document.getElementById('jellycrowd-css')) {
+      var css = document.createElement('link');
+      css.id = 'jellycrowd-css';
+      css.rel = 'stylesheet';
+      css.href = get('JellyCrowd/Web/jellycrowd.css');
+      document.head.appendChild(css);
+    }
+
+    function start() {
+      var s = document.createElement('script');
+      s.src = get('JellyCrowd/Web/preferences.js');
+      document.head.appendChild(s);
+    }
+
+    if (window.JellyCrowdLib) {
+      start();
+    } else {
+      var lib = document.createElement('script');
+      lib.src = get('JellyCrowd/Web/catalog.lib.js');
+      lib.onload = start;
+      document.head.appendChild(lib);
+    }
+  })();
+</script>

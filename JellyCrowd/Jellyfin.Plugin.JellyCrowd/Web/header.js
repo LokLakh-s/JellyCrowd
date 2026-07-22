@@ -23,7 +23,10 @@
     { id: 'requests', file: 'requests.html', labelKey: 'nav_requests' },
     { id: 'dashboard', file: 'dashboard.html', labelKey: 'nav_dashboard' },
     { id: 'mymedia', file: 'mymedia.html', labelKey: 'my_media_title' },
-    { id: 'admin', file: 'admin.html', labelKey: 'nav_admin' }
+    { id: 'admin', file: 'admin.html', labelKey: 'nav_admin' },
+    // No navbar button: reached from the avatar menu (where Jellyfin keeps its own preferences) and
+    // from the bell panel, which is where someone looks when they want to change notifications.
+    { id: 'preferences', file: 'preferences.html', labelKey: 'prefs_title' }
   ];
 
   var overlay = null;
@@ -815,6 +818,11 @@
     head.textContent = (btn && (btn.title || btn.getAttribute('title'))) || '';
     if (head.textContent) { menu.appendChild(head); }
 
+    // Ours first, then the native "My preferences" replica: someone looking for "where do I change my
+    // notifications" opens this menu, and it belongs beside Jellyfin's own preference entries.
+    menu.appendChild(avatarItem('notifications', t('prefs_nav'), null, function () { showView('preferences'); }));
+    menu.appendChild(avatarSep());
+
     // Native "My preferences" replica — same client routes Jellyfin uses (stable across 10.x / 12).
     [
       ['person', t('avm_profile'), '#/userprofile' + q],
@@ -964,9 +972,11 @@
     var gear = document.createElement('button');
     gear.type = 'button';
     gear.title = t('notif_settings');
+    gear.setAttribute('aria-label', t('notif_settings'));
     gear.textContent = '⚙';
     gear.style.cssText = 'background:none;border:0;color:#fff;cursor:pointer;font-size:1em;opacity:.8;';
-    gear.addEventListener('click', function () { renderPrefsForm(panel); });
+    // Opens the preferences page rather than a form crammed into this dropdown.
+    gear.addEventListener('click', function () { panel.style.display = 'none'; showView('preferences'); });
     actions.appendChild(gear);
     head.appendChild(actions);
     panel.appendChild(head);
@@ -1021,110 +1031,6 @@
       row.appendChild(del);
       panel.appendChild(row);
     });
-  }
-
-  function renderPrefsForm(panel) {
-    panel.innerHTML = '<div style="padding:.8em;opacity:.7;">' + t('loading') + '</div>';
-    apiAjax('GET', 'JellyCrowd/Notifications/Mine/Prefs')
-      .then(function (p) {
-        p = p || {};
-        panel.innerHTML = '';
-        var head = document.createElement('div');
-        head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:.5em .7em;border-bottom:1px solid rgba(255,255,255,.12);';
-        var back = document.createElement('button');
-        back.type = 'button';
-        back.textContent = '←';
-        back.style.cssText = 'background:none;border:0;color:#fff;cursor:pointer;font-size:1em;';
-        back.addEventListener('click', function () { openBellPanel(panel); });
-        var title = document.createElement('span');
-        title.textContent = t('notif_settings');
-        title.style.fontWeight = '600';
-        head.appendChild(back);
-        head.appendChild(title);
-        head.appendChild(document.createElement('span'));
-        panel.appendChild(head);
-
-        var form = document.createElement('div');
-        form.style.cssText = 'padding:.7em;display:flex;flex-direction:column;gap:.6em;';
-
-        var enaLabel = document.createElement('label');
-        enaLabel.style.cssText = 'display:flex;align-items:center;gap:.5em;cursor:pointer;';
-        var ena = document.createElement('input');
-        ena.type = 'checkbox';
-        ena.checked = p.Enabled !== false;
-        enaLabel.appendChild(ena);
-        var enaText = document.createElement('span');
-        enaText.textContent = t('notif_enabled');
-        enaLabel.appendChild(enaText);
-        form.appendChild(enaLabel);
-
-        function field(labelKey, value, placeholder) {
-          var wrap = document.createElement('label');
-          wrap.style.cssText = 'display:flex;flex-direction:column;gap:.2em;font-size:.85em;';
-          var lab = document.createElement('span');
-          lab.textContent = t(labelKey);
-          var inp = document.createElement('input');
-          inp.type = 'text';
-          inp.value = value || '';
-          inp.placeholder = placeholder || '';
-          inp.style.cssText = 'padding:.35em .5em;border-radius:.25em;border:1px solid rgba(255,255,255,.25);background:#000;color:#fff;';
-          wrap.appendChild(lab);
-          wrap.appendChild(inp);
-          form.appendChild(wrap);
-          return inp;
-        }
-
-        var emailInp = field('notif_email', p.Email, 'you@example.com');
-        var ntfyInp = field('notif_ntfy_topic', p.NtfyTopic, 'my-topic');
-
-        // Per-category opt-ins for personal (email / ntfy) delivery. The in-app bell stays always-on.
-        var catHead = document.createElement('div');
-        catHead.textContent = t('notif_categories');
-        catHead.style.cssText = 'margin-top:.3em;font-size:.78em;opacity:.7;';
-        form.appendChild(catHead);
-
-        function toggle(labelKey, checked) {
-          var lab = document.createElement('label');
-          lab.style.cssText = 'display:flex;align-items:flex-start;gap:.5em;cursor:pointer;font-size:.85em;';
-          var cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.checked = !!checked;
-          var span = document.createElement('span');
-          span.textContent = t(labelKey);
-          lab.appendChild(cb);
-          lab.appendChild(span);
-          form.appendChild(lab);
-          return cb;
-        }
-
-        var unrel = toggle('notif_cat_unreleased', p.NotifyAvailableUnreleased);
-        var rel = toggle('notif_cat_released', p.NotifyAvailableReleased);
-        var dec = toggle('notif_cat_decisions', p.NotifyDecisions);
-        var quo = toggle('notif_cat_quota', p.NotifyQuotaExpiry);
-
-        var save = document.createElement('button');
-        save.type = 'button';
-        save.textContent = t('save');
-        save.style.cssText = 'align-self:flex-start;background:#00a4dc;border:0;color:#fff;padding:.4em .9em;border-radius:.25em;cursor:pointer;';
-        save.addEventListener('click', function () {
-          save.disabled = true;
-          save.textContent = '…';
-          apiAjax('POST', 'JellyCrowd/Notifications/Mine/Prefs', {
-            Enabled: ena.checked,
-            Email: emailInp.value.trim(),
-            NtfyTopic: ntfyInp.value.trim(),
-            NotifyAvailableUnreleased: unrel.checked,
-            NotifyAvailableReleased: rel.checked,
-            NotifyDecisions: dec.checked,
-            NotifyQuotaExpiry: quo.checked
-          })
-            .then(function () { save.textContent = t('saved'); setTimeout(function () { openBellPanel(panel); }, 700); })
-            .catch(function () { save.disabled = false; save.textContent = t('save'); });
-        });
-        form.appendChild(save);
-        panel.appendChild(form);
-      })
-      .catch(function () { panel.innerHTML = '<div style="padding:.8em;">' + t('error_generic') + '</div>'; });
   }
 
   function openBellPanel(panel) {

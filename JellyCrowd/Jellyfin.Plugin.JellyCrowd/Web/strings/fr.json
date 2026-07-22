@@ -480,5 +480,19 @@
   "cfgsec_quotas": "Quotas",
   "cfgsec_retention_and_cleanup": "Rétention et nettoyage",
   "cfgsec_webhook": "Webhook",
-  "bulk_failed": "{failed} sur {total} n’ont pas abouti. Vous pouvez réessayer."
+  "bulk_failed": "{failed} sur {total} n’ont pas abouti. Vous pouvez réessayer.",
+  "prefs_title": "Préférences Jelly Crowd",
+  "prefs_nav": "Notifications Jelly Crowd",
+  "prefs_group_delivery": "Où vous joindre",
+  "prefs_enabled_hint": "Coupe tout ce qui suit d’un coup. La cloche dans l’en-tête continue de fonctionner dans tous les cas.",
+  "prefs_email_hint": "Laissez vide pour ne rien recevoir par e-mail.",
+  "prefs_ntfy_hint": "Un sujet sur le serveur ntfy configuré par votre administrateur. Laissez vide pour ignorer ntfy.",
+  "prefs_send_test": "Enregistrer et m’envoyer un test",
+  "prefs_categories_hint": "Ce dont vous voulez être averti. Vaut pour l’e-mail et ntfy ; la cloche affiche toujours tout.",
+  "prefs_email_invalid": "Cela ne ressemble pas à une adresse e-mail.",
+  "prefs_saving": "Enregistrement…",
+  "prefs_save_failed": "Enregistrement impossible. Réessayez.",
+  "prefs_test_sending": "Envoi…",
+  "prefs_test_sent": "Test envoyé. Il devrait arriver d’ici une minute.",
+  "prefs_test_failed": "Le test n’a pas pu être délivré. Vérifiez l’adresse, ou demandez à votre administrateur si l’e-mail est configuré sur le serveur."
 }

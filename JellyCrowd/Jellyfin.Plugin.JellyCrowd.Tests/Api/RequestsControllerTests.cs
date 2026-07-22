@@ -519,6 +519,9 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
       => Task.CompletedTask;
 
     public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
+
+
+    public Task SendPersonalTestAsync(System.Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
   }
 
   private sealed class FakeDownloadDispatcher : IDownloadDispatcher
