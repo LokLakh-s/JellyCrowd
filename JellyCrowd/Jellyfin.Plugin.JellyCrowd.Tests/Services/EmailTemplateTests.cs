@@ -9,6 +9,8 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 /// </summary>
 public class EmailTemplateTests
 {
+  private static readonly System.Func<string, string> En = ServerStrings.For("en");
+
   private static RequestRecord Show() => new()
   {
     TmdbId = 94997,
@@ -31,7 +33,7 @@ public class EmailTemplateTests
   {
     var (html, text) = EmailTemplate.BuildRequest(
       Show(), NotificationEvent.Available, "Now available: House of the Dragon (Season 3)",
-      "\"House of the Dragon\" is now available in the library.", "Dragons, and family.", "/poster.jpg", "Torinou", showRequestedBy: true);
+      "\"House of the Dragon\" is now available in the library.", "Dragons, and family.", "/poster.jpg", "Torinou", showRequestedBy: true, En);
 
     Assert.StartsWith("<!DOCTYPE html>", html, System.StringComparison.Ordinal);
     Assert.Contains("House of the Dragon", html, System.StringComparison.Ordinal);
@@ -61,7 +63,7 @@ public class EmailTemplateTests
 
     var (html, _) = EmailTemplate.BuildRequest(
       request, NotificationEvent.Created, "New request", "A new movie request is pending approval.",
-      "</td></tr></table><b>nope</b>", "/ok.jpg", "<img src=x onerror=alert(1)>", showRequestedBy: true);
+      "</td></tr></table><b>nope</b>", "/ok.jpg", "<img src=x onerror=alert(1)>", showRequestedBy: true, En);
 
     Assert.DoesNotContain("<script>", html, System.StringComparison.Ordinal);
     Assert.DoesNotContain("<b>nope</b>", html, System.StringComparison.Ordinal);
@@ -78,7 +80,7 @@ public class EmailTemplateTests
   public void BuildRequest_DropsAPosterPathThatIsNotATmdbPath(string posterPath)
   {
     var (html, _) = EmailTemplate.BuildRequest(
-      Movie(), NotificationEvent.Created, "New request", "Pending approval.", null, posterPath, "Torinou", showRequestedBy: true);
+      Movie(), NotificationEvent.Created, "New request", "Pending approval.", null, posterPath, "Torinou", showRequestedBy: true, En);
 
     Assert.DoesNotContain("<img", html, System.StringComparison.Ordinal);
     Assert.DoesNotContain("image.tmdb.org", html, System.StringComparison.Ordinal);
@@ -91,7 +93,7 @@ public class EmailTemplateTests
   {
     var (html, text) = EmailTemplate.BuildRequest(
       Movie(), NotificationEvent.Approved, "Request approved: Inception", "The movie request \"Inception\" was approved.",
-      null, null, "Torinou", showRequestedBy: false);
+      null, null, "Torinou", showRequestedBy: false, En);
 
     Assert.DoesNotContain("Requested by", html, System.StringComparison.Ordinal);
     Assert.DoesNotContain("Torinou", html, System.StringComparison.Ordinal);
@@ -103,7 +105,7 @@ public class EmailTemplateTests
   {
     var (html, _) = EmailTemplate.BuildRequest(
       Movie(), NotificationEvent.Created, "New request: Inception", "A new movie request is pending approval: Inception.",
-      null, null, "Torinou", showRequestedBy: true);
+      null, null, "Torinou", showRequestedBy: true, En);
 
     Assert.Contains(">Movie<", html, System.StringComparison.Ordinal);
     Assert.DoesNotContain("Season", html, System.StringComparison.Ordinal);
@@ -112,9 +114,9 @@ public class EmailTemplateTests
   [Fact]
   public void BuildRequest_UsesTheEventAccent()
   {
-    var available = EmailTemplate.BuildRequest(Show(), NotificationEvent.Available, "s", "b", null, null, "u", true).Html;
-    var denied = EmailTemplate.BuildRequest(Show(), NotificationEvent.Denied, "s", "b", null, null, "u", true).Html;
-    var failed = EmailTemplate.BuildRequest(Show(), NotificationEvent.Failed, "s", "b", null, null, "u", true).Html;
+    var available = EmailTemplate.BuildRequest(Show(), NotificationEvent.Available, "s", "b", null, null, "u", true, En).Html;
+    var denied = EmailTemplate.BuildRequest(Show(), NotificationEvent.Denied, "s", "b", null, null, "u", true, En).Html;
+    var failed = EmailTemplate.BuildRequest(Show(), NotificationEvent.Failed, "s", "b", null, null, "u", true, En).Html;
 
     Assert.Contains("#10B981", available, System.StringComparison.Ordinal); // green, as on Discord
     Assert.Contains("#EF4444", denied, System.StringComparison.Ordinal);    // red, as on Discord
@@ -125,7 +127,7 @@ public class EmailTemplateTests
   [Fact]
   public void BuildNotice_WithoutMedia_RendersAPlainCard()
   {
-    var (html, text) = EmailTemplate.BuildNotice("Jelly Crowd test notification", "If you can read this, the channel works.", null, null);
+    var (html, text) = EmailTemplate.BuildNotice("Jelly Crowd test notification", "If you can read this, the channel works.", null, null, En);
 
     Assert.Contains("If you can read this, the channel works.", html, System.StringComparison.Ordinal);
     Assert.Contains("Jelly&nbsp;Crowd", html, System.StringComparison.Ordinal);
@@ -137,7 +139,7 @@ public class EmailTemplateTests
   [Fact]
   public void BuildNotice_WithMedia_ShowsThePoster()
   {
-    var (html, _) = EmailTemplate.BuildNotice("Deletion scheduled", "It leaves the library in 3 days.", "Inception", "/ok.jpg");
+    var (html, _) = EmailTemplate.BuildNotice("Deletion scheduled", "It leaves the library in 3 days.", "Inception", "/ok.jpg", En);
 
     Assert.Contains("https://image.tmdb.org/t/p/w300/ok.jpg", html, System.StringComparison.Ordinal);
     Assert.Contains("Inception", html, System.StringComparison.Ordinal);

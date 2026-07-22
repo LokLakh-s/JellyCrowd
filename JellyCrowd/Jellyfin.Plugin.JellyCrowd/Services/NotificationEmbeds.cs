@@ -44,6 +44,7 @@ public static class NotificationEmbeds
   /// <param name="username">The requesting user's display name.</param>
   /// <param name="timestampUtc">The embed timestamp (UTC).</param>
   /// <param name="options">Presentation options (color, fields, poster, link, mention).</param>
+  /// <param name="t">The translation lookup (see <see cref="ServerStrings.For"/>).</param>
   /// <returns>A serializable payload object (<c>{ content?, embeds: [ ... ] }</c>).</returns>
   public static object BuildRequest(
     RequestRecord request,
@@ -54,25 +55,27 @@ public static class NotificationEmbeds
     string? posterPath,
     string username,
     DateTime timestampUtc,
-    DiscordEmbedOptions options)
+    DiscordEmbedOptions options,
+    Func<string, string> t)
   {
     ArgumentNullException.ThrowIfNull(request);
     ArgumentNullException.ThrowIfNull(options);
+    ArgumentNullException.ThrowIfNull(t);
 
     var fields = new List<object>();
     if (options.ShowRequestedBy)
     {
-      fields.Add(new { name = "Requested by", value = username, inline = true });
+      fields.Add(new { name = t("notif_field_requested_by"), value = username, inline = true });
     }
 
     if (options.ShowStatus)
     {
-      fields.Add(new { name = "Status", value = StatusText(notificationEvent), inline = true });
+      fields.Add(new { name = t("notif_field_status"), value = StatusText(notificationEvent, t), inline = true });
     }
 
     if (options.ShowSeason && request.Season.HasValue)
     {
-      fields.Add(new { name = "Season", value = request.Season.Value.ToString(CultureInfo.InvariantCulture), inline = true });
+      fields.Add(new { name = t("notif_field_season"), value = request.Season.Value.ToString(CultureInfo.InvariantCulture), inline = true });
     }
 
     var embed = new Dictionary<string, object?>
@@ -157,12 +160,12 @@ public static class NotificationEmbeds
       : fallback;
   }
 
-  private static string StatusText(NotificationEvent notificationEvent) => notificationEvent switch
+  private static string StatusText(NotificationEvent notificationEvent, Func<string, string> t) => t(notificationEvent switch
   {
-    NotificationEvent.Created => "Pending",
-    NotificationEvent.Approved => "Approved",
-    NotificationEvent.Available => "Available",
-    NotificationEvent.Denied => "Denied",
-    _ => "Updated"
-  };
+    NotificationEvent.Created => "notif_status_pending",
+    NotificationEvent.Approved => "notif_status_approved",
+    NotificationEvent.Available => "notif_status_available",
+    NotificationEvent.Denied => "notif_status_denied",
+    _ => "notif_status_attention"
+  });
 }

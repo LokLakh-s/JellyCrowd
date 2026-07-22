@@ -51,6 +51,7 @@ public static class EmailTemplate
   /// Whether to show who requested the title. True for the shared ops mailbox; false when the email goes to
   /// the requester themselves, who does not need to be told they are the requester.
   /// </param>
+  /// <param name="t">The translation lookup (see <see cref="ServerStrings.For"/>).</param>
   /// <returns>The HTML body and its plain-text alternative.</returns>
   public static (string Html, string Text) BuildRequest(
     RequestRecord request,
@@ -60,21 +61,23 @@ public static class EmailTemplate
     string? overview,
     string? posterPath,
     string username,
-    bool showRequestedBy)
+    bool showRequestedBy,
+    Func<string, string> t)
   {
     ArgumentNullException.ThrowIfNull(request);
+    ArgumentNullException.ThrowIfNull(t);
 
     // Normalize the media type rather than trusting the stored value: it ends up in a URL.
     var isShow = string.Equals(request.MediaType, "tv", StringComparison.Ordinal);
     var pairs = new List<(string Label, string Value)>();
     if (showRequestedBy && !string.IsNullOrWhiteSpace(username))
     {
-      pairs.Add(("Requested by", username));
+      pairs.Add((t("notif_field_requested_by"), username));
     }
 
     if (request.Season.HasValue)
     {
-      pairs.Add(("Season", request.Season.Value.ToString(CultureInfo.InvariantCulture)));
+      pairs.Add((t("notif_field_season"), request.Season.Value.ToString(CultureInfo.InvariantCulture)));
     }
 
     var card = new Card
@@ -82,17 +85,17 @@ public static class EmailTemplate
       Heading = subject,
       Lead = body,
       Accent = AccentFor(notificationEvent),
-      Status = StatusText(notificationEvent),
+      Status = StatusText(notificationEvent, t),
       Title = request.Title,
-      Subtitle = SubtitleFor(isShow, request.Season),
+      Subtitle = SubtitleFor(isShow, request.Season, t),
       PosterUrl = PosterUrl(posterPath),
       Overview = overview,
       Pairs = pairs,
       LinkUrl = NotificationEmbeds.TmdbUrl(isShow ? "tv" : "movie", request.TmdbId),
-      LinkLabel = "View on TMDB"
+      LinkLabel = t("notif_view_on_tmdb")
     };
 
-    return (RenderHtml(card), RenderText(card));
+    return (RenderHtml(card, t), RenderText(card, t));
   }
 
   /// <summary>
@@ -103,9 +106,11 @@ public static class EmailTemplate
   /// <param name="body">The message.</param>
   /// <param name="title">The media title to feature, or <c>null</c> for a plain message.</param>
   /// <param name="posterPath">The TMDB relative poster path, or <c>null</c>.</param>
+  /// <param name="t">The translation lookup.</param>
   /// <returns>The HTML body and its plain-text alternative.</returns>
-  public static (string Html, string Text) BuildNotice(string subject, string body, string? title, string? posterPath)
+  public static (string Html, string Text) BuildNotice(string subject, string body, string? title, string? posterPath, Func<string, string> t)
   {
+    ArgumentNullException.ThrowIfNull(t);
     var card = new Card
     {
       Heading = subject,
@@ -116,7 +121,7 @@ public static class EmailTemplate
       Pairs = new List<(string Label, string Value)>()
     };
 
-    return (RenderHtml(card), RenderText(card));
+    return (RenderHtml(card, t), RenderText(card, t));
   }
 
   /// <summary>
@@ -139,20 +144,20 @@ public static class EmailTemplate
     ? "#F59E0B"
     : "#" + NotificationEmbeds.DefaultColorFor(notificationEvent).ToString("X6", CultureInfo.InvariantCulture);
 
-  private static string StatusText(NotificationEvent notificationEvent) => notificationEvent switch
+  private static string StatusText(NotificationEvent notificationEvent, Func<string, string> t) => t(notificationEvent switch
   {
-    NotificationEvent.Created => "Pending approval",
-    NotificationEvent.Approved => "Approved",
-    NotificationEvent.Available => "Available",
-    NotificationEvent.Denied => "Denied",
-    _ => "Needs attention"
-  };
+    NotificationEvent.Created => "notif_status_pending",
+    NotificationEvent.Approved => "notif_status_approved",
+    NotificationEvent.Available => "notif_status_available",
+    NotificationEvent.Denied => "notif_status_denied",
+    _ => "notif_status_attention"
+  });
 
-  private static string SubtitleFor(bool isShow, int? season)
+  private static string SubtitleFor(bool isShow, int? season, Func<string, string> t)
   {
-    var kind = isShow ? "Show" : "Movie";
+    var kind = t(isShow ? "notif_kind_show_label" : "notif_kind_movie_label");
     return season.HasValue
-      ? kind + " · Season " + season.Value.ToString(CultureInfo.InvariantCulture)
+      ? kind + " · " + t("notif_field_season") + " " + season.Value.ToString(CultureInfo.InvariantCulture)
       : kind;
   }
 
@@ -176,7 +181,7 @@ public static class EmailTemplate
     return PosterBaseUrl + posterPath;
   }
 
-  private static string RenderHtml(Card card)
+  private static string RenderHtml(Card card, Func<string, string> t)
   {
     var sb = new StringBuilder(4096);
     var accent = card.Accent;
@@ -212,7 +217,7 @@ public static class EmailTemplate
 
     sb.Append("<tr><td style=\"padding:26px 28px;font-family:").Append(Font)
       .Append(";font-size:11px;line-height:17px;color:").Append(FooterText)
-      .Append(";\">Sent by Jelly Crowd, the request system on your Jellyfin server.</td></tr>\n");
+      .Append(";\">").Append(Escape(t("notif_email_footer"))).Append("</td></tr>\n");
 
     sb.Append("</table>\n</td>\n</tr>\n</table>\n</body>\n</html>");
     return sb.ToString();
@@ -339,7 +344,7 @@ public static class EmailTemplate
   }
 
   // The plain-text alternative every multipart email must carry: same information, no markup.
-  private static string RenderText(Card card)
+  private static string RenderText(Card card, Func<string, string> t)
   {
     var sb = new StringBuilder(512);
     sb.Append(card.Heading).Append("\n\n").Append(card.Lead).Append('\n');
@@ -370,7 +375,7 @@ public static class EmailTemplate
       sb.Append('\n').Append(card.LinkLabel ?? "Open").Append(": ").Append(card.LinkUrl).Append('\n');
     }
 
-    sb.Append("\n— Sent by Jelly Crowd, the request system on your Jellyfin server.\n");
+    sb.Append("\n— ").Append(t("notif_email_footer")).Append('\n');
     return sb.ToString();
   }
 

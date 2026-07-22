@@ -82,7 +82,7 @@ public sealed class NotificationService : INotificationService
       return;
     }
 
-    var (subject, body) = NotificationMessages.Build(request, notificationEvent);
+    var (subject, body) = NotificationMessages.Build(request, notificationEvent, ServerStrings.For(config.Language));
     await FanOutAsync(config, request, notificationEvent, subject, body, cancellationToken).ConfigureAwait(false);
   }
 
@@ -110,7 +110,7 @@ public sealed class NotificationService : INotificationService
       return;
     }
 
-    var (subject, body) = NotificationMessages.BuildAvailableBatch(requests[0], episodes);
+    var (subject, body) = NotificationMessages.BuildAvailableBatch(requests[0], episodes, ServerStrings.For(config.Language));
     await FanOutAsync(config, requests[0], NotificationEvent.Available, subject, body, cancellationToken).ConfigureAwait(false);
   }
 
@@ -118,12 +118,14 @@ public sealed class NotificationService : INotificationService
   // in-app bell + personal channels, the Discord embed, the ops mailbox and the text notifiers.
   private async Task FanOutAsync(PluginConfiguration config, RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CancellationToken cancellationToken)
   {
+    // One lookup for the whole fan-out: every channel says the same thing in the same language.
+    var t = ServerStrings.For(config.Language);
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
 
     _ = _activityLog.LogAsync("info", "request", subject + " — " + username, username, CancellationToken.None);
 
-    await NotifyUserAsync(request, notificationEvent, subject, body, details, username, cancellationToken).ConfigureAwait(false);
+    await NotifyUserAsync(request, notificationEvent, subject, body, details, username, t, cancellationToken).ConfigureAwait(false);
 
     if (DiscordEnabledFor(config, notificationEvent))
     {
@@ -136,7 +138,8 @@ public sealed class NotificationService : INotificationService
         details?.PosterPath ?? request.PosterPath,
         username,
         DateTime.UtcNow,
-        BuildDiscordOptions(config, notificationEvent));
+        BuildDiscordOptions(config, notificationEvent),
+        t);
       await SendDiscordAsync(config, embed, cancellationToken).ConfigureAwait(false);
     }
 
@@ -150,11 +153,12 @@ public sealed class NotificationService : INotificationService
         details?.Overview,
         details?.PosterPath ?? request.PosterPath,
         username,
-        showRequestedBy: true);
+        showRequestedBy: true,
+        t);
       await SendEmailAsync(config, "[Jelly Crowd] " + subject, email, cancellationToken).ConfigureAwait(false);
     }
 
-    var textBody = body + "\nRequested by: " + username;
+    var textBody = body + "\n" + t("notif_field_requested_by") + ": " + username;
     foreach (var notifier in _textNotifiers)
     {
       if (!notifier.IsConfigured(config))
@@ -179,8 +183,9 @@ public sealed class NotificationService : INotificationService
   public async Task SendTestAsync(string channel, CancellationToken cancellationToken)
   {
     var config = Plugin.Instance?.Configuration ?? throw new InvalidOperationException("Plugin is not initialized.");
-    const string Subject = "Jelly Crowd test notification";
-    const string Body = "This is a test notification from Jelly Crowd. If you can read this, the channel works.";
+    var t = ServerStrings.For(config.Language);
+    var subject = t("notif_test_subject");
+    var body = t("notif_test_body");
 
     if (string.Equals(channel, "discord", StringComparison.OrdinalIgnoreCase))
     {
@@ -189,7 +194,7 @@ public sealed class NotificationService : INotificationService
         throw new InvalidOperationException("The Discord webhook URL is not configured.");
       }
 
-      await SendDiscordCoreAsync(config, NotificationEmbeds.BuildSimple(Subject, Body, NotificationEmbeds.TestColor, DateTime.UtcNow), cancellationToken).ConfigureAwait(false);
+      await SendDiscordCoreAsync(config, NotificationEmbeds.BuildSimple(subject, body, NotificationEmbeds.TestColor, DateTime.UtcNow), cancellationToken).ConfigureAwait(false);
     }
     else if (string.Equals(channel, "email", StringComparison.OrdinalIgnoreCase))
     {
@@ -200,7 +205,7 @@ public sealed class NotificationService : INotificationService
         throw new InvalidOperationException("SMTP is not fully configured (host, from address and recipient are required).");
       }
 
-      await SendEmailCoreAsync(config, config.NotificationEmailTo, "[Jelly Crowd] " + Subject, EmailTemplate.BuildNotice(Subject, Body, null, null), cancellationToken).ConfigureAwait(false);
+      await SendEmailCoreAsync(config, config.NotificationEmailTo, "[Jelly Crowd] " + subject, EmailTemplate.BuildNotice(subject, body, null, null, t), cancellationToken).ConfigureAwait(false);
     }
     else
     {
@@ -211,7 +216,7 @@ public sealed class NotificationService : INotificationService
         throw new InvalidOperationException("The " + notifier.Channel + " channel is not configured.");
       }
 
-      await notifier.SendAsync(config, Subject, Body, cancellationToken).ConfigureAwait(false);
+      await notifier.SendAsync(config, subject, body, cancellationToken).ConfigureAwait(false);
     }
   }
 
@@ -225,8 +230,9 @@ public sealed class NotificationService : INotificationService
       throw new InvalidOperationException("Personal notifications are turned off.");
     }
 
-    const string Subject = "Jelly Crowd test notification";
-    const string Body = "This is a test from Jelly Crowd. If you can read this, your notifications reach you.";
+    var t = ServerStrings.For(config.Language);
+    var subject = t("notif_test_subject");
+    var body = t("notif_test_personal");
 
     var email = prefs.Email;
     var ntfyUrl = PersonalDelivery.NtfyUrl(prefs, config);
@@ -244,16 +250,16 @@ public sealed class NotificationService : INotificationService
         throw new InvalidOperationException("The server has no e-mail (SMTP) configured, so e-mail cannot be delivered.");
       }
 
-      await SendEmailCoreAsync(config, email, "[Jelly Crowd] " + Subject, EmailTemplate.BuildNotice(Subject, Body, null, null), cancellationToken).ConfigureAwait(false);
+      await SendEmailCoreAsync(config, email, "[Jelly Crowd] " + subject, EmailTemplate.BuildNotice(subject, body, null, null, t), cancellationToken).ConfigureAwait(false);
     }
 
     if (ntfyUrl is not null)
     {
       using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(ntfyUrl))
       {
-        Content = new StringContent(Body, Encoding.UTF8, "text/plain")
+        Content = new StringContent(body, Encoding.UTF8, "text/plain")
       };
-      request.Headers.TryAddWithoutValidation("Title", Subject);
+      request.Headers.TryAddWithoutValidation("Title", subject);
       if (!string.IsNullOrWhiteSpace(config.NtfyToken))
       {
         request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + config.NtfyToken);
@@ -265,7 +271,7 @@ public sealed class NotificationService : INotificationService
 
   // Notify the requester directly on the state changes they care about: in-app bell + their personal
   // channels (email / ntfy), when configured.
-  private async Task NotifyUserAsync(RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CatalogItem? details, string username, CancellationToken cancellationToken)
+  private async Task NotifyUserAsync(RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CatalogItem? details, string username, Func<string, string> t, CancellationToken cancellationToken)
   {
     if (notificationEvent is not (NotificationEvent.Approved or NotificationEvent.Denied or NotificationEvent.Available or NotificationEvent.Failed))
     {
@@ -303,7 +309,8 @@ public sealed class NotificationService : INotificationService
       details?.Overview,
       details?.PosterPath ?? request.PosterPath,
       username,
-      showRequestedBy: false);
+      showRequestedBy: false,
+      t);
     await DeliverPersonalAsync(request.UserId, kind, subject, body, email, cancellationToken).ConfigureAwait(false);
   }
 
@@ -330,7 +337,9 @@ public sealed class NotificationService : INotificationService
       _logger.LogDebug(ex, "Could not store the in-app notification for user {UserId}.", userId);
     }
 
-    await DeliverPersonalAsync(userId, kind, subject, body, EmailTemplate.BuildNotice(subject, body, title, posterPath), cancellationToken).ConfigureAwait(false);
+    var config = Plugin.Instance?.Configuration;
+    var notice = EmailTemplate.BuildNotice(subject, body, title, posterPath, ServerStrings.For(config?.Language));
+    await DeliverPersonalAsync(userId, kind, subject, body, notice, cancellationToken).ConfigureAwait(false);
   }
 
   // Deliver to the user's own channels (email / ntfy), each best-effort, gated by their per-category opt-in.
