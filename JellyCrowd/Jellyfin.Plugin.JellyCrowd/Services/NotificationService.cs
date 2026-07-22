@@ -123,7 +123,7 @@ public sealed class NotificationService : INotificationService
 
     _ = _activityLog.LogAsync("info", "request", subject + " — " + username, username, CancellationToken.None);
 
-    await NotifyUserAsync(request, notificationEvent, subject, body, cancellationToken).ConfigureAwait(false);
+    await NotifyUserAsync(request, notificationEvent, subject, body, details, username, cancellationToken).ConfigureAwait(false);
 
     if (DiscordEnabledFor(config, notificationEvent))
     {
@@ -142,8 +142,16 @@ public sealed class NotificationService : INotificationService
 
     if (EmailEnabledFor(config, notificationEvent))
     {
-      var emailBody = BuildEmailBody(request, body, details, username);
-      await SendEmailAsync(config, "[Jelly Crowd] " + subject, emailBody, cancellationToken).ConfigureAwait(false);
+      var email = EmailTemplate.BuildRequest(
+        request,
+        notificationEvent,
+        subject,
+        body,
+        details?.Overview,
+        details?.PosterPath ?? request.PosterPath,
+        username,
+        showRequestedBy: true);
+      await SendEmailAsync(config, "[Jelly Crowd] " + subject, email, cancellationToken).ConfigureAwait(false);
     }
 
     var textBody = body + "\nRequested by: " + username;
@@ -192,7 +200,7 @@ public sealed class NotificationService : INotificationService
         throw new InvalidOperationException("SMTP is not fully configured (host, from address and recipient are required).");
       }
 
-      await SendEmailCoreAsync(config, config.NotificationEmailTo, "[Jelly Crowd] " + Subject, Body, cancellationToken).ConfigureAwait(false);
+      await SendEmailCoreAsync(config, config.NotificationEmailTo, "[Jelly Crowd] " + Subject, EmailTemplate.BuildNotice(Subject, Body, null, null), cancellationToken).ConfigureAwait(false);
     }
     else
     {
@@ -209,7 +217,7 @@ public sealed class NotificationService : INotificationService
 
   // Notify the requester directly on the state changes they care about: in-app bell + their personal
   // channels (email / ntfy), when configured.
-  private async Task NotifyUserAsync(RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CancellationToken cancellationToken)
+  private async Task NotifyUserAsync(RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CatalogItem? details, string username, CancellationToken cancellationToken)
   {
     if (notificationEvent is not (NotificationEvent.Approved or NotificationEvent.Denied or NotificationEvent.Available or NotificationEvent.Failed))
     {
@@ -237,7 +245,18 @@ public sealed class NotificationService : INotificationService
     }
 
     var kind = PersonalDelivery.KindFor(notificationEvent, request);
-    await DeliverPersonalAsync(request.UserId, kind, subject, body, cancellationToken).ConfigureAwait(false);
+
+    // The requester gets the same card as the ops mailbox, minus the "requested by" line: they know.
+    var email = EmailTemplate.BuildRequest(
+      request,
+      notificationEvent,
+      subject,
+      body,
+      details?.Overview,
+      details?.PosterPath ?? request.PosterPath,
+      username,
+      showRequestedBy: false);
+    await DeliverPersonalAsync(request.UserId, kind, subject, body, email, cancellationToken).ConfigureAwait(false);
   }
 
   /// <inheritdoc />
@@ -263,11 +282,12 @@ public sealed class NotificationService : INotificationService
       _logger.LogDebug(ex, "Could not store the in-app notification for user {UserId}.", userId);
     }
 
-    await DeliverPersonalAsync(userId, kind, subject, body, cancellationToken).ConfigureAwait(false);
+    await DeliverPersonalAsync(userId, kind, subject, body, EmailTemplate.BuildNotice(subject, body, title, posterPath), cancellationToken).ConfigureAwait(false);
   }
 
   // Deliver to the user's own channels (email / ntfy), each best-effort, gated by their per-category opt-in.
-  private async Task DeliverPersonalAsync(Guid userId, PersonalNotifyKind kind, string subject, string body, CancellationToken cancellationToken)
+  // The email carries the rendered card; ntfy takes the plain sentence.
+  private async Task DeliverPersonalAsync(Guid userId, PersonalNotifyKind kind, string subject, string body, (string Html, string Text) email, CancellationToken cancellationToken)
   {
     var config = Plugin.Instance?.Configuration;
     if (config is null)
@@ -285,7 +305,7 @@ public sealed class NotificationService : INotificationService
     {
       try
       {
-        await SendEmailCoreAsync(config, prefs.Email!, "[Jelly Crowd] " + subject, body, cancellationToken).ConfigureAwait(false);
+        await SendEmailCoreAsync(config, prefs.Email!, "[Jelly Crowd] " + subject, email, cancellationToken).ConfigureAwait(false);
       }
 #pragma warning disable CA1031 // Personal delivery is best-effort.
       catch (Exception ex)
@@ -368,28 +388,6 @@ public sealed class NotificationService : INotificationService
     };
   }
 
-  private static string BuildEmailBody(RequestRecord request, string body, CatalogItem? details, string username)
-  {
-    var builder = new StringBuilder();
-    builder.AppendLine(body);
-    builder.AppendLine();
-    builder.Append("Requested by: ").AppendLine(username);
-    if (request.Season.HasValue)
-    {
-      builder.Append("Season: ").AppendLine(request.Season.Value.ToString(CultureInfo.InvariantCulture));
-    }
-
-    builder.Append("More info: ").AppendLine(NotificationEmbeds.TmdbUrl(request.MediaType, request.TmdbId));
-
-    if (details is not null && !string.IsNullOrWhiteSpace(details.Overview))
-    {
-      builder.AppendLine();
-      builder.AppendLine(details.Overview);
-    }
-
-    return builder.ToString();
-  }
-
   private async Task<CatalogItem?> TryGetDetailsAsync(RequestRecord request, CancellationToken cancellationToken)
   {
     try
@@ -439,7 +437,7 @@ public sealed class NotificationService : INotificationService
     }
   }
 
-  private async Task SendEmailAsync(PluginConfiguration config, string subject, string body, CancellationToken cancellationToken)
+  private async Task SendEmailAsync(PluginConfiguration config, string subject, (string Html, string Text) email, CancellationToken cancellationToken)
   {
     if (string.IsNullOrWhiteSpace(config.SmtpHost)
         || string.IsNullOrWhiteSpace(config.SmtpFromAddress)
@@ -450,7 +448,7 @@ public sealed class NotificationService : INotificationService
 
     try
     {
-      await SendEmailCoreAsync(config, config.NotificationEmailTo, subject, body, cancellationToken).ConfigureAwait(false);
+      await SendEmailCoreAsync(config, config.NotificationEmailTo, subject, email, cancellationToken).ConfigureAwait(false);
     }
 #pragma warning disable CA1031 // A notification failure must never affect the request flow.
     catch (Exception ex)
@@ -470,13 +468,15 @@ public sealed class NotificationService : INotificationService
     response.EnsureSuccessStatusCode();
   }
 
-  private static async Task SendEmailCoreAsync(PluginConfiguration config, string to, string subject, string body, CancellationToken cancellationToken)
+  private static async Task SendEmailCoreAsync(PluginConfiguration config, string to, string subject, (string Html, string Text) email, CancellationToken cancellationToken)
   {
     using var message = new MimeMessage();
-    message.From.Add(MailboxAddress.Parse(config.SmtpFromAddress));
+    message.From.Add(EmailTemplate.Sender(config.SmtpFromAddress));
     message.To.Add(MailboxAddress.Parse(to));
     message.Subject = subject;
-    message.Body = new TextPart("plain") { Text = body };
+
+    // multipart/alternative: clients that render HTML get the card, the others get the text version.
+    message.Body = new BodyBuilder { HtmlBody = email.Html, TextBody = email.Text }.ToMessageBody();
 
     using var client = new SmtpClient { Timeout = SmtpTimeoutMs };
     if (config.SmtpAllowInvalidCertificate)
