@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
@@ -140,14 +141,17 @@ public sealed class DeletionTask : IScheduledTask
       if (lapsed.Count > 0)
       {
         _logger.LogInformation("Jelly Crowd expiry: lapsed {Count} ownership(s).", lapsed.Count);
+        var expiredStrings = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
         foreach (var record in lapsed)
         {
-          var body = $"\"{record.Title}\" has left your library after {expiryDays} days (your quota is freed). Re-add it from the catalog if you still want it.";
+          var body = expiredStrings("notif_expired_body")
+            .Replace("{title}", record.Title, StringComparison.Ordinal)
+            .Replace("{days}", expiryDays.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
           await _notificationService.NotifyPersonalAsync(
             record.UserId,
             Models.PersonalNotifyKind.QuotaExpiry,
             record.Title,
-            "Media expired from your library",
+            expiredStrings("notif_expired_subject"),
             body,
             record.PosterPath,
             cancellationToken).ConfigureAwait(false);

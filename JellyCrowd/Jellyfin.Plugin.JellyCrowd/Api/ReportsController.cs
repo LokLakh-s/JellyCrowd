@@ -148,11 +148,13 @@ public class ReportsController : ControllerBase
     await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", updated.UserName, cancellationToken).ConfigureAwait(false);
 
     // Tell the reporter their ticket was handled (in-app bell always; personal channels are un-gated here).
-    var body = string.IsNullOrWhiteSpace(updated.AdminResponse)
-      ? $"Your report on \"{updated.Title}\" has been resolved."
-      : $"Your report on \"{updated.Title}\" has been resolved. Admin note: {updated.AdminResponse}";
+    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var body = (string.IsNullOrWhiteSpace(updated.AdminResponse)
+        ? t("notif_report_resolved_body")
+        : t("notif_report_resolved_body_note").Replace("{note}", updated.AdminResponse, StringComparison.Ordinal))
+      .Replace("{title}", updated.Title, StringComparison.Ordinal);
     _ = _notifications.NotifyPersonalAsync(
-      updated.UserId, PersonalNotifyKind.None, updated.Title, "Your report was resolved", body, null, CancellationToken.None);
+      updated.UserId, PersonalNotifyKind.None, updated.Title, t("notif_report_resolved_subject"), body, null, CancellationToken.None);
 
     return Ok(updated);
   }

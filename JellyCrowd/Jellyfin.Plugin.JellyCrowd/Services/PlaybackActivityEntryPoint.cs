@@ -176,22 +176,23 @@ public sealed class PlaybackActivityEntryPoint : IHostedService, IDisposable
 
   private Task NotifyAsync(Guid userId, AdaptiveEvent change)
   {
-    var (subject, body) = change switch
+    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var key = change switch
     {
-      AdaptiveEvent.Promoted => (
-        "Extra storage unlocked",
-        "Thanks for watching — your storage quota has been increased. Keep it up to keep the bonus."),
-      AdaptiveEvent.ProbationStarted => (
-        "Your bonus storage is under review",
-        "You've been away for a while, so your extra storage is on hold. Watch something soon to keep it — otherwise it returns to the standard quota."),
-      AdaptiveEvent.ProbationPassed => (
-        "Bonus storage restored",
-        "Welcome back! Your extra storage is active again."),
-      AdaptiveEvent.ProbationFailed => (
-        "Storage back to standard",
-        "Your bonus storage has returned to the standard quota after a period of inactivity. Stay active to earn it back."),
-      _ => (string.Empty, string.Empty),
+      AdaptiveEvent.Promoted => "notif_adaptive_promoted",
+      AdaptiveEvent.ProbationStarted => "notif_adaptive_probation",
+      AdaptiveEvent.ProbationPassed => "notif_adaptive_restored",
+      AdaptiveEvent.ProbationFailed => "notif_adaptive_standard",
+      _ => null,
     };
+
+    if (key is null)
+    {
+      return Task.CompletedTask;
+    }
+
+    var subject = t(key + "_subject");
+    var body = t(key + "_body");
 
     if (subject.Length == 0)
     {
@@ -201,7 +202,7 @@ public sealed class PlaybackActivityEntryPoint : IHostedService, IDisposable
     return _notificationService.NotifyPersonalAsync(
       userId,
       PersonalNotifyKind.QuotaExpiry,
-      "Storage quota",
+      t("notif_adaptive_title"),
       subject,
       body,
       posterPath: null,

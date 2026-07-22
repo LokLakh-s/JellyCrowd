@@ -109,8 +109,8 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
             held.UserId,
             PersonalNotifyKind.QuotaExpiry,
             held.Title,
-            "Request held — storage quota reached",
-            $"\"{held.Title}\" is now available to download, but you have reached your storage quota, so it is on hold. Free space (let some media expire, or request its deletion) and it will resume automatically.",
+            Strings("notif_quota_held_subject"),
+            Strings("notif_quota_held_available_body").Replace("{title}", held.Title, StringComparison.Ordinal),
             held.PosterPath,
             CancellationToken.None);
         }
@@ -344,11 +344,15 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       request.UserId,
       PersonalNotifyKind.Decision,
       request.Title,
-      "Not found — we couldn't get it",
-      $"We searched for \"{request.Title}\" for two weeks and no source turned up, so we have stopped looking. It does not count against your quota. Ask an admin if you would like them to try again or find it another way.",
+      Strings("notif_notfound_subject"),
+      Strings("notif_notfound_body").Replace("{title}", request.Title, StringComparison.Ordinal),
       request.PosterPath,
       CancellationToken.None);
   }
+
+  // Notification wording follows the configured language, like every other channel. The catalog is
+  // parsed once and cached, so resolving per message costs nothing.
+  private static string Strings(string key) => ServerStrings.For(Plugin.Instance?.Configuration?.Language)(key);
 
   private async Task<bool> DispatchOneAsync(RequestRecord request, IDownloadClient client, DateTime nowUtc, CancellationToken cancellationToken)
   {
