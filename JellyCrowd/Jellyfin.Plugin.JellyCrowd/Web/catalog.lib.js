@@ -423,6 +423,21 @@
     return saved;
   }
 
+  // Reports on a batch of independent calls (cancel a whole season, retry a whole season). `results` is
+  // one boolean per call. Returns null when every call went through — the refreshed list is feedback
+  // enough — and a message when some did not, so that a partial failure cannot pass for a success: the
+  // list would simply come back with the untouched rows still in it and no explanation.
+  function bulkFailureMessage(results, t) {
+    var list = results || [];
+    var failed = 0;
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i]) { failed++; }
+    }
+
+    if (!failed) { return null; }
+    return t('bulk_failed').replace('{failed}', failed).replace('{total}', list.length);
+  }
+
   // Builds a confirmation dialog and returns its parts. Pure DOM construction: showing it, resolving a
   // choice and handling keys are the caller's job (see confirmAction in admin.js).
   // `opts`: { title, message, confirmLabel, cancelLabel, danger }.
@@ -532,6 +547,7 @@
     focusFirst: focusFirst,
     focusRestoreTarget: focusRestoreTarget,
     buildConfirmDialog: buildConfirmDialog,
+    bulkFailureMessage: bulkFailureMessage,
     buildStatusBadge: buildStatusBadge,
     formatBytesDecimal: formatBytesDecimal,
     downloadBadgeLabel: downloadBadgeLabel,

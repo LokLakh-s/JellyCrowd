@@ -479,5 +479,6 @@
   "cfgsec_more_channels": "Autres canaux",
   "cfgsec_quotas": "Quotas",
   "cfgsec_retention_and_cleanup": "Rétention et nettoyage",
-  "cfgsec_webhook": "Webhook"
+  "cfgsec_webhook": "Webhook",
+  "bulk_failed": "{failed} sur {total} n’ont pas abouti. Vous pouvez réessayer."
 }
