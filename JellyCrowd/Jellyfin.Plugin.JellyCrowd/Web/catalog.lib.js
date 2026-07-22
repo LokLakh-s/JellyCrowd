@@ -423,6 +423,47 @@
     return saved;
   }
 
+  // Placeholders shaped like the content that is coming, so the page settles into its final layout
+  // instead of jumping from a line of text to a full grid. `variant` is 'card' (poster + two lines, for
+  // the catalog grid) or 'row' (a list row). They carry .jellycrowd-skel so clearSkeletons can find them
+  // again, and aria-hidden because there is nothing here to read out — the region's aria-live announces
+  // the real content when it lands.
+  function buildSkeletons(doc, variant, count) {
+    var frag = doc.createDocumentFragment();
+    var n = Math.max(0, count || 0);
+    for (var i = 0; i < n; i++) {
+      var el = doc.createElement('div');
+      el.className = 'jellycrowd-skel jellycrowd-skel-' + (variant === 'row' ? 'row' : 'card');
+      el.setAttribute('aria-hidden', 'true');
+      if (variant !== 'row') {
+        var poster = doc.createElement('div');
+        poster.className = 'jellycrowd-skel-poster';
+        el.appendChild(poster);
+        var line = doc.createElement('div');
+        line.className = 'jellycrowd-skel-line';
+        el.appendChild(line);
+        var short = doc.createElement('div');
+        short.className = 'jellycrowd-skel-line jellycrowd-skel-line-short';
+        el.appendChild(short);
+      }
+
+      frag.appendChild(el);
+    }
+
+    return frag;
+  }
+
+  // Removes the placeholders from a container, leaving any real content alone. Returns how many went.
+  function clearSkeletons(container) {
+    if (!container || !container.querySelectorAll) { return 0; }
+    var skels = container.querySelectorAll('.jellycrowd-skel');
+    for (var i = 0; i < skels.length; i++) {
+      if (skels[i].parentNode) { skels[i].parentNode.removeChild(skels[i]); }
+    }
+
+    return skels.length;
+  }
+
   // A deliberately loose "does this look like an address" check, to catch a typo before a round-trip.
   // The server validates for real before it ever uses the value as an SMTP recipient — this must never
   // be the only gate, and must not reject addresses the server would accept.
@@ -561,6 +602,8 @@
     buildConfirmDialog: buildConfirmDialog,
     bulkFailureMessage: bulkFailureMessage,
     isEmailish: isEmailish,
+    buildSkeletons: buildSkeletons,
+    clearSkeletons: clearSkeletons,
     buildStatusBadge: buildStatusBadge,
     formatBytesDecimal: formatBytesDecimal,
     downloadBadgeLabel: downloadBadgeLabel,

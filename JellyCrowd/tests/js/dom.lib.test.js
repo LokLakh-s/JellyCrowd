@@ -325,3 +325,45 @@ test('isEmailish rejects what is plainly not an address', () => {
     assert.strictEqual(lib.isEmailish(v), false, String(v));
   });
 });
+
+// ---------- loading placeholders ----------
+
+test('buildSkeletons builds card placeholders shaped like a real card', () => {
+  const doc = setup('<div id="grid"></div>');
+  const grid = doc.getElementById('grid');
+  grid.appendChild(lib.buildSkeletons(doc, 'card', 3));
+
+  assert.strictEqual(grid.querySelectorAll('.jellycrowd-skel-card').length, 3);
+  assert.strictEqual(grid.querySelectorAll('.jellycrowd-skel-poster').length, 3);
+  assert.strictEqual(grid.querySelectorAll('.jellycrowd-skel-line').length, 6); // two lines per card
+});
+
+test('buildSkeletons hides placeholders from assistive tech', () => {
+  const doc = setup('<div id="grid"></div>');
+  doc.getElementById('grid').appendChild(lib.buildSkeletons(doc, 'row', 2));
+
+  const rows = doc.querySelectorAll('.jellycrowd-skel-row');
+  assert.strictEqual(rows.length, 2);
+  rows.forEach(r => assert.strictEqual(r.getAttribute('aria-hidden'), 'true'));
+  assert.strictEqual(doc.querySelectorAll('.jellycrowd-skel-poster').length, 0); // rows have no poster
+});
+
+test('buildSkeletons builds nothing for a zero or missing count', () => {
+  const doc = setup('<div id="grid"></div>');
+  const grid = doc.getElementById('grid');
+  grid.appendChild(lib.buildSkeletons(doc, 'card', 0));
+  grid.appendChild(lib.buildSkeletons(doc, 'card'));
+
+  assert.strictEqual(grid.childElementCount, 0);
+});
+
+test('clearSkeletons removes the placeholders and leaves the real content', () => {
+  const doc = setup('<div id="grid"><article class="real">kept</article></div>');
+  const grid = doc.getElementById('grid');
+  grid.appendChild(lib.buildSkeletons(doc, 'card', 4));
+
+  assert.strictEqual(lib.clearSkeletons(grid), 4);
+  assert.strictEqual(grid.querySelectorAll('.jellycrowd-skel').length, 0);
+  assert.strictEqual(grid.querySelectorAll('.real').length, 1);
+  assert.strictEqual(lib.clearSkeletons(null), 0);
+});
