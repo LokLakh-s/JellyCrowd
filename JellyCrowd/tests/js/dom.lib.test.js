@@ -310,3 +310,18 @@ test('bulkFailureMessage names how many of how many failed', () => {
 test('bulkFailureMessage treats a whole-batch failure as a failure, not a success', () => {
   assert.strictEqual(lib.bulkFailureMessage([false, false], k => '{failed}/{total} ' + k), '2/2 bulk_failed');
 });
+
+// ---------- e-mail sanity check ----------
+
+test('isEmailish accepts the addresses the server would', () => {
+  ['a@b.co', 'first.last+tag@sub.example.com', '  spaced@example.org  '].forEach(v => {
+    assert.strictEqual(lib.isEmailish(v), true, v);
+  });
+});
+
+test('isEmailish rejects what is plainly not an address', () => {
+  ['', '   ', 'nope', '@example.com', 'a@b', 'a@b.', 'two@at@example.com', 'has space@example.com',
+   'x@' + 'y'.repeat(300) + '.com', null, undefined].forEach(v => {
+    assert.strictEqual(lib.isEmailish(v), false, String(v));
+  });
+});

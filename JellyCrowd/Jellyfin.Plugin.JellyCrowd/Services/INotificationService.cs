@@ -51,4 +51,15 @@ public interface INotificationService
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>A task that completes when the test message has been sent.</returns>
   Task SendTestAsync(string channel, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Sends a test notification to a user's own channels (email / ntfy), so they can check the address
+  /// they just saved actually reaches them. Unlike a real notification this ignores their per-category
+  /// opt-ins — they are testing the channel, not a category — and throws when nothing can be delivered,
+  /// so the caller can say why.
+  /// </summary>
+  /// <param name="userId">The user to deliver to.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes once every configured personal channel was delivered to.</returns>
+  Task SendPersonalTestAsync(System.Guid userId, CancellationToken cancellationToken);
 }

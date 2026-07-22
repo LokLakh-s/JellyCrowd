@@ -215,6 +215,54 @@ public sealed class NotificationService : INotificationService
     }
   }
 
+  /// <inheritdoc />
+  public async Task SendPersonalTestAsync(Guid userId, CancellationToken cancellationToken)
+  {
+    var config = Plugin.Instance?.Configuration ?? throw new InvalidOperationException("Plugin is not initialized.");
+    var prefs = await _userPrefs.GetAsync(userId, cancellationToken).ConfigureAwait(false);
+    if (!prefs.Enabled)
+    {
+      throw new InvalidOperationException("Personal notifications are turned off.");
+    }
+
+    const string Subject = "Jelly Crowd test notification";
+    const string Body = "This is a test from Jelly Crowd. If you can read this, your notifications reach you.";
+
+    var email = prefs.Email;
+    var ntfyUrl = PersonalDelivery.NtfyUrl(prefs, config);
+    if (string.IsNullOrWhiteSpace(email) && ntfyUrl is null)
+    {
+      throw new InvalidOperationException("Set an e-mail address or an ntfy topic first.");
+    }
+
+    // Deliberately not wrapped in try/catch: a test that fails silently is worse than no test at all,
+    // so the failure travels up to the caller and back to the user who asked for it.
+    if (!string.IsNullOrWhiteSpace(email))
+    {
+      if (!PersonalDelivery.ShouldEmail(prefs, config))
+      {
+        throw new InvalidOperationException("The server has no e-mail (SMTP) configured, so e-mail cannot be delivered.");
+      }
+
+      await SendEmailCoreAsync(config, email, "[Jelly Crowd] " + Subject, EmailTemplate.BuildNotice(Subject, Body, null, null), cancellationToken).ConfigureAwait(false);
+    }
+
+    if (ntfyUrl is not null)
+    {
+      using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(ntfyUrl))
+      {
+        Content = new StringContent(Body, Encoding.UTF8, "text/plain")
+      };
+      request.Headers.TryAddWithoutValidation("Title", Subject);
+      if (!string.IsNullOrWhiteSpace(config.NtfyToken))
+      {
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + config.NtfyToken);
+      }
+
+      await NotifierHttp.SendAsync(_httpClientFactory, request, cancellationToken).ConfigureAwait(false);
+    }
+  }
+
   // Notify the requester directly on the state changes they care about: in-app bell + their personal
   // channels (email / ntfy), when configured.
   private async Task NotifyUserAsync(RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CatalogItem? details, string username, CancellationToken cancellationToken)

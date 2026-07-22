@@ -480,5 +480,19 @@
   "cfgsec_quotas": "Quotas",
   "cfgsec_retention_and_cleanup": "Retention & cleanup",
   "cfgsec_webhook": "Webhook",
-  "bulk_failed": "{failed} of {total} did not go through. You can try again."
+  "bulk_failed": "{failed} of {total} did not go through. You can try again.",
+  "prefs_title": "Jelly Crowd preferences",
+  "prefs_nav": "Jelly Crowd notifications",
+  "prefs_group_delivery": "Where to reach you",
+  "prefs_enabled_hint": "Turn everything below off at once. The bell in the header keeps working either way.",
+  "prefs_email_hint": "Leave blank to receive nothing by e-mail.",
+  "prefs_ntfy_hint": "A topic on the ntfy server your admin configured. Leave blank to skip ntfy.",
+  "prefs_send_test": "Save and send me a test",
+  "prefs_categories_hint": "What you want to hear about. These apply to e-mail and ntfy; the bell always shows everything.",
+  "prefs_email_invalid": "That does not look like an e-mail address.",
+  "prefs_saving": "Saving…",
+  "prefs_save_failed": "Could not save. Try again.",
+  "prefs_test_sending": "Sending…",
+  "prefs_test_sent": "Test sent. It should arrive within a minute.",
+  "prefs_test_failed": "The test could not be delivered. Check the address, or ask your admin whether e-mail is set up on the server."
 }

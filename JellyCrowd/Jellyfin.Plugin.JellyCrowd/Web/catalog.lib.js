@@ -423,6 +423,18 @@
     return saved;
   }
 
+  // A deliberately loose "does this look like an address" check, to catch a typo before a round-trip.
+  // The server validates for real before it ever uses the value as an SMTP recipient — this must never
+  // be the only gate, and must not reject addresses the server would accept.
+  function isEmailish(value) {
+    var v = String(value || '').trim();
+    if (!v || v.length > 254 || /\s/.test(v)) { return false; }
+    var at = v.indexOf('@');
+    if (at < 1 || at !== v.lastIndexOf('@')) { return false; }
+    var domain = v.slice(at + 1);
+    return domain.length > 2 && domain.indexOf('.') > 0 && domain.charAt(domain.length - 1) !== '.';
+  }
+
   // Reports on a batch of independent calls (cancel a whole season, retry a whole season). `results` is
   // one boolean per call. Returns null when every call went through — the refreshed list is feedback
   // enough — and a message when some did not, so that a partial failure cannot pass for a success: the
@@ -548,6 +560,7 @@
     focusRestoreTarget: focusRestoreTarget,
     buildConfirmDialog: buildConfirmDialog,
     bulkFailureMessage: bulkFailureMessage,
+    isEmailish: isEmailish,
     buildStatusBadge: buildStatusBadge,
     formatBytesDecimal: formatBytesDecimal,
     downloadBadgeLabel: downloadBadgeLabel,
