@@ -235,3 +235,61 @@ test('focusRestoreTarget refuses an element that can no longer take focus', () =
   assert.strictEqual(lib.focusRestoreTarget(null, doc), null);
   assert.strictEqual(lib.focusRestoreTarget({}, doc), null);
 });
+
+// ---------- confirmation dialog ----------
+
+const CONFIRM = {
+  title: 'Delete media',
+  message: 'Delete "Inception" from disk? This is permanent.',
+  confirmLabel: 'Delete',
+  cancelLabel: 'Cancel',
+  danger: true
+};
+
+test('buildConfirmDialog announces itself as a modal dialog', () => {
+  const doc = setup('');
+  const d = lib.buildConfirmDialog(doc, CONFIRM);
+
+  assert.strictEqual(d.root.getAttribute('role'), 'dialog');
+  assert.strictEqual(d.root.getAttribute('aria-modal'), 'true');
+  assert.strictEqual(d.root.getAttribute('aria-label'), 'Delete media');
+  assert.strictEqual(d.title.textContent, 'Delete media');
+  assert.strictEqual(d.message.textContent, CONFIRM.message);
+  assert.strictEqual(d.confirm.textContent, 'Delete');
+  assert.strictEqual(d.cancel.textContent, 'Cancel');
+});
+
+test('buildConfirmDialog puts cancel first so a hurried Enter does not delete', () => {
+  const doc = setup('');
+  const d = lib.buildConfirmDialog(doc, CONFIRM);
+  doc.body.appendChild(d.root);
+
+  const order = lib.focusablesIn(d.root, VISIBLE);
+  assert.deepStrictEqual(order.map(el => el.className),
+    ['jellycrowd-confirm-cancel', 'jellycrowd-confirm-ok jellycrowd-confirm-danger']);
+  assert.strictEqual(lib.focusFirst(d.root, VISIBLE), d.cancel);
+});
+
+test('buildConfirmDialog marks the confirm button as dangerous only when asked', () => {
+  const doc = setup('');
+  assert.ok(lib.buildConfirmDialog(doc, CONFIRM).confirm.className.includes('jellycrowd-confirm-danger'));
+
+  const tame = lib.buildConfirmDialog(doc, { title: 'Import', message: 'Import history?', confirmLabel: 'Import' });
+  assert.ok(!tame.confirm.className.includes('jellycrowd-confirm-danger'));
+});
+
+test('buildConfirmDialog writes text as text, never as markup', () => {
+  const doc = setup('');
+  const d = lib.buildConfirmDialog(doc, { title: 'x', message: '<img src=x onerror=alert(1)>', confirmLabel: 'ok' });
+
+  assert.strictEqual(d.message.querySelector('img'), null);
+  assert.strictEqual(d.message.textContent, '<img src=x onerror=alert(1)>');
+});
+
+test('the admin panel asks with its own dialog, not a browser one', () => {
+  const fs = require('node:fs');
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'Jellyfin.Plugin.JellyCrowd', 'Web', 'admin.js'), 'utf8')
+    .replace(/^\s*\/\/.*$/gm, '');   // drop comments; the ban is on calls, not on mentions
+  assert.deepStrictEqual(src.match(/\bwindow\.(confirm|alert|prompt)\s*\(/g) || [], []);
+});

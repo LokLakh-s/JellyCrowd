@@ -423,6 +423,54 @@
     return saved;
   }
 
+  // Builds a confirmation dialog and returns its parts. Pure DOM construction: showing it, resolving a
+  // choice and handling keys are the caller's job (see confirmAction in admin.js).
+  // `opts`: { title, message, confirmLabel, cancelLabel, danger }.
+  // Cancel comes first in the DOM on purpose — it is what focusFirst lands on, so the safe answer is
+  // the one a hurried Enter picks, which matters when the confirm button deletes files.
+  function buildConfirmDialog(doc, opts) {
+    var o = opts || {};
+    var root = doc.createElement('div');
+    root.className = 'jellycrowd-modal-overlay jellycrowd-confirm-overlay';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    // Labelling by text rather than aria-labelledby avoids minting ids that could collide with the page.
+    root.setAttribute('aria-label', o.title || '');
+
+    var card = doc.createElement('div');
+    card.className = 'jellycrowd-modal jellycrowd-confirm';
+
+    var titleEl = doc.createElement('h2');
+    titleEl.className = 'jellycrowd-confirm-title';
+    titleEl.textContent = o.title || '';
+
+    var messageEl = doc.createElement('p');
+    messageEl.className = 'jellycrowd-confirm-message';
+    messageEl.textContent = o.message || '';
+
+    var actions = doc.createElement('div');
+    actions.className = 'jellycrowd-confirm-actions';
+
+    var cancel = doc.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'jellycrowd-confirm-cancel';
+    cancel.textContent = o.cancelLabel || '';
+
+    var confirm = doc.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'jellycrowd-confirm-ok' + (o.danger ? ' jellycrowd-confirm-danger' : '');
+    confirm.textContent = o.confirmLabel || '';
+
+    actions.appendChild(cancel);
+    actions.appendChild(confirm);
+    card.appendChild(titleEl);
+    card.appendChild(messageEl);
+    card.appendChild(actions);
+    root.appendChild(card);
+
+    return { root: root, card: card, title: titleEl, message: messageEl, cancel: cancel, confirm: confirm };
+  }
+
   // Build the primary status badge <span> for a "My requests" row. A pending deletion overrides the
   // status; a quota-held request gets a hover hint. `t` is the i18n lookup; `doc` is the document to
   // create in (pass `document` in the browser; tests pass a jsdom document).
@@ -483,6 +531,7 @@
     handleTrapKeydown: handleTrapKeydown,
     focusFirst: focusFirst,
     focusRestoreTarget: focusRestoreTarget,
+    buildConfirmDialog: buildConfirmDialog,
     buildStatusBadge: buildStatusBadge,
     formatBytesDecimal: formatBytesDecimal,
     downloadBadgeLabel: downloadBadgeLabel,

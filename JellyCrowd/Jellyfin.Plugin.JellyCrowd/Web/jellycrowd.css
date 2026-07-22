@@ -1932,3 +1932,53 @@ body.jellycrowd-overlay-open {
     scroll-behavior: auto !important;
   }
 }
+
+/* Confirmation dialog — replaces window.confirm() for destructive actions, so the question looks like
+   the app asking rather than the browser, and can be phrased in the user's language. */
+.jellycrowd-confirm {
+  max-width: 30em;
+  padding: 1.4em 1.5em 1.2em;
+}
+
+.jellycrowd-confirm-title {
+  margin: 0 0 0.5em;
+  font-size: 1.15em;
+  font-weight: 600;
+}
+
+.jellycrowd-confirm-message {
+  margin: 0 0 1.3em;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.jellycrowd-confirm-actions {
+  display: flex;
+  gap: 0.6em;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.jellycrowd-confirm-actions button {
+  padding: 0.55em 1.1em;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  border-radius: 0.3em;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.jellycrowd-confirm-actions button:hover {
+  border-color: rgba(127, 127, 127, 0.8);
+}
+
+.jellycrowd-confirm-ok {
+  border-color: transparent;
+  background: #00a4dc;
+  color: #fff;
+}
+
+.jellycrowd-confirm-danger {
+  background: #d64541;
+}

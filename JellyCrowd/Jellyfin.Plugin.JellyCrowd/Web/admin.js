@@ -88,6 +88,45 @@
     if (text) { el.textContent = text; el.hidden = false; } else { el.hidden = true; }
   }
 
+  // Asks the question in our own dialog rather than window.confirm(), which cannot be styled, cannot be
+  // translated, and on mobile arrives as a system alert detached from what the admin was doing.
+  // Resolves true only when the confirm button is used: Escape, the cancel button and a click outside
+  // all mean no. Focus moves into the dialog, stays trapped there and returns to the trigger on close.
+  function confirmAction(opts) {
+    return new Promise(function (resolve) {
+      var d = lib.buildConfirmDialog(document, {
+        title: opts.title,
+        message: opts.message,
+        confirmLabel: opts.confirmLabel,
+        cancelLabel: t('cancel'),
+        danger: opts.danger === true
+      });
+      var opener = document.activeElement;
+
+      function close(result) {
+        document.removeEventListener('keydown', onKey, true);
+        if (d.root.parentNode) { d.root.parentNode.removeChild(d.root); }
+        var back = lib.focusRestoreTarget(opener, document);
+        if (back) { back.focus(); }
+        resolve(result);
+      }
+
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); close(false); return; }
+        if (e.key === 'Tab') { lib.handleTrapKeydown(e, d.root); }
+      }
+
+      d.cancel.addEventListener('click', function () { close(false); });
+      d.confirm.addEventListener('click', function () { close(true); });
+      d.root.addEventListener('click', function (e) { if (e.target === d.root) { close(false); } });
+      // Capture phase: the overlay's own Escape handler would otherwise close the whole panel behind us.
+      document.addEventListener('keydown', onKey, true);
+
+      document.body.appendChild(d.root);
+      lib.focusFirst(d.root);
+    });
+  }
+
   // The admin tabs, ordered by how often an admin uses them (most-used first). Some tabs group related
   // views under sub-tabs (see subTabs): Moderation = Reports + Reviews; Users = Per-user + Ownership.
   // `render(container)` fills the content area for that tab.
@@ -549,9 +588,16 @@
         var name = document.createElement('span'); name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
         name.textContent = (m.MediaType === 'tv' ? '📺 ' : '🎬 ') + label + ' — ' + fmtBytes(m.SizeBytes) + ' · ' + m.OwnerCount + ' ' + t('ownership_owners');
         var del = adminBtn(t('comment_delete'), '', function (btn) {
-          if (!window.confirm(t('adm_confirm_delete_disk').replace('{title}', label))) { return; }
-          btn.disabled = true;
-          apiPostNoResult('JellyCrowd/Maintenance/Media/' + m.JellyfinItemId + '/Delete').then(function () { row.remove(); }).catch(function () { btn.disabled = false; });
+          confirmAction({
+            title: t('admin_delete_media'),
+            message: t('adm_confirm_delete_disk').replace('{title}', label),
+            confirmLabel: t('comment_delete'),
+            danger: true
+          }).then(function (ok) {
+            if (!ok) { return; }
+            btn.disabled = true;
+            apiPostNoResult('JellyCrowd/Maintenance/Media/' + m.JellyfinItemId + '/Delete').then(function () { row.remove(); }).catch(function () { btn.disabled = false; });
+          });
         });
         row.appendChild(name); row.appendChild(del); box.appendChild(row);
       });
@@ -950,7 +996,12 @@
     // retention task); "Remove request" only drops the plugin's request record and keeps the files.
     if (isAvailable && !request.DeletionRequestedAt) {
       tdA.appendChild(adminBtn(t('admin_delete_media'), 'danger', function () {
-        if (window.confirm(t('confirm_delete_media'))) { adminDeleteMedia(request.Id); }
+        confirmAction({
+          title: t('admin_delete_media'),
+          message: t('confirm_delete_media'),
+          confirmLabel: t('comment_delete'),
+          danger: true
+        }).then(function (ok) { if (ok) { adminDeleteMedia(request.Id); } });
       }));
     } else if (request.DeletionRequestedAt) {
       var pend = document.createElement('span');
@@ -1188,7 +1239,17 @@
       var wrap = document.createElement('div');
       wrap.className = 'jellycrowd-stats-import';
       var btn = adminBtn(t('stats_import_pr'), '', function () {
-        if (!window.confirm(t('stats_import_confirm'))) { return; }
+        confirmAction({
+          title: t('stats_import_pr'),
+          message: t('stats_import_confirm'),
+          confirmLabel: t('stats_import_pr')
+        }).then(function (ok) {
+          if (!ok) { return; }
+          runImport();
+        });
+      });
+
+      function runImport() {
         btn.disabled = true;
         setMessage(t('stats_importing'));
         apiPostResult('JellyCrowd/Stats/ImportPlaybackReporting').then(function (r) {
@@ -1198,7 +1259,8 @@
           setMessage(t('stats_import_done').replace('{n}', r.Imported || 0));
           load();
         }).catch(function (e) { btn.disabled = false; setMessage(t(lib.errorKey(e && e.status))); });
-      });
+      }
+
       var hint = document.createElement('div');
       hint.className = 'jellycrowd-field-hint';
       hint.textContent = t('stats_import_hint');
