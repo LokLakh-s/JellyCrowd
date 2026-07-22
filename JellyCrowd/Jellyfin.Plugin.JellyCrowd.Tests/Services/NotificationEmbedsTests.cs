@@ -11,6 +11,8 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 /// </summary>
 public class NotificationEmbedsTests
 {
+  private static readonly System.Func<string, string> En = ServerStrings.For("en");
+
   private static readonly DateTime Stamp = new(2026, 6, 13, 10, 0, 0, DateTimeKind.Utc);
 
   private static DiscordEmbedOptions Opts(NotificationEvent ev) => new() { Color = NotificationEmbeds.DefaultColorFor(ev) };
@@ -25,7 +27,7 @@ public class NotificationEmbedsTests
     var request = new RequestRecord { MediaType = "movie", TmdbId = 438631, Title = "Dune", PosterPath = "/poster.jpg" };
 
     var embed = FirstEmbed(NotificationEmbeds.BuildRequest(
-      request, NotificationEvent.Created, "New request: Dune", "fallback body", "A synopsis.", "/poster.jpg", "alice", Stamp, Opts(NotificationEvent.Created)));
+      request, NotificationEvent.Created, "New request: Dune", "fallback body", "A synopsis.", "/poster.jpg", "alice", Stamp, Opts(NotificationEvent.Created), En));
 
     Assert.Equal("New request: Dune", embed.GetProperty("title").GetString());
     Assert.Equal("A synopsis.", embed.GetProperty("description").GetString());
@@ -43,7 +45,7 @@ public class NotificationEmbedsTests
     var request = new RequestRecord { MediaType = "movie", TmdbId = 1, Title = "X" };
 
     var embed = FirstEmbed(NotificationEmbeds.BuildRequest(
-      request, NotificationEvent.Created, "s", "fallback body", null, null, "bob", Stamp, Opts(NotificationEvent.Created)));
+      request, NotificationEvent.Created, "s", "fallback body", null, null, "bob", Stamp, Opts(NotificationEvent.Created), En));
 
     Assert.Equal("fallback body", embed.GetProperty("description").GetString());
     Assert.False(embed.TryGetProperty("thumbnail", out _));
@@ -55,7 +57,7 @@ public class NotificationEmbedsTests
     var request = new RequestRecord { MediaType = "movie", TmdbId = 1, Title = "X" };
 
     var fields = FirstEmbed(NotificationEmbeds.BuildRequest(
-      request, NotificationEvent.Approved, "s", "b", null, null, "alice", Stamp, Opts(NotificationEvent.Approved))).GetProperty("fields");
+      request, NotificationEvent.Approved, "s", "b", null, null, "alice", Stamp, Opts(NotificationEvent.Approved), En)).GetProperty("fields");
 
     Assert.Equal(2, fields.GetArrayLength());
     Assert.Equal("Requested by", fields[0].GetProperty("name").GetString());
@@ -71,7 +73,7 @@ public class NotificationEmbedsTests
     var request = new RequestRecord { MediaType = "tv", TmdbId = 1, Title = "Severance", Season = 2 };
 
     var fields = FirstEmbed(NotificationEmbeds.BuildRequest(
-      request, NotificationEvent.Available, "s", "b", null, null, "carol", Stamp, Opts(NotificationEvent.Available))).GetProperty("fields");
+      request, NotificationEvent.Available, "s", "b", null, null, "carol", Stamp, Opts(NotificationEvent.Available), En)).GetProperty("fields");
 
     Assert.Equal(3, fields.GetArrayLength());
     Assert.Equal("Season", fields[2].GetProperty("name").GetString());
@@ -79,15 +81,18 @@ public class NotificationEmbedsTests
   }
 
   [Theory]
-  [InlineData(NotificationEvent.Created, 0x3B82F6, "Pending")]
+  [InlineData(NotificationEvent.Created, 0x3B82F6, "Pending approval")]
   [InlineData(NotificationEvent.Approved, 0x6366F1, "Approved")]
   [InlineData(NotificationEvent.Available, 0x10B981, "Available")]
   [InlineData(NotificationEvent.Denied, 0xEF4444, "Denied")]
+  // The status wording now comes from the shared catalog, so an embed and an e-mail about the same
+  // request say the same thing ("Pending approval", not "Pending" on one and "Pending approval" on
+  // the other).
   public void DefaultColorFor_MapsEventToColorAndStatus(NotificationEvent ev, int color, string status)
   {
     var request = new RequestRecord { MediaType = "movie", TmdbId = 1, Title = "X" };
 
-    var embed = FirstEmbed(NotificationEmbeds.BuildRequest(request, ev, "s", "b", null, null, "u", Stamp, Opts(ev)));
+    var embed = FirstEmbed(NotificationEmbeds.BuildRequest(request, ev, "s", "b", null, null, "u", Stamp, Opts(ev), En));
 
     Assert.Equal(color, embed.GetProperty("color").GetInt32());
     Assert.Equal(status, embed.GetProperty("fields")[1].GetProperty("value").GetString());
@@ -99,7 +104,7 @@ public class NotificationEmbedsTests
     var request = new RequestRecord { MediaType = "movie", TmdbId = 1, Title = "X" };
 
     var embed = FirstEmbed(NotificationEmbeds.BuildRequest(
-      request, NotificationEvent.Created, "s", "b", null, null, "u", Stamp, new DiscordEmbedOptions { Color = 0xABCDEF }));
+      request, NotificationEvent.Created, "s", "b", null, null, "u", Stamp, new DiscordEmbedOptions { Color = 0xABCDEF }, En));
 
     Assert.Equal(0xABCDEF, embed.GetProperty("color").GetInt32());
   }
@@ -120,7 +125,7 @@ public class NotificationEmbedsTests
     };
 
     var embed = FirstEmbed(NotificationEmbeds.BuildRequest(
-      request, NotificationEvent.Created, "s", "fallback", "a synopsis", "/p.jpg", "u", Stamp, options));
+      request, NotificationEvent.Created, "s", "fallback", "a synopsis", "/p.jpg", "u", Stamp, options, En));
 
     Assert.Equal(0, embed.GetProperty("fields").GetArrayLength());
     Assert.False(embed.TryGetProperty("url", out _));
@@ -134,7 +139,7 @@ public class NotificationEmbedsTests
     var request = new RequestRecord { MediaType = "movie", TmdbId = 1, Title = "X" };
 
     var payload = Root(NotificationEmbeds.BuildRequest(
-      request, NotificationEvent.Created, "s", "b", null, null, "u", Stamp, new DiscordEmbedOptions { Color = 0, Mention = "<@&123>" }));
+      request, NotificationEvent.Created, "s", "b", null, null, "u", Stamp, new DiscordEmbedOptions { Color = 0, Mention = "<@&123>" }, En));
 
     Assert.Equal("<@&123>", payload.GetProperty("content").GetString());
   }
