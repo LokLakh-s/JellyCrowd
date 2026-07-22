@@ -1920,3 +1920,15 @@ body.jellycrowd-overlay-open {
     padding: 0.45em;
   }
 }
+
+/* Respect the OS "reduce motion" setting: our transitions are decorative, so drop them entirely
+   rather than shortening them. */
+@media (prefers-reduced-motion: reduce) {
+  .jellycrowd-overlay *,
+  .jellycrowd-overlay *::before,
+  .jellycrowd-overlay *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}

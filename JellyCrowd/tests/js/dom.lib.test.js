@@ -194,3 +194,44 @@ test('downloadBadgeLabel appends the release date for an unreleased title', () =
 test('downloadBadgeLabel falls back to the raw state for unknown states', () => {
   assert.strictEqual(lib.downloadBadgeLabel({ State: 'weird' }, T), 'weird');
 });
+
+// ---------- focus handling when a dialog opens and closes ----------
+
+test('focusFirst moves focus to the first focusable element of the dialog', () => {
+  const doc = setup('<button id="outside">out</button>'
+    + '<div id="dlg"><span>text</span><button id="a">a</button><button id="b">b</button></div>');
+  doc.getElementById('outside').focus();
+
+  const taken = lib.focusFirst(doc.getElementById('dlg'), VISIBLE);
+
+  assert.strictEqual(taken.id, 'a');
+  assert.strictEqual(doc.activeElement.id, 'a');
+});
+
+test('focusFirst leaves focus alone when the dialog has nothing focusable', () => {
+  const doc = setup('<button id="outside">out</button><div id="dlg"><span>just text</span></div>');
+  doc.getElementById('outside').focus();
+
+  assert.strictEqual(lib.focusFirst(doc.getElementById('dlg'), VISIBLE), null);
+  assert.strictEqual(doc.activeElement.id, 'outside');
+});
+
+test('focusRestoreTarget returns the opener so closing hands focus back', () => {
+  const doc = setup('<button id="opener">open</button>');
+  const opener = doc.getElementById('opener');
+
+  assert.strictEqual(lib.focusRestoreTarget(opener, doc), opener);
+});
+
+test('focusRestoreTarget refuses an element that can no longer take focus', () => {
+  const doc = setup('<button id="opener">open</button><button id="gone">x</button>');
+  const detached = doc.getElementById('gone');
+  detached.remove();                                    // re-rendered away while the dialog was open
+  const disabled = doc.getElementById('opener');
+  disabled.disabled = true;
+
+  assert.strictEqual(lib.focusRestoreTarget(detached, doc), null);
+  assert.strictEqual(lib.focusRestoreTarget(disabled, doc), null);
+  assert.strictEqual(lib.focusRestoreTarget(null, doc), null);
+  assert.strictEqual(lib.focusRestoreTarget({}, doc), null);
+});

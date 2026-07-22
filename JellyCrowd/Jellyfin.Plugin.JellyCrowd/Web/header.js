@@ -28,6 +28,7 @@
 
   var overlay = null;
   var viewHost = null;
+  var focusBeforeOverlay = null;   // element focused when the overlay opened, restored on close
   // Per-view refresh callbacks, registered by the hosted pages (see window.jellyCrowdRegisterRefresh).
   // Called every time an already-loaded view is shown again, so e.g. "My requests" picks up a
   // request just made from the catalog without a full page reload.
@@ -50,7 +51,14 @@
   function setActiveNav(id) {
     activeNavId = id;
     Object.keys(headerNavButtons).forEach(function (key) {
-      headerNavButtons[key].style.color = (key === id) ? NAV_WHITE : NAV_GREY;
+      var active = key === id;
+      headerNavButtons[key].style.color = active ? NAV_WHITE : NAV_GREY;
+      // Colour alone does not tell a screen reader which section is open.
+      if (active) {
+        headerNavButtons[key].setAttribute('aria-current', 'page');
+      } else {
+        headerNavButtons[key].removeAttribute('aria-current');
+      }
     });
   }
 
@@ -234,10 +242,30 @@
 
     document.body.appendChild(overlay);
 
+    // The focus helpers live in catalog.lib.js, which the base page does not load on its own. Pull it in
+    // as the overlay is built so the trap is armed well before anyone reaches for Tab.
+    if (!window.JellyCrowdLib) {
+      var libEl = document.createElement('script');
+      libEl.src = getUrl('JellyCrowd/Web/catalog.lib.js');
+      document.head.appendChild(libEl);
+    }
+
     window.addEventListener('resize', positionOverlay);
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && overlay.style.display !== 'none') {
+      if (overlay.style.display === 'none') {
+        return;
+      }
+
+      if (e.key === 'Escape') {
         hideOverlay();
+        return;
+      }
+
+      // Keep Tab inside the dialog. aria-modal alone tells assistive tech the rest of the page is inert;
+      // it does not stop the browser tabbing into it, so a keyboard user would walk out of the overlay
+      // into a page they cannot see.
+      if (e.key === 'Tab' && window.JellyCrowdLib) {
+        window.JellyCrowdLib.handleTrapKeydown(e, overlay);
       }
     });
   }
@@ -251,8 +279,11 @@
     }
 
     // On a fresh open (overlay was closed), send the background page to Home so closing returns there.
-    if (overlay.style.display === 'none') {
+    var freshOpen = overlay.style.display === 'none';
+    if (freshOpen) {
       sendBackgroundHome();
+      // Remember where focus was so closing puts it back on the control that opened us.
+      focusBeforeOverlay = document.activeElement;
     }
 
     overlay.style.display = '';
@@ -268,6 +299,11 @@
         v.container.style.display = (v.id === id) ? '' : 'none';
       }
     });
+
+    // Move focus into the dialog on a fresh open, once it is displayed and has layout.
+    if (freshOpen && window.JellyCrowdLib) {
+      window.JellyCrowdLib.focusFirst(overlay);
+    }
 
     if (view.container) {
       // Already loaded; just shown above. Let the page refresh its data if it registered a handler.
@@ -297,6 +333,16 @@
     }
     document.body.classList.remove('jellycrowd-overlay-open');
     setActiveNav(null);
+
+    // Hand focus back where it came from. Without this it falls to <body> and the next Tab restarts
+    // from the top of the page.
+    var target = window.JellyCrowdLib
+      ? window.JellyCrowdLib.focusRestoreTarget(focusBeforeOverlay, document)
+      : null;
+    focusBeforeOverlay = null;
+    if (target) {
+      target.focus();
+    }
   }
 
   // Clicking the already-active header link again closes the panel (so the native header alone remains).
@@ -1428,6 +1474,11 @@
     var style = document.createElement('style');
     style.id = 'jcHeaderStyle';
     style.textContent =
+      // Our nav buttons drop the native outline to sit flush with Jellyfin's tabs; give keyboard users
+      // the indicator back on :focus-visible (mouse clicks stay clean).
+      '.jcHeaderTab:focus-visible,.jellycrowd-overlay button:focus-visible{outline:2px solid #00a4dc;outline-offset:2px;border-radius:2px;}' +
+      // Respect the OS "reduce motion" setting: no transitions or animations anywhere we own.
+      '@media (prefers-reduced-motion: reduce){.jellycrowd-overlay,.jellycrowd-overlay *,.jcHeaderTab{transition:none !important;animation:none !important;scroll-behavior:auto !important;}}' +
       '.headerTabs .emby-tab-button{display:none !important;}' +
       // Some library types (Other/Books) hide the empty tab row — keep it shown when it hosts our nav.
       '.headerTabs:has(.jcHeaderNav){display:flex !important;justify-content:center;}' +
