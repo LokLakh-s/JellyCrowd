@@ -2077,3 +2077,51 @@ body.jellycrowd-overlay-open {
 .jellycrowd-message-error {
   color: #ff8d85;
 }
+
+/* Loading placeholders — same shape as the content they stand in for, so the layout does not jump when
+   it arrives. */
+.jellycrowd-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.jellycrowd-skel-poster,
+.jellycrowd-skel-line,
+.jellycrowd-skel-row {
+  border-radius: 0.25em;
+  background: linear-gradient(100deg, rgba(127, 127, 127, 0.13) 30%, rgba(127, 127, 127, 0.24) 50%, rgba(127, 127, 127, 0.13) 70%);
+  background-size: 220% 100%;
+  animation: jellycrowd-skel-shimmer 1.4s ease-in-out infinite;
+}
+
+.jellycrowd-skel-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+}
+
+.jellycrowd-skel-line {
+  height: 0.8em;
+}
+
+.jellycrowd-skel-line-short {
+  width: 55%;
+}
+
+.jellycrowd-skel-row {
+  height: 3.4em;
+}
+
+@keyframes jellycrowd-skel-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -20% 0; }
+}
+
+/* A shimmer is decoration; hold it still when the OS asks for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .jellycrowd-skel-poster,
+  .jellycrowd-skel-line,
+  .jellycrowd-skel-row {
+    animation: none;
+  }
+}

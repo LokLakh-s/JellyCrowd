@@ -1409,7 +1409,14 @@
 
   function appendGridBlock(page) {
     var grid = document.getElementById('jcGridMain');
+    // First page only: show the shape of what is loading. Later pages append below what is already
+    // on screen, where a placeholder would just be noise.
+    if (grid && grid.childElementCount === 0) {
+      grid.appendChild(lib.buildSkeletons(document, 'card', 12));
+    }
+
     return apiGet(pagePath(page)).then(function (items) {
+      lib.clearSkeletons(grid);
       if (!items || items.length === 0) {
         feedExhausted = true;
         if (grid && grid.childElementCount === 0 && !feedEl().querySelector('.jellycrowd-row')) {
@@ -1420,6 +1427,7 @@
       setMessage('');
       items.forEach(function (item) { grid.appendChild(renderCard(item)); });
     }).catch(function (e) {
+      lib.clearSkeletons(grid);
       feedExhausted = true;
       if (page === 1) { showError(e); }
     });

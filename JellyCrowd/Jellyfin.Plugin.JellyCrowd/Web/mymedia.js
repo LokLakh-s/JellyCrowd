@@ -461,14 +461,20 @@
 
     apiGet('JellyCrowd/Quota/MyMedia')
       .then(render)
-      .catch(function () { setMessage(t('error_generic')); });
+      .catch(function () {
+        // Clear the placeholders too, or the page keeps pretending something is on its way.
+        lib.clearSkeletons(document.getElementById('jcMediaList'));
+        setMessage(t('error_generic'));
+      });
   }
 
   function init() {
     loadConfigLang().then(loadStrings).then(function () {
       document.getElementById('jcMediaLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcMediaTitle').textContent = t('my_media_title');
-      setMessage(t('loading'));
+      // Placeholder rows rather than the word "loading": the list lands in the shape already on screen.
+      var list = document.getElementById('jcMediaList');
+      if (list) { list.appendChild(lib.buildSkeletons(document, 'row', 5)); }
       reloadMedia();
     });
   }
