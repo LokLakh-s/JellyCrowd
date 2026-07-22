@@ -293,3 +293,20 @@ test('the admin panel asks with its own dialog, not a browser one', () => {
     .replace(/^\s*\/\/.*$/gm, '');   // drop comments; the ban is on calls, not on mentions
   assert.deepStrictEqual(src.match(/\bwindow\.(confirm|alert|prompt)\s*\(/g) || [], []);
 });
+
+// ---------- bulk actions ----------
+
+test('bulkFailureMessage stays quiet when every call went through', () => {
+  assert.strictEqual(lib.bulkFailureMessage([true, true, true], T), null);
+  assert.strictEqual(lib.bulkFailureMessage([], T), null);
+});
+
+test('bulkFailureMessage names how many of how many failed', () => {
+  const msg = lib.bulkFailureMessage([true, false, false, true, true], k => '{failed}/{total} ' + k);
+
+  assert.strictEqual(msg, '2/5 bulk_failed');
+});
+
+test('bulkFailureMessage treats a whole-batch failure as a failure, not a success', () => {
+  assert.strictEqual(lib.bulkFailureMessage([false, false], k => '{failed}/{total} ' + k), '2/2 bulk_failed');
+});

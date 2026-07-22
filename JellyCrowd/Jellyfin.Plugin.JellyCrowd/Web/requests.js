@@ -104,6 +104,23 @@
     }
   }
 
+  // Runs the same action over every request of a season (cancel all, retry all). Each call is
+  // independent and allowed to fail on its own; what must not happen is failing quietly, because the
+  // list then refreshes with the untouched rows still in it and nothing said why.
+  function runBulk(requests, action) {
+    setMessage('');
+    return Promise.all(requests.map(function (r) {
+      return apiPost('JellyCrowd/Requests/' + r.Id + '/' + action).then(
+        function () { return true; },
+        function () { return false; });
+    })).then(function (results) {
+      var problem = lib.bulkFailureMessage(results, t);
+      if (problem) { setMessage(problem); }
+      lastSignature = '';
+      tick();
+    });
+  }
+
   function renderRow(request) {
     var row = document.createElement('div');
     row.className = 'jellycrowd-request-row';
@@ -479,8 +496,7 @@
       cancel.textContent = t('cancel');
       cancel.addEventListener('click', function () {
         cancel.disabled = true;
-        Promise.all(cancellable.map(function (r) { return apiPost('JellyCrowd/Requests/' + r.Id + '/Cancel').catch(function () {}); }))
-          .then(function () { lastSignature = ''; tick(); });
+        runBulk(cancellable, 'Cancel');
       });
       row.appendChild(cancel);
     }
@@ -494,8 +510,7 @@
       retry.textContent = t('retry_search');
       retry.addEventListener('click', function () {
         retry.disabled = true;
-        Promise.all(retriable.map(function (r) { return apiPost('JellyCrowd/Requests/' + r.Id + '/Retry').catch(function () {}); }))
-          .then(function () { lastSignature = ''; tick(); });
+        runBulk(retriable, 'Retry');
       });
       row.appendChild(retry);
     }
