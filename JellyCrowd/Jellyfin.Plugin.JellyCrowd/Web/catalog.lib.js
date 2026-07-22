@@ -403,6 +403,26 @@
     return false;
   }
 
+  // Move focus into a dialog when it opens. Without this, a keyboard user who opens the overlay is
+  // still focused on the page behind it and has to tab through the whole document to reach it.
+  // Returns the element that took focus, or null when there is nothing focusable.
+  function focusFirst(container, opts) {
+    var f = focusablesIn(container, opts);
+    if (!f.length) { return null; }
+    f[0].focus();
+    return f[0];
+  }
+
+  // The element to hand focus back to when a dialog closes: the one that had it when the dialog opened,
+  // provided it is still in the document and still focusable. Anything else returns null, so the caller
+  // leaves focus alone rather than throwing or focusing a detached node.
+  function focusRestoreTarget(saved, doc) {
+    if (!saved || typeof saved.focus !== 'function' || saved.disabled) { return null; }
+    var d = doc || saved.ownerDocument;
+    if (!d || typeof d.contains !== 'function' || !d.contains(saved)) { return null; }
+    return saved;
+  }
+
   // Build the primary status badge <span> for a "My requests" row. A pending deletion overrides the
   // status; a quota-held request gets a hover hint. `t` is the i18n lookup; `doc` is the document to
   // create in (pass `document` in the browser; tests pass a jsdom document).
@@ -461,6 +481,8 @@
   return {
     focusablesIn: focusablesIn,
     handleTrapKeydown: handleTrapKeydown,
+    focusFirst: focusFirst,
+    focusRestoreTarget: focusRestoreTarget,
     buildStatusBadge: buildStatusBadge,
     formatBytesDecimal: formatBytesDecimal,
     downloadBadgeLabel: downloadBadgeLabel,
