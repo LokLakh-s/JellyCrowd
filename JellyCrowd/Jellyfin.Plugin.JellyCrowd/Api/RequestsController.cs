@@ -183,12 +183,13 @@ public class RequestsController : ControllerBase
     // (not the normal "awaiting admin approval" case), so they understand why it is not progressing.
     if (heldForQuota)
     {
+      var heldStrings = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
       _ = _notificationService.NotifyPersonalAsync(
         userId,
         PersonalNotifyKind.QuotaExpiry,
         created.Title,
-        "Request held — storage quota reached",
-        $"Your request \"{created.Title}\" is on hold because you have reached your storage quota. Free space (let some media expire, or request its deletion) and it will resume, or an admin can review it.",
+        heldStrings("notif_quota_held_subject"),
+        heldStrings("notif_quota_held_request_body").Replace("{title}", created.Title, StringComparison.Ordinal),
         created.PosterPath,
         CancellationToken.None);
     }

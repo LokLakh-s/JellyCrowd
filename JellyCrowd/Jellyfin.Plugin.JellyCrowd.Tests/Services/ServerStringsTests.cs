@@ -75,7 +75,18 @@ public class ServerStringsTests
       "notif_test_subject", "notif_test_body", "notif_test_personal",
       "notif_status_pending", "notif_status_approved", "notif_status_available", "notif_status_denied",
       "notif_status_attention", "notif_field_requested_by", "notif_field_status", "notif_field_season",
-      "notif_kind_show_label", "notif_kind_movie_label", "notif_view_on_tmdb", "notif_email_footer"
+      "notif_kind_show_label", "notif_kind_movie_label", "notif_view_on_tmdb", "notif_email_footer",
+
+      // Notifications produced outside the request lifecycle (reports, quota holds, expiry, adaptive
+      // quota). They reach the same people through the same channels, so they follow the same rule.
+      "notif_report_resolved_subject", "notif_report_resolved_body", "notif_report_resolved_body_note",
+      "notif_quota_held_subject", "notif_quota_held_available_body", "notif_quota_held_request_body",
+      "notif_notfound_subject", "notif_notfound_body", "notif_expired_subject", "notif_expired_body",
+      "notif_adaptive_title",
+      "notif_adaptive_promoted_subject", "notif_adaptive_promoted_body",
+      "notif_adaptive_probation_subject", "notif_adaptive_probation_body",
+      "notif_adaptive_restored_subject", "notif_adaptive_restored_body",
+      "notif_adaptive_standard_subject", "notif_adaptive_standard_body"
     };
 
     var en = ServerStrings.For("en");
