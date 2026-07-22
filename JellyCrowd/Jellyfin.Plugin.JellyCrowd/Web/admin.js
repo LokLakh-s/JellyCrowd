@@ -230,16 +230,16 @@
   function renderCfgGeneral(container) {
     cfgLoad(container, function (host, cfg) {
       var form = cfgForm(host, cfg, [
-        { key: 'Language', label: 'Language', type: 'select', options: [['auto', "Auto (follow each user's language)"], ['en', 'English'], ['fr', 'Français']], hint: 'Language of the Jelly Crowd user pages and notifications.' },
-        { key: 'HiddenFromUsers', label: 'Config mode — hide the plugin from regular users', type: 'check', hint: 'Hide Jelly Crowd from non-admins until it is configured and working. Admins are unaffected.' },
-        { key: 'RateLimitPerMinute', label: 'API rate limit (writes / minute / user)', type: 'num', hint: '0 disables it.' },
-        { key: 'RateLimitGetPerMinute', label: 'API rate limit (reads / minute / user)', type: 'num', hint: 'Generous cap so a scripted loop cannot hammer the TMDB-backed catalog. 0 disables it.' },
-        { key: 'CommentsEnabled', label: 'Enable ratings & reviews', type: 'check' },
-        { key: 'ShowReviewAuthors', label: 'Show review author names to everyone', type: 'check' },
-        { key: 'SkipOutroEnabled', label: 'Detect end credits (Skip Outro)', type: 'check' },
-        { key: 'SkipIntroEnabled', label: 'Detect episode intros (Skip Intro)', type: 'check' },
-        { key: 'SegmentHwAccel', label: 'Skip Outro — GPU acceleration', type: 'select', options: [['auto', 'Auto (GPU if available)'], ['none', 'CPU only'], ['vaapi', 'Intel / AMD (VAAPI)'], ['qsv', 'Intel QuickSync (QSV)'], ['cuda', 'NVIDIA (CUDA)'], ['videotoolbox', 'macOS (VideoToolbox)']], hint: 'Offloads the end-credits video decode to the GPU during the Media Segment Scan — the heavy part. Auto falls back to CPU when no GPU decoder is available. (The Skip Intro fingerprint is audio-only, so it is unaffected.)' },
-        { key: 'TmdbApiKey', label: 'TMDB API key', type: 'text', placeholder: 'your TMDB API key' }
+        { key: 'Language', label: t('filters_language'), type: 'select', options: [['auto', t('adm_opt_auto_language')], ['en', 'English'], ['fr', 'Français']], hint: t('cfg_language_hint') },
+        { key: 'HiddenFromUsers', label: t('cfg_hiddenfromusers'), type: 'check', hint: t('cfg_hiddenfromusers_hint') },
+        { key: 'RateLimitPerMinute', label: t('cfg_ratelimitperminute'), type: 'num', hint: t('cfg_ratelimitperminute_hint') },
+        { key: 'RateLimitGetPerMinute', label: t('cfg_ratelimitgetperminute'), type: 'num', hint: t('cfg_ratelimitgetperminute_hint') },
+        { key: 'CommentsEnabled', label: t('cfg_commentsenabled'), type: 'check' },
+        { key: 'ShowReviewAuthors', label: t('cfg_showreviewauthors'), type: 'check' },
+        { key: 'SkipOutroEnabled', label: t('cfg_skipoutroenabled'), type: 'check' },
+        { key: 'SkipIntroEnabled', label: t('cfg_skipintroenabled'), type: 'check' },
+        { key: 'SegmentHwAccel', label: t('cfg_segmenthwaccel'), type: 'select', options: [['auto', t('adm_opt_auto_gpu')], ['none', t('adm_opt_cpu_only')], ['vaapi', 'Intel / AMD (VAAPI)'], ['qsv', 'Intel QuickSync (QSV)'], ['cuda', 'NVIDIA (CUDA)'], ['videotoolbox', 'macOS (VideoToolbox)']], hint: t('cfg_segmenthwaccel_hint') },
+        { key: 'TmdbApiKey', label: t('cfg_tmdbapikey'), type: 'text', placeholder: t('adm_ph_tmdb_key') }
       ]);
       host.appendChild(cfgSaveButton([form]));
     });
@@ -248,43 +248,43 @@
   function renderCfgRequests(container) {
     cfgLoad(container, function (host, cfg) {
       var reqForm = cfgForm(host, cfg, [
-        { type: 'section', label: 'Requests' },
-        { key: 'RequireApproval', label: 'Require admin approval for requests', type: 'check' },
-        { key: 'AllowUserRetrySearch', label: 'Let users retry the search themselves', type: 'check' },
-        { key: 'MaxRequestsPerPeriod', label: 'Max requests per period', type: 'num', hint: '0 = unlimited.' },
-        { key: 'RequestPeriod', label: 'Request period', type: 'select', options: [['Day', 'Day'], ['Week', 'Week'], ['Month', 'Month']] },
-        { key: 'AutoApproveMaxSizeBytes', label: 'Auto-approve if estimated size ≤ (GiB)', type: 'num', scale: GIB, hint: '0 disables size-based auto-approval.' },
-        { key: 'EstimatedMovieSizeBytes', label: 'Estimated movie size (GiB)', type: 'num', scale: GIB },
-        { key: 'EstimatedEpisodeSizeBytes', label: 'Estimated episode size (GiB)', type: 'num', scale: GIB }
+        { type: 'section', label: t('tab_requests') },
+        { key: 'RequireApproval', label: t('cfg_requireapproval'), type: 'check' },
+        { key: 'AllowUserRetrySearch', label: t('cfg_allowuserretrysearch'), type: 'check' },
+        { key: 'MaxRequestsPerPeriod', label: t('cfg_maxrequestsperperiod'), type: 'num', hint: t('cfg_maxrequestsperperiod_hint') },
+        { key: 'RequestPeriod', label: t('cfg_requestperiod'), type: 'select', options: [['Day', t('calendar_view_day')], ['Week', t('calendar_view_week')], ['Month', t('calendar_view_month')]] },
+        { key: 'AutoApproveMaxSizeBytes', label: t('cfg_autoapprovemaxsizebytes'), type: 'num', scale: GIB, hint: t('cfg_autoapprovemaxsizebytes_hint') },
+        { key: 'EstimatedMovieSizeBytes', label: t('cfg_estimatedmoviesizebytes'), type: 'num', scale: GIB },
+        { key: 'EstimatedEpisodeSizeBytes', label: t('cfg_estimatedepisodesizebytes'), type: 'num', scale: GIB }
       ]);
       var genresInput = textInput('jc-c-AutoApproveGenres', (cfg.AutoApproveGenres || []).join(', '), 'Action, Comedy, Documentary…');
-      host.appendChild(field('Auto-approve genres (optional)', genresInput, 'Comma-separated TMDB genre names. When set, the size rule above only auto-approves a title with at least one of these genres. Empty = all genres. Trusted users always bypass.'));
+      host.appendChild(field(t('adm_auto_approve_genres_optional'), genresInput, t('adm_comma_separated_tmdb_genre_names_when_hint')));
       var genresForm = { apply: function (live) { live.AutoApproveGenres = genresInput.value.split(',').map(function (g) { return g.trim(); }).filter(Boolean); } };
       var quotaForm = cfgForm(host, cfg, [
-        { type: 'section', label: 'Quotas' },
-        { key: 'DefaultUserQuotaBytes', label: 'Default quota per user (GiB)', type: 'num', scale: GIB, hint: '0 = unlimited.' }
+        { type: 'section', label: t('cfgsec_quotas') },
+        { key: 'DefaultUserQuotaBytes', label: t('cfg_defaultuserquotabytes'), type: 'num', scale: GIB, hint: t('cfg_defaultuserquotabytes_hint') }
       ]);
       var adaptEnable = checkbox('jc-c-AdaptiveQuotaEnabled', cfg.AdaptiveQuotaEnabled === true);
-      host.appendChild(field('Adaptive quota (reward active users)', adaptEnable, 'Elevate active users above, and decay inactive users below, their base quota.'));
+      host.appendChild(field(t('adm_adaptive_quota_reward_active_users'), adaptEnable, t('adm_elevate_active_users_above_and_decay_hint')));
       var adaptWrap = document.createElement('div');
       var adapt = cfgForm(adaptWrap, cfg, [
-        { key: 'AdaptiveFloorPercent', label: 'Floor tier (% of base)', type: 'num' },
-        { key: 'AdaptiveCeilingPercent', label: 'Ceiling tier (% of base)', type: 'num' },
-        { key: 'AdaptiveWindowDays', label: 'Activity window (days)', type: 'num' },
-        { key: 'AdaptiveMinMinutes', label: 'Active: minimum watch minutes', type: 'num' },
-        { key: 'AdaptiveMinActiveDays', label: 'Active: minimum distinct days', type: 'num' },
-        { key: 'AdaptiveInactivityDays', label: 'Inactivity before decay (days)', type: 'num' },
-        { key: 'AdaptiveProbationDays', label: 'Probation length (days)', type: 'num' }
+        { key: 'AdaptiveFloorPercent', label: t('cfg_adaptivefloorpercent'), type: 'num' },
+        { key: 'AdaptiveCeilingPercent', label: t('cfg_adaptiveceilingpercent'), type: 'num' },
+        { key: 'AdaptiveWindowDays', label: t('cfg_adaptivewindowdays'), type: 'num' },
+        { key: 'AdaptiveMinMinutes', label: t('cfg_adaptiveminminutes'), type: 'num' },
+        { key: 'AdaptiveMinActiveDays', label: t('cfg_adaptiveminactivedays'), type: 'num' },
+        { key: 'AdaptiveInactivityDays', label: t('cfg_adaptiveinactivitydays'), type: 'num' },
+        { key: 'AdaptiveProbationDays', label: t('cfg_adaptiveprobationdays'), type: 'num' }
       ]);
       host.appendChild(adaptWrap);
       function syncAdapt() { adaptWrap.style.display = adaptEnable.checked ? '' : 'none'; }
       adaptEnable.addEventListener('change', syncAdapt); syncAdapt();
       var tail = cfgForm(host, cfg, [
-        { type: 'section', label: 'Retention & cleanup' },
-        { key: 'DeletionRetentionHours', label: 'Deletion retention (hours)', type: 'num' },
-        { key: 'RemoveEmptySeries', label: 'Remove empty series left after deletion', type: 'check' },
-        { key: 'EmptySeriesMinAgeHours', label: 'Empty-series grace period (hours)', type: 'num' },
-        { key: 'MediaExpiryDays', label: 'Media ownership expiry (days)', type: 'num', hint: '0 disables expiry.' }
+        { type: 'section', label: t('cfgsec_retention_and_cleanup') },
+        { key: 'DeletionRetentionHours', label: t('cfg_deletionretentionhours'), type: 'num' },
+        { key: 'RemoveEmptySeries', label: t('cfg_removeemptyseries'), type: 'check' },
+        { key: 'EmptySeriesMinAgeHours', label: t('cfg_emptyseriesminagehours'), type: 'num' },
+        { key: 'MediaExpiryDays', label: t('cfg_mediaexpirydays'), type: 'num', hint: t('cfg_mediaexpirydays_hint') }
       ]);
       var adaptForm = { apply: function (live) { live.AdaptiveQuotaEnabled = adaptEnable.checked; } };
       host.appendChild(cfgSaveButton([reqForm, genresForm, quotaForm, adaptForm, adapt, tail]));
@@ -308,55 +308,55 @@
   function renderCfgNotifications(container) {
     cfgLoad(container, function (host, cfg) {
       var discord = cfgForm(host, cfg, [
-        { type: 'section', label: 'Discord' },
-        { key: 'DiscordWebhookUrl', label: 'Discord webhook URL', type: 'text', placeholder: 'https://discord.com/api/webhooks/…', hint: 'Empty disables Discord.' },
-        { key: 'DiscordNotifyCreated', label: 'Notify on: created', type: 'check' },
-        { key: 'DiscordNotifyApproved', label: 'Notify on: approved', type: 'check' },
-        { key: 'DiscordNotifyDenied', label: 'Notify on: denied', type: 'check' },
-        { key: 'DiscordNotifyAvailable', label: 'Notify on: available', type: 'check' },
-        { key: 'DiscordColorCreated', label: 'Color: created', type: 'color' },
-        { key: 'DiscordColorApproved', label: 'Color: approved', type: 'color' },
-        { key: 'DiscordColorDenied', label: 'Color: denied', type: 'color' },
-        { key: 'DiscordColorAvailable', label: 'Color: available', type: 'color' },
-        { key: 'DiscordShowPoster', label: 'Show poster', type: 'check' },
-        { key: 'DiscordShowSynopsis', label: 'Show synopsis', type: 'check' },
-        { key: 'DiscordShowRequestedBy', label: 'Show "requested by"', type: 'check' },
-        { key: 'DiscordShowStatus', label: 'Show status', type: 'check' },
-        { key: 'DiscordShowSeason', label: 'Show season', type: 'check' },
-        { key: 'DiscordShowLink', label: 'Link title to TMDB', type: 'check' },
-        { key: 'DiscordMention', label: 'Mention / ping', type: 'text', placeholder: '<@&roleId>' }
+        { type: 'section', label: t('cfgsec_discord') },
+        { key: 'DiscordWebhookUrl', label: t('cfg_discordwebhookurl'), type: 'text', placeholder: 'https://discord.com/api/webhooks/…', hint: t('cfg_discordwebhookurl_hint') },
+        { key: 'DiscordNotifyCreated', label: t('cfg_discordnotifycreated'), type: 'check' },
+        { key: 'DiscordNotifyApproved', label: t('cfg_discordnotifyapproved'), type: 'check' },
+        { key: 'DiscordNotifyDenied', label: t('cfg_discordnotifydenied'), type: 'check' },
+        { key: 'DiscordNotifyAvailable', label: t('cfg_discordnotifyavailable'), type: 'check' },
+        { key: 'DiscordColorCreated', label: t('cfg_discordcolorcreated'), type: 'color' },
+        { key: 'DiscordColorApproved', label: t('cfg_discordcolorapproved'), type: 'color' },
+        { key: 'DiscordColorDenied', label: t('cfg_discordcolordenied'), type: 'color' },
+        { key: 'DiscordColorAvailable', label: t('cfg_discordcoloravailable'), type: 'color' },
+        { key: 'DiscordShowPoster', label: t('cfg_discordshowposter'), type: 'check' },
+        { key: 'DiscordShowSynopsis', label: t('cfg_discordshowsynopsis'), type: 'check' },
+        { key: 'DiscordShowRequestedBy', label: t('cfg_discordshowrequestedby'), type: 'check' },
+        { key: 'DiscordShowStatus', label: t('cfg_discordshowstatus'), type: 'check' },
+        { key: 'DiscordShowSeason', label: t('cfg_discordshowseason'), type: 'check' },
+        { key: 'DiscordShowLink', label: t('cfg_discordshowlink'), type: 'check' },
+        { key: 'DiscordMention', label: t('cfg_discordmention'), type: 'text', placeholder: '<@&roleId>' }
       ]);
       var email = cfgForm(host, cfg, [
-        { type: 'section', label: 'Email (SMTP)' },
-        { key: 'SmtpHost', label: 'SMTP host', type: 'text', hint: 'Empty disables email.' },
-        { key: 'SmtpPort', label: 'SMTP port', type: 'num' },
-        { key: 'SmtpUseSsl', label: 'Use SSL/TLS', type: 'check' },
-        { key: 'SmtpUsername', label: 'SMTP username', type: 'text' },
-        { key: 'SmtpPassword', label: 'SMTP password', type: 'text' },
-        { key: 'SmtpFromAddress', label: 'From address', type: 'text' },
-        { key: 'NotificationEmailTo', label: 'Ops mailbox (recipient)', type: 'text' },
-        { key: 'EmailNotifyCreated', label: 'Email ops on: created', type: 'check' },
-        { key: 'EmailNotifyApproved', label: 'Email ops on: approved', type: 'check' },
-        { key: 'EmailNotifyDenied', label: 'Email ops on: denied', type: 'check' },
-        { key: 'EmailNotifyAvailable', label: 'Email ops on: available', type: 'check' },
-        { key: 'SmtpAllowInvalidCertificate', label: 'Accept invalid/self-signed cert (insecure)', type: 'check' }
+        { type: 'section', label: t('cfgsec_email_smtp') },
+        { key: 'SmtpHost', label: t('cfg_smtphost'), type: 'text', hint: t('cfg_smtphost_hint') },
+        { key: 'SmtpPort', label: t('cfg_smtpport'), type: 'num' },
+        { key: 'SmtpUseSsl', label: t('cfg_smtpusessl'), type: 'check' },
+        { key: 'SmtpUsername', label: t('cfg_smtpusername'), type: 'text' },
+        { key: 'SmtpPassword', label: t('cfg_smtppassword'), type: 'text' },
+        { key: 'SmtpFromAddress', label: t('cfg_smtpfromaddress'), type: 'text' },
+        { key: 'NotificationEmailTo', label: t('cfg_notificationemailto'), type: 'text' },
+        { key: 'EmailNotifyCreated', label: t('cfg_emailnotifycreated'), type: 'check' },
+        { key: 'EmailNotifyApproved', label: t('cfg_emailnotifyapproved'), type: 'check' },
+        { key: 'EmailNotifyDenied', label: t('cfg_emailnotifydenied'), type: 'check' },
+        { key: 'EmailNotifyAvailable', label: t('cfg_emailnotifyavailable'), type: 'check' },
+        { key: 'SmtpAllowInvalidCertificate', label: t('cfg_smtpallowinvalidcertificate'), type: 'check' }
       ]);
       var channels = cfgForm(host, cfg, [
-        { type: 'section', label: 'More channels' },
-        { key: 'TelegramBotToken', label: 'Telegram bot token', type: 'text' },
-        { key: 'TelegramChatId', label: 'Telegram chat id', type: 'text' },
-        { key: 'NtfyServer', label: 'ntfy server', type: 'text', placeholder: 'https://ntfy.sh' },
-        { key: 'NtfyTopic', label: 'ntfy topic', type: 'text' },
-        { key: 'NtfyToken', label: 'ntfy token', type: 'text' },
-        { key: 'GotifyServer', label: 'Gotify server', type: 'text' },
-        { key: 'GotifyToken', label: 'Gotify token', type: 'text' },
-        { key: 'PushoverToken', label: 'Pushover app token', type: 'text' },
-        { key: 'PushoverUser', label: 'Pushover user key', type: 'text' },
-        { key: 'SlackWebhookUrl', label: 'Slack webhook URL', type: 'text' },
-        { key: 'NotifyWebhookUrl', label: 'Generic webhook URL', type: 'text' }
+        { type: 'section', label: t('cfgsec_more_channels') },
+        { key: 'TelegramBotToken', label: t('cfg_telegrambottoken'), type: 'text' },
+        { key: 'TelegramChatId', label: t('cfg_telegramchatid'), type: 'text' },
+        { key: 'NtfyServer', label: t('cfg_ntfyserver'), type: 'text', placeholder: 'https://ntfy.sh' },
+        { key: 'NtfyTopic', label: t('notif_ntfy_topic'), type: 'text' },
+        { key: 'NtfyToken', label: t('cfg_ntfytoken'), type: 'text' },
+        { key: 'GotifyServer', label: t('cfg_gotifyserver'), type: 'text' },
+        { key: 'GotifyToken', label: t('cfg_gotifytoken'), type: 'text' },
+        { key: 'PushoverToken', label: t('cfg_pushovertoken'), type: 'text' },
+        { key: 'PushoverUser', label: t('cfg_pushoveruser'), type: 'text' },
+        { key: 'SlackWebhookUrl', label: t('cfg_slackwebhookurl'), type: 'text' },
+        { key: 'NotifyWebhookUrl', label: t('cfg_notifywebhookurl'), type: 'text' }
       ]);
       host.appendChild(cfgSaveButton([discord, email, channels]));
-      host.appendChild(sectionHeading('Test (save first)'));
+      host.appendChild(sectionHeading(t('adm_test_save_first')));
       var res = resultSpan();
       var row = document.createElement('div'); row.className = 'jellycrowd-admin-actions';
       [['Discord', 'discord'], ['Email', 'email'], ['Telegram', 'telegram'], ['ntfy', 'ntfy'], ['Gotify', 'gotify'], ['Pushover', 'pushover'], ['Slack', 'slack'], ['Webhook', 'webhook']].forEach(function (p) {
@@ -405,7 +405,7 @@
           fillSelect(selects.root, res.RootFolders, selects.root.value, true);
           fillSelect(selects.profile, res.QualityProfiles, selects.profile.value, false);
           if (selects.lang) { fillSelect(selects.lang, res.LanguageProfiles, selects.lang.value, false); }
-          resultEl.textContent = '✅ connected';
+          resultEl.textContent = '✅ ' + t('adm_connected');
         });
       })
       .catch(function (e) { resultEl.textContent = '❌ ' + (e && e.message ? e.message : 'request failed'); });
@@ -414,66 +414,66 @@
   function renderCfgDownload(container) {
     cfgLoad(container, function (host, cfg) {
       var backend = cfgForm(host, cfg, [
-        { key: 'DownloadBackend', label: 'Download backend', type: 'select', options: [['none', 'None (manual admin queue)'], ['webhook', 'Webhook (POST to a URL)'], ['servarr', 'Radarr / Sonarr (Servarr)'], ['script', 'Local script']], hint: 'How approved requests are fulfilled.' }
+        { key: 'DownloadBackend', label: t('cfg_downloadbackend'), type: 'select', options: [['none', t('adm_opt_none_manual')], ['webhook', t('adm_opt_webhook')], ['servarr', 'Radarr / Sonarr (Servarr)'], ['script', t('adm_opt_local_script')]], hint: t('cfg_downloadbackend_hint') }
       ]);
       var backendSel = host.querySelector('.jc-c-DownloadBackend');
 
       var webhookWrap = document.createElement('div');
       var webhook = cfgForm(webhookWrap, cfg, [
-        { type: 'section', label: 'Webhook' },
-        { key: 'DownloadWebhookUrl', label: 'Webhook URL', type: 'text' },
-        { key: 'DownloadWebhookHeaders', label: 'Headers (one per line, Name: Value)', type: 'area' }
+        { type: 'section', label: t('cfgsec_webhook') },
+        { key: 'DownloadWebhookUrl', label: t('cfg_downloadwebhookurl'), type: 'text' },
+        { key: 'DownloadWebhookHeaders', label: t('cfg_downloadwebhookheaders'), type: 'area' }
       ]);
       host.appendChild(webhookWrap);
 
       var servarrWrap = document.createElement('div');
-      servarrWrap.appendChild(sectionHeading('Radarr (movies)'));
+      servarrWrap.appendChild(sectionHeading(t('adm_radarr_movies')));
       var radarr = cfgForm(servarrWrap, cfg, [
-        { key: 'RadarrUrl', label: 'Radarr URL', type: 'text', placeholder: 'http://localhost:7878' },
-        { key: 'RadarrApiKey', label: 'Radarr API key', type: 'text' }
+        { key: 'RadarrUrl', label: t('cfg_radarrurl'), type: 'text', placeholder: 'http://localhost:7878' },
+        { key: 'RadarrApiKey', label: t('cfg_radarrapikey'), type: 'text' }
       ]);
       var radarrRoot = servarrSelect(cfg.RadarrRootFolderPath, true);
-      servarrWrap.appendChild(field('Radarr root folder', radarrRoot));
+      servarrWrap.appendChild(field(t('adm_radarr_root_folder'), radarrRoot));
       var radarrProfile = servarrSelect(cfg.RadarrQualityProfileId, false);
-      servarrWrap.appendChild(field('Radarr quality profile', radarrProfile));
+      servarrWrap.appendChild(field(t('adm_radarr_quality_profile'), radarrProfile));
       var radarrRes = resultSpan();
-      servarrWrap.appendChild(withResult(adminBtn('Connect Radarr', '', function () {
+      servarrWrap.appendChild(withResult(adminBtn(t('adm_connect_radarr'), '', function () {
         connectServarr('radarr', host.querySelector('.jc-c-RadarrUrl').value, host.querySelector('.jc-c-RadarrApiKey').value, radarrRes, { root: radarrRoot, profile: radarrProfile });
       }), radarrRes));
 
-      servarrWrap.appendChild(sectionHeading('Sonarr (shows)'));
+      servarrWrap.appendChild(sectionHeading(t('adm_sonarr_shows')));
       var sonarr = cfgForm(servarrWrap, cfg, [
-        { key: 'SonarrUrl', label: 'Sonarr URL', type: 'text', placeholder: 'http://localhost:8989' },
-        { key: 'SonarrApiKey', label: 'Sonarr API key', type: 'text' }
+        { key: 'SonarrUrl', label: t('cfg_sonarrurl'), type: 'text', placeholder: 'http://localhost:8989' },
+        { key: 'SonarrApiKey', label: t('cfg_sonarrapikey'), type: 'text' }
       ]);
       var sonarrRoot = servarrSelect(cfg.SonarrRootFolderPath, true);
-      servarrWrap.appendChild(field('Sonarr root folder', sonarrRoot));
+      servarrWrap.appendChild(field(t('adm_sonarr_root_folder'), sonarrRoot));
       var sonarrProfile = servarrSelect(cfg.SonarrQualityProfileId, false);
-      servarrWrap.appendChild(field('Sonarr quality profile', sonarrProfile));
+      servarrWrap.appendChild(field(t('adm_sonarr_quality_profile'), sonarrProfile));
       var sonarrLang = servarrSelect(cfg.SonarrLanguageProfileId, false);
-      servarrWrap.appendChild(field('Sonarr language profile', sonarrLang));
+      servarrWrap.appendChild(field(t('adm_sonarr_language_profile'), sonarrLang));
       var sonarrRes = resultSpan();
-      servarrWrap.appendChild(withResult(adminBtn('Connect Sonarr', '', function () {
+      servarrWrap.appendChild(withResult(adminBtn(t('adm_connect_sonarr'), '', function () {
         connectServarr('sonarr', host.querySelector('.jc-c-SonarrUrl').value, host.querySelector('.jc-c-SonarrApiKey').value, sonarrRes, { root: sonarrRoot, profile: sonarrProfile, lang: sonarrLang });
       }), sonarrRes));
 
-      servarrWrap.appendChild(sectionHeading('Prowlarr (optional)'));
+      servarrWrap.appendChild(sectionHeading(t('adm_prowlarr_optional')));
       var prowlarr = cfgForm(servarrWrap, cfg, [
-        { key: 'ProwlarrUrl', label: 'Prowlarr URL', type: 'text' },
-        { key: 'ProwlarrApiKey', label: 'Prowlarr API key', type: 'text' }
+        { key: 'ProwlarrUrl', label: t('cfg_prowlarrurl'), type: 'text' },
+        { key: 'ProwlarrApiKey', label: t('cfg_prowlarrapikey'), type: 'text' }
       ]);
-      servarrWrap.appendChild(sectionHeading('Stalled downloads'));
+      servarrWrap.appendChild(sectionHeading(t('adm_stalled_downloads')));
       var stalled = cfgForm(servarrWrap, cfg, [
-        { key: 'RecoverStalledDownloads', label: 'Auto-recover stalled downloads', type: 'check' },
-        { key: 'StalledRecoveryMinutes', label: 'Stalled after (minutes)', type: 'num' }
+        { key: 'RecoverStalledDownloads', label: t('cfg_recoverstalleddownloads'), type: 'check' },
+        { key: 'StalledRecoveryMinutes', label: t('cfg_stalledrecoveryminutes'), type: 'num' }
       ]);
       host.appendChild(servarrWrap);
 
       var scriptWrap = document.createElement('div');
       var script = cfgForm(scriptWrap, cfg, [
-        { type: 'section', label: 'Local script' },
-        { key: 'ScriptPath', label: 'Script path', type: 'text' },
-        { key: 'ScriptArguments', label: 'Arguments', type: 'text' }
+        { type: 'section', label: t('cfgsec_local_script') },
+        { key: 'ScriptPath', label: t('cfg_scriptpath'), type: 'text' },
+        { key: 'ScriptArguments', label: t('cfg_scriptarguments'), type: 'text' }
       ]);
       host.appendChild(scriptWrap);
 
@@ -486,9 +486,9 @@
       } };
       host.appendChild(cfgSaveButton([backend, webhook, radarr, sonarr, prowlarr, stalled, script, servarrSelectsForm]));
 
-      host.appendChild(sectionHeading('Test (save first)'));
+      host.appendChild(sectionHeading(t('adm_test_save_first')));
       var testRes = resultSpan();
-      host.appendChild(withResult(adminBtn('Test backend', '', function () { postTest('JellyCrowd/Download/Test', testRes, 'OK'); }), testRes));
+      host.appendChild(withResult(adminBtn(t('adm_test_backend'), '', function () { postTest('JellyCrowd/Download/Test', testRes, 'OK'); }), testRes));
 
       function syncVis() {
         var b = backendSel.value;
@@ -503,21 +503,21 @@
   function renderCfgDiagnostics(container) {
     container.innerHTML = '';
     setMessage('');
-    container.appendChild(sectionHeading('Diagnostics'));
+    container.appendChild(sectionHeading(t('cfg_diagnostics')));
     var actions = document.createElement('div'); actions.className = 'jellycrowd-admin-actions';
     var diagRes = document.createElement('div'); diagRes.style.marginTop = '.6em';
-    actions.appendChild(adminBtn('Run checks', '', function () { runDiagnostics(diagRes); }));
-    actions.appendChild(adminBtn('Download backup', '', function () { downloadBackup(); }));
+    actions.appendChild(adminBtn(t('diag_run'), '', function () { runDiagnostics(diagRes); }));
+    actions.appendChild(adminBtn(t('diag_backup'), '', function () { downloadBackup(); }));
     container.appendChild(actions);
     container.appendChild(diagRes);
     runDiagnostics(diagRes);
 
-    container.appendChild(sectionHeading('Library cleanup'));
+    container.appendChild(sectionHeading(t('adm_library_cleanup')));
     var orphans = checkbox('jc-cleanup-orphans', false);
-    container.appendChild(field('Orphans only (0 owners)', orphans));
+    container.appendChild(field(t('adm_orphans_only_0_owners'), orphans));
     var scanRow = document.createElement('div'); scanRow.className = 'jellycrowd-admin-actions';
     var cleanupRes = document.createElement('div'); cleanupRes.style.marginTop = '.6em';
-    scanRow.appendChild(adminBtn('Scan media', '', function () { scanCleanup(orphans.checked, cleanupRes); }));
+    scanRow.appendChild(adminBtn(t('adm_scan_media'), '', function () { scanCleanup(orphans.checked, cleanupRes); }));
     container.appendChild(scanRow);
     container.appendChild(cleanupRes);
   }
@@ -541,15 +541,15 @@
     box.textContent = '…';
     apiGet('JellyCrowd/Maintenance/Media?orphansOnly=' + (orphansOnly ? 'true' : 'false')).then(function (items) {
       box.innerHTML = '';
-      if (!items || !items.length) { box.textContent = 'No matching media.'; return; }
+      if (!items || !items.length) { box.textContent = t('adm_no_matching_media'); return; }
       items.forEach(function (m) {
         var row = document.createElement('div');
         row.style.cssText = 'display:flex;gap:.6em;padding:.4em 0;border-bottom:1px solid rgba(127,127,127,.2);align-items:center;';
-        var label = m.Title + (m.Season != null ? ' — Season ' + m.Season : '');
+        var label = m.Title + (m.Season != null ? ' — ' + t('season_number').replace('{n}', m.Season) : '');
         var name = document.createElement('span'); name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-        name.textContent = (m.MediaType === 'tv' ? '📺 ' : '🎬 ') + label + ' — ' + fmtBytes(m.SizeBytes) + ' · ' + m.OwnerCount + ' owner(s)';
-        var del = adminBtn('Delete', '', function (btn) {
-          if (!window.confirm('Delete "' + label + '" from disk? This is permanent.')) { return; }
+        name.textContent = (m.MediaType === 'tv' ? '📺 ' : '🎬 ') + label + ' — ' + fmtBytes(m.SizeBytes) + ' · ' + m.OwnerCount + ' ' + t('ownership_owners');
+        var del = adminBtn(t('comment_delete'), '', function (btn) {
+          if (!window.confirm(t('adm_confirm_delete_disk').replace('{title}', label))) { return; }
           btn.disabled = true;
           apiPostNoResult('JellyCrowd/Maintenance/Media/' + m.JellyfinItemId + '/Delete').then(function () { row.remove(); }).catch(function () { btn.disabled = false; });
         });
@@ -654,7 +654,7 @@
     i.type = 'number';
     i.min = '0';
     i.step = '1';
-    i.placeholder = 'default';
+    i.placeholder = t('adm_default');
     i.className = cls;
     if (value !== '' && value != null) { i.value = value; }
     return i;
@@ -673,7 +673,7 @@
   function accessSelect(value) {
     var s = document.createElement('select');
     s.className = 'jc-access';
-    [['', 'Default'], ['on', 'Enabled'], ['off', 'Disabled']].forEach(function (opt) {
+    [['', 'Default'], ['on', t('adm_opt_enabled')], ['off', t('adm_opt_disabled')]].forEach(function (opt) {
       var o = document.createElement('option');
       o.value = opt[0];
       o.textContent = opt[1];
@@ -1450,33 +1450,33 @@
       var addLink = adminBtn(t('branding_drawer_add'), '', function () { drawerWrap.appendChild(drawerLinkRow({})); });
       container.appendChild(addLink);
 
-      container.appendChild(sectionHeading('Header icons'));
+      container.appendChild(sectionHeading(t('adm_header_icons')));
       var discEnable = checkbox('jc-b-disc-en', b.DiscordInviteEnabled === true);
-      container.appendChild(field('Show Discord icon in the header', discEnable));
+      container.appendChild(field(t('adm_show_discord_icon_in_the_header'), discEnable));
       var discUrl = textInput('jc-b-disc-url', b.DiscordInviteUrl || '', 'https://discord.gg/…');
-      container.appendChild(field('Discord invite link', discUrl));
+      container.appendChild(field(t('adm_discord_invite_link'), discUrl));
       var supEnable = checkbox('jc-b-sup-en', b.SupportLinkEnabled === true);
-      container.appendChild(field('Show support / donation icon in the header', supEnable));
+      container.appendChild(field(t('adm_show_support_donation_icon_in_the'), supEnable));
       var supUrl = textInput('jc-b-sup-url', b.SupportLinkUrl || '', 'https://…');
-      container.appendChild(field('Support / donation link', supUrl));
+      container.appendChild(field(t('adm_support_donation_link'), supUrl));
       var guideEnable = checkbox('jc-b-guide-en', b.GuideLinkEnabled === true);
-      container.appendChild(field('Show user-guide icon (?) in the header', guideEnable));
+      container.appendChild(field(t('adm_show_user_guide_icon_in_the'), guideEnable));
       var guideUrl = textInput('jc-b-guide-url', b.GuideLinkUrl || '', 'https://…');
-      container.appendChild(field('User-guide link', guideUrl));
+      container.appendChild(field(t('adm_user_guide_link'), guideUrl));
 
-      container.appendChild(sectionHeading('Local intros (pre-roll)'));
+      container.appendChild(sectionHeading(t('adm_local_intros_pre_roll')));
       var liEnable = checkbox('jc-b-li-en', b.LocalIntrosEnabled === true);
-      container.appendChild(field('Play a pre-roll before content', liEnable, 'Drop video(s) in a folder with the name below beside your media libraries; the plugin finds and indexes it. On the web client the pre-roll is non-skippable with hidden controls.'));
+      container.appendChild(field(t('adm_play_a_pre_roll_before_content'), liEnable, t('adm_drop_video_s_in_a_folder_hint')));
       var liFolder = textInput('jc-b-li-folder', b.LocalIntrosFolderName || 'intros', 'intros');
-      container.appendChild(field('Pre-roll folder name', liFolder));
+      container.appendChild(field(t('adm_pre_roll_folder_name'), liFolder));
       var liMovies = checkbox('jc-b-li-mov', b.LocalIntrosOnMovies !== false);
-      container.appendChild(field('Before movies', liMovies));
+      container.appendChild(field(t('adm_before_movies'), liMovies));
       var liFirst = checkbox('jc-b-li-first', b.LocalIntrosOnFirstEpisode !== false);
-      container.appendChild(field('Before the first episode of a series (S01E01)', liFirst));
+      container.appendChild(field(t('adm_before_the_first_episode_of_a'), liFirst));
       var liNonSkip = checkbox('jc-b-li-ns', b.LocalIntrosNonSkippable !== false);
-      container.appendChild(field('Non-skippable (web client)', liNonSkip));
+      container.appendChild(field(t('adm_non_skippable_web_client'), liNonSkip));
       var liWebOnly = checkbox('jc-b-li-webonly', b.LocalIntrosWebOnly !== false);
-      container.appendChild(field('Web & desktop players only (recommended)', liWebOnly, 'Native mobile and TV apps can fail to start playback when a pre-roll is prepended (reported on iPad). When on, only the web client and Jellyfin Media Player receive intros.'));
+      container.appendChild(field(t('adm_web_and_desktop_players_only_recommended'), liWebOnly, t('adm_native_mobile_and_tv_apps_can_hint')));
 
       container.appendChild(field(t('branding_font_url'), fontUrl, t('branding_font_url_hint')));
 
