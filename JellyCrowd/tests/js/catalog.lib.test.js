@@ -307,3 +307,20 @@ test('outroSkipPlan: unusable regions return null', () => {
   assert.strictEqual(lib.outroSkipPlan(10 * TPS, 20 * TPS, 0), null);      // unknown runtime
   assert.strictEqual(lib.outroSkipPlan(10 * TPS, 9999 * TPS, 60 * TPS), null); // end past runtime
 });
+
+test('discoverMediaType: a person filter forces the movie endpoint (TMDB has no TV person filter)', () => {
+  // The reported bug: clicking a name while on the Séries tab hit /discover/tv, which ignores
+  // with_people and returned the whole catalog. A person filter must always resolve to movie.
+  assert.strictEqual(lib.discoverMediaType({ mediaType: 'tv', personId: 6193 }), 'movie');
+  assert.strictEqual(lib.discoverMediaType({ mediaType: 'movie', personId: 6193 }), 'movie');
+});
+
+test('discoverMediaType: without a person filter it follows the selected tab', () => {
+  assert.strictEqual(lib.discoverMediaType({ mediaType: 'tv', personId: 0 }), 'tv');
+  assert.strictEqual(lib.discoverMediaType({ mediaType: 'movie', personId: 0 }), 'movie');
+});
+
+test('discoverMediaType: defaults to movie when nothing is set', () => {
+  assert.strictEqual(lib.discoverMediaType({}), 'movie');
+  assert.strictEqual(lib.discoverMediaType(null), 'movie');
+});

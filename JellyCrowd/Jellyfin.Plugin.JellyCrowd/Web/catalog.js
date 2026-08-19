@@ -1377,7 +1377,7 @@
   }
 
   function baseDiscover() {
-    return 'JellyCrowd/Catalog/Discover?mediaType=' + filters.mediaType
+    return 'JellyCrowd/Catalog/Discover?mediaType=' + lib.discoverMediaType(filters)
       + '&language=' + encodeURIComponent(fullLocale());
   }
 
@@ -1837,9 +1837,14 @@
   }
 
   function setMediaType(type) {
-    if (filters.mediaType === type) {
+    // Switching the browse type leaves any filmography view (a person filter is movie-only, so keeping
+    // it while flipping to Séries would wrongly return the unfiltered catalog).
+    var leavingPerson = !!filters.personId;
+    if (filters.mediaType === type && !leavingPerson) {
       return;
     }
+    filters.personId = 0;
+    filters.personName = '';
     filters.mediaType = type;
     filters.genres = [];
     filters.watchProviders = '';
@@ -1879,6 +1884,13 @@
     if (!personId) { return; }
     filters.personId = personId;
     filters.personName = personName || '';
+    // A filmography is movies (TMDB has no person filter for TV), so land on the Movies tab: the click
+    // can come from a show's cast, and leaving the tab on Séries would look like it did nothing.
+    filters.mediaType = 'movie';
+    var movieTab = document.getElementById('jcTypeMovie');
+    var tvTab = document.getElementById('jcTypeTv');
+    if (movieTab) { movieTab.classList.add('jellycrowd-chip-active'); }
+    if (tvTab) { tvTab.classList.remove('jellycrowd-chip-active'); }
     searchQuery = '';
     showWatchlist = false;
     var ml = document.getElementById('jcMyList');

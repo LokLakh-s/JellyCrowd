@@ -464,6 +464,15 @@
     return skels.length;
   }
 
+  // Which TMDB discover endpoint a set of filters should hit. A person filter is a "filmography" view,
+  // and TMDB only supports person discovery for movies — /discover/tv silently ignores with_people and
+  // returns the whole unfiltered catalog — so a person filter always resolves to the movie endpoint,
+  // whatever media-type tab the click came from.
+  function discoverMediaType(filters) {
+    if (filters && filters.personId) { return 'movie'; }
+    return (filters && filters.mediaType) || 'movie';
+  }
+
   // A deliberately loose "does this look like an address" check, to catch a typo before a round-trip.
   // The server validates for real before it ever uses the value as an SMTP recipient — this must never
   // be the only gate, and must not reject addresses the server would accept.
@@ -601,6 +610,7 @@
     focusRestoreTarget: focusRestoreTarget,
     buildConfirmDialog: buildConfirmDialog,
     bulkFailureMessage: bulkFailureMessage,
+    discoverMediaType: discoverMediaType,
     isEmailish: isEmailish,
     buildSkeletons: buildSkeletons,
     clearSkeletons: clearSkeletons,
