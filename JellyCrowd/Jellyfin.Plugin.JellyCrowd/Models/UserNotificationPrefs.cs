@@ -47,4 +47,12 @@ public class UserNotificationPrefs
   /// user's personal channels. Opt-in; defaults to <c>false</c>.
   /// </summary>
   public bool NotifyQuotaExpiry { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the user has hidden their own viewing history. Recording is
+  /// unaffected (the admin statistics stay complete) — this only hides the personal history from them.
+  /// Stored inverted (hidden, not shown) so a preferences record saved before this feature existed, which
+  /// lacks the field, defaults to <c>false</c> and the history stays visible.
+  /// </summary>
+  public bool HistoryHidden { get; set; }
 }

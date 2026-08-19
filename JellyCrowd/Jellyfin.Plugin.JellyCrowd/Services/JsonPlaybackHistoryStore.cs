@@ -9,14 +9,15 @@ using Jellyfin.Plugin.JellyCrowd.Models;
 namespace Jellyfin.Plugin.JellyCrowd.Services;
 
 /// <summary>
-/// File-backed <see cref="IPlaybackHistoryStore"/>. Bounded by a most-recent cap and a retention window so
-/// the JSON document stays manageable for a private server's playback volume (the "log retention" rule).
+/// File-backed <see cref="IPlaybackHistoryStore"/>. This is also each user's personal viewing history,
+/// which by design is never auto-erased — only the user clears their own — so there is no time-based
+/// retention. A large most-recent cap remains purely as a safety bound against pathological growth of the
+/// single JSON document; on a private server it is years of history and is never reached in practice.
 /// </summary>
 public sealed class JsonPlaybackHistoryStore : IPlaybackHistoryStore, IDisposable
 {
   private const int SchemaVersion = 1;
-  private const int MaxEntries = 50000;
-  private static readonly TimeSpan Retention = TimeSpan.FromDays(365);
+  private const int MaxEntries = 200000;
   private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = false };
 
   private readonly string _filePath;
@@ -104,16 +105,75 @@ public sealed class JsonPlaybackHistoryStore : IPlaybackHistoryStore, IDisposabl
   }
 
   /// <inheritdoc />
+  public async Task<IReadOnlyList<PlaybackRecord>> GetByUserAsync(Guid userId, int limit, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var mine = items.Where(r => r.UserId == userId).OrderByDescending(r => r.PlayedAtUtc);
+      return (limit > 0 ? mine.Take(limit) : mine).ToList();
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
+  public async Task<int> DeleteByUserAsync(Guid userId, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var removed = items.RemoveAll(r => r.UserId == userId);
+      if (removed > 0)
+      {
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+      }
+
+      return removed;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
+  public async Task<bool> DeleteOneAsync(Guid userId, Guid recordId, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      // The user id must match too: a record id alone must never let one user delete another's entry.
+      var removed = items.RemoveAll(r => r.Id == recordId && r.UserId == userId);
+      if (removed > 0)
+      {
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+      }
+
+      return removed > 0;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public void Dispose()
   {
     _mutex.Dispose();
     GC.SuppressFinalize(this);
   }
 
+  // Only a safety cap against unbounded growth of the JSON document — there is no time-based expiry, so a
+  // user's history stays until they clear it themselves.
   private static void Prune(List<PlaybackRecord> items)
   {
-    var cutoff = DateTime.UtcNow - Retention;
-    items.RemoveAll(r => r.PlayedAtUtc < cutoff);
     if (items.Count > MaxEntries)
     {
       var keep = items.OrderByDescending(r => r.PlayedAtUtc).Take(MaxEntries).ToList();
