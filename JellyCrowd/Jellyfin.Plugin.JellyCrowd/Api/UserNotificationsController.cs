@@ -128,6 +128,9 @@ public class UserNotificationsController : ControllerBase
       return BadRequest("Enter a valid e-mail address, or leave it blank to turn e-mail off.");
     }
 
+    // The history-hidden flag lives on the same record but is owned by the history screen, not this form,
+    // so carry the stored value over rather than resetting it.
+    var existing = await _prefs.GetAsync(userId, cancellationToken).ConfigureAwait(false);
     var saved = await _prefs.SetAsync(
       new UserNotificationPrefs
       {
@@ -138,7 +141,8 @@ public class UserNotificationsController : ControllerBase
         NotifyAvailableUnreleased = dto?.NotifyAvailableUnreleased ?? false,
         NotifyAvailableReleased = dto?.NotifyAvailableReleased ?? false,
         NotifyDecisions = dto?.NotifyDecisions ?? false,
-        NotifyQuotaExpiry = dto?.NotifyQuotaExpiry ?? false
+        NotifyQuotaExpiry = dto?.NotifyQuotaExpiry ?? false,
+        HistoryHidden = existing.HistoryHidden
       },
       cancellationToken).ConfigureAwait(false);
     _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " updated their notification preferences", _resolveUserName(userId), CancellationToken.None);
