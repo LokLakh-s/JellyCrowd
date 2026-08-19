@@ -543,5 +543,13 @@
   "notif_adaptive_restored_subject": "Stockage bonus rétabli",
   "notif_adaptive_restored_body": "Content de vous revoir ! Votre stockage supplémentaire est de nouveau actif.",
   "notif_adaptive_standard_subject": "Retour au stockage standard",
-  "notif_adaptive_standard_body": "Votre stockage bonus est revenu au quota standard après une période d’inactivité. Restez actif pour le regagner."
+  "notif_adaptive_standard_body": "Votre stockage bonus est revenu au quota standard après une période d’inactivité. Restez actif pour le regagner.",
+  "history_title": "Historique de visionnage",
+  "history_hide": "Masquer",
+  "history_show": "Afficher",
+  "history_hidden": "Votre historique est masqué. L’enregistrement continue pour les statistiques du serveur.",
+  "history_empty": "Rien de visionné pour l’instant.",
+  "history_clear": "Tout effacer",
+  "history_clear_confirm": "Effacer tout votre historique de visionnage ? Cette action est irréversible.",
+  "history_remove_one": "Retirer de l’historique"
 }

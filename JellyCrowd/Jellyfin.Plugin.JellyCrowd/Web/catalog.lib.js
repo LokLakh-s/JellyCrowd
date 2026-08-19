@@ -464,6 +464,26 @@
     return skels.length;
   }
 
+  // The one-line label for a viewing-history entry: an episode reads "Series · S1E2 · Episode name",
+  // a movie is just its title. Pure so it can be unit tested; SxEy is left untranslated (universal).
+  function historyEntryLabel(entry) {
+    var e = entry || {};
+    if (e.SeriesName) {
+      var label = e.SeriesName;
+      if (e.Season != null && e.Episode != null) {
+        label += ' · S' + e.Season + 'E' + e.Episode;
+      }
+
+      if (e.Title && e.Title !== e.SeriesName) {
+        label += ' · ' + e.Title;
+      }
+
+      return label;
+    }
+
+    return e.Title || '';
+  }
+
   // Which TMDB discover endpoint a set of filters should hit. A person filter is a "filmography" view,
   // and TMDB only supports person discovery for movies — /discover/tv silently ignores with_people and
   // returns the whole unfiltered catalog — so a person filter always resolves to the movie endpoint,
@@ -611,6 +631,7 @@
     buildConfirmDialog: buildConfirmDialog,
     bulkFailureMessage: bulkFailureMessage,
     discoverMediaType: discoverMediaType,
+    historyEntryLabel: historyEntryLabel,
     isEmailish: isEmailish,
     buildSkeletons: buildSkeletons,
     clearSkeletons: clearSkeletons,
