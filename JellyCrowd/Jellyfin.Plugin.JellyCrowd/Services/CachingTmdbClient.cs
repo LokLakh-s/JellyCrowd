@@ -52,9 +52,10 @@ public sealed class CachingTmdbClient : ITmdbClient
     => GetOrAddAsync(DiscoverKey(mediaType, query, language), ShortTtl, () => _inner.DiscoverAsync(mediaType, query, language, cancellationToken));
 
   // Stable cache key built from the discover filters (DiscoverQuery is a plain class, so its default
-  // hash is reference-based and would never hit the cache).
+  // hash is reference-based and would never hit the cache). Every filter that changes the results must be
+  // here — WithPeople in particular, or filtering by one actor would serve another's cached filmography.
   private static string DiscoverKey(string mediaType, DiscoverQuery q, string language)
-    => Key("discover", mediaType, language, q.Genres ?? "-", q.MinYear, q.MaxYear, q.MinRating, q.MaxRating, q.SortBy ?? "-", q.Page, q.WatchProviders ?? "-", q.WatchRegion ?? "-", q.OriginalLanguage ?? "-", q.OriginCountry ?? "-");
+    => Key("discover", mediaType, language, q.Genres ?? "-", q.MinYear, q.MaxYear, q.MinRating, q.MaxRating, q.SortBy ?? "-", q.Page, q.WatchProviders ?? "-", q.WatchRegion ?? "-", q.OriginalLanguage ?? "-", q.OriginCountry ?? "-", q.WithPeople);
 
   /// <inheritdoc />
   public Task<IReadOnlyList<Genre>> GetGenresAsync(string mediaType, string language, CancellationToken cancellationToken)
