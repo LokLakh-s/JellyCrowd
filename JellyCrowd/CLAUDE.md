@@ -169,7 +169,8 @@ Les workflows tournent sur un **runner self-hosted** pour économiser les minute
 - **Outils hôte requis** : `zip` (build + release) et `jq` (release) doivent être installés sur l'hôte
   (`apt-get install -y zip jq`). `.NET`/Node sont fournis par `setup-dotnet`/`setup-node`.
 - **Hygiène disque** : pas d'`actions/cache` (le `~/.nuget` et le tool-cache du runner persistent) ; étape de
-  **cleanup `if: always()`** qui supprime `bin/obj/artifacts` et purge `dotnet nuget locals http-cache temp` ;
+  **cleanup `if: always()`** qui supprime `bin/obj/artifacts` et purge les caches NuGet http-cache + temp
+  (une commande `dotnet nuget locals <emplacement> --clear` par emplacement — l'outil n'en accepte qu'un à la fois) ;
   rétention des artefacts CI = 7 j. `actions/checkout` nettoie déjà le workspace à chaque run.
 - Si un job reste **`queued`** : le runner est probablement **offline** — le démarrer (`sudo ./svc.sh start`).
 
