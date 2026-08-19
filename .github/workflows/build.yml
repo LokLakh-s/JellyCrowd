@@ -99,4 +99,7 @@ jobs:
           rm -rf Jellyfin.Plugin.JellyCrowd/bin Jellyfin.Plugin.JellyCrowd/obj \
                  Jellyfin.Plugin.JellyCrowd.Tests/bin Jellyfin.Plugin.JellyCrowd.Tests/obj \
                  artifacts
-          dotnet nuget locals http-cache temp --clear || true
+          # `dotnet nuget locals` takes a single location at a time; clear each separately (keep
+          # global-packages so restores stay warm).
+          dotnet nuget locals http-cache --clear || true
+          dotnet nuget locals temp --clear || true
