@@ -324,3 +324,23 @@ test('discoverMediaType: defaults to movie when nothing is set', () => {
   assert.strictEqual(lib.discoverMediaType({}), 'movie');
   assert.strictEqual(lib.discoverMediaType(null), 'movie');
 });
+
+test('historyEntryLabel: an episode reads Series · SxEy · Episode name', () => {
+  assert.strictEqual(
+    lib.historyEntryLabel({ SeriesName: 'House of the Dragon', Season: 2, Episode: 5, Title: 'Regent' }),
+    'House of the Dragon · S2E5 · Regent');
+});
+
+test('historyEntryLabel: an episode without a distinct name omits the trailing part', () => {
+  assert.strictEqual(
+    lib.historyEntryLabel({ SeriesName: 'Severance', Season: 1, Episode: 3, Title: 'Severance' }),
+    'Severance · S1E3');
+  assert.strictEqual(
+    lib.historyEntryLabel({ SeriesName: 'Severance', Season: 1, Episode: 3 }),
+    'Severance · S1E3');
+});
+
+test('historyEntryLabel: a movie is just its title', () => {
+  assert.strictEqual(lib.historyEntryLabel({ Title: 'Inception', ItemType: 'Movie' }), 'Inception');
+  assert.strictEqual(lib.historyEntryLabel({}), '');
+});

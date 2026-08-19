@@ -543,5 +543,13 @@
   "notif_adaptive_restored_subject": "Bonus storage restored",
   "notif_adaptive_restored_body": "Welcome back! Your extra storage is active again.",
   "notif_adaptive_standard_subject": "Storage back to standard",
-  "notif_adaptive_standard_body": "Your bonus storage has returned to the standard quota after a period of inactivity. Stay active to earn it back."
+  "notif_adaptive_standard_body": "Your bonus storage has returned to the standard quota after a period of inactivity. Stay active to earn it back.",
+  "history_title": "Watch history",
+  "history_hide": "Hide",
+  "history_show": "Show",
+  "history_hidden": "Your history is hidden. Recording continues for the server statistics.",
+  "history_empty": "Nothing watched yet.",
+  "history_clear": "Clear all",
+  "history_clear_confirm": "Erase your entire viewing history? This cannot be undone.",
+  "history_remove_one": "Remove from history"
 }
