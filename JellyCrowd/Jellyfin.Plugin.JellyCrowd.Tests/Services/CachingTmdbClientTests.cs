@@ -53,6 +53,21 @@ public class CachingTmdbClientTests
     Assert.Equal(1, inner.DiscoverCalls); // same filters -> cache hit despite a new query instance
   }
 
+  [Fact]
+  public async Task Discover_VariesByPerson()
+  {
+    // Regression: the cache key omitted WithPeople, so filtering by one actor served another actor's
+    // cached filmography — every actor returned the same results.
+    var inner = new CountingTmdbClient();
+    var client = new CachingTmdbClient(inner, () => DateTime.UtcNow);
+
+    await client.DiscoverAsync("movie", new DiscoverQuery { WithPeople = 6193 }, "en-US", CancellationToken.None);
+    await client.DiscoverAsync("movie", new DiscoverQuery { WithPeople = 287 }, "en-US", CancellationToken.None);
+    await client.DiscoverAsync("movie", new DiscoverQuery { WithPeople = 6193 }, "en-US", CancellationToken.None); // repeat -> cached
+
+    Assert.Equal(2, inner.DiscoverCalls); // one per distinct person; the repeat is a cache hit
+  }
+
   private sealed class CountingTmdbClient : ITmdbClient
   {
     public int TrendingCalls { get; private set; }
