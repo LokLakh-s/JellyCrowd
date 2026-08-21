@@ -551,5 +551,16 @@
   "history_empty": "Nothing watched yet.",
   "history_clear": "Clear all",
   "history_clear_confirm": "Erase your entire viewing history? This cannot be undone.",
-  "history_remove_one": "Remove from history"
+  "history_remove_one": "Remove from history",
+  "notif_assigned_subject": "Added to your library",
+  "notif_assigned_body": "\"{title}\" was added to your library by an administrator.",
+  "tab_assign_media": "Assign media",
+  "assign_media_subtitle": "Give a user ownership of a title already in the library — e.g. something you added by hand that nobody requested.",
+  "assign_media_filter": "Filter by title…",
+  "assign_choose_user": "Choose a user…",
+  "assign_button": "Assign",
+  "assign_done": "Assigned to {user}",
+  "assign_failed": "Could not assign this title.",
+  "assign_media_empty": "No media in the library.",
+  "assign_owned_by": "{n} owner(s)"
 }

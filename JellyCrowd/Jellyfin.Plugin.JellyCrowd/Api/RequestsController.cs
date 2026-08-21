@@ -727,6 +727,95 @@ public class RequestsController : ControllerBase
     return Ok(created);
   }
 
+  /// <summary>
+  /// Assigns ownership of a media already in the library to a user (administrators only). For a title the
+  /// admin added by hand that nobody requested: it grants the user ownership straight away — an available
+  /// request pointing at the library item — and tells them it was added to their library.
+  /// </summary>
+  /// <param name="dto">The media and the target user.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The ownership record (created or renewed).</response>
+  /// <response code="400">The payload was invalid, or the media is not in the library.</response>
+  /// <returns>The persisted available request.</returns>
+  [HttpPost("AssignOwner")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<ActionResult<RequestRecord>> AssignOwner([FromBody] AdminCreateRequestDto dto, CancellationToken cancellationToken)
+  {
+    if (dto is null || string.IsNullOrWhiteSpace(dto.Title))
+    {
+      return BadRequest("A title is required.");
+    }
+
+    if (!IsValidMediaType(dto.MediaType))
+    {
+      return BadRequest("The 'mediaType' must be 'movie' or 'tv'.");
+    }
+
+    if (dto.UserId == Guid.Empty)
+    {
+      return BadRequest("A target user is required.");
+    }
+
+    // Resolve the exact library item for the scope (a season, an episode, or the whole movie/series), so
+    // ownership points at what actually exists — assigning is only for media that is already present.
+    var itemId = string.Equals(dto.MediaType, "tv", StringComparison.Ordinal) && dto.Season is int season
+      ? (dto.Episode is int episode
+          ? _libraryMatcher.FindEpisodeItemId(dto.TmdbId, season, episode)
+          : _libraryMatcher.FindSeasonItemId(dto.TmdbId, season))
+      : _libraryMatcher.FindItemId(dto.MediaType, dto.TmdbId);
+    if (string.IsNullOrEmpty(itemId))
+    {
+      return BadRequest("This title is not available in the library.");
+    }
+
+    // Already owned by this user (this scope, or a broader one covering it) → renew rather than duplicate.
+    var theirs = await _store.GetByUserAsync(dto.UserId, cancellationToken).ConfigureAwait(false);
+    var owned = theirs.FirstOrDefault(r =>
+      r.TmdbId == dto.TmdbId
+      && string.Equals(r.MediaType, dto.MediaType, StringComparison.Ordinal)
+      && r.Status == RequestStatus.Available
+      && MediaScope.Overlaps(dto.Season, dto.Episode, r.Season, r.Episode));
+    if (owned is not null)
+    {
+      var renewed = await _store.RenewAvailableAsync(owned.Id, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+      return Ok(renewed);
+    }
+
+    var created = await _store.CreateAsync(
+      new RequestRecord
+      {
+        UserId = dto.UserId,
+        TmdbId = dto.TmdbId,
+        MediaType = dto.MediaType,
+        Title = dto.Title,
+        PosterPath = dto.PosterPath,
+        ReleaseDate = dto.ReleaseDate,
+        Season = dto.Season,
+        Episode = dto.Episode,
+        Status = RequestStatus.Available,
+        JellyfinItemId = itemId,
+        AvailableAt = DateTime.UtcNow
+      },
+      cancellationToken).ConfigureAwait(false);
+
+    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var title = NotificationMessages.TitleOf(created, t);
+    _ = _notificationService.NotifyPersonalAsync(
+      dto.UserId,
+      PersonalNotifyKind.None,
+      created.Title,
+      t("notif_assigned_subject"),
+      t("notif_assigned_body").Replace("{title}", title, StringComparison.Ordinal),
+      created.PosterPath,
+      CancellationToken.None);
+
+    var admin = _resolveUserName(await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false));
+    _ = _activityLog.LogAsync("info", "user", admin + " assigned " + created.Title + " to " + _resolveUserName(dto.UserId), admin, CancellationToken.None);
+    return Ok(created);
+  }
+
   private static bool IsValidMediaType(string mediaType)
     => string.Equals(mediaType, "movie", StringComparison.Ordinal)
        || string.Equals(mediaType, "tv", StringComparison.Ordinal);

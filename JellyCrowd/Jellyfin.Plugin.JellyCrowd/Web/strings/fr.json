@@ -551,5 +551,16 @@
   "history_empty": "Rien de visionné pour l’instant.",
   "history_clear": "Tout effacer",
   "history_clear_confirm": "Effacer tout votre historique de visionnage ? Cette action est irréversible.",
-  "history_remove_one": "Retirer de l’historique"
+  "history_remove_one": "Retirer de l’historique",
+  "notif_assigned_subject": "Ajouté à votre bibliothèque",
+  "notif_assigned_body": "« {title} » a été ajouté à votre bibliothèque par un administrateur.",
+  "tab_assign_media": "Attribuer un média",
+  "assign_media_subtitle": "Attribuer à un utilisateur la propriété d’un titre déjà présent — p. ex. un média ajouté à la main que personne n’a demandé.",
+  "assign_media_filter": "Filtrer par titre…",
+  "assign_choose_user": "Choisir un utilisateur…",
+  "assign_button": "Attribuer",
+  "assign_done": "Attribué à {user}",
+  "assign_failed": "Attribution impossible.",
+  "assign_media_empty": "Aucun média dans la bibliothèque.",
+  "assign_owned_by": "{n} propriétaire(s)"
 }

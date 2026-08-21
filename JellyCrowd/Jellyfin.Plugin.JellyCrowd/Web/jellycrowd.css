@@ -2148,6 +2148,34 @@ body.jellycrowd-overlay-open {
   cursor: default;
 }
 
+/* Assign media (admin → Users → Assign media) */
+.jellycrowd-assign-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.5em 0;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+  flex-wrap: wrap;
+}
+
+.jellycrowd-assign-title {
+  flex: 1;
+  min-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jellycrowd-assign-select {
+  padding: 0.35em 0.5em;
+  border-radius: 0.25em;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+  max-width: 14em;
+}
+
 /* Loading placeholders — same shape as the content they stand in for, so the layout does not jump when
    it arrives. */
 .jellycrowd-skel {
