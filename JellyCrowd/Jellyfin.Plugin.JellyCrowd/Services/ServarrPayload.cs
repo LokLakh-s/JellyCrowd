@@ -70,11 +70,15 @@ public static class ServarrPayload
       }
     }
 
-    // No "monitor" in addOptions: it would re-derive monitoring and override the seasons array above
-    // (e.g. "none" would unmonitor the very season we want, so nothing gets searched).
+    // Add the series with NOTHING monitored and NO search. Sonarr's addOptions.monitor always re-derives
+    // monitoring and overrides the seasons array above — and when it is omitted it defaults to "all", so
+    // relying on the array made a single-season request monitor every season and searchForMissingEpisodes
+    // then grabbed the entire show. Instead we add it inert, then the caller monitors only the requested
+    // season and issues a targeted SeasonSearch (same path as a series already in Sonarr).
     body["addOptions"] = new JsonObject
     {
-      ["searchForMissingEpisodes"] = true
+      ["monitor"] = "none",
+      ["searchForMissingEpisodes"] = false
     };
     return body;
   }

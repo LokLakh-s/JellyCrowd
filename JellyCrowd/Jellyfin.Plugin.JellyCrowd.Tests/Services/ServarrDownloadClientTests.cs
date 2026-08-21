@@ -65,9 +65,39 @@ public class ServarrDownloadClientTests
   [Fact]
   public async Task DispatchAsync_Show_ResolvesTvdbThenAddsToSonarr()
   {
+    // Regression (The Mentalist): a single-season request added the series and let the add grab, but
+    // Sonarr's default "monitor: all" pulled every season. The add must be inert (monitor none, no
+    // search), and only the requested season may be monitored and searched afterwards.
+    var lookup = new JsonObject
+    {
+      ["title"] = "Breaking Bad",
+      ["tvdbId"] = 81189,
+      ["seasons"] = new JsonArray(
+        new JsonObject { ["seasonNumber"] = 1 },
+        new JsonObject { ["seasonNumber"] = 2 })
+    };
+    var addedSeries = new JsonObject
+    {
+      ["id"] = 55,
+      ["monitored"] = false,
+      ["seasons"] = new JsonArray(
+        new JsonObject { ["seasonNumber"] = 1, ["monitored"] = false },
+        new JsonObject { ["seasonNumber"] = 2, ["monitored"] = false })
+    };
+    var episodes = "[ { \"id\": 11, \"seasonNumber\": 1, \"episodeNumber\": 1 },"
+      + " { \"id\": 21, \"seasonNumber\": 2, \"episodeNumber\": 1 } ]";
+
+    JsonObject? addedBody = null;
     var servarr = new Mock<IServarrClient>();
-    servarr.Setup(s => s.LookupSeriesAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
-      .ReturnsAsync(new JsonObject { ["title"] = "Breaking Bad", ["tvdbId"] = 81189, ["seasons"] = new JsonArray() });
+    // Not in Sonarr yet on the first check; present once added.
+    servarr.SetupSequence(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
+      .ReturnsAsync((JsonObject?)null)
+      .ReturnsAsync(addedSeries);
+    servarr.Setup(s => s.LookupSeriesAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>())).ReturnsAsync(lookup);
+    servarr.Setup(s => s.AddSeriesAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()))
+      .Callback<string, string, JsonObject, CancellationToken>((_, _, b, _) => addedBody = b)
+      .Returns(Task.CompletedTask);
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 55, It.IsAny<CancellationToken>())).ReturnsAsync(episodes);
     var tmdb = new Mock<ITmdbClient>();
     tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
     var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
@@ -75,6 +105,21 @@ public class ServarrDownloadClientTests
     await client.DispatchAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "Breaking Bad", Season = 1 }, CancellationToken.None);
 
     servarr.Verify(s => s.AddSeriesAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+    // Added inert — never grabs on add.
+    Assert.Equal("none", addedBody!["addOptions"]!["monitor"]!.GetValue<string>());
+    Assert.False(addedBody!["addOptions"]!["searchForMissingEpisodes"]!.GetValue<bool>());
+    // Only the requested season's episodes are (re)monitored...
+    servarr.Verify(
+      s => s.SetEpisodesMonitoredAsync("http://localhost:8989", "sk",
+        It.Is<System.Collections.Generic.IReadOnlyList<int>>(l => l.SequenceEqual(new[] { 11 })),
+        true, It.IsAny<CancellationToken>()),
+      Times.Once);
+    // ...and the search is a SeasonSearch for that season, never a whole-series grab.
+    servarr.Verify(
+      s => s.CommandAsync("http://localhost:8989", "sk",
+        It.Is<JsonObject>(c => c["name"]!.GetValue<string>() == "SeasonSearch" && c["seasonNumber"]!.GetValue<int>() == 1),
+        It.IsAny<CancellationToken>()),
+      Times.Once);
   }
 
   [Fact]

@@ -169,16 +169,20 @@ public sealed class ServarrDownloadClient : IDownloadClient
       catch (HttpRequestException)
       {
         // A concurrent request (e.g. two seasons of the same show grabbed at once) may have added the
-        // series first, so this add 400s ("series already added"). If it's there now, monitor + search the
-        // requested season instead of failing the dispatch (which would show a spurious "Blocked").
-        var added = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
-        if (added is null || !TryGetId(added, out var addedSeriesId))
-        {
-          throw;
-        }
-
-        await SearchSeriesAsync(config, added, addedSeriesId, dispatch, cancellationToken).ConfigureAwait(false);
+        // series first, so this add 400s ("series already added"). That is fine — it is in Sonarr now, and
+        // the monitor + search below handles it. Any other add failure is surfaced by the fetch that follows.
       }
+
+      // The series was added inert (nothing monitored, no search). Fetch it and monitor + search ONLY the
+      // requested season — never rely on the add to grab, or Sonarr's default "monitor: all" pulls the
+      // whole show for a single-season request.
+      var added = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
+      if (added is null || !TryGetId(added, out var addedSeriesId))
+      {
+        throw new InvalidOperationException($"Sonarr did not accept the series for TVDB {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
+      }
+
+      await SearchSeriesAsync(config, added, addedSeriesId, dispatch, cancellationToken).ConfigureAwait(false);
     }
     else
     {

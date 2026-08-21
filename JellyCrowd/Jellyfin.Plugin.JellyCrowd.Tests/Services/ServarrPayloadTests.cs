@@ -36,15 +36,10 @@ public class ServarrPayloadTests
     Assert.Equal("/tv", body["rootFolderPath"]!.GetValue<string>());
     Assert.True(body["seasonFolder"]!.GetValue<bool>());
 
-    // Whole series: every real season monitored via the seasons array, no addOptions.monitor override.
-    var seasons = (JsonArray)body["seasons"]!;
-    foreach (var node in seasons)
-    {
-      Assert.True(((JsonObject)node!)["monitored"]!.GetValue<bool>());
-    }
-
-    Assert.Null(body["addOptions"]!["monitor"]);
-    Assert.True(body["addOptions"]!["searchForMissingEpisodes"]!.GetValue<bool>());
+    // The series is added inert whatever the scope; the caller then monitors the right seasons and
+    // searches them. This keeps the add from ever grabbing more than was requested.
+    Assert.Equal("none", body["addOptions"]!["monitor"]!.GetValue<string>());
+    Assert.False(body["addOptions"]!["searchForMissingEpisodes"]!.GetValue<bool>());
   }
 
   [Fact]
@@ -54,16 +49,11 @@ public class ServarrPayloadTests
 
     var body = ServarrPayload.BuildSeriesAdd(lookup, 5, 0, "/tv", 2);
 
-    var seasons = (JsonArray)body["seasons"]!;
-    foreach (var node in seasons)
-    {
-      var obj = (JsonObject)node!;
-      var expected = obj["seasonNumber"]!.GetValue<int>() == 2;
-      Assert.Equal(expected, obj["monitored"]!.GetValue<bool>());
-    }
-
-    Assert.Null(body["addOptions"]!["monitor"]);
-    Assert.True(body["addOptions"]!["searchForMissingEpisodes"]!.GetValue<bool>());
+    // Added inert: nothing monitored, no search. Sonarr's addOptions.monitor overrides the seasons array
+    // (defaulting to "all"), so a single-season request must NOT let the add grab — the caller monitors
+    // and searches only the requested season afterwards.
+    Assert.Equal("none", body["addOptions"]!["monitor"]!.GetValue<string>());
+    Assert.False(body["addOptions"]!["searchForMissingEpisodes"]!.GetValue<bool>());
     Assert.Null(body["languageProfileId"]); // not set when languageProfileId <= 0
   }
 
