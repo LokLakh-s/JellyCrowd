@@ -20,9 +20,9 @@ public class RequestsControllerTests
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false, FakeQuotaService? quota = null)
+  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false, FakeQuotaService? quota = null, ILibraryMatcher? matcher = null, INotificationService? notifications = null)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota ?? new FakeQuotaService(canRequest), new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), _ => "tester")
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota ?? new FakeQuotaService(canRequest), notifications ?? new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), matcher ?? new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -462,6 +462,70 @@ public class RequestsControllerTests
     Assert.IsType<BadRequestObjectResult>(result.Result);
   }
 
+  [Fact]
+  public async Task AssignOwner_GrantsAvailableOwnershipToTargetUser_AndNotifies()
+  {
+    var store = new FakeRequestStore();
+    var target = Guid.NewGuid();
+    var notifier = new RecordingNotifier();
+
+    var result = await CreateController(store, notifications: notifier).AssignOwner(
+      new AdminCreateRequestDto { UserId = target, TmdbId = 5, MediaType = "movie", Title = "Dune" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(target, record.UserId);
+    Assert.Equal(RequestStatus.Available, record.Status);
+    Assert.Equal("item-5", record.JellyfinItemId); // ownership points at the resolved library item
+    Assert.Equal(target, notifier.NotifiedUser);   // the assignee is told
+  }
+
+  [Fact]
+  public async Task AssignOwner_SeasonScope_ResolvesTheSeasonItem()
+  {
+    var store = new FakeRequestStore();
+    var result = await CreateController(store).AssignOwner(
+      new AdminCreateRequestDto { UserId = Guid.NewGuid(), TmdbId = 9, MediaType = "tv", Title = "Show", Season = 2 },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal("season-9", record.JellyfinItemId); // FindSeasonItemId, not the whole series
+    Assert.Equal(2, record.Season);
+  }
+
+  [Fact]
+  public async Task AssignOwner_NotInLibrary_ReturnsBadRequest()
+  {
+    var result = await CreateController(new FakeRequestStore(), matcher: new NullLibraryMatcher()).AssignOwner(
+      new AdminCreateRequestDto { UserId = Guid.NewGuid(), TmdbId = 5, MediaType = "movie", Title = "Dune" },
+      CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task AssignOwner_MissingUser_ReturnsBadRequest()
+  {
+    var result = await CreateController(new FakeRequestStore()).AssignOwner(
+      new AdminCreateRequestDto { UserId = Guid.Empty, TmdbId = 5, MediaType = "movie", Title = "Dune" },
+      CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task AssignOwner_AlreadyOwned_RenewsInsteadOfDuplicating()
+  {
+    var store = new FakeRequestStore();
+    var target = Guid.NewGuid();
+    var dto = new AdminCreateRequestDto { UserId = target, TmdbId = 5, MediaType = "movie", Title = "Dune" };
+
+    await CreateController(store).AssignOwner(dto, CancellationToken.None);
+    await CreateController(store).AssignOwner(dto, CancellationToken.None);
+
+    Assert.Single(await store.GetByUserAsync(target, CancellationToken.None)); // renewed, not duplicated
+  }
+
   private sealed class FakeUserAccessor : ICurrentUserAccessor
   {
     private readonly Guid _userId;
@@ -553,6 +617,44 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
   {
     public Task<IReadOnlyList<DownloadStatusDto>> GetStatusesAsync(IEnumerable<RequestRecord> requests, CancellationToken cancellationToken)
       => Task.FromResult<IReadOnlyList<DownloadStatusDto>>(new List<DownloadStatusDto>());
+  }
+
+  // Records the personal notification so a test can assert the assignee was told.
+  private sealed class RecordingNotifier : INotificationService
+  {
+    public Guid? NotifiedUser { get; private set; }
+
+    public Task NotifyRequestEventAsync(RequestRecord request, NotificationEvent notificationEvent, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task NotifyAvailableBatchAsync(System.Collections.Generic.IReadOnlyList<RequestRecord> requests, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task NotifyPersonalAsync(Guid userId, PersonalNotifyKind kind, string title, string subject, string body, string? posterPath, CancellationToken cancellationToken)
+    {
+      NotifiedUser = userId;
+      return Task.CompletedTask;
+    }
+
+    public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task SendPersonalTestAsync(System.Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
+  }
+
+  // Nothing is in the library — every lookup misses.
+  private sealed class NullLibraryMatcher : ILibraryMatcher
+  {
+    public bool Exists(string mediaType, int tmdbId) => false;
+
+    public string? FindItemId(string mediaType, int tmdbId) => null;
+
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => null;
+
+    public string? FindSeasonItemId(int seriesTmdbId, int season) => null;
+
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
+
+    public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+
+    public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
   }
 
   private sealed class FakeLibraryMatcher : ILibraryMatcher

@@ -180,8 +180,106 @@
   function renderUsers(container) {
     subTabs(container, [
       { id: 'peruser', labelKey: 'tab_per_user', render: renderQuotas },
-      { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership }
+      { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership },
+      { id: 'assign', labelKey: 'tab_assign_media', render: renderAssignMedia }
     ]);
+  }
+
+  // Assign ownership of a title already in the library to a user (e.g. a manual download nobody requested).
+  function renderAssignMedia(container) {
+    setMessage(t('loading'));
+    var usersPromise = (window.ApiClient && window.ApiClient.getUsers) ? window.ApiClient.getUsers() : Promise.resolve([]);
+    Promise.all([usersPromise, apiGet('JellyCrowd/Maintenance/Media?orphansOnly=false')])
+      .then(function (res) {
+        var users = res[0] || [];
+        var media = res[1] || [];
+        container.innerHTML = '';
+
+        var sub = document.createElement('p');
+        sub.className = 'jellycrowd-disclaimer';
+        sub.textContent = t('assign_media_subtitle');
+        container.appendChild(sub);
+
+        var filter = document.createElement('input');
+        filter.type = 'search';
+        filter.className = 'jellycrowd-search-input';
+        filter.placeholder = t('assign_media_filter');
+        container.appendChild(filter);
+
+        var list = document.createElement('div');
+        list.className = 'jellycrowd-list';
+        container.appendChild(list);
+
+        function label(it) {
+          return (it.MediaType === 'tv' ? '📺 ' : '🎬 ') + it.Title
+            + (it.Season != null ? ' — ' + t('season_number').replace('{n}', it.Season) : '');
+        }
+
+        function row(it) {
+          var r = document.createElement('div');
+          r.className = 'jellycrowd-assign-row';
+
+          var name = document.createElement('span');
+          name.className = 'jellycrowd-assign-title';
+          name.textContent = label(it);
+          r.appendChild(name);
+
+          var owners = document.createElement('span');
+          owners.className = 'jellycrowd-status jellycrowd-owners';
+          owners.textContent = t('assign_owned_by').replace('{n}', it.OwnerCount || 0);
+          r.appendChild(owners);
+
+          var select = document.createElement('select');
+          select.className = 'jellycrowd-assign-select';
+          var ph = document.createElement('option');
+          ph.value = '';
+          ph.textContent = t('assign_choose_user');
+          select.appendChild(ph);
+          users.forEach(function (u) {
+            var o = document.createElement('option');
+            o.value = u.Id;
+            o.textContent = u.Name;
+            select.appendChild(o);
+          });
+          r.appendChild(select);
+
+          var btn = adminBtn(t('assign_button'), '', function (b) {
+            var uid = select.value;
+            if (!uid) { return; }
+            b.disabled = true;
+            apiPostJson('JellyCrowd/Requests/AssignOwner', {
+              UserId: uid,
+              TmdbId: it.TmdbId,
+              MediaType: it.MediaType,
+              Title: it.Title,
+              Season: it.Season
+            })
+              .then(function () {
+                setMessage(t('assign_done').replace('{user}', select.options[select.selectedIndex].textContent));
+                it.OwnerCount = (it.OwnerCount || 0) + 1;
+                owners.textContent = t('assign_owned_by').replace('{n}', it.OwnerCount);
+                select.value = '';
+                b.disabled = false;
+              })
+              .catch(function () { setMessage(t('assign_failed')); b.disabled = false; });
+          });
+          r.appendChild(btn);
+          return r;
+        }
+
+        function paint() {
+          var q = (filter.value || '').trim().toLowerCase();
+          var shown = media.filter(function (it) { return !q || (it.Title || '').toLowerCase().indexOf(q) >= 0; });
+          list.innerHTML = '';
+          if (!shown.length) { setMessage(q ? t('no_results') : t('assign_media_empty')); return; }
+          setMessage('');
+          shown.forEach(function (it) { list.appendChild(row(it)); });
+        }
+
+        filter.addEventListener('input', paint);
+        paint();
+      })
+      .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
   // ---------- Configurations (the plugin settings, moved here from the Dashboard config page) ----------
