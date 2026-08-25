@@ -151,6 +151,38 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task DispatchAsync_Show_WithoutTmdbTvdbId_ResolvesViaImdb()
+  {
+    // Regression (The Haunting of Hill House): TMDB has no TVDB id for some shows, so the dispatch failed
+    // in a loop. Fall back to the IMDb id (which TMDB does have) and let Sonarr resolve the TVDB id.
+    var lookup = new JsonObject { ["title"] = "The Haunting", ["tvdbId"] = 345246, ["seasons"] = new JsonArray() };
+    var addedSeries = new JsonObject { ["id"] = 88, ["monitored"] = false, ["seasons"] = new JsonArray() };
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.LookupSeriesByImdbAsync("http://localhost:8989", "sk", "tt6763664", It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["tvdbId"] = 345246 });
+    servarr.SetupSequence(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 345246, It.IsAny<CancellationToken>()))
+      .ReturnsAsync((JsonObject?)null)
+      .ReturnsAsync(addedSeries);
+    servarr.Setup(s => s.LookupSeriesAsync("http://localhost:8989", "sk", 345246, It.IsAny<CancellationToken>())).ReturnsAsync(lookup);
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 88, It.IsAny<CancellationToken>())).ReturnsAsync("[]");
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(72844, It.IsAny<CancellationToken>())).ReturnsAsync((int?)null); // TMDB has no TVDB id
+    tmdb.Setup(t => t.GetDetailsAsync("tv", 72844, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new CatalogItem { TmdbId = 72844, MediaType = "tv", Title = "The Haunting of Hill House", ImdbId = "tt6763664" });
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.DispatchAsync(new DownloadDispatch { TmdbId = 72844, MediaType = "tv", Title = "The Haunting of Hill House", Season = 1 }, CancellationToken.None);
+
+    // It got past TVDB resolution and added the series (no more "Could not resolve a TVDB id" loop).
+    servarr.Verify(s => s.AddSeriesAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(
+      s => s.CommandAsync("http://localhost:8989", "sk",
+        It.Is<JsonObject>(c => c["name"]!.GetValue<string>() == "SeasonSearch" && c["seasonNumber"]!.GetValue<int>() == 1),
+        It.IsAny<CancellationToken>()),
+      Times.Once);
+  }
+
+  [Fact]
   public async Task DispatchAsync_Season_ReMonitorsItsEpisodes_BeforeSearching()
   {
     // The reported bug: a season re-requested after some episodes were deleted downloaded nothing, because
