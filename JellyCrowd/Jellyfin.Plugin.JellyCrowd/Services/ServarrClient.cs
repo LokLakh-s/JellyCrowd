@@ -95,6 +95,14 @@ public sealed class ServarrClient : IServarrClient
   }
 
   /// <inheritdoc />
+  public async Task<JsonObject?> LookupSeriesByImdbAsync(string baseUrl, string apiKey, string imdbId, CancellationToken cancellationToken)
+  {
+    var term = Uri.EscapeDataString("imdb:" + imdbId);
+    var json = await GetStringAsync(baseUrl, apiKey, "/series/lookup?term=" + term, cancellationToken).ConfigureAwait(false);
+    return ParseObject(json);
+  }
+
+  /// <inheritdoc />
   public Task AddMovieAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken)
     => PostAsync(baseUrl, apiKey, "/movie", body, cancellationToken);
 

@@ -84,7 +84,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
         return;
       }
 
-      var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+      var tvdbId = await ResolveTvdbIdAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
       if (tvdbId is null)
       {
         return;
@@ -150,8 +150,8 @@ public sealed class ServarrDownloadClient : IDownloadClient
         throw new InvalidOperationException("Sonarr is not configured (URL, API key, root folder and quality profile are required).");
       }
 
-      var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
-        ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)}.");
+      var tvdbId = await ResolveTvdbIdAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
+        ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)} (no TVDB or IMDb match).");
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
       if (series is not null && TryGetId(series, out var seriesId))
       {
@@ -226,6 +226,27 @@ public sealed class ServarrDownloadClient : IDownloadClient
     await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
   }
 
+  // Resolves the TVDB id Sonarr needs from a TMDB show id. Normally TMDB carries it, but some entries
+  // (e.g. The Haunting of Hill House) have no TVDB id — for those we fall back to the IMDb id, which
+  // Sonarr can look up, and whose result carries the TVDB id. Returns null when neither path resolves.
+  private async Task<int?> ResolveTvdbIdAsync(PluginConfiguration config, int tmdbId, CancellationToken cancellationToken)
+  {
+    var tvdbId = await _tmdb.GetTvdbIdAsync(tmdbId, cancellationToken).ConfigureAwait(false);
+    if (tvdbId is not null)
+    {
+      return tvdbId;
+    }
+
+    var details = await _tmdb.GetDetailsAsync("tv", tmdbId, "en-US", cancellationToken).ConfigureAwait(false);
+    if (string.IsNullOrEmpty(details?.ImdbId))
+    {
+      return null;
+    }
+
+    var byImdb = await _servarr.LookupSeriesByImdbAsync(config.SonarrUrl, config.SonarrApiKey, details.ImdbId, cancellationToken).ConfigureAwait(false);
+    return byImdb?["tvdbId"] is JsonValue v && v.TryGetValue<int>(out var resolved) && resolved > 0 ? resolved : null;
+  }
+
   private static bool TryGetId(JsonObject? obj, out int id)
   {
     if (obj?["id"] is JsonValue value && value.TryGetValue<int>(out var parsed) && parsed > 0)
@@ -278,7 +299,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
         return true;
       }
 
-      var tvdbId = await _tmdb.GetTvdbIdAsync(dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+      var tvdbId = await ResolveTvdbIdAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
       if (tvdbId is null)
       {
         return true; // can't resolve it → nothing actionable to purge.
