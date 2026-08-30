@@ -573,5 +573,9 @@
   "adm_prop_pluginaccess": "Accès plugin",
   "adm_bulk_yes": "Oui",
   "adm_bulk_no": "Non",
-  "adm_bulk_selectall": "Tout sélectionner"
+  "adm_bulk_selectall": "Tout sélectionner",
+  "search_catalog_title": "Rechercher dans le catalogue JellyCrowd",
+  "search_jellyfin_title": "Rechercher dans Jellyfin",
+  "adm_hide_drawer": "Masquer le menu latéral Jellyfin pour les non-admins",
+  "adm_hide_drawer_hint": "Masque le tiroir gauche (hamburger) pour les utilisateurs ordinaires ; les administrateurs le gardent."
 }

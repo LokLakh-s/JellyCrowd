@@ -103,6 +103,7 @@
   var discordUrl = '';        // admin opt-in: Discord invite link shown as a header icon ('' = hidden)
   var supportUrl = '';        // admin opt-in: support/donation link shown as a header icon ('' = hidden)
   var guideUrl = '';          // admin opt-in: user-guide link shown as a header icon ('' = hidden)
+  var hideNativeDrawer = false; // admin opt-in: hide Jellyfin's left drawer for non-admins
   var jcSkipOutro = false;    // whether the smart Skip Outro control is enabled (install the watcher if so)
 
   function loadConfigLang() {
@@ -121,8 +122,18 @@
         supportUrl = (d && d.SupportLinkUrl) ? String(d.SupportLinkUrl) : '';
         guideUrl = (d && d.GuideLinkUrl) ? String(d.GuideLinkUrl) : '';
         jcSkipOutro = !!(d && d.SkipOutroEnabled);
+        hideNativeDrawer = !!(d && d.HideNativeDrawer);
+        applyDrawerHiding();
       })
       .catch(function () { /* keep defaults on failure */ });
+  }
+
+  // Hide Jellyfin's left navigation drawer for non-admins when the admin opted in. Admins always keep it.
+  // Applied via a body class so it re-evaluates whenever admin status or the setting is (re)resolved.
+  function applyDrawerHiding() {
+    if (document.body) {
+      document.body.classList.toggle('jc-hide-native-drawer', hideNativeDrawer && !isAdmin);
+    }
   }
 
   // Confirm via the authenticated endpoint whether THIS user is an admin (and, in config mode, exempt).
@@ -132,6 +143,7 @@
     apiAjax('GET', 'JellyCrowd/Settings/Visibility')
       .then(function (d) {
         isAdmin = !!(d && d.IsAdmin === true);
+        applyDrawerHiding(); // now that admin status is known, an admin keeps the drawer
         if (configMode && d && d.Visible === true) {
           pluginHidden = false;
         }
@@ -663,10 +675,55 @@
   // (Re)inject our whole header UI into the MUI toolbar. Each inserter is idempotent (host-scoped guard).
   function mountMui() {
     insertMuiNav();
+    insertCatalogSearch();
     insertQuota();
     insertBell();
     insertAnnouncement();
     insertHeaderLinks();
+    labelNativeSearch();
+  }
+
+  // Clarify that the native magnifier searches the Jellyfin library (as opposed to our catalog magnifier).
+  function labelNativeSearch() {
+    var s = document.querySelector('.MuiToolbar-root a[aria-label="Search"], .MuiToolbar-root button[aria-label="Search"]');
+    if (s) { s.title = t('search_jellyfin_title'); }
+  }
+
+  // A second, distinct magnifier that searches the JellyCrowd catalog (TMDB), next to the native one that
+  // searches the existing library. Opens the catalog view and focuses its search box.
+  function insertCatalogSearch() {
+    if (!pluginVisible()) {
+      return;
+    }
+    var host = rightHost();
+    if (!host || host.querySelector('.jcHeaderSearch')) {
+      return;
+    }
+
+    var wrap = document.createElement('span');
+    wrap.className = 'jcHeaderSearch';
+    wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;align-self:center;';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = muiIconButtonClass() || 'paper-icon-button-light headerButton';
+    btn.title = t('search_catalog_title');
+    btn.setAttribute('aria-label', t('search_catalog_title'));
+    var icon = document.createElement('span');
+    icon.className = 'material-icons';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = 'manage_search'; // distinct from the native "search" glyph
+    btn.appendChild(icon);
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      showView('catalog');
+      // Focus the catalog search box once the view is present.
+      setTimeout(function () {
+        var input = document.getElementById('jcSearchInput');
+        if (input) { input.focus(); }
+      }, 150);
+    });
+    wrap.appendChild(btn);
+    host.insertBefore(wrap, host.querySelector('.jcHeaderBell') || host.querySelector('.jcHeaderQuota') || null);
   }
 
   function watchMuiToolbar() {
@@ -840,17 +897,13 @@
       menu.appendChild(avatarItem('mode_edit', t('avm_metadata'), '#/metadata'));
     }
 
-    // Native SyncPlay / Cast — trigger the real header buttons so behaviour is 100% native.
+    // Native SyncPlay / Cast — trigger the real header buttons so behaviour is 100% native. Their own
+    // header buttons are hidden (see injectHeaderStyle) so these are the single way in, no duplication.
     menu.appendChild(avatarSep());
     menu.appendChild(avatarItem('group', t('avm_syncplay'), null, function () { clickNative('.headerSyncButton'); }));
     menu.appendChild(avatarItem('cast', t('avm_cast'), null, function () { clickNative('.headerCastButton'); }));
 
-    if (discordUrl || supportUrl || guideUrl) {
-      menu.appendChild(avatarSep());
-      if (discordUrl) { menu.appendChild(avatarItem('forum', t('discord_link_title'), discordUrl, null, true)); }
-      if (supportUrl) { menu.appendChild(avatarItem('favorite', t('support_link_title'), supportUrl, null, true)); }
-      if (guideUrl) { menu.appendChild(avatarItem('help', t('guide_link_title'), guideUrl, null, true)); }
-    }
+    // Discord / support / guide are NOT repeated here — they live in the header bar (jcHeaderLinks).
 
     menu.appendChild(avatarSep());
     menu.appendChild(avatarItem('logout', t('avm_signout'), null, jcLogout));
@@ -1400,6 +1453,11 @@
       // Respect the OS "reduce motion" setting: no transitions or animations anywhere we own.
       '@media (prefers-reduced-motion: reduce){.jellycrowd-overlay,.jellycrowd-overlay *,.jcHeaderTab{transition:none !important;animation:none !important;scroll-behavior:auto !important;}}' +
       '.headerTabs .emby-tab-button{display:none !important;}' +
+      // De-duplicate the header: SyncPlay/Groups and Cast are reachable from the avatar menu, so hide
+      // their native header buttons (the menu shortcuts still click them programmatically).
+      '.skinHeader .headerSyncButton,.skinHeader .headerCastButton{display:none !important;}' +
+      // Admin opt-in: hide the native left drawer (hamburger) for non-admins (body class set in JS).
+      'body.jc-hide-native-drawer .mainDrawerButton{display:none !important;}' +
       // Some library types (Other/Books) hide the empty tab row — keep it shown when it hosts our nav.
       '.headerTabs:has(.jcHeaderNav){display:flex !important;justify-content:center;}' +
       // The header logo / home button is a link to Home — show it as one (pointer cursor on hover).
