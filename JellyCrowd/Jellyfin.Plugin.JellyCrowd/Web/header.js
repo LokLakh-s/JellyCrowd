@@ -1108,7 +1108,14 @@
       openBellPanel(panel);
     });
     panel.addEventListener('click', function (e) { e.stopPropagation(); });
-    document.addEventListener('click', function () { panel.style.display = 'none'; });
+    // Close on a click anywhere outside the panel and its button. Capture phase so it fires even when
+    // the clicked element stops propagation (nav tabs, avatar menu, …) — a bubble-phase listener missed
+    // those and left the panel stuck open.
+    document.addEventListener('click', function (e) {
+      if (panel.style.display !== 'none' && !panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.style.display = 'none';
+      }
+    }, true);
 
     wrap.appendChild(btn);
     document.body.appendChild(panel);
@@ -1359,7 +1366,14 @@
       dot.style.display = 'none';
     });
     panel.addEventListener('click', function (e) { e.stopPropagation(); });
-    document.addEventListener('click', function () { panel.style.display = 'none'; });
+    // Close on a click anywhere outside the panel and its button. Capture phase so it fires even when
+    // the clicked element stops propagation (nav tabs, avatar menu, …) — a bubble-phase listener missed
+    // those and left the panel stuck open.
+    document.addEventListener('click', function (e) {
+      if (panel.style.display !== 'none' && !panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.style.display = 'none';
+      }
+    }, true);
 
     wrap.appendChild(btn);
     document.body.appendChild(panel);

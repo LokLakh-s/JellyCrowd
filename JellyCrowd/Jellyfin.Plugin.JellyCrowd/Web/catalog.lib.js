@@ -193,7 +193,9 @@
     if (p < 0) {
       return 0;
     }
-    return p > 100 ? 100 : p;
+    // Whole number: the bars and labels never want a fractional percent (the dashboard was showing a
+    // dozen decimals).
+    return Math.round(p > 100 ? 100 : p);
   }
 
   // Group catalog items by their release date (YYYY-MM-DD), returning date-ascending groups.

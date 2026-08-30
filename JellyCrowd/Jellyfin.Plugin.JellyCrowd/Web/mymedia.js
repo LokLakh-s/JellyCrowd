@@ -190,10 +190,9 @@
       button.addEventListener('click', function () {
         button.disabled = true;
         apiPost('JellyCrowd/Requests/' + item.RequestId + '/RequestDeletion')
-          .then(function () {
-            row.removeChild(button);
-            row.appendChild(flaggedBadge());
-          })
+          // Reload so the row rebuilds in its flagged state (the "renew" button gives way to "Keep"),
+          // rather than leaving a half-updated row that needs a manual refresh.
+          .then(function () { reloadMedia(); })
           .catch(function () { button.disabled = false; });
       });
       row.appendChild(button);

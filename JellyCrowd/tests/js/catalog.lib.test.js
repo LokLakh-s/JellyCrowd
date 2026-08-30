@@ -126,6 +126,9 @@ test('quotaPercent clamps and treats <=0 quota as unlimited', () => {
   assert.strictEqual(lib.quotaPercent(5, 10), 50);
   assert.strictEqual(lib.quotaPercent(15, 10), 100);
   assert.strictEqual(lib.quotaPercent(1, 0), 0);
+  // Rounded to a whole number (no fractional percent on the dashboard).
+  assert.strictEqual(lib.quotaPercent(1, 3), 33);
+  assert.strictEqual(lib.quotaPercent(2, 3), 67);
 });
 
 test('quotaColor grades green -> yellow -> red and clamps', () => {
