@@ -55,6 +55,38 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
+  public void GetBaseQuotaBytes_PerUserThenGroupThenDefault()
+  {
+    var user = Guid.NewGuid();
+    var service = Create(new SizeMatcher(0));
+    Assert.Equal(10 * Gib, service.GetBaseQuotaBytes(user)); // default
+
+    var group = new UserGroup { Id = Guid.NewGuid(), Name = "G", QuotaBytes = 3 * Gib };
+    group.Members.Add(user);
+    _config.UserGroups.Add(group);
+    Assert.Equal(3 * Gib, service.GetBaseQuotaBytes(user)); // inherited from the group
+
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 1 * Gib });
+    Assert.Equal(1 * Gib, service.GetBaseQuotaBytes(user)); // per-user override wins
+
+    Assert.Equal(10 * Gib, service.GetBaseQuotaBytes(Guid.NewGuid())); // non-member → default
+  }
+
+  [Fact]
+  public void GetBaseQuotaBytes_OverrideWithoutQuota_FallsToGroup()
+  {
+    var user = Guid.NewGuid();
+    var group = new UserGroup { Id = Guid.NewGuid(), Name = "G", QuotaBytes = 7 * Gib };
+    group.Members.Add(user);
+    _config.UserGroups.Add(group);
+    // A per-user entry that sets only other fields (no QuotaBytes) must not shadow the group's quota.
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, CanRequest = false });
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(7 * Gib, service.GetBaseQuotaBytes(user));
+  }
+
+  [Fact]
   public async Task GetUsageAsync_SumsAvailableSizes()
   {
     var user = Guid.NewGuid();

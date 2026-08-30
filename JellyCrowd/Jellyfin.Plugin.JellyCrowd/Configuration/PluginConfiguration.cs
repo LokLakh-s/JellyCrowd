@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -595,6 +596,20 @@ public class PluginConfiguration : BasePluginConfiguration
   /// </summary>
   [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
   public Collection<UserQuotaOverride> QuotaOverrides { get; set; } = new();
+
+  /// <summary>
+  /// Gets or sets the admin-defined user groups. A group supplies default settings its members inherit
+  /// (a per-user override still wins) and libraries the admin can push onto members' Jellyfin accounts.
+  /// </summary>
+  [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
+  public Collection<UserGroup> UserGroups { get; set; } = new();
+
+  /// <summary>
+  /// Gets or sets the group ids a targeted announcement is shown to. Empty means the announcement is
+  /// shown to everyone.
+  /// </summary>
+  [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
+  public Collection<Guid> AnnouncementGroupIds { get; set; } = new();
 
   /// <summary>
   /// Gets or sets the Discord webhook URL used for request notifications. Empty disables Discord.

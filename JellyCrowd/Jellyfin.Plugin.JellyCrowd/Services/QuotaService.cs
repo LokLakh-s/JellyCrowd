@@ -39,15 +39,12 @@ public sealed class QuotaService : IQuotaService
   public long GetBaseQuotaBytes(Guid userId)
   {
     var config = _configurationProvider();
-    foreach (var over in config.QuotaOverrides)
-    {
-      if (over.UserId == userId)
-      {
-        return over.QuotaBytes ?? config.DefaultUserQuotaBytes;
-      }
-    }
 
-    return config.DefaultUserQuotaBytes;
+    // Precedence: a per-user override wins over the user's group, which wins over the global default.
+    // With no group configured this is identical to the previous per-user-only resolution.
+    var perUser = RequestPolicy.Find(config, userId)?.QuotaBytes;
+    var group = RequestPolicy.GroupOf(config, userId)?.QuotaBytes;
+    return perUser ?? group ?? config.DefaultUserQuotaBytes;
   }
 
   /// <inheritdoc />

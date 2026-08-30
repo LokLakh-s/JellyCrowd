@@ -33,13 +33,35 @@ public static class RequestPolicy
   }
 
   /// <summary>
-  /// Whether the user may create requests (default: yes).
+  /// Finds the group the user belongs to, or <c>null</c> when the user is in no group. A user is expected
+  /// to belong to at most one group; the first matching group wins.
+  /// </summary>
+  /// <param name="config">The plugin configuration.</param>
+  /// <param name="userId">The user id.</param>
+  /// <returns>The user's group, or <c>null</c>.</returns>
+  public static UserGroup? GroupOf(PluginConfiguration config, Guid userId)
+  {
+    ArgumentNullException.ThrowIfNull(config);
+    foreach (var group in config.UserGroups)
+    {
+      if (group.Members.Contains(userId))
+      {
+        return group;
+      }
+    }
+
+    return null;
+  }
+
+  /// <summary>
+  /// Whether the user may create requests (default: yes). A per-user override wins over the user's group,
+  /// which wins over the default.
   /// </summary>
   /// <param name="config">The plugin configuration.</param>
   /// <param name="userId">The user id.</param>
   /// <returns><c>true</c> when requests are allowed.</returns>
   public static bool CanRequest(PluginConfiguration config, Guid userId)
-    => Find(config, userId)?.CanRequest ?? true;
+    => Find(config, userId)?.CanRequest ?? GroupOf(config, userId)?.CanRequest ?? true;
 
   /// <summary>
   /// The user's effective request rate limit per period (per-user override, else the global value).
@@ -48,7 +70,7 @@ public static class RequestPolicy
   /// <param name="userId">The user id.</param>
   /// <returns>The max requests per period (0 = unlimited).</returns>
   public static int MaxRequestsPerPeriod(PluginConfiguration config, Guid userId)
-    => Find(config, userId)?.MaxRequestsPerPeriod ?? config.MaxRequestsPerPeriod;
+    => Find(config, userId)?.MaxRequestsPerPeriod ?? GroupOf(config, userId)?.MaxRequestsPerPeriod ?? config.MaxRequestsPerPeriod;
 
   /// <summary>
   /// Whether this user is trusted (their requests are auto-approved).
@@ -57,14 +79,14 @@ public static class RequestPolicy
   /// <param name="userId">The user id.</param>
   /// <returns><c>true</c> when the user is trusted.</returns>
   public static bool IsTrusted(PluginConfiguration config, Guid userId)
-    => Find(config, userId)?.AutoApprove ?? false;
+    => Find(config, userId)?.AutoApprove ?? GroupOf(config, userId)?.AutoApprove ?? false;
 
   /// <summary>
-  /// Whether the plugin should be visible/usable for a user. Administrators always see it. A per-user
-  /// override (<see cref="UserQuotaOverride.PluginAccess"/>) wins over the global "config mode" in both
-  /// directions: <c>true</c> forces access even while config mode hides the plugin; <c>false</c> blocks
-  /// this user even when the plugin is otherwise visible. With no override (<c>null</c>) the user follows
-  /// config mode — hidden when it is on, visible when it is off.
+  /// Whether the plugin should be visible/usable for a user. Administrators always see it. Plugin access
+  /// (<see cref="UserQuotaOverride.PluginAccess"/> then the user's group) wins over the global "config mode"
+  /// in both directions: <c>true</c> forces access even while config mode hides the plugin; <c>false</c>
+  /// blocks this user even when the plugin is otherwise visible. With neither set (<c>null</c>) the user
+  /// follows config mode — hidden when it is on, visible when it is off.
   /// </summary>
   /// <param name="config">The plugin configuration.</param>
   /// <param name="userId">The user id.</param>
@@ -78,13 +100,44 @@ public static class RequestPolicy
       return true;
     }
 
-    var access = Find(config, userId)?.PluginAccess;
+    var access = Find(config, userId)?.PluginAccess ?? GroupOf(config, userId)?.PluginAccess;
     if (access.HasValue)
     {
       return access.Value;
     }
 
     return !config.HiddenFromUsers;
+  }
+
+  /// <summary>
+  /// Whether the header announcement should be shown to a user. An announcement with no target groups is
+  /// global (everyone sees it). A targeted announcement is shown only to members of a target group — and
+  /// always to administrators, who create and manage it. An empty announcement is shown to no-one.
+  /// </summary>
+  /// <param name="config">The plugin configuration.</param>
+  /// <param name="userId">The user id.</param>
+  /// <param name="isAdmin">Whether the user is an administrator.</param>
+  /// <returns><c>true</c> when the announcement should be shown to the user.</returns>
+  public static bool ShouldSeeAnnouncement(PluginConfiguration config, Guid userId, bool isAdmin)
+  {
+    ArgumentNullException.ThrowIfNull(config);
+    if (string.IsNullOrWhiteSpace(config.AnnouncementText))
+    {
+      return false;
+    }
+
+    if (config.AnnouncementGroupIds.Count == 0)
+    {
+      return true;
+    }
+
+    if (isAdmin)
+    {
+      return true;
+    }
+
+    var group = GroupOf(config, userId);
+    return group is not null && config.AnnouncementGroupIds.Contains(group.Id);
   }
 
   /// <summary>

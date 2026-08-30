@@ -60,7 +60,9 @@ public class SettingsController : ControllerBase
       Hidden = config.HiddenFromUsers,
       CommentsEnabled = config.CommentsEnabled,
       AllowUserRetrySearch = config.AllowUserRetrySearch,
-      AnnouncementText = config.AnnouncementText ?? string.Empty,
+      // Anonymous endpoint: only carry a *global* announcement here. A targeted announcement is delivered
+      // per-user through /Settings/Visibility so its text never leaks to users outside its groups.
+      AnnouncementText = config.AnnouncementGroupIds.Count == 0 ? (config.AnnouncementText ?? string.Empty) : string.Empty,
       AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel,
       // Only surface a link URL when the admin enabled it (a disabled, configured URL stays private).
       DiscordInviteUrl = config.DiscordInviteEnabled ? (config.DiscordInviteUrl ?? string.Empty) : string.Empty,
@@ -146,8 +148,16 @@ public class SettingsController : ControllerBase
   {
     var isAdmin = await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false);
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
-    var visible = Services.RequestPolicy.IsVisibleTo(_config(), userId, isAdmin);
-    return Ok(new VisibilitySettingDto { Visible = visible, IsAdmin = isAdmin });
+    var config = _config();
+    var visible = Services.RequestPolicy.IsVisibleTo(config, userId, isAdmin);
+    var showAnnouncement = Services.RequestPolicy.ShouldSeeAnnouncement(config, userId, isAdmin);
+    return Ok(new VisibilitySettingDto
+    {
+      Visible = visible,
+      IsAdmin = isAdmin,
+      AnnouncementText = showAnnouncement ? (config.AnnouncementText ?? string.Empty) : string.Empty,
+      AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel,
+    });
   }
 
   /// <summary>
@@ -165,6 +175,20 @@ public class SettingsController : ControllerBase
     var level = dto?.Level?.ToLowerInvariant();
     plugin.Configuration.AnnouncementText = (dto?.Text ?? string.Empty).Trim();
     plugin.Configuration.AnnouncementLevel = level is "green" or "yellow" or "red" ? level : "green";
+
+    // Replace the announcement's target groups. Empty means "global" (shown to everyone).
+    plugin.Configuration.AnnouncementGroupIds.Clear();
+    if (dto?.GroupIds is { } groupIds)
+    {
+      foreach (var groupId in groupIds)
+      {
+        if (groupId != Guid.Empty && !plugin.Configuration.AnnouncementGroupIds.Contains(groupId))
+        {
+          plugin.Configuration.AnnouncementGroupIds.Add(groupId);
+        }
+      }
+    }
+
     plugin.SaveConfiguration();
     return NoContent();
   }

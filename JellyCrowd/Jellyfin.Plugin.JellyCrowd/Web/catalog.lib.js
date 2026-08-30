@@ -625,7 +625,31 @@
     return label;
   }
 
+  // Build a minimal user-group record from raw admin-form field values, dropping fields that are "not set"
+  // so the stored group stays lean (mirrors the per-user override rules). Nullable settings use ''/absent
+  // for "not set", 'yes'/'no' for booleans and 'on'/'off' for plugin access; quota is entered in GiB.
+  function buildGroupRecord(f, gib) {
+    f = f || {};
+    var g = {
+      Id: f.id,
+      Name: (f.name || '').trim(),
+      Members: (f.members || []).slice(),
+      LibraryIds: (f.libraryIds || []).slice()
+    };
+    if (f.quotaGib !== '' && f.quotaGib != null && !isNaN(parseFloat(f.quotaGib))) {
+      g.QuotaBytes = Math.round(parseFloat(f.quotaGib) * (gib || (1024 * 1024 * 1024)));
+    }
+    if (f.canRequest === 'yes') { g.CanRequest = true; } else if (f.canRequest === 'no') { g.CanRequest = false; }
+    if (f.autoApprove === 'yes') { g.AutoApprove = true; } else if (f.autoApprove === 'no') { g.AutoApprove = false; }
+    if (f.maxPerPeriod !== '' && f.maxPerPeriod != null && !isNaN(parseInt(f.maxPerPeriod, 10))) {
+      g.MaxRequestsPerPeriod = parseInt(f.maxPerPeriod, 10);
+    }
+    if (f.pluginAccess === 'on') { g.PluginAccess = true; } else if (f.pluginAccess === 'off') { g.PluginAccess = false; }
+    return g;
+  }
+
   return {
+    buildGroupRecord: buildGroupRecord,
     focusablesIn: focusablesIn,
     handleTrapKeydown: handleTrapKeydown,
     focusFirst: focusFirst,

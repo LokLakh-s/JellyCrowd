@@ -174,4 +174,133 @@ public class RequestPolicyTests
 
     Assert.True(RequestPolicy.IsVisibleTo(config, admin, isAdmin: true));
   }
+
+  // ---------- User groups ----------
+  private static UserGroup Group(Guid member) => new()
+  {
+    Id = Guid.NewGuid(),
+    Name = "G",
+    Members = { member },
+  };
+
+  [Fact]
+  public void GroupOf_FindsMemberGroup_OrNull()
+  {
+    var config = Config();
+    Assert.Null(RequestPolicy.GroupOf(config, User));
+
+    var group = Group(User);
+    config.UserGroups.Add(group);
+    Assert.Same(group, RequestPolicy.GroupOf(config, User));
+    Assert.Null(RequestPolicy.GroupOf(config, Guid.NewGuid())); // a non-member has no group
+  }
+
+  [Fact]
+  public void CanRequest_UsesGroup_WhenNoPerUserValue()
+  {
+    var config = Config();
+    var group = Group(User);
+    group.CanRequest = false;
+    config.UserGroups.Add(group);
+
+    Assert.False(RequestPolicy.CanRequest(config, User)); // inherited from the group
+  }
+
+  [Fact]
+  public void CanRequest_PerUserWinsOverGroup()
+  {
+    var config = Config();
+    var group = Group(User);
+    group.CanRequest = false;
+    config.UserGroups.Add(group);
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = User, CanRequest = true });
+
+    Assert.True(RequestPolicy.CanRequest(config, User)); // per-user override wins
+  }
+
+  [Fact]
+  public void MaxRequestsPerPeriod_PerUserThenGroupThenGlobal()
+  {
+    var config = Config(); // global = 5
+    var group = Group(User);
+    group.MaxRequestsPerPeriod = 3;
+    config.UserGroups.Add(group);
+    Assert.Equal(3, RequestPolicy.MaxRequestsPerPeriod(config, User)); // group value
+
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = User, MaxRequestsPerPeriod = 1 });
+    Assert.Equal(1, RequestPolicy.MaxRequestsPerPeriod(config, User)); // per-user wins
+
+    Assert.Equal(5, RequestPolicy.MaxRequestsPerPeriod(config, Guid.NewGuid())); // non-member → global
+  }
+
+  [Fact]
+  public void IsTrusted_UsesGroupAutoApprove()
+  {
+    var config = Config();
+    var group = Group(User);
+    group.AutoApprove = true;
+    config.UserGroups.Add(group);
+
+    Assert.True(RequestPolicy.IsTrusted(config, User));
+  }
+
+  [Fact]
+  public void IsVisibleTo_GroupPluginAccessBlocks_PerUserOverrides()
+  {
+    var config = Config();
+    var group = Group(User);
+    group.PluginAccess = false;
+    config.UserGroups.Add(group);
+    Assert.False(RequestPolicy.IsVisibleTo(config, User, isAdmin: false)); // blocked by group
+
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = User, PluginAccess = true });
+    Assert.True(RequestPolicy.IsVisibleTo(config, User, isAdmin: false)); // per-user re-enables
+  }
+
+  [Fact]
+  public void GroupSettings_DoNotAffectNonMembers()
+  {
+    var config = Config();
+    var group = Group(User);
+    group.CanRequest = false;
+    group.MaxRequestsPerPeriod = 1;
+    group.PluginAccess = false;
+    config.UserGroups.Add(group);
+
+    var other = Guid.NewGuid();
+    Assert.True(RequestPolicy.CanRequest(config, other));
+    Assert.Equal(5, RequestPolicy.MaxRequestsPerPeriod(config, other));
+    Assert.True(RequestPolicy.IsVisibleTo(config, other, isAdmin: false));
+  }
+
+  [Fact]
+  public void ShouldSeeAnnouncement_EmptyText_False()
+  {
+    var config = Config();
+    config.AnnouncementText = "   ";
+    Assert.False(RequestPolicy.ShouldSeeAnnouncement(config, User, isAdmin: false));
+  }
+
+  [Fact]
+  public void ShouldSeeAnnouncement_Global_ShownToEveryone()
+  {
+    var config = Config();
+    config.AnnouncementText = "Hello";
+    Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, User, isAdmin: false));
+    Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: false));
+  }
+
+  [Fact]
+  public void ShouldSeeAnnouncement_Targeted_OnlyMembersAndAdmins()
+  {
+    var config = Config();
+    config.AnnouncementText = "Members only";
+    var group = Group(User);
+    config.UserGroups.Add(group);
+    config.AnnouncementGroupIds.Add(group.Id);
+
+    Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, User, isAdmin: false));          // member
+    Assert.False(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: false)); // non-member
+    Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: true));  // admin always
+  }
 }

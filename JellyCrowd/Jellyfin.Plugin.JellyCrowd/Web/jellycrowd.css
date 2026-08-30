@@ -2199,6 +2199,87 @@ body.jellycrowd-overlay-open {
   max-width: 10em;
 }
 
+/* User groups (Admin › Users › Groups): one card per group, with settings, members and libraries. */
+.jellycrowd-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+  margin-top: 0.8em;
+}
+
+.jellycrowd-group-card {
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 0.4em;
+  padding: 0.8em;
+  background: rgba(127, 127, 127, 0.06);
+}
+
+.jellycrowd-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 0.6em;
+}
+
+.jellycrowd-group-head .jc-g-name {
+  flex: 1;
+  padding: 0.4em 0.5em;
+  border-radius: 0.25em;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+}
+
+.jellycrowd-group-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7em;
+  margin-bottom: 0.6em;
+}
+
+.jellycrowd-group-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  font-size: 0.85em;
+}
+
+.jellycrowd-group-field input,
+.jellycrowd-group-field select {
+  padding: 0.35em 0.5em;
+  border-radius: 0.25em;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+  max-width: 10em;
+}
+
+.jellycrowd-group-subtitle {
+  font-weight: 600;
+  font-size: 0.9em;
+  margin: 0.4em 0 0.3em;
+}
+
+.jellycrowd-group-checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12em, 1fr));
+  gap: 0.2em 0.8em;
+  max-height: 12em;
+  overflow: auto;
+  padding: 0.2em 0;
+}
+
+.jellycrowd-group-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
 /* Loading placeholders — same shape as the content they stand in for, so the layout does not jump when
    it arrives. */
 .jellycrowd-skel {
