@@ -43,7 +43,13 @@ internal sealed class StubTmdbClient : ITmdbClient
   public Task<IReadOnlyList<CatalogItem>> GetCollectionAsync(int collectionId, string language, CancellationToken cancellationToken)
     => Task.FromResult<IReadOnlyList<CatalogItem>>(Array.Empty<CatalogItem>());
 
-  public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
+  public Task<int?> FindTopPersonAsync(string query, string language, CancellationToken cancellationToken)
+      => Task.FromResult<int?>(null);
+
+    public Task<IReadOnlyList<CatalogItem>> GetPersonFilmographyAsync(int personId, string language, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyList<CatalogItem>>(new List<CatalogItem>());
+
+    public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
     => Task.FromResult<int?>(null);
 
   public Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken)

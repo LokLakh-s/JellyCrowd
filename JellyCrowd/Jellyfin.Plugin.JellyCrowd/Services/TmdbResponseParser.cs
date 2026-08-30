@@ -46,6 +46,78 @@ public static class TmdbResponseParser
   }
 
   /// <summary>
+  /// Returns the TMDB person id when the top result of a <c>/search/multi</c> payload is a person, so the
+  /// caller can show that person's filmography instead of title matches (a name search). Otherwise null.
+  /// </summary>
+  /// <param name="json">The raw <c>/search/multi</c> JSON payload.</param>
+  /// <returns>The top result's person id, or <c>null</c> when the top result is not a person.</returns>
+  public static int? ParseTopPersonId(string json)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    using var doc = JsonDocument.Parse(json);
+    if (!doc.RootElement.TryGetProperty("results", out var results)
+        || results.ValueKind != JsonValueKind.Array)
+    {
+      return null;
+    }
+
+    foreach (var first in results.EnumerateArray())
+    {
+      // Only the single best-ranked result decides: if the person outranks every title, it is a name
+      // search. GetInt returns 0 for a missing id.
+      var id = GetInt(first, "id");
+      return string.Equals(GetString(first, "media_type"), "person", StringComparison.Ordinal) && id > 0 ? id : null;
+    }
+
+    return null;
+  }
+
+  /// <summary>
+  /// Parses a person's <c>combined_credits</c> payload into their filmography: the movies and shows they
+  /// are in (cast and crew), deduplicated by title and ordered by popularity so the notable work leads.
+  /// </summary>
+  /// <param name="json">The raw <c>/person/{id}/combined_credits</c> JSON payload.</param>
+  /// <param name="max">The most entries to keep.</param>
+  /// <returns>The person's filmography as catalog items.</returns>
+  public static IReadOnlyList<CatalogItem> ParseCombinedCredits(string json, int max)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    var byKey = new Dictionary<string, (CatalogItem Item, double Popularity)>(StringComparer.Ordinal);
+    using var doc = JsonDocument.Parse(json);
+    foreach (var section in new[] { "cast", "crew" })
+    {
+      if (!doc.RootElement.TryGetProperty(section, out var arr) || arr.ValueKind != JsonValueKind.Array)
+      {
+        continue;
+      }
+
+      foreach (var element in arr.EnumerateArray())
+      {
+        var item = ParseElement(element, null); // combined_credits entries carry their own media_type
+        if (item is null)
+        {
+          continue;
+        }
+
+        // A person can be both cast and crew on the same title; keep it once.
+        var key = item.MediaType + ":" + item.TmdbId;
+        if (!byKey.ContainsKey(key))
+        {
+          byKey[key] = (item, GetDouble(element, "popularity"));
+        }
+      }
+    }
+
+    return byKey.Values
+      .OrderByDescending(v => v.Popularity)
+      .Take(max > 0 ? max : int.MaxValue)
+      .Select(v => v.Item)
+      .ToList();
+  }
+
+  /// <summary>
   /// Parses a single TMDB detail payload (e.g. <c>/movie/{id}</c> or <c>/tv/{id}</c>).
   /// </summary>
   /// <param name="json">The raw TMDB JSON payload.</param>

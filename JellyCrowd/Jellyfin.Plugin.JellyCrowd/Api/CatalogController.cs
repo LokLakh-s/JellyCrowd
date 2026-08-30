@@ -116,8 +116,21 @@ public class CatalogController : ControllerBase
       return BadRequest("The 'query' parameter is required.");
     }
 
+    var lang = Normalize(language);
+    var pageNumber = page ?? 1;
+
+    // Name search: when the best-ranked result is a person, show that person's filmography (movies + shows
+    // they are in) instead of title matches. It is a single page of results, so later pages are empty.
+    var personId = await _tmdbClient.FindTopPersonAsync(query, lang, cancellationToken).ConfigureAwait(false);
+    if (personId is int pid)
+    {
+      return await ExecuteAsync(() => pageNumber <= 1
+        ? _tmdbClient.GetPersonFilmographyAsync(pid, lang, cancellationToken)
+        : Task.FromResult<IReadOnlyList<CatalogItem>>(System.Array.Empty<CatalogItem>())).ConfigureAwait(false);
+    }
+
     return await ExecuteAsync(
-      () => _tmdbClient.SearchAsync(query, Normalize(language), page ?? 1, cancellationToken)).ConfigureAwait(false);
+      () => _tmdbClient.SearchAsync(query, lang, pageNumber, cancellationToken)).ConfigureAwait(false);
   }
 
   /// <summary>

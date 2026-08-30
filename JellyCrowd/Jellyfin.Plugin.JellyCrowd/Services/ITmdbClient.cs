@@ -104,6 +104,25 @@ public interface ITmdbClient
   Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Returns the TMDB person id when the top <c>/search/multi</c> result for the query is a person (a name
+  /// search), so the caller can show that person's filmography instead of title matches. Otherwise null.
+  /// </summary>
+  /// <param name="query">The search text.</param>
+  /// <param name="language">The TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The top person id, or <c>null</c>.</returns>
+  Task<int?> FindTopPersonAsync(string query, string language, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Gets a person's filmography (the movies and shows they are in), for a name search.
+  /// </summary>
+  /// <param name="personId">The TMDB person id.</param>
+  /// <param name="language">The TMDB language code.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The person's filmography as catalog items.</returns>
+  Task<IReadOnlyList<CatalogItem>> GetPersonFilmographyAsync(int personId, string language, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Gets upcoming releases for a media type (movies via <c>movie/upcoming</c>, shows via
   /// <c>tv/on_the_air</c>), used by the releases calendar.
   /// </summary>
