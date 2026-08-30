@@ -147,6 +147,12 @@
         if (configMode && d && d.Visible === true) {
           pluginHidden = false;
         }
+        // Authoritative, per-user announcement: this endpoint knows who the user is, so a targeted
+        // announcement is delivered here (and never leaked to non-targeted users via the anonymous
+        // language endpoint). Empty text simply means "nothing applies to me".
+        if (d && Object.prototype.hasOwnProperty.call(d, 'AnnouncementText')) {
+          announcement = { text: d.AnnouncementText || '', level: d.AnnouncementLevel || 'green' };
+        }
         tryInsert();           // ensure elements are present now that visibility/admin is known
         refreshAnnouncement(); // re-render the banner to show the admin edit affordance (once, no loop)
       })
@@ -1312,8 +1318,43 @@
     });
     sel.value = announcement.level || 'green';
     sel.style.cssText = 'margin-top:.5em;background:#111;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:.3em;padding:.3em;';
+
+    // Audience: an announcement with no group ticked is global; ticking groups targets only their members
+    // (admins always see it). Populated from the groups endpoint; hidden when there are no groups.
+    var audience = document.createElement('div');
+    audience.style.cssText = 'margin-top:.6em;display:none;';
+    var audLabel = document.createElement('div');
+    audLabel.textContent = t('announcement_audience');
+    audLabel.style.cssText = 'font-size:.82em;opacity:.8;margin-bottom:.3em;';
+    var audList = document.createElement('div');
+    audList.style.cssText = 'max-height:8em;overflow:auto;display:flex;flex-direction:column;gap:.2em;';
+    audience.appendChild(audLabel); audience.appendChild(audList);
+    apiAjax('GET', 'JellyCrowd/Groups')
+      .then(function (d) {
+        var groups = (d && d.Groups) || [];
+        if (!groups.length) { return; }
+        var targeted = (d && d.AnnouncementGroupIds) || [];
+        groups.forEach(function (g) {
+          var lbl = document.createElement('label');
+          lbl.style.cssText = 'display:flex;align-items:center;gap:.4em;font-size:.9em;cursor:pointer;';
+          var cb = document.createElement('input');
+          cb.type = 'checkbox'; cb.className = 'jcAnnGroup'; cb.value = g.Id;
+          cb.checked = targeted.indexOf(g.Id) >= 0;
+          lbl.appendChild(cb);
+          lbl.appendChild(document.createTextNode(g.Name || g.Id));
+          audList.appendChild(lbl);
+        });
+        audience.style.display = '';
+      })
+      .catch(function () { /* no groups endpoint / no groups: announcement stays global */ });
+
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:.5em;margin-top:.6em;justify-content:flex-end;';
+    function selectedGroupIds() {
+      var ids = [];
+      audList.querySelectorAll('.jcAnnGroup:checked').forEach(function (c) { ids.push(c.value); });
+      return ids;
+    }
     // The endpoint returns 204 No Content, so we must NOT ask ApiClient to parse JSON (it would
     // reject on the empty body and the banner would only update on the next page load).
     function save(text, level, btn) {
@@ -1324,7 +1365,7 @@
       window.ApiClient.ajax({
         type: 'POST',
         url: getUrl('JellyCrowd/Settings/Announcement'),
-        data: JSON.stringify({ Text: text, Level: level }),
+        data: JSON.stringify({ Text: text, Level: level, GroupIds: selectedGroupIds() }),
         contentType: 'application/json'
       })
         .then(function () {
@@ -1348,7 +1389,7 @@
     saveBtn.style.cssText = 'background:#00a4dc;border:0;color:#fff;border-radius:.3em;padding:.3em .8em;cursor:pointer;';
     saveBtn.addEventListener('click', function () { save(ta.value, sel.value, saveBtn); });
     actions.appendChild(clearBtn); actions.appendChild(saveBtn);
-    pop.appendChild(ta); pop.appendChild(sel); pop.appendChild(actions);
+    pop.appendChild(ta); pop.appendChild(sel); pop.appendChild(audience); pop.appendChild(actions);
     pop.addEventListener('click', function (e) { e.stopPropagation(); });
     document.body.appendChild(pop);
     var onDoc = function () { pop.remove(); document.removeEventListener('click', onDoc); };

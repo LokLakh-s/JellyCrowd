@@ -347,3 +347,54 @@ test('historyEntryLabel: a movie is just its title', () => {
   assert.strictEqual(lib.historyEntryLabel({ Title: 'Inception', ItemType: 'Movie' }), 'Inception');
   assert.strictEqual(lib.historyEntryLabel({}), '');
 });
+
+const GIB = 1024 * 1024 * 1024;
+
+test('buildGroupRecord keeps id, trimmed name, members and libraries', () => {
+  const g = lib.buildGroupRecord({
+    id: 'g1', name: '  Family  ', members: ['u1', 'u2'], libraryIds: ['l1']
+  }, GIB);
+  assert.strictEqual(g.Id, 'g1');
+  assert.strictEqual(g.Name, 'Family');
+  assert.deepStrictEqual(g.Members, ['u1', 'u2']);
+  assert.deepStrictEqual(g.LibraryIds, ['l1']);
+});
+
+test('buildGroupRecord drops optional settings that are not set', () => {
+  const g = lib.buildGroupRecord({
+    id: 'g1', name: 'X', members: [], libraryIds: [],
+    quotaGib: '', canRequest: '', autoApprove: '', maxPerPeriod: '', pluginAccess: ''
+  }, GIB);
+  assert.ok(!('QuotaBytes' in g));
+  assert.ok(!('CanRequest' in g));
+  assert.ok(!('AutoApprove' in g));
+  assert.ok(!('MaxRequestsPerPeriod' in g));
+  assert.ok(!('PluginAccess' in g));
+});
+
+test('buildGroupRecord maps set settings, converting GiB to bytes', () => {
+  const g = lib.buildGroupRecord({
+    id: 'g1', name: 'X', members: [], libraryIds: [],
+    quotaGib: '2', canRequest: 'no', autoApprove: 'yes', maxPerPeriod: '5', pluginAccess: 'off'
+  }, GIB);
+  assert.strictEqual(g.QuotaBytes, 2 * GIB);
+  assert.strictEqual(g.CanRequest, false);
+  assert.strictEqual(g.AutoApprove, true);
+  assert.strictEqual(g.MaxRequestsPerPeriod, 5);
+  assert.strictEqual(g.PluginAccess, false);
+});
+
+test('buildGroupRecord maps canRequest yes and pluginAccess on', () => {
+  const g = lib.buildGroupRecord({
+    id: 'g1', name: 'X', members: [], libraryIds: [], canRequest: 'yes', pluginAccess: 'on'
+  }, GIB);
+  assert.strictEqual(g.CanRequest, true);
+  assert.strictEqual(g.PluginAccess, true);
+});
+
+test('buildGroupRecord copies members/libraries so later edits do not mutate the source', () => {
+  const src = ['u1'];
+  const g = lib.buildGroupRecord({ id: 'g1', name: 'X', members: src, libraryIds: [] }, GIB);
+  g.Members.push('u2');
+  assert.deepStrictEqual(src, ['u1']);
+});

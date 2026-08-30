@@ -17,4 +17,15 @@ public class VisibilitySettingDto
   /// show admin-only affordances such as editing the announcement banner).
   /// </summary>
   public bool IsAdmin { get; set; }
+
+  /// <summary>
+  /// Gets or sets the announcement text the current user should see, or empty when none applies to them.
+  /// Computed per-user so a targeted announcement never leaks to users outside its groups.
+  /// </summary>
+  public string AnnouncementText { get; set; } = string.Empty;
+
+  /// <summary>
+  /// Gets or sets the announcement severity colour (<c>green</c>, <c>yellow</c> or <c>red</c>).
+  /// </summary>
+  public string AnnouncementLevel { get; set; } = "green";
 }

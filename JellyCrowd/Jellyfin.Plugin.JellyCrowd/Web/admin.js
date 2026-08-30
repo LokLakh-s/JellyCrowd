@@ -180,6 +180,7 @@
   function renderUsers(container) {
     subTabs(container, [
       { id: 'peruser', labelKey: 'tab_per_user', render: renderQuotas },
+      { id: 'groups', labelKey: 'tab_groups', render: renderGroups },
       { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership },
       { id: 'assign', labelKey: 'tab_assign_media', render: renderAssignMedia }
     ]);
@@ -917,6 +918,254 @@
       result.push(o);
     });
     return result;
+  }
+
+  // ---------- User groups ----------
+  // A group carries default Jelly Crowd settings its members inherit (a per-user override still wins) and
+  // a set of libraries the admin can push onto members' Jellyfin accounts. A user belongs to one group.
+  function triSelect(cls, value) {
+    var s = document.createElement('select');
+    s.className = cls;
+    [['', t('adm_group_notset')], ['yes', t('adm_bulk_yes')], ['no', t('adm_bulk_no')]].forEach(function (o) {
+      var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; s.appendChild(opt);
+    });
+    s.value = value === true ? 'yes' : (value === false ? 'no' : '');
+    return s;
+  }
+
+  function triSelectAccess(cls, value) {
+    var s = document.createElement('select');
+    s.className = cls;
+    [['', t('adm_group_notset')], ['on', t('adm_opt_enabled')], ['off', t('adm_opt_disabled')]].forEach(function (o) {
+      var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; s.appendChild(opt);
+    });
+    s.value = value === true ? 'on' : (value === false ? 'off' : '');
+    return s;
+  }
+
+  function labeledField(text, node) {
+    var w = document.createElement('label');
+    w.className = 'jellycrowd-group-field';
+    var s = document.createElement('span');
+    s.textContent = text;
+    w.appendChild(s);
+    w.appendChild(node);
+    return w;
+  }
+
+  function newGuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') { return window.crypto.randomUUID(); }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  // Read the group cards back into an array of group records (dropping unset optional fields via the lib).
+  function collectGroups(host) {
+    var result = [];
+    host.querySelectorAll('.jellycrowd-group-card').forEach(function (card) {
+      var members = [];
+      card.querySelectorAll('.jc-g-member:checked').forEach(function (c) { members.push(c.value); });
+      var libs = [];
+      card.querySelectorAll('.jc-g-lib:checked').forEach(function (c) { libs.push(c.value); });
+      result.push(lib.buildGroupRecord({
+        id: card.getAttribute('data-groupid'),
+        name: card.querySelector('.jc-g-name').value,
+        members: members,
+        libraryIds: libs,
+        quotaGib: card.querySelector('.jc-g-quota').value,
+        canRequest: card.querySelector('.jc-g-can').value,
+        autoApprove: card.querySelector('.jc-g-auto').value,
+        maxPerPeriod: card.querySelector('.jc-g-cap').value,
+        pluginAccess: card.querySelector('.jc-g-access').value
+      }, GIB));
+    });
+    return result;
+  }
+
+  function renderGroups(container) {
+    container.innerHTML = '';
+    setMessage(t('loading'));
+    if (!(window.ApiClient && window.ApiClient.getPluginConfiguration && window.ApiClient.getUsers && window.ApiClient.updatePluginConfiguration)) {
+      setMessage(t('error_generic'));
+      return;
+    }
+    Promise.all([
+      window.ApiClient.getUsers(),
+      window.ApiClient.getPluginConfiguration(PLUGIN_GUID),
+      apiGet('Library/VirtualFolders').catch(function () { return []; })
+    ]).then(function (res) {
+      var users = res[0] || [];
+      var cfg = res[1] || {};
+      var libraries = (res[2] || []).filter(function (l) { return l && l.ItemId; });
+      var groups = (cfg.UserGroups || []).slice();
+      setMessage('');
+
+      var hint = document.createElement('p');
+      hint.className = 'jellycrowd-disclaimer';
+      hint.textContent = t('adm_groups_hint');
+      container.appendChild(hint);
+
+      var addBtn = adminBtn(t('adm_group_add'), '', function () {
+        groups = collectGroups(listHost);
+        groups.push({ Id: newGuid(), Name: '', Members: [], LibraryIds: [] });
+        renderList();
+      });
+      container.appendChild(addBtn);
+
+      var listHost = document.createElement('div');
+      listHost.className = 'jellycrowd-group-list';
+      container.appendChild(listHost);
+
+      function renderList() {
+        listHost.innerHTML = '';
+        if (!groups.length) {
+          var empty = document.createElement('p');
+          empty.className = 'jellycrowd-disclaimer';
+          empty.textContent = t('adm_groups_empty');
+          listHost.appendChild(empty);
+          return;
+        }
+        groups.forEach(function (g) { listHost.appendChild(buildGroupCard(g)); });
+      }
+
+      function saveGroups() {
+        var collected = collectGroups(listHost);
+        groups = collected;
+        return window.ApiClient.getPluginConfiguration(PLUGIN_GUID).then(function (live) {
+          live.UserGroups = collected;
+          return window.ApiClient.updatePluginConfiguration(PLUGIN_GUID, live);
+        });
+      }
+
+      function buildGroupCard(g) {
+        var card = document.createElement('div');
+        card.className = 'jellycrowd-group-card';
+        card.setAttribute('data-groupid', g.Id);
+
+        var head = document.createElement('div');
+        head.className = 'jellycrowd-group-head';
+        var name = document.createElement('input');
+        name.type = 'text';
+        name.className = 'jc-g-name';
+        name.placeholder = t('adm_group_name_ph');
+        name.value = g.Name || '';
+        head.appendChild(name);
+        var del = adminBtn(t('admin_delete'), 'danger', function () {
+          confirmAction({
+            title: t('adm_group_delete_title'),
+            message: t('adm_group_delete_msg').replace('{name}', g.Name || t('adm_group_unnamed')),
+            confirmLabel: t('admin_delete'),
+            danger: true
+          }).then(function (ok) {
+            if (!ok) { return; }
+            groups = collectGroups(listHost).filter(function (x) { return x.Id !== g.Id; });
+            renderList();
+          });
+        });
+        head.appendChild(del);
+        card.appendChild(head);
+
+        var settings = document.createElement('div');
+        settings.className = 'jellycrowd-group-settings';
+        settings.appendChild(labeledField(t('adm_prop_quota'), numberInput('jc-g-quota', g.QuotaBytes != null ? (g.QuotaBytes / GIB) : '')));
+        settings.appendChild(labeledField(t('adm_prop_canrequest'), triSelect('jc-g-can', g.CanRequest)));
+        settings.appendChild(labeledField(t('adm_prop_autoapprove'), triSelect('jc-g-auto', g.AutoApprove)));
+        settings.appendChild(labeledField(t('adm_prop_reqperiod'), numberInput('jc-g-cap', g.MaxRequestsPerPeriod != null ? g.MaxRequestsPerPeriod : '')));
+        settings.appendChild(labeledField(t('adm_prop_pluginaccess'), triSelectAccess('jc-g-access', g.PluginAccess)));
+        card.appendChild(settings);
+
+        var memWrap = document.createElement('div');
+        memWrap.className = 'jellycrowd-group-members';
+        var memTitle = document.createElement('div');
+        memTitle.className = 'jellycrowd-group-subtitle';
+        memTitle.textContent = t('adm_group_members');
+        memWrap.appendChild(memTitle);
+        var memList = document.createElement('div');
+        memList.className = 'jellycrowd-group-checklist';
+        users.forEach(function (u) {
+          var lbl = document.createElement('label');
+          lbl.className = 'jellycrowd-group-check';
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'jc-g-member';
+          cb.value = u.Id;
+          cb.checked = (g.Members || []).indexOf(u.Id) >= 0;
+          cb.addEventListener('change', function () {
+            if (cb.checked) {
+              // One group per user: unselect this user in every other group card.
+              listHost.querySelectorAll('.jc-g-member').forEach(function (other) {
+                if (other !== cb && other.value === u.Id) { other.checked = false; }
+              });
+            }
+          });
+          lbl.appendChild(cb);
+          lbl.appendChild(document.createTextNode(' ' + u.Name));
+          memList.appendChild(lbl);
+        });
+        memWrap.appendChild(memList);
+        card.appendChild(memWrap);
+
+        var libWrap = document.createElement('div');
+        libWrap.className = 'jellycrowd-group-libraries';
+        var libTitle = document.createElement('div');
+        libTitle.className = 'jellycrowd-group-subtitle';
+        libTitle.textContent = t('adm_group_libraries');
+        libWrap.appendChild(libTitle);
+        var libList = document.createElement('div');
+        libList.className = 'jellycrowd-group-checklist';
+        libraries.forEach(function (l) {
+          var lbl = document.createElement('label');
+          lbl.className = 'jellycrowd-group-check';
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'jc-g-lib';
+          cb.value = l.ItemId;
+          cb.checked = (g.LibraryIds || []).indexOf(l.ItemId) >= 0;
+          lbl.appendChild(cb);
+          lbl.appendChild(document.createTextNode(' ' + (l.Name || l.ItemId)));
+          libList.appendChild(lbl);
+        });
+        libWrap.appendChild(libList);
+        var applyBtn = adminBtn(t('adm_group_apply_libs'), '', function (btn) {
+          confirmAction({
+            title: t('adm_group_apply_title'),
+            message: t('adm_group_apply_msg'),
+            confirmLabel: t('adm_group_apply_confirm')
+          }).then(function (ok) {
+            if (!ok) { return; }
+            btn.disabled = true;
+            saveGroups().then(function () {
+              return apiPostResult('JellyCrowd/Groups/' + encodeURIComponent(g.Id) + '/ApplyLibraryAccess');
+            }).then(function (r) {
+              btn.disabled = false;
+              setMessage(t('adm_group_apply_done')
+                .replace('{applied}', (r && r.Applied) || 0)
+                .replace('{total}', (r && r.Total) || 0)
+                .replace('{libs}', (r && r.Libraries) || 0));
+            }).catch(function (e) { btn.disabled = false; setMessage(t(lib.errorKey(e && e.status))); });
+          });
+        });
+        libWrap.appendChild(applyBtn);
+        card.appendChild(libWrap);
+
+        return card;
+      }
+
+      var save = adminBtn(t('save'), 'ok', function (btn) {
+        btn.disabled = true;
+        saveGroups().then(function () {
+          btn.disabled = false;
+          btn.textContent = t('saved');
+          setTimeout(function () { btn.textContent = t('save'); }, 1500);
+        }).catch(function (e) { btn.disabled = false; setMessage(t(lib.errorKey(e && e.status))); });
+      });
+      save.style.marginTop = '1em';
+
+      renderList();
+      container.appendChild(save);
+    }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
   // ---------- Logs ----------
