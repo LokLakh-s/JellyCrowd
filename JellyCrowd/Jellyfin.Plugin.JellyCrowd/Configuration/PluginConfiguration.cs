@@ -310,6 +310,12 @@ public class PluginConfiguration : BasePluginConfiguration
   public string AnnouncementLevel { get; set; }
 
   /// <summary>
+  /// Gets or sets a value indicating whether Jellyfin's left navigation drawer (the hamburger menu) is
+  /// hidden for non-administrators (admin opt-in, off by default). Admins always keep it.
+  /// </summary>
+  public bool HideNativeDrawerForNonAdmins { get; set; }
+
+  /// <summary>
   /// Gets or sets a value indicating whether a Discord invite icon is shown in the header (admin opt-in,
   /// off by default). Only rendered when enabled and <see cref="DiscordInviteUrl"/> is set.
   /// </summary>

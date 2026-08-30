@@ -66,7 +66,8 @@ public class SettingsController : ControllerBase
       DiscordInviteUrl = config.DiscordInviteEnabled ? (config.DiscordInviteUrl ?? string.Empty) : string.Empty,
       SupportLinkUrl = config.SupportLinkEnabled ? (config.SupportLinkUrl ?? string.Empty) : string.Empty,
       GuideLinkUrl = config.GuideLinkEnabled ? (config.GuideLinkUrl ?? string.Empty) : string.Empty,
-      SkipOutroEnabled = config.SkipOutroEnabled
+      SkipOutroEnabled = config.SkipOutroEnabled,
+      HideNativeDrawer = config.HideNativeDrawerForNonAdmins
     });
   }
 

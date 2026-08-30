@@ -1689,6 +1689,9 @@
       var guideUrl = textInput('jc-b-guide-url', b.GuideLinkUrl || '', 'https://…');
       container.appendChild(field(t('adm_user_guide_link'), guideUrl));
 
+      var hideDrawer = checkbox('jc-b-hidedrawer', b.HideNativeDrawerForNonAdmins === true);
+      container.appendChild(field(t('adm_hide_drawer'), hideDrawer, t('adm_hide_drawer_hint')));
+
       container.appendChild(sectionHeading(t('adm_local_intros_pre_roll')));
       var liEnable = checkbox('jc-b-li-en', b.LocalIntrosEnabled === true);
       container.appendChild(field(t('adm_play_a_pre_roll_before_content'), liEnable, t('adm_drop_video_s_in_a_folder_hint')));
@@ -1744,6 +1747,7 @@
           live.SupportLinkUrl = supUrl.value.trim();
           live.GuideLinkEnabled = guideEnable.checked;
           live.GuideLinkUrl = guideUrl.value.trim();
+          live.HideNativeDrawerForNonAdmins = hideDrawer.checked;
           live.LocalIntrosEnabled = liEnable.checked;
           live.LocalIntrosFolderName = liFolder.value.trim() || 'intros';
           live.LocalIntrosOnMovies = liMovies.checked;

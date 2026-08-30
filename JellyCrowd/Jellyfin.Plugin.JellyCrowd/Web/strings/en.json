@@ -573,5 +573,9 @@
   "adm_prop_pluginaccess": "Plugin access",
   "adm_bulk_yes": "Yes",
   "adm_bulk_no": "No",
-  "adm_bulk_selectall": "Select all"
+  "adm_bulk_selectall": "Select all",
+  "search_catalog_title": "Search the JellyCrowd catalog",
+  "search_jellyfin_title": "Search your Jellyfin library",
+  "adm_hide_drawer": "Hide the Jellyfin side menu for non-admins",
+  "adm_hide_drawer_hint": "Hides the left hamburger drawer for regular users; administrators keep it."
 }
