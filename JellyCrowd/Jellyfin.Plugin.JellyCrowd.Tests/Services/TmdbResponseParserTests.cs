@@ -342,4 +342,52 @@ public class TmdbResponseParserTests
   {
     Assert.Null(TmdbResponseParser.ParseTvdbId(json));
   }
+
+  [Fact]
+  public void ParseTopPersonId_ReturnsId_WhenTopResultIsAPerson()
+  {
+    var json = """{ "results": [ { "id": 1461, "media_type": "person", "name": "George Clooney" }, { "id": 5, "media_type": "movie" } ] }""";
+    Assert.Equal(1461, TmdbResponseParser.ParseTopPersonId(json));
+  }
+
+  [Theory]
+  [InlineData("""{ "results": [ { "id": 5, "media_type": "movie", "title": "Up" }, { "id": 1461, "media_type": "person" } ] }""")]
+  [InlineData("""{ "results": [] }""")]
+  [InlineData("""{ }""")]
+  public void ParseTopPersonId_ReturnsNull_WhenTopResultIsNotAPerson(string json)
+  {
+    Assert.Null(TmdbResponseParser.ParseTopPersonId(json));
+  }
+
+  [Fact]
+  public void ParseCombinedCredits_ReturnsMoviesAndShows_Deduped_ByPopularity()
+  {
+    // A person can appear as both cast and crew on the same title; it must be kept once. Ordered by
+    // popularity so notable work leads.
+    var json = """
+    {
+      "cast": [
+        { "id": 10, "media_type": "movie", "title": "Big Film", "popularity": 50 },
+        { "id": 20, "media_type": "tv", "name": "A Show", "popularity": 5 }
+      ],
+      "crew": [
+        { "id": 10, "media_type": "movie", "title": "Big Film", "job": "Producer", "popularity": 50 },
+        { "id": 30, "media_type": "movie", "title": "Small Film", "popularity": 90 }
+      ]
+    }
+    """;
+
+    var film = TmdbResponseParser.ParseCombinedCredits(json, 10);
+
+    Assert.Equal(3, film.Count); // Big Film deduped across cast+crew
+    Assert.Equal(new[] { 30, 10, 20 }, film.Select(i => i.TmdbId)); // popularity desc: 90, 50, 5
+    Assert.Contains(film, i => i.MediaType == "tv" && i.TmdbId == 20);
+  }
+
+  [Fact]
+  public void ParseCombinedCredits_HonorsTheCap()
+  {
+    var json = """{ "cast": [ { "id": 1, "media_type": "movie", "title": "A", "popularity": 3 }, { "id": 2, "media_type": "movie", "title": "B", "popularity": 2 }, { "id": 3, "media_type": "movie", "title": "C", "popularity": 1 } ] }""";
+    Assert.Equal(2, TmdbResponseParser.ParseCombinedCredits(json, 2).Count);
+  }
 }

@@ -194,6 +194,32 @@ public class CatalogControllerTests
   }
 
   [Fact]
+  public async Task Search_WhenTopResultIsAPerson_ReturnsTheirFilmography()
+  {
+    // A name search ("George Clooney") returns the person's filmography, not title matches.
+    var film = new List<CatalogItem> { new() { TmdbId = 10, MediaType = "movie", Title = "Up in the Air" } };
+    var tmdb = new FakeTmdbClient { TopPerson = 1461, Filmography = film, Results = new List<CatalogItem> { new() { TmdbId = 99, MediaType = "movie", Title = "Should not appear" } } };
+    var controller = CreateController(tmdb);
+
+    var result = await controller.Search("George Clooney", "fr-FR", 1, CancellationToken.None);
+
+    var items = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Single(items);
+    Assert.Equal(10, items[0].TmdbId); // the filmography, not the title search
+  }
+
+  [Fact]
+  public async Task Search_PersonFilmography_IsEmptyBeyondFirstPage()
+  {
+    var film = new List<CatalogItem> { new() { TmdbId = 10, MediaType = "movie", Title = "Up in the Air" } };
+    var controller = CreateController(new FakeTmdbClient { TopPerson = 1461, Filmography = film });
+
+    var result = await controller.Search("George Clooney", "fr-FR", 2, CancellationToken.None);
+
+    Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value));
+  }
+
+  [Fact]
   public async Task GetDetails_WithInvalidMediaType_ReturnsBadRequest()
   {
     var controller = CreateController(new FakeTmdbClient());
@@ -256,6 +282,16 @@ public class CatalogControllerTests
     public IReadOnlyList<Episode> Episodes { get; set; } = new List<Episode>();
 
     public Exception? Throw { get; set; }
+
+    public int? TopPerson { get; set; }
+
+    public IReadOnlyList<CatalogItem> Filmography { get; set; } = new List<CatalogItem>();
+
+    public Task<int?> FindTopPersonAsync(string query, string language, CancellationToken cancellationToken)
+      => Task.FromResult(TopPerson);
+
+    public Task<IReadOnlyList<CatalogItem>> GetPersonFilmographyAsync(int personId, string language, CancellationToken cancellationToken)
+      => Task.FromResult(Filmography);
 
     public Task<IReadOnlyList<CatalogItem>> GetTrendingAsync(string language, CancellationToken cancellationToken)
     {

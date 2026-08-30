@@ -19,6 +19,10 @@ public class TmdbClient : ITmdbClient
 {
   private const string DefaultBaseUrl = "https://api.themoviedb.org/3";
 
+  // Cap a person's filmography: enough to cover a real career, sorted by popularity so guest spots and
+  // talk-show appearances fall off the end rather than burying the notable films and shows.
+  private const int PersonFilmographyMax = 80;
+
   private readonly IHttpClientFactory _httpClientFactory;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<TmdbClient> _logger;
@@ -61,6 +65,25 @@ public class TmdbClient : ITmdbClient
       $"/search/multi?query={Escape(query)}&language={Escape(language)}&include_adult=false&page={resultPage.ToString(CultureInfo.InvariantCulture)}",
       cancellationToken).ConfigureAwait(false);
     return TmdbResponseParser.ParseResults(json);
+  }
+
+  /// <inheritdoc />
+  public async Task<int?> FindTopPersonAsync(string query, string language, CancellationToken cancellationToken)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(query);
+    var json = await GetAsync(
+      $"/search/multi?query={Escape(query)}&language={Escape(language)}&include_adult=false&page=1",
+      cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseTopPersonId(json);
+  }
+
+  /// <inheritdoc />
+  public async Task<IReadOnlyList<CatalogItem>> GetPersonFilmographyAsync(int personId, string language, CancellationToken cancellationToken)
+  {
+    var json = await GetAsync(
+      $"/person/{personId.ToString(CultureInfo.InvariantCulture)}/combined_credits?language={Escape(language)}",
+      cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseCombinedCredits(json, PersonFilmographyMax);
   }
 
   /// <inheritdoc />

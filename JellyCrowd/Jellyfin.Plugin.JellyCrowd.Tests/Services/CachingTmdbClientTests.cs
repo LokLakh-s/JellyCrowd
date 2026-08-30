@@ -104,6 +104,12 @@ public class CachingTmdbClientTests
     public Task<CatalogItem?> GetDetailsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken)
       => Task.FromResult<CatalogItem?>(null);
 
+    public Task<int?> FindTopPersonAsync(string query, string language, CancellationToken cancellationToken)
+      => Task.FromResult<int?>(null);
+
+    public Task<IReadOnlyList<CatalogItem>> GetPersonFilmographyAsync(int personId, string language, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyList<CatalogItem>>(new List<CatalogItem>());
+
     public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
       => Task.FromResult<int?>(null);
 
