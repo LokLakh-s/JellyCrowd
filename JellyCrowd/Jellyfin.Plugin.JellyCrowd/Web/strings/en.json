@@ -562,5 +562,16 @@
   "assign_done": "Assigned to {user}",
   "assign_failed": "Could not assign this title.",
   "assign_media_empty": "No media in the library.",
-  "assign_owned_by": "{n} owner(s)"
+  "assign_owned_by": "{n} owner(s)",
+  "adm_bulk_apply": "Apply to selected",
+  "adm_bulk_none_selected": "Select at least one user.",
+  "adm_bulk_applied": "Applied to {n} user(s) — remember to Save.",
+  "adm_prop_quota": "Quota (GiB)",
+  "adm_prop_canrequest": "Can request",
+  "adm_prop_autoapprove": "Auto-approve",
+  "adm_prop_reqperiod": "Req/period",
+  "adm_prop_pluginaccess": "Plugin access",
+  "adm_bulk_yes": "Yes",
+  "adm_bulk_no": "No",
+  "adm_bulk_selectall": "Select all"
 }

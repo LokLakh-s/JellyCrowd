@@ -562,5 +562,16 @@
   "assign_done": "Attribué à {user}",
   "assign_failed": "Attribution impossible.",
   "assign_media_empty": "Aucun média dans la bibliothèque.",
-  "assign_owned_by": "{n} propriétaire(s)"
+  "assign_owned_by": "{n} propriétaire(s)",
+  "adm_bulk_apply": "Appliquer à la sélection",
+  "adm_bulk_none_selected": "Sélectionnez au moins un utilisateur.",
+  "adm_bulk_applied": "Appliqué à {n} utilisateur(s) — pensez à Enregistrer.",
+  "adm_prop_quota": "Quota (Gio)",
+  "adm_prop_canrequest": "Peut demander",
+  "adm_prop_autoapprove": "Auto-approbation",
+  "adm_prop_reqperiod": "Req/période",
+  "adm_prop_pluginaccess": "Accès plugin",
+  "adm_bulk_yes": "Oui",
+  "adm_bulk_no": "Non",
+  "adm_bulk_selectall": "Tout sélectionner"
 }

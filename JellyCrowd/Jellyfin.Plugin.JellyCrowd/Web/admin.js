@@ -736,6 +736,59 @@
       sub.textContent = t('admin_quota_hint');
       container.appendChild(sub);
 
+      // Bulk-edit bar: pick a property + value, apply it to every checked row (then Save persists, exactly
+      // like editing rows by hand). Purely drives the same inputs, so it can't set anything Save can't.
+      var bulk = document.createElement('div');
+      bulk.className = 'jellycrowd-bulk-bar';
+      var prop = document.createElement('select');
+      prop.className = 'jellycrowd-bulk-prop';
+      [['quota', t('adm_prop_quota')], ['can', t('adm_prop_canrequest')], ['auto', t('adm_prop_autoapprove')],
+       ['cap', t('adm_prop_reqperiod')], ['access', t('adm_prop_pluginaccess')]].forEach(function (o) {
+        var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; prop.appendChild(opt);
+      });
+      var valWrap = document.createElement('span');
+      var valEl = null;
+      function rebuildVal() {
+        valWrap.innerHTML = '';
+        var p = prop.value;
+        if (p === 'quota' || p === 'cap') {
+          valEl = document.createElement('input'); valEl.type = 'number'; valEl.min = '0'; valEl.step = '1';
+          valEl.placeholder = p === 'quota' ? t('adm_prop_quota') : t('adm_prop_reqperiod');
+        } else if (p === 'access') {
+          valEl = document.createElement('select');
+          [['', t('adm_default')], ['on', t('adm_opt_enabled')], ['off', t('adm_opt_disabled')]].forEach(function (o) {
+            var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; valEl.appendChild(opt);
+          });
+        } else { // can / auto → yes/no
+          valEl = document.createElement('select');
+          [['yes', t('adm_bulk_yes')], ['no', t('adm_bulk_no')]].forEach(function (o) {
+            var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; valEl.appendChild(opt);
+          });
+        }
+        valEl.className = 'jellycrowd-bulk-val';
+        valWrap.appendChild(valEl);
+      }
+      prop.addEventListener('change', rebuildVal);
+      rebuildVal();
+      var apply = adminBtn(t('adm_bulk_apply'), '', function () {
+        var rows = Array.prototype.slice.call(container.querySelectorAll('tr[data-userid]'))
+          .filter(function (r) { var c = r.querySelector('.jc-sel'); return c && c.checked; });
+        if (!rows.length) { setMessage(t('adm_bulk_none_selected')); return; }
+        var p = prop.value;
+        rows.forEach(function (r) {
+          if (p === 'quota') { r.querySelector('.jc-quota').value = valEl.value; }
+          else if (p === 'cap') { r.querySelector('.jc-cap').value = valEl.value; }
+          else if (p === 'can') { r.querySelector('.jc-can').checked = valEl.value === 'yes'; }
+          else if (p === 'auto') { r.querySelector('.jc-auto').checked = valEl.value === 'yes'; }
+          else if (p === 'access') { r.querySelector('.jc-access').value = valEl.value; }
+        });
+        setMessage(t('adm_bulk_applied').replace('{n}', rows.length));
+      });
+      bulk.appendChild(prop);
+      bulk.appendChild(valWrap);
+      bulk.appendChild(apply);
+      container.appendChild(bulk);
+
       function usageText(uid) {
         var u = usage[uid];
         if (!u) { return '—'; }
@@ -746,7 +799,7 @@
 
       var table = document.createElement('table');
       table.className = 'jellycrowd-admin-table';
-      table.innerHTML = '<thead><tr><th>User</th><th>Usage</th><th>Quota (GiB)</th><th>Can request</th><th>Auto-approve</th><th>Req/period</th><th>Plugin access</th></tr></thead>';
+      table.innerHTML = '<thead><tr><th><input type="checkbox" id="jcQSelAll"></th><th>User</th><th>Usage</th><th>Quota (GiB)</th><th>Can request</th><th>Auto-approve</th><th>Req/period</th><th>Plugin access</th></tr></thead>';
       var tbody = document.createElement('tbody');
       users.forEach(function (user) {
         var ex = overrides.filter(function (o) { return o.UserId === user.Id; })[0] || {};
@@ -755,6 +808,10 @@
         function td(node) { var c = document.createElement('td'); c.appendChild(node); return c; }
         function textTd(text) { var c = document.createElement('td'); c.textContent = text; return c; }
 
+        var sel = document.createElement('input');
+        sel.type = 'checkbox';
+        sel.className = 'jc-sel';
+        tr.appendChild(td(sel));
         tr.appendChild(textTd(user.Name));
         var usageCell = textTd(usageText(user.Id));
         usageCell.style.whiteSpace = 'nowrap';
@@ -775,6 +832,14 @@
       });
       table.appendChild(tbody);
       container.appendChild(table);
+
+      var selAll = table.querySelector('#jcQSelAll');
+      if (selAll) {
+        selAll.title = t('adm_bulk_selectall');
+        selAll.addEventListener('change', function () {
+          container.querySelectorAll('.jc-sel').forEach(function (c) { c.checked = selAll.checked; });
+        });
+      }
 
       var save = adminBtn(t('save'), 'ok', function (btn) {
         btn.disabled = true;

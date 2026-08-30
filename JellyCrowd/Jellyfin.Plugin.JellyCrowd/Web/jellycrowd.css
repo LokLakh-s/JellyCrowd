@@ -2176,6 +2176,29 @@ body.jellycrowd-overlay-open {
   max-width: 14em;
 }
 
+/* Bulk-edit bar (admin → Users → Per user) */
+.jellycrowd-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex-wrap: wrap;
+  margin: 0.6em 0;
+}
+
+.jellycrowd-bulk-prop,
+.jellycrowd-bulk-val {
+  padding: 0.35em 0.5em;
+  border-radius: 0.25em;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+}
+
+.jellycrowd-bulk-val {
+  max-width: 10em;
+}
+
 /* Loading placeholders — same shape as the content they stand in for, so the layout does not jump when
    it arrives. */
 .jellycrowd-skel {
