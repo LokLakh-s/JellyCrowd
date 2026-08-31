@@ -19,7 +19,6 @@ category: "General"
 owner: "LokLakh-s"
 artifacts:
 - "Jellyfin.Plugin.JellyCrowd.dll"
-changelog: >
-  0.1.0.0 - Initial scaffold (M0): plugin loads in Jellyfin 10.11 with an admin configuration page.
+changelog: "See the release notes on GitHub for what's new in each version."
 
 ---

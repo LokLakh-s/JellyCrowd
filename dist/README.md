@@ -47,8 +47,12 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 | Feature | What it does |
 |---|---|
 | 🎬 **Discovery catalog** | Browse, filter and search a TMDB catalog of movies & shows, with rich detail popups (cast, crew, ratings, TMDB/IMDb links). |
+| 🔎 **Search by cast** | Search an actor or director's name and get their filmography — every film and show they're in. |
+| 🔖 **Watchlist & "For you"** | Follow titles to a personal watchlist, and get suggestions based on your requests and watchlist. |
 | 📅 **Release calendar** | Upcoming releases in a month / week / day view, filtered by language & country. |
 | 📥 **Media requests** | Request whole movies & shows, single seasons or individual episodes — with a desired date for unreleased titles. |
+| 🎞️ **Request a whole saga** | Request every missing part of a movie collection at once. |
+| 🧑‍💼 **Request on behalf** | Admins can create a request for another user, straight from a title. |
 | ✅ **Approval workflow** | Admins approve or deny from a queue; requesters are notified of every status change. |
 | ⚙️ **Auto-approval rules** | Optionally auto-approve by estimated size, a genre allow-list, and trusted-user overrides. |
 | 🤖 **Radarr / Sonarr fulfilment** | Approved requests are added and searched automatically — movies via Radarr, shows via Sonarr (TVDB resolved for you). |
@@ -61,6 +65,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 | 📈 **Adaptive quota** | Optionally grow a user's quota as they watch more, with a grace period when they go quiet. |
 | ⏳ **Media expiry** | Reclaim space by expiring unwatched media after a configurable window. |
 | 👥 **Shared ownership** | When several users request the same title they all own it — and it's removed only once nobody does. |
+| 🏷️ **Manual ownership** | Added a file by hand? Admins can assign an existing library title's ownership to a user, so it counts toward their quota. |
 | ⭐ **Ratings & reviews** | Users rate titles (1–10) and leave reviews, shown anonymously to others (admins see the author). |
 | 🛡️ **Review moderation** | Admins can hide, show or delete any community review. |
 | 🩹 **Problem reports** | Users flag an issue on a title; admins triage, resolve, and reply back to the reporter. |
@@ -68,7 +73,10 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 | 🎨 **UI branding** | Restyle the whole Jellyfin UI: logo, favicon, colours, font, background, custom CSS, layout presets and custom left-menu links. |
 | 📊 **Admin statistics** | Playback analytics — top media & users, a plays / watch-time activity chart, and live *Now playing*. |
 | 🙋 **Personal dashboard** | Every user gets their own watch time, top titles, activity chart, watch-time-by-library and storage. |
+| 🕓 **Watch history** | A personal, permanent history of what each user has watched — they can clear it or turn it off; it's never wiped automatically. |
 | 🔒 **Access control** | Hide the plugin while you set it up (*config mode*), with a per-user override to enable or block individuals. |
+| 🧑‍🤝‍🧑 **User groups** | Group users to manage them together: shared quota & request settings members inherit, one-click Jellyfin library access, and group-targeted announcements. |
+| 📢 **Announcements** | Post a banner in the header — to everyone, or targeted at specific groups. |
 | 📓 **Activity log** | A bounded, searchable log of admin, user and system events. |
 | ⏭️ **Skip Intro** | Fingerprints each season's episodes (bundled ffmpeg audio fingerprinting) to find the shared intro and drives Jellyfin's **native** Skip Intro button. Runs as a scheduled task; episodes with no shared intro (a premiere, a recap) are left alone. Opt-in. |
 | ⏭️ **Skip Outro** | Detects end credits on movies & episodes (ffmpeg brightness & silence analysis) and drives Jellyfin's **native** Skip Outro button. Stops at a post-credits bonus scene instead of skipping it. Opt-in. |
@@ -103,26 +111,27 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 <details>
 <summary><b>Click to expand the admin guide</b></summary>
 
-Configure the technical settings in **Dashboard → Plugins → Jelly Crowd**, and manage day-to-day from the
-**Admin** entry in the navbar (admin only).
+Paste your TMDB API key in **Dashboard → Plugins → Jelly Crowd**, then manage everything from the
+**Admin** entry in the navbar (admin only). Its tabs:
 
-**Dashboard config page**
-- **Settings** — TMDB key; default quota; approval mode (manual / auto, with size & genre rules); request
-  rate limits; media-expiry window; adaptive quota; UI language; reviews on/off; stats capture on/off.
-- **Notifications** — enable & configure each channel and pick which events go where; send test messages.
-- **Download** — fulfilment backend (none / Radarr+Sonarr / webhook / script) and its settings, plus
-  stalled-download recovery.
-- **Diagnostics** — connectivity checks and a configuration backup.
-
-**Admin overlay (navbar → Admin)**
-- **Requests** — approve / deny / retry / edit / delete, with live download status.
+- **Requests** — approve / deny / edit / delete, with live download status; retry a single blocked request
+  or **retry all** stuck ones at once.
 - **Stats** — totals, top media & users, activity chart, live *Now playing*, per-user drill-down.
-- **Reports** — user problem reports.
-- **Quotas** — per-user quota & policy overrides.
-- **Moderation** — hide/show/delete community reviews.
-- **Ownership** — who owns which media.
-- **Branding** — customise the whole UI (images accept a URL **or** an upload).
+- **Moderation** — triage user problem reports, and hide / show / delete community reviews.
+- **Users** — per-user quota & policy overrides (with **bulk edit**), **user groups** (shared settings,
+  Jellyfin library access and targeted announcements), who owns which media, and **assign** an existing
+  title's ownership to a user.
 - **Logs** — the plugin activity log.
+- **Configurations**
+  - **General** — default quota; approval mode (manual / auto, with size & genre rules); request rate
+    limits; media-expiry window; adaptive quota; UI language; reviews on/off; stats capture on/off.
+  - **Requests** — request and fulfilment behaviour.
+  - **Notifications** — enable & configure each channel and pick which events go where; send test messages.
+  - **Download** — fulfilment backend (none / Radarr+Sonarr / webhook / script), plus stalled-download recovery.
+  - **Branding** — restyle the whole UI (images accept a URL **or** an upload).
+  - **Diagnostics** — connectivity checks and a one-click configuration backup.
+
+**Announcements** — post a banner from the header announcement icon: to everyone, or targeted at specific groups.
 
 </details>
 
@@ -133,17 +142,28 @@ Configure the technical settings in **Dashboard → Plugins → Jelly Crowd**, a
 
 Jelly Crowd adds navbar entries: **Catalog**, **Calendar**, **My requests**, **Dashboard**.
 
-- **Catalog** — browse/search and **request** titles (whole show, season, or single episodes).
+- **Catalog** — browse/search and **request** titles (whole show, season, or single episodes). Search a
+  title, or an **actor/director's name** for their filmography. Follow titles with ★ to your **watchlist**,
+  and get a **"For you"** row of suggestions.
 - **Calendar** — upcoming releases of movies & shows.
 - **My requests** — track statuses (pending → in progress → available); cancel pending ones; the
   **release date** is shown for unreleased titles.
-- **My media** — what you own; request deletion to free your quota, or renew to keep it.
+- **My media** — what you own (request deletion to free your quota, or renew to keep it), plus your
+  personal **watch history** — permanent, and yours to clear or turn off.
 - **Dashboard** — your watch time, top watched, recent activity, request summary and storage usage.
 - **Reviews** — rate & review titles (1–10), shown anonymously to others.
 
 A **storage quota bar** in the header shows how much space you've used.
 
 </details>
+
+## 🐛 Support & bug reports
+
+Found a bug or have an idea? [**Open an issue**](https://github.com/LokLakh-s/JellyCrowd/issues/new/choose)
+and pick **Bug report** or **Feature request**. A good bug report (version, Jellyfin version, steps and what
+you expected) gets fixed far faster.
+
+Think you've found a **security vulnerability**? Please don't open a public issue — see [`SECURITY.md`](./SECURITY.md).
 
 ## 📜 License
 
