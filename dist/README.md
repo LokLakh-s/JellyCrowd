@@ -44,44 +44,49 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 
 ## ✨ Features
 
-| Feature | What it does |
-|---|---|
-| 🎬 **Discovery catalog** | Browse, filter and search a TMDB catalog of movies & shows, with rich detail popups (cast, crew, ratings, TMDB/IMDb links). |
-| 🔎 **Search by cast** | Search an actor or director's name and get their filmography — every film and show they're in. |
-| 🔖 **Watchlist & "For you"** | Follow titles to a personal watchlist, and get suggestions based on your requests and watchlist. |
-| 📅 **Release calendar** | Upcoming releases in a month / week / day view, filtered by language & country. |
-| 📥 **Media requests** | Request whole movies & shows, single seasons or individual episodes — with a desired date for unreleased titles. |
-| 🎞️ **Request a whole saga** | Request every missing part of a movie collection at once. |
-| 🧑‍💼 **Request on behalf** | Admins can create a request for another user, straight from a title. |
-| ✅ **Approval workflow** | Admins approve or deny from a queue; requesters are notified of every status change. |
-| ⚙️ **Auto-approval rules** | Optionally auto-approve by estimated size, a genre allow-list, and trusted-user overrides. |
-| 🤖 **Radarr / Sonarr fulfilment** | Approved requests are added and searched automatically — movies via Radarr, shows via Sonarr (TVDB resolved for you). |
-| 🔗 **Webhook backend** | Prefer your own automation? POST each approved request to a webhook. |
-| 📜 **Script backend** | Or run a local script per request, with the details on stdin and as environment variables. |
-| 📡 **Live download status** | *My requests* shows real Radarr/Sonarr progress — queued, downloading %/ETA, importing, available. |
-| 🗂️ **Manual-import aware** | Drop a file in by hand and Jelly Crowd marks the request available and asks Radarr/Sonarr to import it from disk. |
-| ♻️ **Stalled-download recovery** | Detects stuck downloads and re-searches automatically so a request doesn't get stuck. |
-| 💾 **Per-user quotas** | A storage budget per user, counted only when media becomes available, at its real size. |
-| 📈 **Adaptive quota** | Optionally grow a user's quota as they watch more, with a grace period when they go quiet. |
-| ⏳ **Media expiry** | Reclaim space by expiring unwatched media after a configurable window. |
-| 👥 **Shared ownership** | When several users request the same title they all own it — and it's removed only once nobody does. |
-| 🏷️ **Manual ownership** | Added a file by hand? Admins can assign an existing library title's ownership to a user, so it counts toward their quota. |
-| ⭐ **Ratings & reviews** | Users rate titles (1–10) and leave reviews, shown anonymously to others (admins see the author). |
-| 🛡️ **Review moderation** | Admins can hide, show or delete any community review. |
-| 🩹 **Problem reports** | Users flag an issue on a title; admins triage, resolve, and reply back to the reporter. |
-| 🔔 **Notifications** | Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or a webhook — choose which events go where. |
-| 🎨 **UI branding** | Restyle the whole Jellyfin UI: logo, favicon, colours, font, background, custom CSS, layout presets and custom left-menu links. |
-| 📊 **Admin statistics** | Playback analytics — top media & users, a plays / watch-time activity chart, and live *Now playing*. |
-| 🙋 **Personal dashboard** | Every user gets their own watch time, top titles, activity chart, watch-time-by-library and storage. |
-| 🕓 **Watch history** | A personal, permanent history of what each user has watched — they can clear it or turn it off; it's never wiped automatically. |
-| 🔒 **Access control** | Hide the plugin while you set it up (*config mode*), with a per-user override to enable or block individuals. |
-| 🧑‍🤝‍🧑 **User groups** | Group users to manage them together: shared quota & request settings members inherit, one-click Jellyfin library access, and group-targeted announcements. |
-| 📢 **Announcements** | Post a banner in the header — to everyone, or targeted at specific groups. |
-| 📓 **Activity log** | A bounded, searchable log of admin, user and system events. |
-| ⏭️ **Skip Intro** | Fingerprints each season's episodes (bundled ffmpeg audio fingerprinting) to find the shared intro and drives Jellyfin's **native** Skip Intro button. Runs as a scheduled task; episodes with no shared intro (a premiere, a recap) are left alone. Opt-in. |
-| ⏭️ **Skip Outro** | Detects end credits on movies & episodes (ffmpeg brightness & silence analysis) and drives Jellyfin's **native** Skip Outro button. Stops at a post-credits bonus scene instead of skipping it. Opt-in. |
-| 🎬 **Local intros** | Plays a pre-roll video before movies and the first episode of a series, via Jellyfin's Cinema Mode. Drop videos in a named folder beside your libraries; the plugin finds and indexes it automatically. On the web client it can be made non-skippable with hidden controls. Opt-in. |
-| 🩺 **Diagnostics & backup** | Connectivity checks (TMDB, Radarr/Sonarr, indexers) and a one-click configuration backup. |
+### 👤 For your users
+
+- 🎬 **Discovery catalog** — browse, filter and search a TMDB catalog of movies & shows, with rich detail popups (cast, crew, ratings, TMDB/IMDb links).
+- 📥 **Media requests** — request whole movies & shows, single seasons or individual episodes, with a desired date for titles that aren't out yet.
+- 📡 **Live download status** — *My requests* shows real progress: queued, downloading %/ETA, importing, available.
+- ⏭️ **Skip Intro** — a **native** Skip Intro button appears once a show's intro is detected. Opt-in.
+- ⏭️ **Skip Outro** — a **native** Skip Outro button on movies & episodes, stopping short of any post-credits scene. Opt-in.
+- 🔎 **Search by cast** — search an actor or director's name and get their whole filmography.
+- 🔖 **Watchlist & "For you"** — follow titles with ★, and get suggestions based on your requests and watchlist.
+- 📅 **Release calendar** — upcoming releases in a month / week / day view.
+- 🎞️ **Request a whole saga** — request every missing part of a movie collection at once.
+- ⭐ **Ratings & reviews** — rate titles (1–10) and leave reviews, shown anonymously to others.
+- 🕓 **Watch history** — a personal, permanent history you can clear or turn off; it's never wiped automatically.
+- 🙋 **Personal dashboard** — your watch time, top titles, activity chart, watch-time-by-library and storage.
+- 📽️ **Local intros** — a pre-roll video before movies and the first episode of a series. Opt-in.
+- 🩹 **Problem reports** — flag an issue on a title (wrong version, missing subtitles…); the admin follows up.
+- 🔔 **Notifications** — in-app alerts for your requests, with optional email / ntfy delivery you control.
+- 📉 **Storage quota bar** — a live gauge in the header shows how much of your space you've used.
+
+### 🛠️ For admins
+
+- 🤖 **Radarr / Sonarr fulfilment** — approved requests are added and searched automatically (movies via Radarr, shows via Sonarr, TVDB resolved for you).
+- 🎨 **UI branding** — restyle the whole Jellyfin UI: logo, favicon, colours, font, background, custom CSS, layout presets and custom left-menu links.
+- 📊 **Statistics** — playback analytics: top media & users, a plays / watch-time activity chart, and live *Now playing*.
+- ✅ **Approval workflow** — approve or deny from a queue; requesters are notified of every status change.
+- ⚙️ **Auto-approval rules** — auto-approve by estimated size, a genre allow-list and trusted-user overrides.
+- 💾 **Per-user quotas** — a storage budget per user, counted only when media becomes available, at its real size.
+- 📈 **Adaptive quota** — optionally grow a user's quota as they watch more, with a grace period when they go quiet.
+- 🧑‍🤝‍🧑 **User groups** — manage users together: shared settings they inherit, one-click Jellyfin library access, and group-targeted announcements.
+- 📢 **Announcements** — post a header banner to everyone or to specific groups.
+- ⏳ **Media expiry** — reclaim space by expiring unwatched media after a configurable window.
+- 🔀 **Notification channels** — route events to Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or a webhook, per event.
+- 🔗 **Webhook backend** — prefer your own automation? POST each approved request to a webhook.
+- 📜 **Script backend** — or run a local script per request, with the details on stdin and as environment variables.
+- 🗂️ **Manual-import aware** — drop a file in by hand and Jelly Crowd marks the request available and asks Radarr/Sonarr to import it.
+- ♻️ **Stalled-download recovery** — detects stuck downloads and re-searches automatically.
+- 👥 **Shared ownership** — when several users request the same title they all own it, and it's removed only once nobody does.
+- 🏷️ **Manual ownership** — assign an existing library title's ownership to a user, so it counts toward their quota.
+- 🧑‍💼 **Request on behalf** — create a request for another user, straight from a title.
+- 🛡️ **Review moderation** — hide, show or delete any community review.
+- 🔒 **Access control** — hide the plugin while you set it up (*config mode*), with per-user enable / block overrides.
+- 🩺 **Diagnostics & backup** — connectivity checks (TMDB, Radarr/Sonarr, indexers) and a one-click configuration backup.
+- 📓 **Activity log** — a bounded, searchable log of admin, user and system events.
 
 > [!NOTE]
 > Everything is hosted by Jelly Crowd inside the Jellyfin web client — **no third-party plugin** is required.
