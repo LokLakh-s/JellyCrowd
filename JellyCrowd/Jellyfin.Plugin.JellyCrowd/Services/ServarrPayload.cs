@@ -129,6 +129,48 @@ public static class ServarrPayload
   }
 
   /// <summary>
+  /// Read-only check that the series and its requested season (or every real season when
+  /// <paramref name="season"/> is <c>null</c>) are already monitored. Used to confirm that a monitoring
+  /// change actually stuck — a fresh Sonarr add processes monitoring asynchronously and can briefly
+  /// override it. Mirrors <see cref="EnsureSeasonsMonitored"/> without mutating.
+  /// </summary>
+  /// <param name="series">The full series resource fetched from Sonarr.</param>
+  /// <param name="season">The season expected to be monitored, or <c>null</c> for all real seasons.</param>
+  /// <returns><c>true</c> when the series and the target season(s) are monitored.</returns>
+  public static bool AreSeasonsMonitored(JsonObject series, int? season)
+  {
+    ArgumentNullException.ThrowIfNull(series);
+
+    if (series["monitored"] is not JsonValue rootValue || !rootValue.TryGetValue<bool>(out var rootMonitored) || !rootMonitored)
+    {
+      return false;
+    }
+
+    if (series["seasons"] is JsonArray seasons)
+    {
+      foreach (var node in seasons)
+      {
+        if (node is not JsonObject seasonObj
+            || seasonObj["seasonNumber"] is not JsonValue numberValue
+            || !numberValue.TryGetValue<int>(out var number)
+            || number <= 0
+            || (season is not null && number != season.Value))
+        {
+          continue;
+        }
+
+        var monitored = seasonObj["monitored"] is JsonValue sv && sv.TryGetValue<bool>(out var b) && b;
+        if (!monitored)
+        {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /// <summary>
   /// Mutates an existing Sonarr series body so the given season is <b>unmonitored</b> (so Sonarr won't
   /// re-grab it after its files are deleted). Leaves the series and other seasons untouched. Returns
   /// <c>true</c> if the season's flag changed.

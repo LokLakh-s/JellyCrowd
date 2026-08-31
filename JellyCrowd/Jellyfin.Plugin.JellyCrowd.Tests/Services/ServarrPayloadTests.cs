@@ -57,6 +57,41 @@ public class ServarrPayloadTests
     Assert.Null(body["languageProfileId"]); // not set when languageProfileId <= 0
   }
 
+  [Fact]
+  public void AreSeasonsMonitored_TrueOnlyWhenSeriesAndTargetSeasonMonitored()
+  {
+    JsonObject Series(bool root, bool s1, bool s2) => new()
+    {
+      ["monitored"] = root,
+      ["seasons"] = new JsonArray(
+        new JsonObject { ["seasonNumber"] = 0, ["monitored"] = false }, // specials ignored
+        new JsonObject { ["seasonNumber"] = 1, ["monitored"] = s1 },
+        new JsonObject { ["seasonNumber"] = 2, ["monitored"] = s2 })
+    };
+
+    // Whole-series check: series + every real season must be monitored.
+    Assert.True(ServarrPayload.AreSeasonsMonitored(Series(true, true, true), null));
+    Assert.False(ServarrPayload.AreSeasonsMonitored(Series(true, true, false), null));
+    Assert.False(ServarrPayload.AreSeasonsMonitored(Series(false, true, true), null)); // series unmonitored
+
+    // Single-season check: series + only that season.
+    Assert.True(ServarrPayload.AreSeasonsMonitored(Series(true, true, false), 1));
+    Assert.False(ServarrPayload.AreSeasonsMonitored(Series(true, false, true), 1));
+  }
+
+  [Fact]
+  public void AreSeasonsMonitored_MatchesEnsureSeasonsMonitored_NoChange()
+  {
+    // When AreSeasonsMonitored is true, EnsureSeasonsMonitored should report nothing to change.
+    var monitored = new JsonObject
+    {
+      ["monitored"] = true,
+      ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 1, ["monitored"] = true })
+    };
+    Assert.True(ServarrPayload.AreSeasonsMonitored(monitored, 1));
+    Assert.False(ServarrPayload.EnsureSeasonsMonitored(monitored, 1));
+  }
+
   private static JsonObject NewSeriesLookup()
     => new()
     {
