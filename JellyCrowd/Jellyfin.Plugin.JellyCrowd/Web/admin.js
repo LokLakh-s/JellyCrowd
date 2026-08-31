@@ -1266,12 +1266,33 @@
       .forEach(function (o) { var opt = document.createElement('option'); opt.value = o[0]; opt.textContent = o[1]; filter.appendChild(opt); });
     bar.appendChild(label);
     bar.appendChild(filter);
+
+    // Bulk retry: re-trigger a search for every approved-but-not-yet-available request (the stuck/blocked
+    // ones). Mirrors the per-row Retry button; the server picks the set and reports how many were retried.
+    var retryAll = adminBtn(t('admin_retry_all'), '', function (btn) {
+      confirmAction({
+        title: t('admin_retry_all_title'),
+        message: t('admin_retry_all_msg'),
+        confirmLabel: t('admin_retry_all')
+      }).then(function (ok) {
+        if (!ok) { return; }
+        btn.disabled = true;
+        apiPostResult('JellyCrowd/Requests/RetryAll').then(function (r) {
+          btn.disabled = false;
+          var done = t('admin_retry_all_done')
+            .replace('{retried}', (r && r.Retried) || 0)
+            .replace('{total}', (r && r.Total) || 0);
+          reload().then(function () { setMessage(done); });
+        }).catch(function (e) { btn.disabled = false; setMessage(t(lib.errorKey(e && e.status))); });
+      });
+    });
+    bar.appendChild(retryAll);
     container.appendChild(bar);
 
     var listHost = document.createElement('div');
     container.appendChild(listHost);
 
-    function reload() { load(); }
+    function reload() { return load(); }
     function decide(id, action) { apiPostNoResult('JellyCrowd/Requests/' + id + '/' + action).then(reload).catch(function () {}); }
     function adminDelete(id) { apiPostNoResult('JellyCrowd/Requests/' + id + '/Delete').then(reload).catch(function () {}); }
     function adminDeleteMedia(id) { apiPostNoResult('JellyCrowd/Requests/' + id + '/DeleteMedia').then(reload).catch(function () {}); }
@@ -1305,7 +1326,7 @@
 
     function load() {
       setMessage(t('loading'));
-      apiGet('JellyCrowd/Requests').then(function (rows) { paint(rows || []); }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+      return apiGet('JellyCrowd/Requests').then(function (rows) { paint(rows || []); }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
     }
 
     function loadDownloadStatus() {
