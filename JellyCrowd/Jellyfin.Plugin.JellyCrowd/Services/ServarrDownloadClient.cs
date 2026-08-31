@@ -16,9 +16,17 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </summary>
 public sealed class ServarrDownloadClient : IDownloadClient
 {
+  // A fresh Sonarr add processes monitoring asynchronously: because we add inert (monitor: none), Sonarr
+  // unmonitors everything a moment after the add returns, which would clobber a single up-front monitor
+  // call and leave the series unmonitored (nothing searchable). After applying monitoring we therefore
+  // wait, re-check, and re-apply until Sonarr reports it monitored — bounded by these constants.
+  private const int MonitorConfirmAttempts = 6;
+  private static readonly TimeSpan SettleDelay = TimeSpan.FromSeconds(1);
+
   private readonly IServarrClient _servarr;
   private readonly ITmdbClient _tmdb;
   private readonly Func<PluginConfiguration> _config;
+  private readonly Func<CancellationToken, Task> _settleDelay;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ServarrDownloadClient"/> class.
@@ -26,11 +34,16 @@ public sealed class ServarrDownloadClient : IDownloadClient
   /// <param name="servarr">The Radarr/Sonarr client.</param>
   /// <param name="tmdb">The TMDB client (TMDB-&gt;TVDB resolution for shows).</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
-  public ServarrDownloadClient(IServarrClient servarr, ITmdbClient tmdb, Func<PluginConfiguration> config)
+  /// <param name="settleDelay">
+  /// Delay awaited between monitor-confirm attempts, letting Sonarr's asynchronous post-add processing run.
+  /// Defaults to a one-second real delay; tests inject a no-op.
+  /// </param>
+  public ServarrDownloadClient(IServarrClient servarr, ITmdbClient tmdb, Func<PluginConfiguration> config, Func<CancellationToken, Task>? settleDelay = null)
   {
     _servarr = servarr;
     _tmdb = tmdb;
     _config = config;
+    _settleDelay = settleDelay ?? (ct => Task.Delay(SettleDelay, ct));
   }
 
   /// <inheritdoc />
@@ -182,7 +195,8 @@ public sealed class ServarrDownloadClient : IDownloadClient
         throw new InvalidOperationException($"Sonarr did not accept the series for TVDB {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
       }
 
-      await SearchSeriesAsync(config, added, addedSeriesId, dispatch, cancellationToken).ConfigureAwait(false);
+      // Fresh add: confirm the monitoring sticks against Sonarr's async post-add unmonitor before searching.
+      await ConfirmMonitorThenSearchSeriesAsync(config, added, addedSeriesId, tvdbId, dispatch, cancellationToken).ConfigureAwait(false);
     }
     else
     {
@@ -199,6 +213,8 @@ public sealed class ServarrDownloadClient : IDownloadClient
 
   // Monitor the requested season (a series added for an earlier season leaves later seasons UNMONITORED,
   // and a search on an unmonitored season grabs nothing), persist that, then search the season (or series).
+  // Used when the series is ALREADY in Sonarr: there is no async post-add processing to race, so a single
+  // monitor call sticks.
   private async Task SearchSeriesAsync(PluginConfiguration config, JsonObject series, int seriesId, DownloadDispatch dispatch, CancellationToken cancellationToken)
   {
     if (ServarrPayload.EnsureSeasonsMonitored(series, dispatch.Season))
@@ -206,10 +222,47 @@ public sealed class ServarrDownloadClient : IDownloadClient
       await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
     }
 
-    // Re-monitor the individual episodes too. A prior deletion unmonitors them at the episode level, and
-    // setting only the season flag does not reliably cascade back to episodes that were unmonitored one by
-    // one — so without this the search below would skip exactly the episodes a re-request is meant to bring
-    // back (the reported case: a season re-requested after some episodes were deleted downloaded nothing).
+    await MonitorEpisodesAndSearchAsync(config, seriesId, dispatch, cancellationToken).ConfigureAwait(false);
+  }
+
+  // Used right after a FRESH add: Sonarr processes the add asynchronously and — because we add inert
+  // (monitor: none) — unmonitors the series and its episodes a moment later, which clobbers a single
+  // up-front monitor call (the reported "series stays unmonitored, monitor/search greyed out" bug). So we
+  // apply the monitoring, wait for Sonarr's post-add to run, re-check, and re-apply until it reports the
+  // series monitored (bounded), and only then search — so the search actually has monitored episodes.
+  private async Task ConfirmMonitorThenSearchSeriesAsync(PluginConfiguration config, JsonObject series, int seriesId, int tvdbId, DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
+    var current = series;
+    for (var attempt = 0; attempt < MonitorConfirmAttempts; attempt++)
+    {
+      if (ServarrPayload.EnsureSeasonsMonitored(current, dispatch.Season))
+      {
+        await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, current, cancellationToken).ConfigureAwait(false);
+      }
+
+      await _settleDelay(cancellationToken).ConfigureAwait(false);
+
+      var refreshed = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
+      if (refreshed is null)
+      {
+        break; // can't verify — we already applied the monitoring; fall through to the search.
+      }
+
+      current = refreshed;
+      if (ServarrPayload.AreSeasonsMonitored(current, dispatch.Season))
+      {
+        break; // Sonarr's post-add has run and our monitoring survived — stable.
+      }
+    }
+
+    await MonitorEpisodesAndSearchAsync(config, seriesId, dispatch, cancellationToken).ConfigureAwait(false);
+  }
+
+  // Monitor the requested season's episodes (Sonarr's inert add and any prior deletion leave them
+  // unmonitored one by one, and setting only the season flag does not reliably cascade back), then trigger
+  // a targeted season search (or a whole-series search when no season was requested).
+  private async Task MonitorEpisodesAndSearchAsync(PluginConfiguration config, int seriesId, DownloadDispatch dispatch, CancellationToken cancellationToken)
+  {
     var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
     if (!string.IsNullOrEmpty(episodesJson))
     {
