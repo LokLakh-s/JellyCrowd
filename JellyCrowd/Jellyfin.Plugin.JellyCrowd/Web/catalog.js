@@ -15,6 +15,8 @@
   var quotaExceeded = false;
   var cfgLang = 'auto';
   var commentsEnabled = false;   // community comments are an admin opt-in
+  // Instance scope: which media types are offered, and which TV request granularities are allowed.
+  var reqScope = { movies: true, series: true, allowSeries: true, allowSeason: true, allowEpisode: true };
 
   // Admin-only "request on behalf of" support. When an admin picks a user in a modal, requests made
   // from that modal are created for that user (via Requests/ForUser); empty = the admin themselves.
@@ -83,7 +85,7 @@
 
   function loadConfigLang() {
     return apiGet('JellyCrowd/Settings/Language')
-      .then(function (d) { if (d) { if (d.Language) { cfgLang = String(d.Language).toLowerCase(); } commentsEnabled = d.CommentsEnabled === true; } })
+      .then(function (d) { if (d) { if (d.Language) { cfgLang = String(d.Language).toLowerCase(); } commentsEnabled = d.CommentsEnabled === true; reqScope = lib.normalizeRequestScope(d); } })
       .catch(function () { /* keep 'auto' on failure */ });
   }
 
@@ -601,32 +603,38 @@
       var actions = document.createElement('span');
       actions.className = 'jellycrowd-season-actions';
 
-      // Toggle to reveal the season's episodes (each requestable individually).
+      // Toggle to reveal the season's episodes (each requestable individually) — only when episode
+      // requests are allowed.
       var episodesBox = document.createElement('div');
       episodesBox.className = 'jellycrowd-episodes';
       episodesBox.style.display = 'none';
-      var loaded = false;
-      var toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'jellycrowd-ep-toggle';
-      toggle.textContent = t('episodes');
-      toggle.addEventListener('click', function () {
-        episodesBox.style.display = episodesBox.style.display === 'none' ? '' : 'none';
-        if (!loaded) { loaded = true; loadEpisodes(item, season, episodesBox, req); }
-      });
-      actions.appendChild(toggle);
+      if (reqScope.allowEpisode) {
+        var loaded = false;
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'jellycrowd-ep-toggle';
+        toggle.textContent = t('episodes');
+        toggle.addEventListener('click', function () {
+          episodesBox.style.display = episodesBox.style.display === 'none' ? '' : 'none';
+          if (!loaded) { loaded = true; loadEpisodes(item, season, episodesBox, req); }
+        });
+        actions.appendChild(toggle);
+      }
 
-      if (req.seasons[season.SeasonNumber]) {
-        actions.appendChild(alreadyRequestedButton());
-      } else if (quotaExceeded) {
-        actions.appendChild(blockedRequestButton());
-      } else {
-        var btn = document.createElement('button');
-        btn.className = 'jellycrowd-request';
-        btn.type = 'button';
-        btn.textContent = t('request_season');
-        btn.addEventListener('click', function () { requestSeason(item, season, btn, dateInput); });
-        actions.appendChild(btn);
+      // Whole-season request — only when season requests are allowed.
+      if (reqScope.allowSeason) {
+        if (req.seasons[season.SeasonNumber]) {
+          actions.appendChild(alreadyRequestedButton());
+        } else if (quotaExceeded) {
+          actions.appendChild(blockedRequestButton());
+        } else {
+          var btn = document.createElement('button');
+          btn.className = 'jellycrowd-request';
+          btn.type = 'button';
+          btn.textContent = t('request_season');
+          btn.addEventListener('click', function () { requestSeason(item, season, btn, dateInput); });
+          actions.appendChild(btn);
+        }
       }
 
       row.appendChild(actions);
@@ -1089,15 +1097,29 @@
         reqTarget.appendChild(tvDateRow.row);
       }
 
-      var seasonsEl = document.createElement('div');
-      seasonsEl.className = 'jellycrowd-seasons';
-      reqTarget.appendChild(seasonsEl);
-      Promise.all([
-        apiGet('JellyCrowd/Catalog/Seasons/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale())),
-        loadRequestedKeys(item.TmdbId)
-      ])
-        .then(function (res) { renderSeasonRequests(seasonsEl, item, res[0], dateInput, res[1]); })
-        .catch(function () { /* seasons are best-effort */ });
+      // Whole-series request (one click for the entire show). Only when the admin allows it and the show
+      // isn't already fully in the library.
+      if (reqScope.allowSeries && !quotaExceeded && !item.Available) {
+        var seriesBtn = document.createElement('button');
+        seriesBtn.className = 'jellycrowd-request';
+        seriesBtn.type = 'button';
+        seriesBtn.textContent = t('request_series');
+        seriesBtn.addEventListener('click', function () { requestItem(item, seriesBtn, null, dateInput); });
+        reqTarget.appendChild(seriesBtn);
+      }
+
+      // The per-season / per-episode list, only when at least one of those granularities is allowed.
+      if (reqScope.allowSeason || reqScope.allowEpisode) {
+        var seasonsEl = document.createElement('div');
+        seasonsEl.className = 'jellycrowd-seasons';
+        reqTarget.appendChild(seasonsEl);
+        Promise.all([
+          apiGet('JellyCrowd/Catalog/Seasons/' + item.TmdbId + '?language=' + encodeURIComponent(fullLocale())),
+          loadRequestedKeys(item.TmdbId)
+        ])
+          .then(function (res) { renderSeasonRequests(seasonsEl, item, res[0], dateInput, res[1]); })
+          .catch(function () { /* seasons are best-effort */ });
+      }
     } else if (!item.Available) {
       if (!quotaExceeded) {
         var dateRow = buildDesiredDateRow();
@@ -1879,9 +1901,27 @@
     resetFeed();
   }
 
+  // Apply the movies/series scope to the type toggle: hide a disabled type, lock the media type when only
+  // one is offered, and hide the whole type filter when there's no choice to make.
+  function applyMediaTypeScope() {
+    var movieTab = document.getElementById('jcTypeMovie');
+    var tvTab = document.getElementById('jcTypeTv');
+    var typeFilter = document.getElementById('jcFilterType');
+    if (movieTab) { movieTab.style.display = reqScope.movies ? '' : 'none'; }
+    if (tvTab) { tvTab.style.display = reqScope.series ? '' : 'none'; }
+    if (!reqScope.movies) { filters.mediaType = 'tv'; }
+    else if (!reqScope.series) { filters.mediaType = 'movie'; }
+    if (typeFilter && (!reqScope.movies || !reqScope.series)) { typeFilter.style.display = 'none'; }
+    if (movieTab) { movieTab.classList.toggle('jellycrowd-chip-active', filters.mediaType === 'movie'); }
+    if (tvTab) { tvTab.classList.toggle('jellycrowd-chip-active', filters.mediaType === 'tv'); }
+  }
+
   // Filter the catalog by a TMDB person (cast/director click): show that person's filmography.
   function applyPersonFilter(personId, personName) {
     if (!personId) { return; }
+    // Filmography lands on the Movies tab (TMDB has no person filter for TV); with movies off, there's
+    // nowhere to show it, so the cast/director click is a no-op.
+    if (!reqScope.movies) { return; }
     filters.personId = personId;
     filters.personName = personName || '';
     // A filmography is movies (TMDB has no person filter for TV), so land on the Movies tab: the click
@@ -1926,6 +1966,7 @@
   function init() {
     loadConfigLang().then(loadStrings).then(loadAdmin).then(function () {
       applyStaticText();
+      applyMediaTypeScope();
       buildSort();
       buildLanguageCountryFilters();
       setupYearSlider();

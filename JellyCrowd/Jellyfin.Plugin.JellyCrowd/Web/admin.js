@@ -395,6 +395,28 @@
         { key: 'EstimatedMovieSizeBytes', label: t('cfg_estimatedmoviesizebytes'), type: 'num', scale: GIB },
         { key: 'EstimatedEpisodeSizeBytes', label: t('cfg_estimatedepisodesizebytes'), type: 'num', scale: GIB }
       ]);
+      // Request scope: which media types are offered, and which TV request granularities are allowed.
+      host.appendChild(sectionHeading(t('cfgsec_request_scope')));
+      var mvEnabled = checkbox('jc-c-MoviesEnabled', cfg.MoviesEnabled !== false);
+      var srEnabled = checkbox('jc-c-SeriesEnabled', cfg.SeriesEnabled !== false);
+      host.appendChild(field(t('cfg_movies_enabled'), mvEnabled));
+      host.appendChild(field(t('cfg_series_enabled'), srEnabled, t('cfg_media_types_hint')));
+      keepAtLeastOne([mvEnabled, srEnabled]);
+      var gSeries = checkbox('jc-c-AllowSeriesRequests', cfg.AllowSeriesRequests !== false);
+      var gSeason = checkbox('jc-c-AllowSeasonRequests', cfg.AllowSeasonRequests !== false);
+      var gEpisode = checkbox('jc-c-AllowEpisodeRequests', cfg.AllowEpisodeRequests !== false);
+      host.appendChild(field(t('cfg_allow_series_requests'), gSeries));
+      host.appendChild(field(t('cfg_allow_season_requests'), gSeason));
+      host.appendChild(field(t('cfg_allow_episode_requests'), gEpisode, t('cfg_request_granularity_hint')));
+      keepAtLeastOne([gSeries, gSeason, gEpisode]);
+      var scopeForm = { apply: function (live) {
+        live.MoviesEnabled = mvEnabled.checked;
+        live.SeriesEnabled = srEnabled.checked;
+        live.AllowSeriesRequests = gSeries.checked;
+        live.AllowSeasonRequests = gSeason.checked;
+        live.AllowEpisodeRequests = gEpisode.checked;
+      } };
+
       var genresInput = textInput('jc-c-AutoApproveGenres', (cfg.AutoApproveGenres || []).join(', '), 'Action, Comedy, Documentary…');
       host.appendChild(field(t('adm_auto_approve_genres_optional'), genresInput, t('adm_comma_separated_tmdb_genre_names_when_hint')));
       var genresForm = { apply: function (live) { live.AutoApproveGenres = genresInput.value.split(',').map(function (g) { return g.trim(); }).filter(Boolean); } };
@@ -425,7 +447,7 @@
         { key: 'MediaExpiryDays', label: t('cfg_mediaexpirydays'), type: 'num', hint: t('cfg_mediaexpirydays_hint') }
       ]);
       var adaptForm = { apply: function (live) { live.AdaptiveQuotaEnabled = adaptEnable.checked; } };
-      host.appendChild(cfgSaveButton([reqForm, genresForm, quotaForm, adaptForm, adapt, tail]));
+      host.appendChild(cfgSaveButton([reqForm, scopeForm, genresForm, quotaForm, adaptForm, adapt, tail]));
     });
   }
 
@@ -876,6 +898,18 @@
     c.className = cls;
     c.checked = !!checked;
     return c;
+  }
+
+  // Keep at least one checkbox in a group selected: unchecking the last one is reverted (with a hint).
+  function keepAtLeastOne(boxes) {
+    boxes.forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        if (!cb.checked && !boxes.some(function (b) { return b.checked; })) {
+          cb.checked = true;
+          setMessage(t('cfg_at_least_one'));
+        }
+      });
+    });
   }
 
   // Per-user plugin-access override (3-state, overrides "config mode"): Default (follow config mode) /

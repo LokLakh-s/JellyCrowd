@@ -32,6 +32,11 @@ public class PluginConfiguration : BasePluginConfiguration
     AdaptiveInactivityDays = 30;
     AdaptiveProbationDays = 14;
     RequireApproval = true;
+    MoviesEnabled = true;
+    SeriesEnabled = true;
+    AllowSeriesRequests = true;
+    AllowSeasonRequests = true;
+    AllowEpisodeRequests = true;
     HiddenFromUsers = false;
     RateLimitPerMinute = 120;
     RateLimitGetPerMinute = 600;
@@ -211,6 +216,36 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets a value indicating whether new requests require admin approval before fulfillment.
   /// </summary>
   public bool RequireApproval { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether movies are offered at all (catalog, calendar and requests).
+  /// Turn off for a series-only instance. At least one of this and <see cref="SeriesEnabled"/> stays on.
+  /// </summary>
+  public bool MoviesEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether TV shows are offered at all (catalog, calendar and requests).
+  /// Turn off for a movies-only instance. At least one of this and <see cref="MoviesEnabled"/> stays on.
+  /// </summary>
+  public bool SeriesEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether users may request a whole series at once. Applies to TV only;
+  /// at least one of the three request-granularity options stays on.
+  /// </summary>
+  public bool AllowSeriesRequests { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether users may request a single season. Applies to TV only;
+  /// at least one of the three request-granularity options stays on.
+  /// </summary>
+  public bool AllowSeasonRequests { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether users may request individual episodes. Applies to TV only;
+  /// at least one of the three request-granularity options stays on.
+  /// </summary>
+  public bool AllowEpisodeRequests { get; set; }
 
   /// <summary>
   /// Gets or sets a value indicating whether regular users may trigger a manual "retry search" on their

@@ -48,4 +48,19 @@ public class LanguageSettingDto
 
   /// <summary>Gets or sets a value indicating whether to hide Jellyfin's left drawer for non-admins.</summary>
   public bool HideNativeDrawer { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether movies are offered (catalog + requests).</summary>
+  public bool MoviesEnabled { get; set; } = true;
+
+  /// <summary>Gets or sets a value indicating whether TV shows are offered (catalog + requests).</summary>
+  public bool SeriesEnabled { get; set; } = true;
+
+  /// <summary>Gets or sets a value indicating whether users may request a whole series (TV).</summary>
+  public bool AllowSeriesRequests { get; set; } = true;
+
+  /// <summary>Gets or sets a value indicating whether users may request a single season (TV).</summary>
+  public bool AllowSeasonRequests { get; set; } = true;
+
+  /// <summary>Gets or sets a value indicating whether users may request individual episodes (TV).</summary>
+  public bool AllowEpisodeRequests { get; set; } = true;
 }

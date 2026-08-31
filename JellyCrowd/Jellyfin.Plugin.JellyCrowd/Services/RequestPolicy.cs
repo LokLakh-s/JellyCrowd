@@ -141,6 +141,67 @@ public static class RequestPolicy
   }
 
   /// <summary>
+  /// Whether the given media type is offered at all on this instance (movies and/or TV can be turned off).
+  /// Unknown types are not gated here (validated elsewhere).
+  /// </summary>
+  /// <param name="config">The plugin configuration.</param>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <returns><c>true</c> when the type is offered.</returns>
+  public static bool IsMediaTypeEnabled(PluginConfiguration config, string mediaType)
+  {
+    ArgumentNullException.ThrowIfNull(config);
+    if (string.Equals(mediaType, "movie", StringComparison.Ordinal))
+    {
+      return config.MoviesEnabled;
+    }
+
+    if (string.Equals(mediaType, "tv", StringComparison.Ordinal))
+    {
+      return config.SeriesEnabled;
+    }
+
+    return true;
+  }
+
+  /// <summary>
+  /// Whether a request at the given granularity is allowed. Only TV is gated (a whole series when
+  /// <paramref name="season"/> is null, a season when only <paramref name="season"/> is set, a single
+  /// episode when <paramref name="episode"/> is set); movies are always allowed here. As a safeguard, if
+  /// the admin somehow turned all three TV granularities off, TV is treated as fully allowed rather than
+  /// blocked entirely.
+  /// </summary>
+  /// <param name="config">The plugin configuration.</param>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="season">The requested season, or <c>null</c> for a whole series/movie.</param>
+  /// <param name="episode">The requested episode, or <c>null</c> for a whole season/series/movie.</param>
+  /// <returns><c>true</c> when a request at this granularity is allowed.</returns>
+  public static bool IsRequestGranularityAllowed(PluginConfiguration config, string mediaType, int? season, int? episode)
+  {
+    ArgumentNullException.ThrowIfNull(config);
+    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal))
+    {
+      return true;
+    }
+
+    if (!config.AllowSeriesRequests && !config.AllowSeasonRequests && !config.AllowEpisodeRequests)
+    {
+      return true; // never block TV entirely — treat an all-off misconfiguration as all-allowed.
+    }
+
+    if (episode is not null)
+    {
+      return config.AllowEpisodeRequests;
+    }
+
+    if (season is not null)
+    {
+      return config.AllowSeasonRequests;
+    }
+
+    return config.AllowSeriesRequests;
+  }
+
+  /// <summary>
   /// Whether a request should be auto-approved (skip the admin queue): the user is trusted, or the
   /// global size rule applies to the request's estimated size — further gated, when configured, by the
   /// title's genres matching <see cref="PluginConfiguration.AutoApproveGenres"/>.

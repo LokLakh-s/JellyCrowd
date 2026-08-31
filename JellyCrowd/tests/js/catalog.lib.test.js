@@ -398,3 +398,31 @@ test('buildGroupRecord copies members/libraries so later edits do not mutate the
   g.Members.push('u2');
   assert.deepStrictEqual(src, ['u1']);
 });
+
+test('normalizeRequestScope defaults everything on when unset', () => {
+  const s = lib.normalizeRequestScope({});
+  assert.deepStrictEqual(s, { movies: true, series: true, allowSeries: true, allowSeason: true, allowEpisode: true });
+  assert.deepStrictEqual(lib.normalizeRequestScope(null), s);
+});
+
+test('normalizeRequestScope disables only what is explicitly false', () => {
+  const s = lib.normalizeRequestScope({ MoviesEnabled: false, AllowEpisodeRequests: false });
+  assert.strictEqual(s.movies, false);
+  assert.strictEqual(s.series, true);
+  assert.strictEqual(s.allowEpisode, false);
+  assert.strictEqual(s.allowSeries, true);
+  assert.strictEqual(s.allowSeason, true);
+});
+
+test('normalizeRequestScope never lets both media types be off', () => {
+  const s = lib.normalizeRequestScope({ MoviesEnabled: false, SeriesEnabled: false });
+  assert.strictEqual(s.movies, true);
+  assert.strictEqual(s.series, true);
+});
+
+test('normalizeRequestScope never lets all three granularities be off', () => {
+  const s = lib.normalizeRequestScope({ AllowSeriesRequests: false, AllowSeasonRequests: false, AllowEpisodeRequests: false });
+  assert.strictEqual(s.allowSeries, true);
+  assert.strictEqual(s.allowSeason, true);
+  assert.strictEqual(s.allowEpisode, true);
+});
