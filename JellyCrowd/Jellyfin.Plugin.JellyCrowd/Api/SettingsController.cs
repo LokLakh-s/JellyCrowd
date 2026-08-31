@@ -69,7 +69,12 @@ public class SettingsController : ControllerBase
       SupportLinkUrl = config.SupportLinkEnabled ? (config.SupportLinkUrl ?? string.Empty) : string.Empty,
       GuideLinkUrl = config.GuideLinkEnabled ? (config.GuideLinkUrl ?? string.Empty) : string.Empty,
       SkipOutroEnabled = config.SkipOutroEnabled,
-      HideNativeDrawer = config.HideNativeDrawerForNonAdmins
+      HideNativeDrawer = config.HideNativeDrawerForNonAdmins,
+      MoviesEnabled = config.MoviesEnabled,
+      SeriesEnabled = config.SeriesEnabled,
+      AllowSeriesRequests = config.AllowSeriesRequests,
+      AllowSeasonRequests = config.AllowSeasonRequests,
+      AllowEpisodeRequests = config.AllowEpisodeRequests
     });
   }
 

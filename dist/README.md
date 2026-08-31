@@ -70,6 +70,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 📊 **Statistics** — playback analytics: top media & users, a plays / watch-time activity chart, and live *Now playing*.
 - ✅ **Approval workflow** — approve or deny from a queue; requesters are notified of every status change.
 - ⚙️ **Auto-approval rules** — auto-approve by estimated size, a genre allow-list and trusted-user overrides.
+- 🎚️ **Request scope** — run a movies-only or series-only instance, and choose which granularities users can request (whole series, seasons, single episodes).
 - 💾 **Per-user quotas** — a storage budget per user, counted only when media becomes available, at its real size.
 - 📈 **Adaptive quota** — optionally grow a user's quota as they watch more, with a grace period when they go quiet.
 - 🧑‍🤝‍🧑 **User groups** — manage users together: shared settings they inherit, one-click Jellyfin library access, and group-targeted announcements.
@@ -130,7 +131,7 @@ Paste your TMDB API key in **Dashboard → Plugins → Jelly Crowd**, then manag
 - **Configurations**
   - **General** — default quota; approval mode (manual / auto, with size & genre rules); request rate
     limits; media-expiry window; adaptive quota; UI language; reviews on/off; stats capture on/off.
-  - **Requests** — request and fulfilment behaviour.
+  - **Requests** — approval, rate limits, and the **request scope** (offer movies and/or TV; which granularities users may request).
   - **Notifications** — enable & configure each channel and pick which events go where; send test messages.
   - **Download** — fulfilment backend (none / Radarr+Sonarr / webhook / script), plus stalled-download recovery.
   - **Branding** — restyle the whole UI (images accept a URL **or** an upload).

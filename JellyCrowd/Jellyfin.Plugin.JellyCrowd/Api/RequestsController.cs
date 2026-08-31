@@ -109,6 +109,17 @@ public class RequestsController : ControllerBase
       return StatusCode(StatusCodes.Status403Forbidden, "Requests are disabled for your account.");
     }
 
+    // Instance scope: movies and/or TV can be turned off, and TV can be limited to certain granularities.
+    if (config is not null && !RequestPolicy.IsMediaTypeEnabled(config, dto.MediaType))
+    {
+      return StatusCode(StatusCodes.Status403Forbidden, "This media type is not available on this server.");
+    }
+
+    if (config is not null && !RequestPolicy.IsRequestGranularityAllowed(config, dto.MediaType, dto.Season, dto.Episode))
+    {
+      return StatusCode(StatusCodes.Status403Forbidden, "This request granularity is not allowed on this server.");
+    }
+
     if (await _store.ExistsActiveAsync(userId, dto.TmdbId, dto.MediaType, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false))
     {
       return Conflict("You already have an active request for this title.");
@@ -228,6 +239,11 @@ public class RequestsController : ControllerBase
     if (!IsValidMediaType(dto.MediaType))
     {
       return BadRequest("The 'mediaType' must be 'movie' or 'tv'.");
+    }
+
+    if (Plugin.Instance?.Configuration is { } claimConfig && !RequestPolicy.IsMediaTypeEnabled(claimConfig, dto.MediaType))
+    {
+      return StatusCode(StatusCodes.Status403Forbidden, "This media type is not available on this server.");
     }
 
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
@@ -734,6 +750,20 @@ public class RequestsController : ControllerBase
     if (dto.UserId == Guid.Empty)
     {
       return BadRequest("A target user is required.");
+    }
+
+    // Respect the instance scope even for on-behalf requests (movies/TV enabled + TV granularity).
+    if (Plugin.Instance?.Configuration is { } forUserConfig)
+    {
+      if (!RequestPolicy.IsMediaTypeEnabled(forUserConfig, dto.MediaType))
+      {
+        return StatusCode(StatusCodes.Status403Forbidden, "This media type is not available on this server.");
+      }
+
+      if (!RequestPolicy.IsRequestGranularityAllowed(forUserConfig, dto.MediaType, dto.Season, dto.Episode))
+      {
+        return StatusCode(StatusCodes.Status403Forbidden, "This request granularity is not allowed on this server.");
+      }
     }
 
     var status = dto.Status ?? RequestStatus.Approved;

@@ -648,7 +648,24 @@
     return g;
   }
 
+  // Normalise the request-scope flags from the settings payload: which media types are offered, and which
+  // TV request granularities are allowed. Missing/true → enabled; only an explicit false disables. Never
+  // lets both media types be off, nor all three granularities off (mirrors the server's safeguard).
+  function normalizeRequestScope(cfg) {
+    cfg = cfg || {};
+    function on(v) { return v !== false; }
+    var movies = on(cfg.MoviesEnabled);
+    var series = on(cfg.SeriesEnabled);
+    if (!movies && !series) { movies = true; series = true; }
+    var s = on(cfg.AllowSeriesRequests);
+    var se = on(cfg.AllowSeasonRequests);
+    var ep = on(cfg.AllowEpisodeRequests);
+    if (!s && !se && !ep) { s = true; se = true; ep = true; }
+    return { movies: movies, series: series, allowSeries: s, allowSeason: se, allowEpisode: ep };
+  }
+
   return {
+    normalizeRequestScope: normalizeRequestScope,
     buildGroupRecord: buildGroupRecord,
     focusablesIn: focusablesIn,
     handleTrapKeydown: handleTrapKeydown,

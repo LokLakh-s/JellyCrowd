@@ -303,4 +303,62 @@ public class RequestPolicyTests
     Assert.False(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: false)); // non-member
     Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: true));  // admin always
   }
+
+  // ---------- Request scope (media types + granularity) ----------
+  [Fact]
+  public void IsMediaTypeEnabled_RespectsToggles()
+  {
+    var config = Config(); // both default on
+    Assert.True(RequestPolicy.IsMediaTypeEnabled(config, "movie"));
+    Assert.True(RequestPolicy.IsMediaTypeEnabled(config, "tv"));
+
+    config.MoviesEnabled = false;
+    Assert.False(RequestPolicy.IsMediaTypeEnabled(config, "movie"));
+    Assert.True(RequestPolicy.IsMediaTypeEnabled(config, "tv"));
+
+    config.MoviesEnabled = true;
+    config.SeriesEnabled = false;
+    Assert.True(RequestPolicy.IsMediaTypeEnabled(config, "movie"));
+    Assert.False(RequestPolicy.IsMediaTypeEnabled(config, "tv"));
+  }
+
+  [Fact]
+  public void IsRequestGranularityAllowed_MoviesAlwaysAllowed()
+  {
+    var config = Config();
+    config.AllowSeriesRequests = false;
+    config.AllowSeasonRequests = false;
+    config.AllowEpisodeRequests = false; // even fully off, movies are unaffected
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "movie", null, null));
+  }
+
+  [Fact]
+  public void IsRequestGranularityAllowed_GatesEachTvLevel()
+  {
+    var config = Config(); // all three on
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", null, null)); // whole series
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, null));    // season
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, 5));       // episode
+
+    config.AllowSeriesRequests = false;
+    Assert.False(RequestPolicy.IsRequestGranularityAllowed(config, "tv", null, null)); // whole series blocked
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, null));     // season still ok
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, 5));        // episode still ok
+
+    config.AllowSeasonRequests = false;
+    Assert.False(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, null));    // season blocked
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, 5));        // episode still ok
+  }
+
+  [Fact]
+  public void IsRequestGranularityAllowed_AllOff_IsTreatedAsAllOn()
+  {
+    var config = Config();
+    config.AllowSeriesRequests = false;
+    config.AllowSeasonRequests = false;
+    config.AllowEpisodeRequests = false; // misconfiguration → never block TV entirely
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", null, null));
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, null));
+    Assert.True(RequestPolicy.IsRequestGranularityAllowed(config, "tv", 2, 5));
+  }
 }
