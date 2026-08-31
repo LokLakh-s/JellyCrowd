@@ -596,6 +596,41 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
+  /// Re-triggers a release search for every approved-but-not-yet-available request in one go
+  /// (administrators only): the ones that dispatched but are stuck/blocked/errored. Each retry never
+  /// throws; the response reports how many were retried and how many failed.
+  /// </summary>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="200">The bulk retry outcome (retried / failed / total counts).</response>
+  /// <returns>The retry counts.</returns>
+  [HttpPost("RetryAll")]
+  [Authorize(Policy = "RequiresElevation")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  public async Task<ActionResult<RetryAllResultDto>> RetryAll(CancellationToken cancellationToken)
+  {
+    var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+    // Approved = dispatched but not yet available: the set that can be stuck/blocked/errored (mirrors the
+    // per-row Retry button, which is shown on exactly these). Each retry clears or refreshes its own error.
+    var candidates = all.Where(r => r.Status == RequestStatus.Approved).ToList();
+
+    var retried = 0;
+    foreach (var request in candidates)
+    {
+      if (await _downloadDispatcher.RetryAsync(request, cancellationToken).ConfigureAwait(false))
+      {
+        retried++;
+      }
+    }
+
+    return Ok(new RetryAllResultDto
+    {
+      Retried = retried,
+      Failed = candidates.Count - retried,
+      Total = candidates.Count,
+    });
+  }
+
+  /// <summary>
   /// Deletes any request (administrators only).
   /// </summary>
   /// <param name="id">The request identifier.</param>

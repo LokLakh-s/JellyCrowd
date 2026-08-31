@@ -359,6 +359,38 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task RetryAll_RetriesOnlyApprovedRequests()
+  {
+    var store = new FakeRequestStore();
+    RequestRecord Rec(RequestStatus status) => new()
+    {
+      Id = Guid.NewGuid(),
+      UserId = Guid.NewGuid(),
+      TmdbId = 100,
+      MediaType = "movie",
+      Title = "X",
+      Status = status,
+    };
+    var approved1 = await store.CreateAsync(Rec(RequestStatus.Approved), CancellationToken.None);
+    var approved2 = await store.CreateAsync(Rec(RequestStatus.Approved), CancellationToken.None);
+    await store.CreateAsync(Rec(RequestStatus.Pending), CancellationToken.None);
+    await store.CreateAsync(Rec(RequestStatus.Available), CancellationToken.None);
+    await store.CreateAsync(Rec(RequestStatus.Denied), CancellationToken.None);
+    var dispatcher = new FakeDownloadDispatcher();
+
+    var result = await CreateController(store, isAdmin: true, dispatcher: dispatcher).RetryAll(CancellationToken.None);
+
+    var dto = Assert.IsType<RetryAllResultDto>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(2, dto.Total);
+    Assert.Equal(2, dto.Retried);
+    Assert.Equal(0, dto.Failed);
+    // Only the two approved (stuck) requests were retried — never Pending/Available/Denied.
+    Assert.Equal(2, dispatcher.Retried.Count);
+    Assert.Contains(approved1.Id, dispatcher.Retried);
+    Assert.Contains(approved2.Id, dispatcher.Retried);
+  }
+
+  [Fact]
   public async Task Retry_NotApproved_ReturnsConflict()
   {
     var store = new FakeRequestStore();
