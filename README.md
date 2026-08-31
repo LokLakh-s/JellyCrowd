@@ -46,16 +46,16 @@ middleware ASP.NET intégré.
 
 ## 🚀 Installation
 
-L'installation publique passe par le dépôt **`jellycrowd-dist`** :
+L'installation publique passe par le dépôt public **[`LokLakh-s/JellyCrowd`](https://github.com/LokLakh-s/JellyCrowd)** :
 
 1. **Dashboard → Plugins → Dépôts (Repositories) → +** et ajouter :
    ```text
-   https://raw.githubusercontent.com/LokLakh-s/jellycrowd-dist/main/manifest.json
+   https://raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json
    ```
 2. **Catalogue (Catalog)** → installer **Jelly Crowd** → redémarrer Jellyfin.
 3. **Dashboard → Plugins → Jelly Crowd** → renseigner la clé TMDB.
 
-Les mises à jour sont automatiques : à chaque release, la CI publie l'archive dans `jellycrowd-dist` et met
+Les mises à jour sont automatiques : à chaque release, la CI publie l'archive dans le dépôt public et met
 à jour son `manifest.json` ; Jellyfin propose la nouvelle version (ou l'installe seul si l'auto-update est actif).
 
 ## 🛠️ Développement
@@ -71,7 +71,7 @@ Architecture, conventions et commandes : voir [`CLAUDE.md`](JellyCrowd/CLAUDE.md
 
 Un push sur `main` déclenche le workflow [`release.yml`](.github/workflows/release.yml) (runner self-hosted) :
 versioning 4-parties piloté par mot-clé de commit, build + tests, puis publication de l'archive et mise à
-jour du `manifest.json` dans le dépôt public `jellycrowd-dist` (via le secret `DIST_TOKEN`).
+jour du `manifest.json` dans le dépôt public `LokLakh-s/JellyCrowd` (via le secret `DIST_TOKEN`).
 
 ## 📄 Licence
 

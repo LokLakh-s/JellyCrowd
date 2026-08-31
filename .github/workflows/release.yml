@@ -186,8 +186,8 @@ jobs:
             "${RUNNER_TEMP}/dist-repo/manifest.json" > "${RUNNER_TEMP}/manifest.json"
 
           # Assemble the public repo: updated manifest + the distribution assets kept in THIS (private)
-          # repo under dist/ (README, screenshots, logo, LICENSE). Force-push a single commit so the public
-          # history is always exactly one clean commit — no accumulated release history, ever.
+          # repo under dist/ (README, screenshots, logo, LICENSE, SECURITY.md, .github issue templates).
+          # Force-push a single commit so the public history is always exactly one clean commit.
           staging="${RUNNER_TEMP}/dist-staging"
           rm -rf "$staging"; mkdir -p "$staging"
           cp "${RUNNER_TEMP}/manifest.json" "$staging/manifest.json"
