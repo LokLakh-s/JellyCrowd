@@ -439,3 +439,33 @@ test('buildGroupRecord includes child mode only when enabled', () => {
   const allAges = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: true, childMaxAge: '0' }, GIB);
   assert.strictEqual(allAges.ChildMaxAge, 0);
 });
+
+const HIST = [
+  { Id: '1', Title: 'The Matrix', SeriesName: '', LibraryName: 'Movies', PlayedAtUtc: '2026-01-10T20:00:00Z' },
+  { Id: '2', Title: 'Pilot', SeriesName: 'Severance', LibraryName: 'Shows', PlayedAtUtc: '2026-02-15T21:00:00Z' },
+  { Id: '3', Title: 'Inception', SeriesName: '', LibraryName: 'Movies', PlayedAtUtc: '2026-03-01T18:00:00Z' }
+];
+
+test('filterHistory: no filters returns everything', () => {
+  assert.strictEqual(lib.filterHistory(HIST, {}).length, 3);
+  assert.strictEqual(lib.filterHistory(HIST, null).length, 3);
+});
+
+test('filterHistory: keyword matches title, series or library (case-insensitive)', () => {
+  assert.deepStrictEqual(lib.filterHistory(HIST, { query: 'matrix' }).map(e => e.Id), ['1']);
+  assert.deepStrictEqual(lib.filterHistory(HIST, { query: 'severance' }).map(e => e.Id), ['2']);
+  assert.deepStrictEqual(lib.filterHistory(HIST, { query: 'MOVIES' }).map(e => e.Id), ['1', '3']);
+  assert.strictEqual(lib.filterHistory(HIST, { query: 'zzz' }).length, 0);
+});
+
+test('filterHistory: inclusive date range (from/to)', () => {
+  assert.deepStrictEqual(lib.filterHistory(HIST, { from: '2026-02-01' }).map(e => e.Id), ['2', '3']);
+  assert.deepStrictEqual(lib.filterHistory(HIST, { to: '2026-02-28' }).map(e => e.Id), ['1', '2']);
+  assert.deepStrictEqual(lib.filterHistory(HIST, { from: '2026-02-01', to: '2026-02-28' }).map(e => e.Id), ['2']);
+  // Boundary day is inclusive on both ends.
+  assert.deepStrictEqual(lib.filterHistory(HIST, { from: '2026-02-15', to: '2026-02-15' }).map(e => e.Id), ['2']);
+});
+
+test('filterHistory: keyword and date range combine', () => {
+  assert.deepStrictEqual(lib.filterHistory(HIST, { query: 'movies', from: '2026-02-01' }).map(e => e.Id), ['3']);
+});
