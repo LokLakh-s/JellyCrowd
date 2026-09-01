@@ -15,6 +15,7 @@
   var quotaExceeded = false;
   var cfgLang = 'auto';
   var commentsEnabled = false;   // community comments are an admin opt-in
+  var isChild = false;           // current user is a child account (member of a child group)
   // Instance scope: which media types are offered, and which TV request granularities are allowed.
   var reqScope = { movies: true, series: true, allowSeries: true, allowSeason: true, allowEpisode: true };
 
@@ -238,6 +239,14 @@
   }
 
   // Load whether the current user is an admin (and, if so, the user list) for "request on behalf of".
+  // Per-user scope (authenticated): whether this account is a "child" account. Child accounts get the
+  // age-filtered catalog, no free-text search, and no reviews.
+  function loadScope() {
+    return apiGet('JellyCrowd/Settings/Visibility')
+      .then(function (d) { isChild = !!(d && d.IsChild); if (isChild) { commentsEnabled = false; } })
+      .catch(function () { /* not authenticated / best-effort */ });
+  }
+
   function loadAdmin() {
     if (!(window.ApiClient && typeof window.ApiClient.getCurrentUser === 'function')) {
       return Promise.resolve();
@@ -1400,7 +1409,8 @@
 
   function baseDiscover() {
     return 'JellyCrowd/Catalog/Discover?mediaType=' + lib.discoverMediaType(filters)
-      + '&language=' + encodeURIComponent(fullLocale());
+      + '&language=' + encodeURIComponent(fullLocale())
+      + '&region=' + encodeURIComponent(REGION);
   }
 
   function pagePath(page) {
@@ -1916,6 +1926,14 @@
     if (tvTab) { tvTab.classList.toggle('jellycrowd-chip-active', filters.mediaType === 'tv'); }
   }
 
+  // Child accounts: hide free-text search (they browse the age-filtered catalog only). The catalog feed
+  // and reviews are already gated server-side / by commentsEnabled.
+  function applyChildScope() {
+    if (!isChild) { return; }
+    var form = document.getElementById('jcSearchForm');
+    if (form) { form.style.display = 'none'; }
+  }
+
   // Filter the catalog by a TMDB person (cast/director click): show that person's filmography.
   function applyPersonFilter(personId, personName) {
     if (!personId) { return; }
@@ -1964,9 +1982,10 @@
   }
 
   function init() {
-    loadConfigLang().then(loadStrings).then(loadAdmin).then(function () {
+    loadConfigLang().then(loadStrings).then(loadAdmin).then(loadScope).then(function () {
       applyStaticText();
       applyMediaTypeScope();
+      applyChildScope();
       buildSort();
       buildLanguageCountryFilters();
       setupYearSlider();

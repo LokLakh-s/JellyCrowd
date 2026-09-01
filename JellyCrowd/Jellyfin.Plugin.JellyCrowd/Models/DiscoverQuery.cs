@@ -64,4 +64,16 @@ public class DiscoverQuery
   /// Gets or sets a TMDB person id to filter by (cast or crew); used to show a person's filmography.
   /// </summary>
   public int? WithPeople { get; set; }
+
+  /// <summary>
+  /// Gets or sets the TMDB certification country (e.g. <c>US</c>) paired with <see cref="CertificationLte"/>
+  /// for the child-mode age filter. Applies to movies only.
+  /// </summary>
+  public string? CertificationCountry { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum TMDB movie certification (the <c>certification.lte</c> value) for the
+  /// child-mode age filter. Requires <see cref="CertificationCountry"/>. Applies to movies only.
+  /// </summary>
+  public string? CertificationLte { get; set; }
 }

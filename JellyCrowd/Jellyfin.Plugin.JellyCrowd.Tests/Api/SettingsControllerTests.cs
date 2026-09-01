@@ -179,4 +179,18 @@ public class SettingsControllerTests
     var dto = await GetVisibilityFor(config, Guid.NewGuid(), isAdmin: false);
     Assert.Equal("Everyone", dto.AnnouncementText);
   }
+
+  [Fact]
+  public async Task GetVisibility_FlagsChildAccounts()
+  {
+    var member = Guid.NewGuid();
+    var group = new UserGroup { Id = Guid.NewGuid(), Name = "Kids", ChildMode = true, ChildMaxAge = 12 };
+    group.Members.Add(member);
+    var config = new PluginConfiguration();
+    config.UserGroups.Add(group);
+
+    Assert.True((await GetVisibilityFor(config, member, isAdmin: false)).IsChild);
+    Assert.False((await GetVisibilityFor(config, Guid.NewGuid(), isAdmin: false)).IsChild); // non-member
+    Assert.False((await GetVisibilityFor(config, member, isAdmin: true)).IsChild);          // admins never child
+  }
 }

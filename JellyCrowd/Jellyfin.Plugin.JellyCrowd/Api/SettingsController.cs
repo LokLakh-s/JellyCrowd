@@ -162,6 +162,7 @@ public class SettingsController : ControllerBase
       IsAdmin = isAdmin,
       AnnouncementText = showAnnouncement ? (config.AnnouncementText ?? string.Empty) : string.Empty,
       AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel,
+      IsChild = !isAdmin && Services.RequestPolicy.ChildPolicyFor(config, userId).IsChild,
     });
   }
 

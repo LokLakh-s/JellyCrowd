@@ -166,6 +166,13 @@ public class TmdbClient : ITmdbClient
       builder.Append("&with_people=").Append(query.WithPeople.Value.ToString(CultureInfo.InvariantCulture));
     }
 
+    // Child-mode age filter (movies only — TMDB has no reliable TV certification discover filter).
+    if (isMovie && !string.IsNullOrWhiteSpace(query.CertificationCountry) && !string.IsNullOrWhiteSpace(query.CertificationLte))
+    {
+      builder.Append("&certification_country=").Append(Escape(query.CertificationCountry))
+        .Append("&certification.lte=").Append(Escape(query.CertificationLte));
+    }
+
     var json = await GetAsync(builder.ToString(), cancellationToken).ConfigureAwait(false);
     return TmdbResponseParser.ParseResults(json, mediaType);
   }

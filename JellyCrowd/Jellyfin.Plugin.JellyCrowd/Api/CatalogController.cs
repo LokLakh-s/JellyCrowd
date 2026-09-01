@@ -75,6 +75,7 @@ public class CatalogController : ControllerBase
   /// Gets the catalog items trending this week.
   /// </summary>
   /// <param name="language">Optional TMDB language code (defaults to <c>en-US</c>). Pass the active Jellyfin language.</param>
+  /// <param name="region">Optional country code for the child-mode certification filter.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">Trending items returned.</response>
   /// <response code="503">TMDB is not configured or unreachable.</response>
@@ -84,10 +85,47 @@ public class CatalogController : ControllerBase
   [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
   public async Task<ActionResult<IReadOnlyList<CatalogItem>>> GetTrending(
     [FromQuery] string? language,
+    [FromQuery] string? region,
     CancellationToken cancellationToken)
   {
+    var lang = Normalize(language);
+
+    // Child accounts never get the raw (unfiltered) trending feed: serve an age-filtered movie discovery
+    // feed instead, so the default browse stays safe.
+    var child = await ResolveChildAsync().ConfigureAwait(false);
+    if (child.IsChild)
+    {
+      var q = new DiscoverQuery { SortBy = "popularity", Page = 1 };
+      ApplyChildFilter(q, child.MaxAge, region);
+      return await ExecuteAsync(() => _tmdbClient.DiscoverAsync("movie", q, lang, cancellationToken)).ConfigureAwait(false);
+    }
+
     return await ExecuteAsync(
-      () => _tmdbClient.GetTrendingAsync(Normalize(language), cancellationToken)).ConfigureAwait(false);
+      () => _tmdbClient.GetTrendingAsync(lang, cancellationToken)).ConfigureAwait(false);
+  }
+
+  // Resolves the current user's child-mode policy (anonymous or no config → not a child).
+  private async Task<(bool IsChild, int MaxAge)> ResolveChildAsync()
+  {
+    var config = Plugin.Instance?.Configuration;
+    if (config is null)
+    {
+      return (false, 0);
+    }
+
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    return RequestPolicy.ChildPolicyFor(config, userId);
+  }
+
+  // Applies the child-mode age filter to a movie discovery query (adult is already excluded upstream).
+  private static void ApplyChildFilter(DiscoverQuery query, int maxAge, string? region)
+  {
+    var cert = ChildContentPolicy.CertificationFor(region, maxAge);
+    if (cert is { } c)
+    {
+      query.CertificationCountry = c.Country;
+      query.CertificationLte = c.Certification;
+    }
   }
 
   /// <summary>
@@ -114,6 +152,12 @@ public class CatalogController : ControllerBase
     if (string.IsNullOrWhiteSpace(query))
     {
       return BadRequest("The 'query' parameter is required.");
+    }
+
+    // Free-text search is disabled for child accounts (they browse the age-filtered catalog only).
+    if ((await ResolveChildAsync().ConfigureAwait(false)).IsChild)
+    {
+      return Ok(System.Array.Empty<CatalogItem>());
     }
 
     var lang = Normalize(language);
@@ -254,6 +298,7 @@ public class CatalogController : ControllerBase
   /// <param name="originCountry">Optional production/origin-country filter (ISO 3166-1, e.g. FR, JP).</param>
   /// <param name="withPeople">Optional TMDB person id to filter by (cast/crew) — a person's filmography.</param>
   /// <param name="language">Optional TMDB language code.</param>
+  /// <param name="region">Optional country code for the child-mode certification filter.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">Matching items returned.</response>
   /// <response code="503">TMDB is not configured or unreachable.</response>
@@ -276,6 +321,7 @@ public class CatalogController : ControllerBase
     [FromQuery] string? originCountry,
     [FromQuery] int? withPeople,
     [FromQuery] string? language,
+    [FromQuery] string? region,
     CancellationToken cancellationToken)
   {
     var type = string.Equals(mediaType, "tv", StringComparison.Ordinal) ? "tv" : "movie";
@@ -294,6 +340,13 @@ public class CatalogController : ControllerBase
       OriginCountry = originCountry,
       WithPeople = withPeople
     };
+
+    // Child accounts: apply the age filter (movies; TMDB has no reliable TV certification filter).
+    var child = await ResolveChildAsync().ConfigureAwait(false);
+    if (child.IsChild)
+    {
+      ApplyChildFilter(query, child.MaxAge, region ?? watchRegion);
+    }
 
     return await ExecuteAsync(
       () => _tmdbClient.DiscoverAsync(type, query, Normalize(language), cancellationToken)).ConfigureAwait(false);
