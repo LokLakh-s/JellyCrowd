@@ -1488,6 +1488,7 @@
       '.jcSettingsTabs{display:flex;flex-wrap:nowrap;justify-content:center;justify-content:safe center;gap:.4em;align-items:center;overflow-x:auto;scrollbar-width:none;padding:1em 1.2em .4em;}' +
       '.jcSettingsTabs::-webkit-scrollbar{display:none;}' +
       '.jcSettingsTab{white-space:nowrap;}' +
+      '.jcHomeCustomize{display:flex;justify-content:flex-end;padding:.6em 1.2em .2em;}' +
       '.jcSettingsTab{padding:.5em 1.1em;border:none;border-radius:.4em;cursor:pointer;background:rgba(127,127,127,.16);color:inherit;font:inherit;font-weight:600;display:inline-flex;align-items:center;gap:.3em;}' +
       '.jcSettingsTab:hover{background:rgba(127,127,127,.3);}' +
       '.jcSettingsTab-active{background:#00a4dc;color:#fff;}' +
@@ -2165,6 +2166,7 @@
     if (h.indexOf('userprofile') >= 0) { return 'profile'; }
     if (h.indexOf('quickconnect') >= 0) { return 'quickconnect'; }
     if (h.indexOf('mypreferencesdisplay') >= 0) { return 'display'; }
+    if (h.indexOf('mypreferenceshome') >= 0) { return 'home'; }
     if (h.indexOf('mypreferencesplayback') >= 0) { return 'playback'; }
     if (h.indexOf('mypreferencessubtitles') >= 0) { return 'subtitles'; }
     if (h.indexOf('mypreferencescontrols') >= 0) { return 'controls'; }
@@ -2187,6 +2189,7 @@
       { id: 'profile', label: t('avm_profile'), hash: '#/userprofile' + q },
       { id: 'quickconnect', label: t('avm_quickconnect'), hash: '#/quickconnect' + q },
       { id: 'display', label: t('avm_display'), hash: '#/mypreferencesdisplay' + q },
+      { id: 'home', label: t('avm_home'), hash: '#/mypreferenceshome' + q },
       { id: 'playback', label: t('avm_playback'), hash: '#/mypreferencesplayback' + q },
       { id: 'subtitles', label: t('avm_subtitles'), hash: '#/mypreferencessubtitles' + q },
       { id: 'controls', label: t('avm_controls'), hash: '#/mypreferencescontrols' + q },
@@ -2224,6 +2227,47 @@
     page.insertBefore(buildSettingsTabBar(activeId, uid), page.firstChild);
   }
 
+  // ---------- "Customize home" button on the home screen ----------
+  // The Home layout preferences live in the Settings sub-tabs; add a shortcut to them on the home screen
+  // itself (its only other entry point was removed with the old Home menu item).
+  function isHomeScreen() {
+    var h = (window.location.hash || '').toLowerCase().split('?')[0];
+    return h === '' || h === '#' || h === '#/' || h === '#!/' || h === '#/home' || h === '#/home.html' || h === '#!/home' || h === '#!/home.html';
+  }
+
+  function buildHomeCustomizeButton() {
+    var wrap = document.createElement('div');
+    wrap.id = 'jcHomeCustomize';
+    wrap.className = 'jcHomeCustomize';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jcSettingsTab';
+    var ic = document.createElement('span');
+    ic.className = 'material-icons';
+    ic.setAttribute('aria-hidden', 'true');
+    ic.textContent = 'tune';
+    btn.appendChild(ic);
+    btn.appendChild(document.createTextNode(' ' + t('home_customize')));
+    btn.addEventListener('click', function () {
+      var uid = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+      window.location.hash = '#/mypreferenceshome' + (uid ? ('?userId=' + encodeURIComponent(uid)) : '');
+    });
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  function maybeInjectHomeCustomize() {
+    var existing = document.getElementById('jcHomeCustomize');
+    if (!isHomeScreen()) { if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); } return; }
+    var page = document.querySelector('.page:not(.hide)');
+    if (!page) { return; }
+    var sections = page.querySelector('.sections');
+    if (!sections || !sections.parentNode) { return; } // home content not rendered yet
+    if (existing && page.contains(existing)) { return; }
+    if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); }
+    sections.parentNode.insertBefore(buildHomeCustomizeButton(), sections);
+  }
+
   function start() {
     // Detail pages (and their review/claim anchors) render asynchronously and SPA route changes don't
     // always fire hashchange reliably — so besides the nav listeners, retry injection on DOM mutations,
@@ -2243,6 +2287,7 @@
       tryInsert();
       applyBranding(); // re-assert branding when the web client re-renders (idempotent)
       maybeInjectSettingsTabs(); // React reconciles the settings pages — keep our sub-tab bar present
+      maybeInjectHomeCustomize(); // and the "Customize home" shortcut on the home screen
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
       scheduleDetailInject();
     });
@@ -2267,6 +2312,7 @@
       removeDetailClaim(); maybeInjectClaimButton(0);
       removeProfileEmail(); maybeInjectProfileEmail(0);
       removeSettingsTabs(); maybeInjectSettingsTabs(0);
+      maybeInjectHomeCustomize();
     }
     window.addEventListener('hashchange', onDetailNav);
     window.addEventListener('popstate', onDetailNav);
@@ -2274,6 +2320,7 @@
     maybeInjectClaimButton(0);
     maybeInjectProfileEmail(0); // initial load may already be the profile page
     maybeInjectSettingsTabs(0); // initial load may already be a settings page
+    maybeInjectHomeCustomize(); // initial load may already be the home screen
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).

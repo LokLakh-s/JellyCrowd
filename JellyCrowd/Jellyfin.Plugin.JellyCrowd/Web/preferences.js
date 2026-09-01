@@ -239,6 +239,7 @@
       ['profile', t('avm_profile'), '#/userprofile' + q],
       ['quickconnect', t('avm_quickconnect'), '#/quickconnect' + q],
       ['display', t('avm_display'), '#/mypreferencesdisplay' + q],
+      ['home', t('avm_home'), '#/mypreferenceshome' + q],
       ['playback', t('avm_playback'), '#/mypreferencesplayback' + q],
       ['subtitles', t('avm_subtitles'), '#/mypreferencessubtitles' + q],
       ['controls', t('avm_controls'), '#/mypreferencescontrols' + q],
