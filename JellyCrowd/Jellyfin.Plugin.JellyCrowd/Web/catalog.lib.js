@@ -669,8 +669,34 @@
     return { movies: movies, series: series, allowSeries: s, allowSeason: se, allowEpisode: ep };
   }
 
+  // Filter viewing-history entries by a keyword (title / series / library) and an inclusive local date
+  // range (from/to as 'YYYY-MM-DD'; empty = unbounded). Pure — used by the Dashboard history sub-tab.
+  function filterHistory(entries, opts) {
+    entries = entries || [];
+    opts = opts || {};
+    var q = (opts.query || '').trim().toLowerCase();
+    var fromMs = null;
+    var toMs = null;
+    if (opts.from) { var f = new Date(opts.from + 'T00:00:00'); if (!isNaN(f.getTime())) { fromMs = f.getTime(); } }
+    if (opts.to) { var tt = new Date(opts.to + 'T23:59:59.999'); if (!isNaN(tt.getTime())) { toMs = tt.getTime(); } }
+    return entries.filter(function (e) {
+      if (q) {
+        var hay = ((e.Title || '') + ' ' + (e.SeriesName || '') + ' ' + (e.LibraryName || '')).toLowerCase();
+        if (hay.indexOf(q) === -1) { return false; }
+      }
+      if (fromMs !== null || toMs !== null) {
+        var when = e.PlayedAtUtc ? new Date(e.PlayedAtUtc).getTime() : NaN;
+        if (isNaN(when)) { return false; }
+        if (fromMs !== null && when < fromMs) { return false; }
+        if (toMs !== null && when > toMs) { return false; }
+      }
+      return true;
+    });
+  }
+
   return {
     normalizeRequestScope: normalizeRequestScope,
+    filterHistory: filterHistory,
     buildGroupRecord: buildGroupRecord,
     focusablesIn: focusablesIn,
     handleTrapKeydown: handleTrapKeydown,

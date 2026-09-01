@@ -11,6 +11,8 @@
   var cfgLang = 'auto';
   var windowDays = 30;
   var chartMetric = 'minutes';
+  var activeTab = 'overview';               // 'overview' | 'history'
+  var historyFilters = { query: '', from: '', to: '' };
 
   function shortLang() { return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US'); }
   function t(key) { return Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key; }
@@ -26,6 +28,43 @@
     return fetch(pluginUrl(path)).then(function (r) {
       if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
       return r.json();
+    });
+  }
+
+  function apiPost(path) {
+    if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+      return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path) });
+    }
+    return fetch(pluginUrl(path), { method: 'POST' }).then(function (r) {
+      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+      return r;
+    });
+  }
+
+  // Confirmation in our own dialog (no window.confirm): resolves true only on confirm.
+  function confirmAction(opts) {
+    return new Promise(function (resolve) {
+      var d = lib.buildConfirmDialog(document, {
+        title: opts.title, message: opts.message, confirmLabel: opts.confirmLabel, cancelLabel: t('cancel'), danger: true
+      });
+      var opener = document.activeElement;
+      function close(result) {
+        document.removeEventListener('keydown', onKey, true);
+        if (d.root.parentNode) { d.root.parentNode.removeChild(d.root); }
+        var back = lib.focusRestoreTarget(opener, document);
+        if (back) { back.focus(); }
+        resolve(result);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); close(false); return; }
+        if (e.key === 'Tab') { lib.handleTrapKeydown(e, d.root); }
+      }
+      d.cancel.addEventListener('click', function () { close(false); });
+      d.confirm.addEventListener('click', function () { close(true); });
+      d.root.addEventListener('click', function (e) { if (e.target === d.root) { close(false); } });
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(d.root);
+      lib.focusFirst(d.root);
     });
   }
 
@@ -255,7 +294,7 @@
   }
 
   function render(d) {
-    var content = document.getElementById('jcDashContent');
+    var content = document.getElementById('jcDashPane');
     if (!content) { return; }
     content.innerHTML = '';
     d = d || {};
@@ -317,15 +356,192 @@
       .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
+  // ---------- viewing history (Dashboard sub-tab) ----------
+
+  function historyRow(entry) {
+    var row = document.createElement('div');
+    row.className = 'jellycrowd-history-row';
+
+    var main = document.createElement('div');
+    main.className = 'jellycrowd-history-main';
+    var label = document.createElement('div');
+    label.className = 'jellycrowd-history-label';
+    label.textContent = lib.historyEntryLabel(entry);
+    main.appendChild(label);
+
+    var meta = document.createElement('div');
+    meta.className = 'jellycrowd-history-meta';
+    var when = entry.PlayedAtUtc ? new Date(entry.PlayedAtUtc) : null;
+    var parts = [];
+    if (when && !isNaN(when.getTime())) { parts.push(when.toLocaleDateString() + ' ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })); }
+    if (entry.LibraryName) { parts.push(entry.LibraryName); }
+    meta.textContent = parts.join(' · ');
+    main.appendChild(meta);
+    row.appendChild(main);
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'jellycrowd-history-del';
+    del.textContent = '×';
+    del.title = t('history_remove_one');
+    del.setAttribute('aria-label', t('history_remove_one'));
+    del.addEventListener('click', function () {
+      del.disabled = true;
+      apiPost('JellyCrowd/History/Mine/' + entry.Id + '/Delete')
+        .then(function () { row.remove(); })
+        .catch(function () { del.disabled = false; });
+    });
+    row.appendChild(del);
+    return row;
+  }
+
+  function renderHistory(data) {
+    var pane = document.getElementById('jcDashPane');
+    if (!pane) { return; }
+    pane.innerHTML = '';
+    var hidden = !!(data && data.Hidden);
+    var entries = (data && data.Entries) || [];
+
+    var head = document.createElement('div');
+    head.className = 'jellycrowd-history-head';
+    head.appendChild(heading(t('history_title')));
+    var actions = document.createElement('div');
+    actions.className = 'jellycrowd-history-actions';
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'jellycrowd-request';
+    toggle.textContent = hidden ? t('history_show') : t('history_hide');
+    toggle.addEventListener('click', function () {
+      toggle.disabled = true;
+      apiPost('JellyCrowd/History/Mine/Hidden?hidden=' + (hidden ? 'false' : 'true'))
+        .then(loadHistory)
+        .catch(function () { toggle.disabled = false; });
+    });
+    actions.appendChild(toggle);
+    var clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'jellycrowd-request';
+    clear.textContent = t('history_clear');
+    clear.addEventListener('click', function () {
+      confirmAction({ title: t('history_clear'), message: t('history_clear_confirm'), confirmLabel: t('history_clear') })
+        .then(function (ok) {
+          if (!ok) { return; }
+          clear.disabled = true;
+          apiPost('JellyCrowd/History/Mine/Clear').then(loadHistory).catch(function () { clear.disabled = false; });
+        });
+    });
+    actions.appendChild(clear);
+    head.appendChild(actions);
+    pane.appendChild(head);
+
+    if (hidden) {
+      clear.hidden = true;
+      var hmsg = document.createElement('p');
+      hmsg.className = 'jellycrowd-field-hint';
+      hmsg.textContent = t('history_hidden');
+      pane.appendChild(hmsg);
+      return;
+    }
+
+    if (!entries.length) {
+      clear.hidden = true;
+      var emsg = document.createElement('p');
+      emsg.className = 'jellycrowd-field-hint';
+      emsg.textContent = t('history_empty');
+      pane.appendChild(emsg);
+      return;
+    }
+
+    // Filters: keyword + inclusive date range.
+    var filters = document.createElement('div');
+    filters.className = 'jellycrowd-history-filters';
+    var search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'jellycrowd-search-input';
+    search.placeholder = t('history_search');
+    search.value = historyFilters.query;
+    var from = document.createElement('input');
+    from.type = 'date';
+    from.value = historyFilters.from;
+    from.setAttribute('aria-label', t('history_from'));
+    var to = document.createElement('input');
+    to.type = 'date';
+    to.value = historyFilters.to;
+    to.setAttribute('aria-label', t('history_to'));
+    var fromWrap = document.createElement('label');
+    fromWrap.className = 'jellycrowd-history-daterange';
+    fromWrap.appendChild(document.createTextNode(t('history_from') + ' '));
+    fromWrap.appendChild(from);
+    var toWrap = document.createElement('label');
+    toWrap.className = 'jellycrowd-history-daterange';
+    toWrap.appendChild(document.createTextNode(t('history_to') + ' '));
+    toWrap.appendChild(to);
+    filters.appendChild(search);
+    filters.appendChild(fromWrap);
+    filters.appendChild(toWrap);
+    pane.appendChild(filters);
+
+    var listEl = document.createElement('div');
+    listEl.className = 'jellycrowd-list';
+    listEl.setAttribute('aria-live', 'polite');
+    pane.appendChild(listEl);
+    var noMatch = document.createElement('p');
+    noMatch.className = 'jellycrowd-field-hint';
+    noMatch.textContent = t('history_no_match');
+    noMatch.hidden = true;
+    pane.appendChild(noMatch);
+
+    function apply() {
+      historyFilters = { query: search.value, from: from.value, to: to.value };
+      var shown = lib.filterHistory(entries, historyFilters);
+      listEl.innerHTML = '';
+      noMatch.hidden = shown.length > 0;
+      shown.forEach(function (e) { listEl.appendChild(historyRow(e)); });
+    }
+    search.addEventListener('input', apply);
+    from.addEventListener('change', apply);
+    to.addEventListener('change', apply);
+    apply();
+  }
+
+  function loadHistory() {
+    setMessage(t('loading'));
+    return apiGet('JellyCrowd/History/Mine')
+      .then(function (d) { setMessage(''); renderHistory(d); })
+      .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  }
+
+  // Sub-tab shell: an Overview / History switcher above the active pane.
+  function mount() {
+    var content = document.getElementById('jcDashContent');
+    if (!content) { return; }
+    content.innerHTML = '';
+    var tabs = document.createElement('div');
+    tabs.className = 'jellycrowd-stats-period';
+    [['overview', t('dashboard_overview')], ['history', t('history_title')]].forEach(function (tb) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'jellycrowd-admin-tab' + (activeTab === tb[0] ? ' jellycrowd-admin-tab-active' : '');
+      b.textContent = tb[1];
+      b.addEventListener('click', function () { if (activeTab !== tb[0]) { activeTab = tb[0]; mount(); } });
+      tabs.appendChild(b);
+    });
+    content.appendChild(tabs);
+    var pane = document.createElement('div');
+    pane.id = 'jcDashPane';
+    content.appendChild(pane);
+    if (activeTab === 'history') { loadHistory(); } else { load(); }
+  }
+
   function init() {
     loadConfigLang().then(loadStrings).then(function () {
       var logo = document.getElementById('jcDashLogo');
       if (logo) { logo.src = pluginUrl('JellyCrowd/Web/logo.png'); }
       var title = document.getElementById('jcDashTitle');
       if (title) { title.textContent = t('dashboard_title'); }
-      load();
+      mount();
       if (typeof window.jellyCrowdRegisterRefresh === 'function') {
-        window.jellyCrowdRegisterRefresh('dashboard', load);
+        window.jellyCrowdRegisterRefresh('dashboard', function () { mount(); });
       }
     });
   }

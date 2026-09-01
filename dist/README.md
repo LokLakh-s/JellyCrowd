@@ -56,7 +56,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 📅 **Release calendar** — upcoming releases in a month / week / day view.
 - 🎞️ **Request a whole saga** — request every missing part of a movie collection at once.
 - ⭐ **Ratings & reviews** — rate titles (1–10) and leave reviews, shown anonymously to others.
-- 🕓 **Watch history** — a personal, permanent history you can clear or turn off; it's never wiped automatically.
+- 🕓 **Watch history** — a permanent personal history (a Dashboard sub-tab), searchable by keyword and date range; yours to clear or turn off.
 - 🙋 **Personal dashboard** — your watch time, top titles, activity chart, watch-time-by-library and storage.
 - 📽️ **Local intros** — a pre-roll video before movies and the first episode of a series. Opt-in.
 - 🩹 **Problem reports** — flag an issue on a title (wrong version, missing subtitles…); the admin follows up.
@@ -155,9 +155,10 @@ Jelly Crowd adds navbar entries: **Catalog**, **Calendar**, **My requests**, **D
 - **Calendar** — upcoming releases of movies & shows.
 - **My requests** — track statuses (pending → in progress → available); cancel pending ones; the
   **release date** is shown for unreleased titles.
-- **My media** — what you own (request deletion to free your quota, or renew to keep it), plus your
-  personal **watch history** — permanent, and yours to clear or turn off.
-- **Dashboard** — your watch time, top watched, recent activity, request summary and storage usage.
+- **My media** — what you own; request deletion to free your quota, or renew to keep it.
+- **Dashboard** — an **Overview** (watch time, top watched, recent activity, requests, storage) and a
+  **Watch history** sub-tab: your permanent history, searchable by keyword and date range, and yours to
+  clear or turn off.
 - **Reviews** — rate & review titles (1–10), shown anonymously to others.
 
 A **storage quota bar** in the header shows how much space you've used.
