@@ -2053,6 +2053,104 @@
       .catch(function () { detailClaimPendingId = null; });
   }
 
+  // ---------- notification e-mail on the native user-profile page ----------
+  // Jelly Crowd's per-user notification e-mail also lives in the notifications panel; we mirror it as a
+  // field above the password fields on the native profile page. Only on the CURRENT user's own profile —
+  // the e-mail pref is the caller's, so we never show/save it on someone else's profile (e.g. an admin).
+  var profileEmailInjectedFor = null;
+
+  function currentUserProfileId() {
+    var h = window.location.hash || '';
+    if (!/#!?\/userprofile/i.test(h)) { return null; }
+    var m = h.match(/[?&]userId=([a-f0-9]{32})/i);
+    return m ? m[1] : null;
+  }
+
+  function removeProfileEmail() {
+    var el = document.getElementById('jcProfileEmail');
+    if (el && el.parentNode) { el.parentNode.removeChild(el); }
+    profileEmailInjectedFor = null;
+  }
+
+  function buildProfileEmailBlock() {
+    var wrap = document.createElement('div');
+    wrap.className = 'inputContainer';
+    wrap.id = 'jcProfileEmail';
+
+    var label = document.createElement('label');
+    label.className = 'inputLabel inputLabelUnfocused';
+    label.setAttribute('for', 'jcProfileEmailInput');
+    label.textContent = t('notif_email');
+    wrap.appendChild(label);
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:.6em;align-items:center;';
+    var input = document.createElement('input');
+    input.id = 'jcProfileEmailInput';
+    input.type = 'email';
+    input.className = 'emby-input';
+    input.autocomplete = 'email';
+    input.placeholder = 'you@example.com';
+    input.style.cssText = 'flex:1;min-width:0;';
+    row.appendChild(input);
+    var save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'raised';
+    save.textContent = t('save');
+    save.style.cssText = 'flex:0 0 auto;';
+    row.appendChild(save);
+    wrap.appendChild(row);
+
+    var hint = document.createElement('div');
+    hint.className = 'fieldDescription';
+    hint.textContent = t('prefs_email_hint');
+    wrap.appendChild(hint);
+    var msg = document.createElement('div');
+    msg.className = 'fieldDescription';
+    msg.style.display = 'none';
+    wrap.appendChild(msg);
+    function showMsg(text, ok) { msg.textContent = text; msg.style.color = ok ? '' : '#ff5252'; msg.style.display = ''; }
+
+    save.addEventListener('click', function () {
+      var address = (input.value || '').trim();
+      if (address && !/^\S+@\S+\.\S+$/.test(address)) { showMsg(t('prefs_email_invalid'), false); input.focus(); return; }
+      save.disabled = true;
+      // Read-modify-write so the user's other notification settings (channels, toggles) are preserved.
+      apiAjax('GET', 'JellyCrowd/Notifications/Mine/Prefs')
+        .then(function (p) { p = p || {}; p.Email = address; return apiAjax('POST', 'JellyCrowd/Notifications/Mine/Prefs', p); })
+        .then(function () { showMsg(t('saved'), true); })
+        .catch(function () { showMsg(t('prefs_save_failed'), false); })
+        .then(function () { save.disabled = false; });
+    });
+
+    return { wrap: wrap, input: input };
+  }
+
+  function maybeInjectProfileEmail(attempt) {
+    attempt = attempt || 0;
+    var profileId = currentUserProfileId();
+    if (!profileId) { removeProfileEmail(); return; }
+    var myId = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+    if (!myId || myId.toLowerCase() !== profileId.toLowerCase()) { removeProfileEmail(); return; } // own profile only
+    if (profileEmailInjectedFor === profileId && document.getElementById('jcProfileEmail')) { return; }
+
+    // Password fields: 3 normally (current/new/confirm), 2 when the user has no password (new/confirm).
+    var pwd = document.querySelector('#txtCurrentPassword') || document.querySelector('#txtNewPassword');
+    var anchor = pwd ? (pwd.closest('.inputContainer') || pwd) : null;
+    if (!anchor || !anchor.parentNode) {
+      if (attempt < 20) { setTimeout(function () { maybeInjectProfileEmail(attempt + 1); }, 200); }
+      return;
+    }
+    if (document.getElementById('jcProfileEmail')) { return; }
+
+    profileEmailInjectedFor = profileId;
+    var block = buildProfileEmailBlock();
+    anchor.parentNode.insertBefore(block.wrap, anchor);
+    apiAjax('GET', 'JellyCrowd/Notifications/Mine/Prefs')
+      .then(function (p) { if (p && p.Email) { block.input.value = p.Email; } })
+      .catch(function () { /* leave empty */ });
+  }
+
   function start() {
     // Detail pages (and their review/claim anchors) render asynchronously and SPA route changes don't
     // always fire hashchange reliably — so besides the nav listeners, retry injection on DOM mutations,
@@ -2064,6 +2162,7 @@
         detailInjectTimer = null;
         maybeInjectDetailReviews(0);
         maybeInjectClaimButton(0);
+        maybeInjectProfileEmail(0);
       }, 200);
     }
 
@@ -2092,11 +2191,13 @@
     function onDetailNav() {
       removeDetailReviews(); maybeInjectDetailReviews(0);
       removeDetailClaim(); maybeInjectClaimButton(0);
+      removeProfileEmail(); maybeInjectProfileEmail(0);
     }
     window.addEventListener('hashchange', onDetailNav);
     window.addEventListener('popstate', onDetailNav);
     maybeInjectDetailReviews(0); // initial load may already be a detail page
     maybeInjectClaimButton(0);
+    maybeInjectProfileEmail(0); // initial load may already be the profile page
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).
