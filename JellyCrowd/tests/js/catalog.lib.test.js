@@ -474,6 +474,7 @@ test('settingsTabIdForHash maps each native settings route', () => {
   assert.strictEqual(lib.settingsTabIdForHash('#/userprofile?userId=abc'), 'profile');
   assert.strictEqual(lib.settingsTabIdForHash('#/quickconnect?userId=abc'), 'quickconnect');
   assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencesdisplay?userId=abc'), 'display');
+  assert.strictEqual(lib.settingsTabIdForHash('#/mypreferenceshome?userId=abc'), 'home');
   assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencesplayback?userId=abc'), 'playback');
   assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencessubtitles?userId=abc'), 'subtitles');
   assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencescontrols?userId=abc'), 'controls');

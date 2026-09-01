@@ -700,6 +700,7 @@
     { id: 'profile', route: 'userprofile' },
     { id: 'quickconnect', route: 'quickconnect' },
     { id: 'display', route: 'mypreferencesdisplay' },
+    { id: 'home', route: 'mypreferenceshome' },
     { id: 'playback', route: 'mypreferencesplayback' },
     { id: 'subtitles', route: 'mypreferencessubtitles' },
     { id: 'controls', route: 'mypreferencescontrols' }
