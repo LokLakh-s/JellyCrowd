@@ -43,4 +43,17 @@ public class UserGroup
   /// </summary>
   [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
   public Collection<string> LibraryIds { get; set; } = new();
+
+  /// <summary>
+  /// Gets or sets a value indicating whether this is a "child" group: its members get an age-filtered
+  /// discovery catalog (adult content always excluded), free-text search disabled, and reviews and
+  /// announcements hidden.
+  /// </summary>
+  public bool ChildMode { get; set; }
+
+  /// <summary>
+  /// Gets or sets the maximum age rating for a child group, as an age tier: 0 (all ages), 10, 12 or 16.
+  /// Mapped to the country's TMDB movie certification for filtering. Ignored unless <see cref="ChildMode"/>.
+  /// </summary>
+  public int ChildMaxAge { get; set; }
 }

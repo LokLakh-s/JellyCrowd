@@ -645,6 +645,11 @@
       g.MaxRequestsPerPeriod = parseInt(f.maxPerPeriod, 10);
     }
     if (f.pluginAccess === 'on') { g.PluginAccess = true; } else if (f.pluginAccess === 'off') { g.PluginAccess = false; }
+    if (f.childMode === true) {
+      g.ChildMode = true;
+      var age = parseInt(f.childMaxAge, 10);
+      g.ChildMaxAge = isNaN(age) ? 0 : age;
+    }
     return g;
   }
 

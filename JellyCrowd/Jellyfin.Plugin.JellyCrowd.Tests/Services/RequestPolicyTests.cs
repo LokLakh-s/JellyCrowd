@@ -304,6 +304,45 @@ public class RequestPolicyTests
     Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: true));  // admin always
   }
 
+  // ---------- Child mode ----------
+  [Fact]
+  public void ChildPolicyFor_ReadsChildGroup()
+  {
+    var config = Config();
+    var group = Group(User);
+    group.ChildMode = true;
+    group.ChildMaxAge = 12;
+    config.UserGroups.Add(group);
+
+    var policy = RequestPolicy.ChildPolicyFor(config, User);
+    Assert.True(policy.IsChild);
+    Assert.Equal(12, policy.MaxAge);
+
+    Assert.False(RequestPolicy.ChildPolicyFor(config, Guid.NewGuid()).IsChild); // non-member
+  }
+
+  [Fact]
+  public void ChildPolicyFor_NonChildGroup_IsNotChild()
+  {
+    var config = Config();
+    var group = Group(User); // ChildMode defaults false
+    config.UserGroups.Add(group);
+    Assert.False(RequestPolicy.ChildPolicyFor(config, User).IsChild);
+  }
+
+  [Fact]
+  public void ShouldSeeAnnouncement_HiddenForChildAccounts()
+  {
+    var config = Config();
+    config.AnnouncementText = "Everyone"; // global announcement
+    var group = Group(User);
+    group.ChildMode = true;
+    config.UserGroups.Add(group);
+
+    Assert.False(RequestPolicy.ShouldSeeAnnouncement(config, User, isAdmin: false)); // child: hidden
+    Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: false)); // others: shown
+  }
+
   // ---------- Request scope (media types + granularity) ----------
   [Fact]
   public void IsMediaTypeEnabled_RespectsToggles()

@@ -426,3 +426,16 @@ test('normalizeRequestScope never lets all three granularities be off', () => {
   assert.strictEqual(s.allowSeason, true);
   assert.strictEqual(s.allowEpisode, true);
 });
+
+test('buildGroupRecord includes child mode only when enabled', () => {
+  const off = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: false, childMaxAge: '12' }, GIB);
+  assert.ok(!('ChildMode' in off));
+  assert.ok(!('ChildMaxAge' in off));
+
+  const on = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: true, childMaxAge: '12' }, GIB);
+  assert.strictEqual(on.ChildMode, true);
+  assert.strictEqual(on.ChildMaxAge, 12);
+
+  const allAges = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: true, childMaxAge: '0' }, GIB);
+  assert.strictEqual(allAges.ChildMaxAge, 0);
+});

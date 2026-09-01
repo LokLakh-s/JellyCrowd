@@ -74,6 +74,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 💾 **Per-user quotas** — a storage budget per user, counted only when media becomes available, at its real size.
 - 📈 **Adaptive quota** — optionally grow a user's quota as they watch more, with a grace period when they go quiet.
 - 🧑‍🤝‍🧑 **User groups** — manage users together: shared settings they inherit, one-click Jellyfin library access, and group-targeted announcements.
+- 🧒 **Child mode** — mark a group as a kids group: its members get an age-filtered catalog (by age tier), no free-text search, and no reviews or announcements.
 - 📢 **Announcements** — post a header banner to everyone or to specific groups.
 - ⏳ **Media expiry** — reclaim space by expiring unwatched media after a configurable window.
 - 🔀 **Notification channels** — route events to Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or a webhook, per event.
@@ -125,8 +126,8 @@ Paste your TMDB API key in **Dashboard → Plugins → Jelly Crowd**, then manag
 - **Stats** — totals, top media & users, activity chart, live *Now playing*, per-user drill-down.
 - **Moderation** — triage user problem reports, and hide / show / delete community reviews.
 - **Users** — per-user quota & policy overrides (with **bulk edit**), **user groups** (shared settings,
-  Jellyfin library access and targeted announcements), who owns which media, and **assign** an existing
-  title's ownership to a user.
+  Jellyfin library access, targeted announcements and a **child mode** with an age-filtered catalog), who
+  owns which media, and **assign** an existing title's ownership to a user.
 - **Logs** — the plugin activity log.
 - **Configurations**
   - **General** — default quota; approval mode (manual / auto, with size & genre rules); request rate

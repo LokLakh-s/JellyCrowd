@@ -126,18 +126,38 @@ public static class RequestPolicy
       return false;
     }
 
-    if (config.AnnouncementGroupIds.Count == 0)
+    if (isAdmin)
     {
       return true;
     }
 
-    if (isAdmin)
+    // Child accounts don't see announcements.
+    if (ChildPolicyFor(config, userId).IsChild)
+    {
+      return false;
+    }
+
+    if (config.AnnouncementGroupIds.Count == 0)
     {
       return true;
     }
 
     var group = GroupOf(config, userId);
     return group is not null && config.AnnouncementGroupIds.Contains(group.Id);
+  }
+
+  /// <summary>
+  /// Resolves the child-mode policy for a user from their group: whether they are a "child" account and,
+  /// if so, the maximum age tier for the filtered catalog.
+  /// </summary>
+  /// <param name="config">The plugin configuration.</param>
+  /// <param name="userId">The user id.</param>
+  /// <returns>A tuple of whether the user is a child account and their max age tier.</returns>
+  public static (bool IsChild, int MaxAge) ChildPolicyFor(PluginConfiguration config, Guid userId)
+  {
+    ArgumentNullException.ThrowIfNull(config);
+    var group = GroupOf(config, userId);
+    return group is not null && group.ChildMode ? (true, group.ChildMaxAge) : (false, 0);
   }
 
   /// <summary>

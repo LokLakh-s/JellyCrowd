@@ -1012,7 +1012,9 @@
         canRequest: card.querySelector('.jc-g-can').value,
         autoApprove: card.querySelector('.jc-g-auto').value,
         maxPerPeriod: card.querySelector('.jc-g-cap').value,
-        pluginAccess: card.querySelector('.jc-g-access').value
+        pluginAccess: card.querySelector('.jc-g-access').value,
+        childMode: card.querySelector('.jc-g-child').checked,
+        childMaxAge: card.querySelector('.jc-g-childage').value
       }, GIB));
     });
     return result;
@@ -1109,6 +1111,22 @@
         settings.appendChild(labeledField(t('adm_prop_reqperiod'), numberInput('jc-g-cap', g.MaxRequestsPerPeriod != null ? g.MaxRequestsPerPeriod : '')));
         settings.appendChild(labeledField(t('adm_prop_pluginaccess'), triSelectAccess('jc-g-access', g.PluginAccess)));
         card.appendChild(settings);
+
+        // Child mode: members get an age-filtered catalog (no search, no reviews/announcements).
+        var childRow = document.createElement('div');
+        childRow.className = 'jellycrowd-group-settings';
+        var ageSel = document.createElement('select');
+        ageSel.className = 'jc-g-childage';
+        [['0', t('adm_child_age_all')], ['10', '10+'], ['12', '12+'], ['16', '16+']].forEach(function (o) {
+          var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; ageSel.appendChild(op);
+        });
+        ageSel.value = String(g.ChildMaxAge != null ? g.ChildMaxAge : 0);
+        var childChk = checkbox('jc-g-child', g.ChildMode === true);
+        ageSel.disabled = !childChk.checked;
+        childChk.addEventListener('change', function () { ageSel.disabled = !childChk.checked; });
+        childRow.appendChild(labeledField(t('adm_group_child_mode'), childChk));
+        childRow.appendChild(labeledField(t('adm_group_child_max_age'), ageSel));
+        card.appendChild(childRow);
 
         var memWrap = document.createElement('div');
         memWrap.className = 'jellycrowd-group-members';

@@ -55,7 +55,7 @@ public sealed class CachingTmdbClient : ITmdbClient
   // hash is reference-based and would never hit the cache). Every filter that changes the results must be
   // here — WithPeople in particular, or filtering by one actor would serve another's cached filmography.
   private static string DiscoverKey(string mediaType, DiscoverQuery q, string language)
-    => Key("discover", mediaType, language, q.Genres ?? "-", q.MinYear, q.MaxYear, q.MinRating, q.MaxRating, q.SortBy ?? "-", q.Page, q.WatchProviders ?? "-", q.WatchRegion ?? "-", q.OriginalLanguage ?? "-", q.OriginCountry ?? "-", q.WithPeople);
+    => Key("discover", mediaType, language, q.Genres ?? "-", q.MinYear, q.MaxYear, q.MinRating, q.MaxRating, q.SortBy ?? "-", q.Page, q.WatchProviders ?? "-", q.WatchRegion ?? "-", q.OriginalLanguage ?? "-", q.OriginCountry ?? "-", q.WithPeople, q.CertificationCountry ?? "-", q.CertificationLte ?? "-");
 
   /// <inheritdoc />
   public Task<IReadOnlyList<Genre>> GetGenresAsync(string mediaType, string language, CancellationToken cancellationToken)

@@ -28,4 +28,10 @@ public class VisibilitySettingDto
   /// Gets or sets the announcement severity colour (<c>green</c>, <c>yellow</c> or <c>red</c>).
   /// </summary>
   public string AnnouncementLevel { get; set; } = "green";
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the current user is a "child" account (member of a child
+  /// group): the client hides free-text search and reviews for them.
+  /// </summary>
+  public bool IsChild { get; set; }
 }
