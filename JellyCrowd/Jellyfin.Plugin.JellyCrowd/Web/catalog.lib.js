@@ -694,9 +694,31 @@
     });
   }
 
+  // The native settings screens the "Settings" menu groups, in order. `route` is the hash fragment that
+  // identifies each. Notifications is a Jelly Crowd overlay, appended separately by the tab-bar builders.
+  var SETTINGS_TAB_ROUTES = [
+    { id: 'profile', route: 'userprofile' },
+    { id: 'quickconnect', route: 'quickconnect' },
+    { id: 'display', route: 'mypreferencesdisplay' },
+    { id: 'playback', route: 'mypreferencesplayback' },
+    { id: 'subtitles', route: 'mypreferencessubtitles' },
+    { id: 'controls', route: 'mypreferencescontrols' }
+  ];
+
+  // The settings tab id for a location hash, or null when the hash is not a grouped settings screen.
+  function settingsTabIdForHash(hash) {
+    var h = (hash || '').toLowerCase();
+    for (var i = 0; i < SETTINGS_TAB_ROUTES.length; i++) {
+      if (h.indexOf(SETTINGS_TAB_ROUTES[i].route) >= 0) { return SETTINGS_TAB_ROUTES[i].id; }
+    }
+    return null;
+  }
+
   return {
     normalizeRequestScope: normalizeRequestScope,
     filterHistory: filterHistory,
+    settingsTabIdForHash: settingsTabIdForHash,
+    SETTINGS_TAB_ROUTES: SETTINGS_TAB_ROUTES,
     buildGroupRecord: buildGroupRecord,
     focusablesIn: focusablesIn,
     handleTrapKeydown: handleTrapKeydown,

@@ -152,24 +152,26 @@
   function render(prefs) {
     var form = document.getElementById('jcPrefsForm');
     var p = prefs || {};
+    var loadedEmail = p.Email || ''; // the e-mail lives on the Profile screen now; preserved here on save
     form.innerHTML = '';
+    form.appendChild(buildSettingsBar());
 
     var master = toggle('notif_enabled', p.Enabled !== false, 'prefs_enabled_hint');
     var masterGroup = group('prefs_group_delivery');
     masterGroup.appendChild(master.wrap);
 
-    var email = textField('notif_email', 'email', p.Email, 'you@example.com', 'prefs_email_hint');
     var ntfy = textField('notif_ntfy_topic', 'text', p.NtfyTopic, 'my-topic', 'prefs_ntfy_hint');
-    masterGroup.appendChild(email.wrap);
     masterGroup.appendChild(ntfy.wrap);
-
-    // Sending a test is the only way to find out an address works without waiting for a real event.
-    var testRow = document.createElement('div');
-    testRow.className = 'jellycrowd-prefs-actions';
-    var test = button('prefs_send_test');
-    testRow.appendChild(test);
-    masterGroup.appendChild(testRow);
     form.appendChild(masterGroup);
+
+    // Notifications need a destination: without an e-mail (set on the Profile screen) the master switch is
+    // disabled, with a tooltip pointing there. ntfy alone is not enough to flip it on.
+    var hasEmail = !!loadedEmail;
+    if (!hasEmail) {
+      master.input.checked = false;
+      master.input.disabled = true;
+      master.wrap.title = t('set_email_required');
+    }
 
     var cats = group('notif_categories', 'prefs_categories_hint');
     var unreleased = toggle('notif_cat_unreleased', p.NotifyAvailableUnreleased);
@@ -187,8 +189,8 @@
 
     // The whole point of the master switch is that it governs the rest; show that rather than explain it.
     function syncEnabled() {
-      var on = master.input.checked;
-      [email.input, ntfy.input, test, unreleased.input, released.input, decisions.input, quota.input]
+      var on = master.input.checked && hasEmail;
+      [ntfy.input, unreleased.input, released.input, decisions.input, quota.input]
         .forEach(function (el) { el.disabled = !on; });
       cats.classList.toggle('jellycrowd-prefs-off', !on);
     }
@@ -199,7 +201,7 @@
     function payload() {
       return {
         Enabled: master.input.checked,
-        Email: email.input.value.trim(),
+        Email: loadedEmail,
         NtfyTopic: ntfy.input.value.trim(),
         NotifyAvailableUnreleased: unreleased.input.checked,
         NotifyAvailableReleased: released.input.checked,
@@ -208,17 +210,7 @@
       };
     }
 
-    // Catch the typo here rather than after a round-trip; the server checks again regardless.
-    function addressLooksWrong() {
-      var address = email.input.value.trim();
-      if (!address || lib.isEmailish(address)) { return false; }
-      setMessage(t('prefs_email_invalid'), true);
-      email.input.focus();
-      return true;
-    }
-
     save.addEventListener('click', function () {
-      if (addressLooksWrong()) { return; }
       save.disabled = true;
       setMessage(t('prefs_saving'));
       apiAjax('POST', 'JellyCrowd/Notifications/Mine/Prefs', payload())
@@ -226,19 +218,46 @@
         .catch(function () { setMessage(t('prefs_save_failed'), true); })
         .then(function () { save.disabled = false; });
     });
+  }
 
-    // A test uses what is saved on the server, so save first and say so — otherwise someone types an
-    // address, hits "send me a test", and the mail goes to the previous one.
-    test.addEventListener('click', function () {
-      if (addressLooksWrong()) { return; }
-      test.disabled = true;
-      setMessage(t('prefs_test_sending'));
-      apiAjax('POST', 'JellyCrowd/Notifications/Mine/Prefs', payload())
-        .then(function () { return apiAjax('POST', 'JellyCrowd/Notifications/Mine/Test'); })
-        .then(function () { setMessage(t('prefs_test_sent')); })
-        .catch(function () { setMessage(t('prefs_test_failed'), true); })
-        .then(function () { test.disabled = false; });
+  // Settings sub-tab bar (same look/behaviour as on the native preference pages): navigating to a native
+  // screen sets the hash, which closes this overlay and lands there; Notifications is the active tab.
+  function buildSettingsBar() {
+    var uid = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+    var q = uid ? ('?userId=' + encodeURIComponent(uid)) : '';
+    var bar = document.createElement('div');
+    bar.className = 'jcSettingsTabs';
+
+    var back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'jcSettingsTab jcSettingsBack';
+    var bi = document.createElement('span');
+    bi.className = 'material-icons';
+    bi.setAttribute('aria-hidden', 'true');
+    bi.textContent = 'home';
+    back.appendChild(bi);
+    back.appendChild(document.createTextNode(' ' + t('avm_home')));
+    back.title = t('avm_home');
+    back.addEventListener('click', function () { window.location.hash = '#/home.html'; });
+    bar.appendChild(back);
+
+    [
+      ['profile', t('avm_profile'), '#/userprofile' + q],
+      ['quickconnect', t('avm_quickconnect'), '#/quickconnect' + q],
+      ['display', t('avm_display'), '#/mypreferencesdisplay' + q],
+      ['playback', t('avm_playback'), '#/mypreferencesplayback' + q],
+      ['subtitles', t('avm_subtitles'), '#/mypreferencessubtitles' + q],
+      ['controls', t('avm_controls'), '#/mypreferencescontrols' + q],
+      ['notifications', t('set_notifications'), null]
+    ].forEach(function (tb) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'jcSettingsTab' + (tb[0] === 'notifications' ? ' jcSettingsTab-active' : '');
+      b.textContent = tb[1];
+      if (tb[2]) { b.addEventListener('click', function () { window.location.hash = tb[2]; }); }
+      bar.appendChild(b);
     });
+    return bar;
   }
 
   function load() {
@@ -255,7 +274,7 @@
       .then(loadStrings)
       .then(function () {
         var title = document.getElementById('jcPrefsTitle');
-        if (title) { title.textContent = t('prefs_title'); }
+        if (title) { title.textContent = t('set_notifications'); }
         return load();
       });
   }

@@ -469,3 +469,19 @@ test('filterHistory: inclusive date range (from/to)', () => {
 test('filterHistory: keyword and date range combine', () => {
   assert.deepStrictEqual(lib.filterHistory(HIST, { query: 'movies', from: '2026-02-01' }).map(e => e.Id), ['3']);
 });
+
+test('settingsTabIdForHash maps each native settings route', () => {
+  assert.strictEqual(lib.settingsTabIdForHash('#/userprofile?userId=abc'), 'profile');
+  assert.strictEqual(lib.settingsTabIdForHash('#/quickconnect?userId=abc'), 'quickconnect');
+  assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencesdisplay?userId=abc'), 'display');
+  assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencesplayback?userId=abc'), 'playback');
+  assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencessubtitles?userId=abc'), 'subtitles');
+  assert.strictEqual(lib.settingsTabIdForHash('#/mypreferencescontrols?userId=abc'), 'controls');
+});
+
+test('settingsTabIdForHash returns null off the settings screens', () => {
+  assert.strictEqual(lib.settingsTabIdForHash('#/home.html'), null);
+  assert.strictEqual(lib.settingsTabIdForHash('#/details?id=x'), null);
+  assert.strictEqual(lib.settingsTabIdForHash(''), null);
+  assert.strictEqual(lib.settingsTabIdForHash(null), null);
+});

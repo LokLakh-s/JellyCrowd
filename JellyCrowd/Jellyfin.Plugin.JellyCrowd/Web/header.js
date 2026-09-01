@@ -881,21 +881,10 @@
     head.textContent = (btn && (btn.title || btn.getAttribute('title'))) || '';
     if (head.textContent) { menu.appendChild(head); }
 
-    // Ours first, then the native "My preferences" replica: someone looking for "where do I change my
-    // notifications" opens this menu, and it belongs beside Jellyfin's own preference entries.
-    menu.appendChild(avatarItem('notifications', t('prefs_nav'), null, function () { showView('preferences'); }));
-    menu.appendChild(avatarSep());
-
-    // Native "My preferences" replica — same client routes Jellyfin uses (stable across 10.x / 12).
-    [
-      ['person', t('avm_profile'), '#/userprofile' + q],
-      ['flash_on', t('avm_quickconnect'), '#/quickconnect' + q],
-      ['tv', t('avm_display'), '#/mypreferencesdisplay' + q],
-      ['home', t('avm_home'), '#/mypreferenceshome' + q],
-      ['play_arrow', t('avm_playback'), '#/mypreferencesplayback' + q],
-      ['closed_caption', t('avm_subtitles'), '#/mypreferencessubtitles' + q],
-      ['tune', t('avm_controls'), '#/mypreferencescontrols' + q]
-    ].forEach(function (r) { menu.appendChild(avatarItem(r[0], r[1], r[2])); });
+    // A single "Settings" entry opens the grouped settings area (Profile first). Each settings screen then
+    // carries a sub-tab bar (injected below) to move between Profile / Quick Connect / Display / Playback /
+    // Subtitles / Controls / Notifications.
+    menu.appendChild(avatarItem('settings', t('avm_settings'), '#/userprofile' + q));
 
     if (isAdmin) {
       menu.appendChild(avatarSep());
@@ -1494,6 +1483,13 @@
       // Respect the OS "reduce motion" setting: no transitions or animations anywhere we own.
       '@media (prefers-reduced-motion: reduce){.jellycrowd-overlay,.jellycrowd-overlay *,.jcHeaderTab{transition:none !important;animation:none !important;scroll-behavior:auto !important;}}' +
       '.headerTabs .emby-tab-button{display:none !important;}' +
+      // Settings sub-tab bar injected at the top of the native preference pages (and mirrored in the
+      // Notifications overlay). Neutral greys so it reads on both light and dark native themes.
+      '.jcSettingsTabs{display:flex;flex-wrap:wrap;gap:.4em;align-items:center;padding:1em 1.2em .4em;}' +
+      '.jcSettingsTab{padding:.5em 1.1em;border:none;border-radius:.4em;cursor:pointer;background:rgba(127,127,127,.16);color:inherit;font:inherit;font-weight:600;display:inline-flex;align-items:center;gap:.3em;}' +
+      '.jcSettingsTab:hover{background:rgba(127,127,127,.3);}' +
+      '.jcSettingsTab-active{background:#00a4dc;color:#fff;}' +
+      '.jcSettingsBack .material-icons{font-size:1.15em;}' +
       // De-duplicate the header: SyncPlay/Groups and Cast are reachable from the avatar menu, so hide
       // their native header buttons (the menu shortcuts still click them programmatically).
       '.skinHeader .headerSyncButton,.skinHeader .headerCastButton{display:none !important;}' +
@@ -2110,10 +2106,16 @@
     msg.style.display = 'none';
     wrap.appendChild(msg);
     function showMsg(text, ok) { msg.textContent = text; msg.style.color = ok ? '' : '#ff5252'; msg.style.display = ''; }
+    function looksValid(v) { return !v || /^\S+@\S+\.\S+$/.test(v); }
+    // Basic live validity feedback on the field itself.
+    input.addEventListener('input', function () {
+      var v = (input.value || '').trim();
+      if (looksValid(v)) { msg.style.display = 'none'; } else { showMsg(t('prefs_email_invalid'), false); }
+    });
 
     save.addEventListener('click', function () {
       var address = (input.value || '').trim();
-      if (address && !/^\S+@\S+\.\S+$/.test(address)) { showMsg(t('prefs_email_invalid'), false); input.focus(); return; }
+      if (!looksValid(address)) { showMsg(t('prefs_email_invalid'), false); input.focus(); return; }
       save.disabled = true;
       // Read-modify-write so the user's other notification settings (channels, toggles) are preserved.
       apiAjax('GET', 'JellyCrowd/Notifications/Mine/Prefs')
@@ -2151,6 +2153,96 @@
       .catch(function () { /* leave empty */ });
   }
 
+  // ---------- settings sub-tab bar on native preference pages ----------
+  // The avatar "Settings" entry groups Jellyfin's own preference screens; each carries a Jelly Crowd-style
+  // sub-tab bar (injected here) to move between them, plus a Home (back) button and our Notifications view.
+  var settingsTabsInjectedFor = null;
+
+  function goHome() {
+    var hb = document.querySelector('.headerHomeButton');
+    if (hb) { hb.click(); } else { window.location.hash = '#/home.html'; }
+  }
+
+  function currentSettingsTabId() {
+    if (window.JellyCrowdLib && window.JellyCrowdLib.settingsTabIdForHash) {
+      return window.JellyCrowdLib.settingsTabIdForHash(window.location.hash || '');
+    }
+    var h = (window.location.hash || '').toLowerCase();
+    if (h.indexOf('userprofile') >= 0) { return 'profile'; }
+    if (h.indexOf('quickconnect') >= 0) { return 'quickconnect'; }
+    if (h.indexOf('mypreferencesdisplay') >= 0) { return 'display'; }
+    if (h.indexOf('mypreferencesplayback') >= 0) { return 'playback'; }
+    if (h.indexOf('mypreferencessubtitles') >= 0) { return 'subtitles'; }
+    if (h.indexOf('mypreferencescontrols') >= 0) { return 'controls'; }
+    return null;
+  }
+
+  function removeSettingsTabs() {
+    var el = document.getElementById('jcSettingsTabs');
+    if (el && el.parentNode) { el.parentNode.removeChild(el); }
+    settingsTabsInjectedFor = null;
+  }
+
+  function buildSettingsTabBar(activeId, uid) {
+    var q = uid ? ('?userId=' + encodeURIComponent(uid)) : '';
+    var bar = document.createElement('div');
+    bar.className = 'jcSettingsTabs';
+    bar.id = 'jcSettingsTabs';
+
+    // Home (back) button — replaces the old Home preferences entry with a way out of the settings area.
+    var back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'jcSettingsTab jcSettingsBack';
+    var backIcon = document.createElement('span');
+    backIcon.className = 'material-icons';
+    backIcon.setAttribute('aria-hidden', 'true');
+    backIcon.textContent = 'home';
+    back.appendChild(backIcon);
+    back.appendChild(document.createTextNode(' ' + t('avm_home')));
+    back.title = t('avm_home');
+    back.addEventListener('click', function () { goHome(); });
+    bar.appendChild(back);
+
+    [
+      { id: 'profile', label: t('avm_profile'), hash: '#/userprofile' + q },
+      { id: 'quickconnect', label: t('avm_quickconnect'), hash: '#/quickconnect' + q },
+      { id: 'display', label: t('avm_display'), hash: '#/mypreferencesdisplay' + q },
+      { id: 'playback', label: t('avm_playback'), hash: '#/mypreferencesplayback' + q },
+      { id: 'subtitles', label: t('avm_subtitles'), hash: '#/mypreferencessubtitles' + q },
+      { id: 'controls', label: t('avm_controls'), hash: '#/mypreferencescontrols' + q },
+      { id: 'notifications', label: t('set_notifications'), view: 'preferences' }
+    ].forEach(function (tb) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'jcSettingsTab' + (tb.id === activeId ? ' jcSettingsTab-active' : '');
+      b.textContent = tb.label;
+      b.addEventListener('click', function () {
+        if (tb.view) { showView(tb.view); } else if (tb.hash) { window.location.hash = tb.hash; }
+      });
+      bar.appendChild(b);
+    });
+    return bar;
+  }
+
+  function maybeInjectSettingsTabs(attempt) {
+    attempt = attempt || 0;
+    var activeId = currentSettingsTabId();
+    if (!activeId) { removeSettingsTabs(); return; }
+    if (settingsTabsInjectedFor === activeId && document.getElementById('jcSettingsTabs')) { return; }
+
+    var page = document.querySelector('.mainAnimatedPages .page:not(.hide)') || document.querySelector('.page:not(.hide)');
+    if (!page) {
+      if (attempt < 20) { setTimeout(function () { maybeInjectSettingsTabs(attempt + 1); }, 200); }
+      return;
+    }
+
+    removeSettingsTabs(); // drop any stale bar before inserting on the now-active page
+    var m = (window.location.hash || '').match(/[?&]userId=([a-f0-9]{32})/i);
+    var uid = m ? m[1] : ((window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '');
+    page.insertBefore(buildSettingsTabBar(activeId, uid), page.firstChild);
+    settingsTabsInjectedFor = activeId;
+  }
+
   function start() {
     // Detail pages (and their review/claim anchors) render asynchronously and SPA route changes don't
     // always fire hashchange reliably — so besides the nav listeners, retry injection on DOM mutations,
@@ -2163,6 +2255,7 @@
         maybeInjectDetailReviews(0);
         maybeInjectClaimButton(0);
         maybeInjectProfileEmail(0);
+        maybeInjectSettingsTabs(0);
       }, 200);
     }
 
@@ -2192,12 +2285,14 @@
       removeDetailReviews(); maybeInjectDetailReviews(0);
       removeDetailClaim(); maybeInjectClaimButton(0);
       removeProfileEmail(); maybeInjectProfileEmail(0);
+      removeSettingsTabs(); maybeInjectSettingsTabs(0);
     }
     window.addEventListener('hashchange', onDetailNav);
     window.addEventListener('popstate', onDetailNav);
     maybeInjectDetailReviews(0); // initial load may already be a detail page
     maybeInjectClaimButton(0);
     maybeInjectProfileEmail(0); // initial load may already be the profile page
+    maybeInjectSettingsTabs(0); // initial load may already be a settings page
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).
