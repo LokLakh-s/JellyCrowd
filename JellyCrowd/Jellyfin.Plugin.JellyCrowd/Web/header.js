@@ -1485,7 +1485,9 @@
       '.headerTabs .emby-tab-button{display:none !important;}' +
       // Settings sub-tab bar injected at the top of the native preference pages (and mirrored in the
       // Notifications overlay). Neutral greys so it reads on both light and dark native themes.
-      '.jcSettingsTabs{display:flex;flex-wrap:wrap;gap:.4em;align-items:center;padding:1em 1.2em .4em;}' +
+      '.jcSettingsTabs{display:flex;flex-wrap:nowrap;justify-content:center;justify-content:safe center;gap:.4em;align-items:center;overflow-x:auto;scrollbar-width:none;padding:1em 1.2em .4em;}' +
+      '.jcSettingsTabs::-webkit-scrollbar{display:none;}' +
+      '.jcSettingsTab{white-space:nowrap;}' +
       '.jcSettingsTab{padding:.5em 1.1em;border:none;border-radius:.4em;cursor:pointer;background:rgba(127,127,127,.16);color:inherit;font:inherit;font-weight:600;display:inline-flex;align-items:center;gap:.3em;}' +
       '.jcSettingsTab:hover{background:rgba(127,127,127,.3);}' +
       '.jcSettingsTab-active{background:#00a4dc;color:#fff;}' +
