@@ -1489,7 +1489,6 @@
       '.jcSettingsTab{padding:.5em 1.1em;border:none;border-radius:.4em;cursor:pointer;background:rgba(127,127,127,.16);color:inherit;font:inherit;font-weight:600;display:inline-flex;align-items:center;gap:.3em;}' +
       '.jcSettingsTab:hover{background:rgba(127,127,127,.3);}' +
       '.jcSettingsTab-active{background:#00a4dc;color:#fff;}' +
-      '.jcSettingsBack .material-icons{font-size:1.15em;}' +
       // De-duplicate the header: SyncPlay/Groups and Cast are reachable from the avatar menu, so hide
       // their native header buttons (the menu shortcuts still click them programmatically).
       '.skinHeader .headerSyncButton,.skinHeader .headerCastButton{display:none !important;}' +
@@ -2156,13 +2155,6 @@
   // ---------- settings sub-tab bar on native preference pages ----------
   // The avatar "Settings" entry groups Jellyfin's own preference screens; each carries a Jelly Crowd-style
   // sub-tab bar (injected here) to move between them, plus a Home (back) button and our Notifications view.
-  var settingsTabsInjectedFor = null;
-
-  function goHome() {
-    var hb = document.querySelector('.headerHomeButton');
-    if (hb) { hb.click(); } else { window.location.hash = '#/home.html'; }
-  }
-
   function currentSettingsTabId() {
     if (window.JellyCrowdLib && window.JellyCrowdLib.settingsTabIdForHash) {
       return window.JellyCrowdLib.settingsTabIdForHash(window.location.hash || '');
@@ -2180,7 +2172,6 @@
   function removeSettingsTabs() {
     var el = document.getElementById('jcSettingsTabs');
     if (el && el.parentNode) { el.parentNode.removeChild(el); }
-    settingsTabsInjectedFor = null;
   }
 
   function buildSettingsTabBar(activeId, uid) {
@@ -2188,20 +2179,7 @@
     var bar = document.createElement('div');
     bar.className = 'jcSettingsTabs';
     bar.id = 'jcSettingsTabs';
-
-    // Home (back) button — replaces the old Home preferences entry with a way out of the settings area.
-    var back = document.createElement('button');
-    back.type = 'button';
-    back.className = 'jcSettingsTab jcSettingsBack';
-    var backIcon = document.createElement('span');
-    backIcon.className = 'material-icons';
-    backIcon.setAttribute('aria-hidden', 'true');
-    backIcon.textContent = 'home';
-    back.appendChild(backIcon);
-    back.appendChild(document.createTextNode(' ' + t('avm_home')));
-    back.title = t('avm_home');
-    back.addEventListener('click', function () { goHome(); });
-    bar.appendChild(back);
+    bar.setAttribute('data-active', activeId);
 
     [
       { id: 'profile', label: t('avm_profile'), hash: '#/userprofile' + q },
@@ -2224,23 +2202,24 @@
     return bar;
   }
 
-  function maybeInjectSettingsTabs(attempt) {
-    attempt = attempt || 0;
+  // Idempotent + self-correcting: safe to call on every DOM mutation (like tryInsert). The web client is
+  // React, which reconciles and can wipe injected nodes — so instead of guarding "already done", we make
+  // sure the correct bar is present in the currently-active settings page, and re-insert it otherwise.
+  function maybeInjectSettingsTabs() {
     var activeId = currentSettingsTabId();
-    if (!activeId) { removeSettingsTabs(); return; }
-    if (settingsTabsInjectedFor === activeId && document.getElementById('jcSettingsTabs')) { return; }
+    var existing = document.getElementById('jcSettingsTabs');
+    if (!activeId) { if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); } return; }
 
-    var page = document.querySelector('.mainAnimatedPages .page:not(.hide)') || document.querySelector('.page:not(.hide)');
-    if (!page) {
-      if (attempt < 20) { setTimeout(function () { maybeInjectSettingsTabs(attempt + 1); }, 200); }
-      return;
-    }
+    var page = document.querySelector('.page:not(.hide)');
+    if (!page) { return; } // page not rendered yet — the observer calls us again on the next mutation.
 
-    removeSettingsTabs(); // drop any stale bar before inserting on the now-active page
+    // Already correct (present, inside the active page, right active tab) → nothing to do.
+    if (existing && page.contains(existing) && existing.getAttribute('data-active') === activeId) { return; }
+    if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); }
+
     var m = (window.location.hash || '').match(/[?&]userId=([a-f0-9]{32})/i);
     var uid = m ? m[1] : ((window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '');
     page.insertBefore(buildSettingsTabBar(activeId, uid), page.firstChild);
-    settingsTabsInjectedFor = activeId;
   }
 
   function start() {
@@ -2255,13 +2234,13 @@
         maybeInjectDetailReviews(0);
         maybeInjectClaimButton(0);
         maybeInjectProfileEmail(0);
-        maybeInjectSettingsTabs(0);
       }, 200);
     }
 
     var observer = new MutationObserver(function () {
       tryInsert();
       applyBranding(); // re-assert branding when the web client re-renders (idempotent)
+      maybeInjectSettingsTabs(); // React reconciles the settings pages — keep our sub-tab bar present
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
       scheduleDetailInject();
     });

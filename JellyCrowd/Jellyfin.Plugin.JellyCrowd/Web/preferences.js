@@ -228,19 +228,6 @@
     var bar = document.createElement('div');
     bar.className = 'jcSettingsTabs';
 
-    var back = document.createElement('button');
-    back.type = 'button';
-    back.className = 'jcSettingsTab jcSettingsBack';
-    var bi = document.createElement('span');
-    bi.className = 'material-icons';
-    bi.setAttribute('aria-hidden', 'true');
-    bi.textContent = 'home';
-    back.appendChild(bi);
-    back.appendChild(document.createTextNode(' ' + t('avm_home')));
-    back.title = t('avm_home');
-    back.addEventListener('click', function () { window.location.hash = '#/home.html'; });
-    bar.appendChild(back);
-
     [
       ['profile', t('avm_profile'), '#/userprofile' + q],
       ['quickconnect', t('avm_quickconnect'), '#/quickconnect' + q],
