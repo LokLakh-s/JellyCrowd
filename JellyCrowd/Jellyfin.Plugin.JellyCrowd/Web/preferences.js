@@ -154,7 +154,14 @@
     var p = prefs || {};
     var loadedEmail = p.Email || ''; // the e-mail lives on the Profile screen now; preserved here on save
     form.innerHTML = '';
-    form.appendChild(buildSettingsBar());
+    // The sub-tab bar goes in the section (full width) rather than inside the max-width form, so it renders
+    // on a single centred line exactly like on the native settings pages.
+    var section = form.parentNode;
+    if (section) {
+      var oldBar = section.querySelector('.jcSettingsTabs');
+      if (oldBar && oldBar.parentNode) { oldBar.parentNode.removeChild(oldBar); }
+      section.insertBefore(buildSettingsBar(), section.firstChild);
+    }
 
     var master = toggle('notif_enabled', p.Enabled !== false, 'prefs_enabled_hint');
     var masterGroup = group('prefs_group_delivery');
