@@ -26,7 +26,9 @@
     { id: 'admin', file: 'admin.html', labelKey: 'nav_admin' },
     // No navbar button: reached from the avatar menu (where Jellyfin keeps its own preferences) and
     // from the bell panel, which is where someone looks when they want to change notifications.
-    { id: 'preferences', file: 'preferences.html', labelKey: 'prefs_title' }
+    { id: 'preferences', file: 'preferences.html', labelKey: 'prefs_title' },
+    // No navbar button either: opened from the header guide (?) icon. The user guide, hosted by the plugin.
+    { id: 'guide', file: 'guide.html', labelKey: 'guide_title' }
   ];
 
   var overlay = null;
@@ -102,7 +104,8 @@
   var announcement = { text: '', level: 'green' };
   var discordUrl = '';        // admin opt-in: Discord invite link shown as a header icon ('' = hidden)
   var supportUrl = '';        // admin opt-in: support/donation link shown as a header icon ('' = hidden)
-  var guideUrl = '';          // admin opt-in: user-guide link shown as a header icon ('' = hidden)
+  var guideUrl = '';          // legacy: external user-guide URL (kept for back-compat; no longer navigated to)
+  var guideEnabled = false;   // admin opt-in: show the header guide (?) icon, which opens the in-app guide
   var hideNativeDrawer = false; // admin opt-in: hide Jellyfin's left drawer for non-admins
   var jcSkipOutro = false;    // whether the smart Skip Outro control is enabled (install the watcher if so)
 
@@ -121,6 +124,7 @@
         discordUrl = (d && d.DiscordInviteUrl) ? String(d.DiscordInviteUrl) : '';
         supportUrl = (d && d.SupportLinkUrl) ? String(d.SupportLinkUrl) : '';
         guideUrl = (d && d.GuideLinkUrl) ? String(d.GuideLinkUrl) : '';
+        guideEnabled = !!(d && d.GuideEnabled);
         jcSkipOutro = !!(d && d.SkipOutroEnabled);
         hideNativeDrawer = !!(d && d.HideNativeDrawer);
         applyDrawerHiding();
@@ -785,11 +789,24 @@
     return a;
   }
 
+  // Same icon styling as brandLinkIcon, but a button that runs an action (used for the in-app guide).
+  function brandButtonIcon(svg, onClick, title, cls) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = (muiIconButtonClass() || 'paper-icon-button-light headerButton') + ' jcHeaderLink ' + cls;
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;color:inherit;background:none;border:0;cursor:pointer;';
+    b.innerHTML = svg;
+    b.addEventListener('click', function (e) { e.stopPropagation(); if (onClick) { onClick(); } });
+    return b;
+  }
+
   // Optional admin-configured links in the RIGHT header cluster: just LEFT of the announcement icon
   // (and thus right of the native search button), so they line up with the bell/announcement/quota.
   // Idempotent (admin config can resolve after the first insert) and gated on a configured URL.
   function insertHeaderLinks() {
-    if (!discordUrl && !supportUrl && !guideUrl) {
+    if (!discordUrl && !supportUrl && !guideEnabled) {
       return;
     }
     var host = rightHost();
@@ -812,8 +829,8 @@
     if (supportUrl && !group.querySelector('.jcHeaderLink-support')) {
       group.appendChild(brandLinkIcon(SUPPORT_SVG, supportUrl, t('support_link_title'), 'jcHeaderLink-support'));
     }
-    if (guideUrl && !group.querySelector('.jcHeaderLink-guide')) {
-      group.appendChild(brandLinkIcon(GUIDE_SVG, guideUrl, t('guide_link_title'), 'jcHeaderLink-guide'));
+    if (guideEnabled && !group.querySelector('.jcHeaderLink-guide')) {
+      group.appendChild(brandButtonIcon(GUIDE_SVG, function () { showView('guide'); }, t('guide_link_title'), 'jcHeaderLink-guide'));
     }
   }
 
