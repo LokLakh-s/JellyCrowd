@@ -60,6 +60,14 @@ public class SettingsControllerTests
   }
 
   [Fact]
+  public void GetLanguage_GuideEnabled_ReflectsGuideLinkEnabled()
+  {
+    // The header guide icon (which opens the in-app guide) is gated on GuideEnabled, independent of the URL.
+    Assert.True(GetLanguageFor(new PluginConfiguration { GuideLinkEnabled = true }).GuideEnabled);
+    Assert.False(GetLanguageFor(new PluginConfiguration { GuideLinkEnabled = false }).GuideEnabled);
+  }
+
+  [Fact]
   public void GetLanguage_HidesGuideLink_WhenConfiguredButDisabled()
   {
     // A disabled-but-configured URL stays private, like the Discord/Support links.
