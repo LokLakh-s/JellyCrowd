@@ -1,0 +1,20 @@
+Jelly Crowd — Proprietary License
+Copyright (c) 2026 LokLakh-s. All rights reserved.
+
+Jelly Crowd (the "Software") is proprietary and confidential. It is NOT open source.
+
+No license or right is granted, expressly or by implication, to copy, modify, merge,
+publish, distribute, sublicense, sell, rent, lease, reverse-engineer, decompile,
+disassemble, or create derivative works of the Software, in whole or in part, without
+the prior written permission of the copyright holder.
+
+The only permission granted is to install and run official released builds of the
+Software as a plugin within a Jellyfin media server. This permission may be revoked at
+any time.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
