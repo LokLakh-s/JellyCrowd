@@ -1,0 +1,87 @@
+name: 🐛 Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. Please fill in as much as you can — it makes bugs much faster to fix.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I'm on the latest released version of Jelly Crowd.
+          required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Jelly Crowd version
+      placeholder: e.g. 0.80.41.0
+    validations:
+      required: true
+  - type: input
+    id: jellyfin-version
+    attributes:
+      label: Jellyfin version
+      placeholder: e.g. 10.11.10
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: How is Jellyfin installed?
+      options:
+        - Docker
+        - Linux (native)
+        - Windows
+        - macOS
+        - Other / not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Download backend (if relevant)
+      options:
+        - None / manual queue
+        - Radarr + Sonarr
+        - Webhook
+        - Script
+        - Not applicable
+    validations:
+      required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click '...'
+        3. See the error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Jellyfin logs around the issue, or the browser console. Paste as text — no screenshots of logs, please.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, config details, or anything else that helps.
+    validations:
+      required: false
