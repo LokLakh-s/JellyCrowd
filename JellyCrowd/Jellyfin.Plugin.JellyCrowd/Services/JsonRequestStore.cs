@@ -184,27 +184,6 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
-  public async Task<bool> ExistsActiveAsync(Guid userId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken)
-  {
-    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
-    try
-    {
-      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
-      return items.Any(r =>
-        r.UserId == userId
-        && r.TmdbId == tmdbId
-        && string.Equals(r.MediaType, mediaType, StringComparison.Ordinal)
-        && r.Season == season
-        && r.Episode == episode
-        && r.Status != RequestStatus.Denied);
-    }
-    finally
-    {
-      _mutex.Release();
-    }
-  }
-
-  /// <inheritdoc />
   public async Task<int> CountUserRequestsSinceAsync(Guid userId, DateTime sinceUtc, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

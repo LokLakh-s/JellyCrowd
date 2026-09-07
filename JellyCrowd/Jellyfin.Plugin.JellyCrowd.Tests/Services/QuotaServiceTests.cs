@@ -205,6 +205,59 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
+  public async Task GetUsageAsync_BillsOverlappingClaimsOnce()
+  {
+    var user = Guid.NewGuid();
+    // The shape that put a user over quota: a show claimed as a whole series AND season by season. Every
+    // claim reports 2 GiB here, so counting all four would bill 8 GiB for the 2 GiB the show occupies.
+    foreach (var record in new[]
+    {
+      new RequestRecord { UserId = user, TmdbId = 100604, MediaType = "tv", Title = "Stalk", Status = RequestStatus.Available },
+      new RequestRecord { UserId = user, TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = 1, Status = RequestStatus.Available },
+      new RequestRecord { UserId = user, TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = 2, Status = RequestStatus.Available },
+      new RequestRecord { UserId = user, TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = 3, Status = RequestStatus.Available },
+    })
+    {
+      await _store.CreateAsync(record, CancellationToken.None);
+    }
+
+    var service = Create(new SizeMatcher(2 * Gib));
+
+    Assert.Equal(2 * Gib, (await service.GetUsageAsync(user, CancellationToken.None)).UsedBytes);
+  }
+
+  [Fact]
+  public async Task GetUsageAsync_StillBillsDistinctTitlesSeparately()
+  {
+    var user = Guid.NewGuid();
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "A", Season = 1, Status = RequestStatus.Available }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "A", Season = 2, Status = RequestStatus.Available }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "B", Status = RequestStatus.Available }, CancellationToken.None);
+    var service = Create(new SizeMatcher(2 * Gib));
+
+    // Two unrelated seasons and a movie: nothing overlaps, so all three are billed.
+    Assert.Equal(6 * Gib, (await service.GetUsageAsync(user, CancellationToken.None)).UsedBytes);
+  }
+
+  [Fact]
+  public async Task IsWithinQuotaAsync_UsesTheDeduplicatedFootprint()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 5 * Gib });
+    foreach (var season in new int?[] { null, 1, 2 })
+    {
+      await _store.CreateAsync(
+        new RequestRecord { UserId = user, TmdbId = 3, MediaType = "tv", Title = "S", Season = season, Status = RequestStatus.Available },
+        CancellationToken.None);
+    }
+
+    var service = Create(new SizeMatcher(4 * Gib));
+
+    // 4 GiB once, not 12 GiB: the user is within their 5 GiB quota and must not be held.
+    Assert.True(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
   public async Task CanRequestAsync_ReservesOneEstimatePerEpisodeCovered()
   {
     var user = Guid.NewGuid();
