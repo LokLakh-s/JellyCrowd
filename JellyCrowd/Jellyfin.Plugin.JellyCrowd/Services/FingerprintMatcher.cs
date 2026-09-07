@@ -53,21 +53,33 @@ public static class FingerprintMatcher
 
   /// <summary>
   /// Derives each episode's intro from the whole season. Every episode is aligned against the others; the
-  /// intro is the region of that episode confirmed by at least <paramref name="minConfirmations"/> siblings.
-  /// Episodes that share no long segment (a premiere with no standard OP, a recap) get <c>null</c>.
+  /// intro is the region of that episode confirmed by at least <paramref name="minConfirmations"/> siblings
+  /// <em>that agree on where it is</em>. Episodes that share no long segment (a premiere with no standard
+  /// OP, a recap) get <c>null</c>.
+  /// <para>
+  /// Two guards keep noise out. Siblings only count when their matches overlap: a quiet, sparsely-scored
+  /// show fingerprints alike in unrelated places, and averaging such matches invents a region no sibling
+  /// ever confirmed — a skip button in the middle of a scene. And a real OP/ED recurs across the SEASON,
+  /// so when fewer than <paramref name="minSeasonCoveragePercent"/> of the episodes share it, the whole
+  /// season is dropped rather than served: a couple of episodes agreeing on a 20-second stretch is
+  /// coincidence, not a title sequence.
+  /// </para>
   /// </summary>
   /// <param name="episodes">Each episode's sub-fingerprints (season order).</param>
   /// <param name="maxBitDistance">Per-frame Hamming tolerance.</param>
   /// <param name="maxGap">Mismatch tolerance inside a run.</param>
   /// <param name="minRunFrames">Minimum intro length in frames.</param>
-  /// <param name="minConfirmations">How many siblings must agree before an intro is accepted.</param>
+  /// <param name="minConfirmations">How many agreeing siblings must confirm before an intro is accepted.</param>
+  /// <param name="minSeasonCoveragePercent">Percentage of the season that must share the sequence for any
+  /// of it to be kept; <c>0</c> disables the season-wide check.</param>
   /// <returns>Per-episode intro region as inclusive frame indices <c>(Start, End)</c>, or <c>null</c>.</returns>
   public static IReadOnlyList<(int Start, int End)?> FindSeasonIntros(
     IReadOnlyList<IReadOnlyList<uint>> episodes,
     int maxBitDistance = 6,
     int maxGap = 8,
     int minRunFrames = 120,
-    int minConfirmations = 1)
+    int minConfirmations = 1,
+    int minSeasonCoveragePercent = 0)
   {
     ArgumentNullException.ThrowIfNull(episodes);
 
@@ -89,13 +101,81 @@ public static class FingerprintMatcher
         }
       }
 
-      if (confirmations.Count >= minConfirmations)
+      var agreeing = LargestAgreeingCluster(confirmations);
+      if (agreeing.Count > 0 && agreeing.Count >= minConfirmations)
       {
-        result[i] = Consensus(confirmations);
+        result[i] = Consensus(agreeing);
       }
     }
 
-    return result;
+    return minSeasonCoveragePercent > 0 && !HasSeasonCoverage(result, minSeasonCoveragePercent)
+      ? new (int Start, int End)?[episodes.Count]
+      : result;
+  }
+
+  /// <summary>
+  /// Whether enough of the season shares the sequence for it to be a real title/credits sequence rather
+  /// than a coincidental match between a couple of episodes.
+  /// </summary>
+  /// <param name="regions">The per-episode regions (with <c>null</c> for "shares nothing").</param>
+  /// <param name="minCoveragePercent">The percentage of episodes that must have a region.</param>
+  /// <returns><c>true</c> when the season is covered well enough to keep its regions.</returns>
+  internal static bool HasSeasonCoverage(IReadOnlyList<(int Start, int End)?> regions, int minCoveragePercent)
+  {
+    if (regions.Count == 0)
+    {
+      return false;
+    }
+
+    var found = 0;
+    for (var i = 0; i < regions.Count; i++)
+    {
+      if (regions[i] is not null)
+      {
+        found++;
+      }
+    }
+
+    return found * 100 >= minCoveragePercent * regions.Count;
+  }
+
+  // The biggest set of sibling matches that all point at the same place. Seeded on the region the most
+  // others agree with, so a lone outlier can never drag the consensus away from the sequence itself.
+  private static List<(int Start, int End)> LargestAgreeingCluster(List<(int Start, int End)> regions)
+  {
+    var best = new List<(int Start, int End)>();
+    foreach (var seed in regions)
+    {
+      var cluster = new List<(int Start, int End)>();
+      foreach (var other in regions)
+      {
+        if (Agree(seed, other))
+        {
+          cluster.Add(other);
+        }
+      }
+
+      if (cluster.Count > best.Count)
+      {
+        best = cluster;
+      }
+    }
+
+    return best;
+  }
+
+  // Two matches agree when they overlap over at least half of the shorter one — a genuine "same sequence",
+  // not two regions that merely touch at an edge.
+  private static bool Agree((int Start, int End) a, (int Start, int End) b)
+  {
+    var overlap = Math.Min(a.End, b.End) - Math.Max(a.Start, b.Start) + 1;
+    if (overlap <= 0)
+    {
+      return false;
+    }
+
+    var shorter = Math.Min(a.End - a.Start + 1, b.End - b.Start + 1);
+    return overlap * 2 >= shorter;
   }
 
   // Median start/end of the confirming regions — robust to an odd sibling whose run is a little longer or
