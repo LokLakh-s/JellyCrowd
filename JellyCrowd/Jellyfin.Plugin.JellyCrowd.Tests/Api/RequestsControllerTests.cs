@@ -574,6 +574,67 @@ public class RequestsControllerTests
     public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(_isAdmin);
   }
 
+  // ---------- Quota reservation is sized by what the request actually pulls ----------
+
+  private static StubTmdbClient ThreeSeasonsOfTen()
+    => new()
+    {
+      Seasons = new List<Season>
+      {
+        new() { SeasonNumber = 0, EpisodeCount = 5 },
+        new() { SeasonNumber = 1, EpisodeCount = 10 },
+        new() { SeasonNumber = 2, EpisodeCount = 10 },
+        new() { SeasonNumber = 3, EpisodeCount = 10 },
+      }
+    };
+
+  [Fact]
+  public async Task Create_WholeSeries_ReservesEveryEpisodeAgainstTheQuota()
+  {
+    var quota = new FakeQuotaService(canRequest: true);
+    var store = new FakeRequestStore();
+    var controller = CreateController(store, tmdb: ThreeSeasonsOfTen(), quota: quota);
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 100604, MediaType = "tv", Title = "Stalk" },
+      CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    var created = Assert.IsType<RequestRecord>(ok.Value);
+    Assert.Equal(30, quota.LastEpisodesRequested);  // not 1: the series is 30 episodes
+    Assert.Equal(30, created.EstimatedEpisodes);    // ...and it stays reserved while in flight
+  }
+
+  [Fact]
+  public async Task Create_Season_ReservesThatSeasonsEpisodes()
+  {
+    var quota = new FakeQuotaService(canRequest: true);
+    var controller = CreateController(new FakeRequestStore(), tmdb: ThreeSeasonsOfTen(), quota: quota);
+
+    await controller.Create(
+      new CreateRequestDto { TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = 2 },
+      CancellationToken.None);
+
+    Assert.Equal(10, quota.LastEpisodesRequested);
+  }
+
+  [Fact]
+  public async Task Create_SingleEpisodeOrMovie_ReservesOne()
+  {
+    var quota = new FakeQuotaService(canRequest: true);
+    var controller = CreateController(new FakeRequestStore(), tmdb: ThreeSeasonsOfTen(), quota: quota);
+
+    await controller.Create(
+      new CreateRequestDto { TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = 2, Episode = 4 },
+      CancellationToken.None);
+    Assert.Equal(1, quota.LastEpisodesRequested);
+
+    await controller.Create(
+      new CreateRequestDto { TmdbId = 1372, MediaType = "movie", Title = "Blood Diamond" },
+      CancellationToken.None);
+    Assert.Equal(1, quota.LastEpisodesRequested);
+  }
+
   private sealed class FakeQuotaService : IQuotaService
   {
     private readonly bool _canRequest;
@@ -593,9 +654,13 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken)
       => Task.FromResult(new QuotaInfo());
 
-    public Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken)
+    /// <summary>Gets the episode count the create-time quota gate was last asked to reserve.</summary>
+    public int LastEpisodesRequested { get; private set; }
+
+    public Task<bool> CanRequestAsync(Guid userId, string mediaType, int episodes, CancellationToken cancellationToken)
     {
       CanRequestCalls++;
+      LastEpisodesRequested = episodes;
       return Task.FromResult(_canRequest);
     }
 

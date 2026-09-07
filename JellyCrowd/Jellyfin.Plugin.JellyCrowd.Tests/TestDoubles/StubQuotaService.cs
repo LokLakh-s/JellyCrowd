@@ -26,7 +26,7 @@ internal sealed class StubQuotaService : IQuotaService
   public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
     => Task.FromResult<IReadOnlyDictionary<Guid, QuotaInfo>>(userIds.ToDictionary(id => id, _ => new QuotaInfo()));
 
-  public Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken) => Task.FromResult(_within);
+  public Task<bool> CanRequestAsync(Guid userId, string mediaType, int episodes, CancellationToken cancellationToken) => Task.FromResult(_within);
 
   public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(_within);
 }

@@ -53,6 +53,13 @@ public class RequestRecord
   public int? Episode { get; set; }
 
   /// <summary>
+  /// Gets or sets how many episodes this request covers — what it reserves against the disk quota while it
+  /// is in flight (a whole season or a whole series covers all of its episodes). <c>0</c>, the value a
+  /// record written before this field existed deserializes to, is read as one episode.
+  /// </summary>
+  public int EstimatedEpisodes { get; set; }
+
+  /// <summary>
   /// Gets or sets the current status.
   /// </summary>
   public RequestStatus Status { get; set; }

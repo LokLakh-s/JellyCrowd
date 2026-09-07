@@ -51,9 +51,11 @@ public interface IQuotaService
   /// </summary>
   /// <param name="userId">The user identifier.</param>
   /// <param name="mediaType">The media type being requested (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="episodes">How many episodes the request covers — 1 for a movie or a single episode, the
+  /// whole count for a season or series request, which is what it will actually download.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns><c>true</c> when the request fits within the quota.</returns>
-  Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken);
+  Task<bool> CanRequestAsync(Guid userId, string mediaType, int episodes, CancellationToken cancellationToken);
 
   /// <summary>
   /// Determines whether the user's current committed footprint (their existing in-flight estimates plus
