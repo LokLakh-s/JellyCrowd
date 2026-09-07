@@ -574,6 +574,89 @@ public class RequestsControllerTests
     public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(_isAdmin);
   }
 
+  // ---------- Overlapping requests are refused, not duplicated ----------
+
+  private static async Task<FakeRequestStore> StoreWith(params CreateRequestDto[] existing)
+  {
+    var store = new FakeRequestStore();
+    foreach (var dto in existing)
+    {
+      await store.CreateAsync(
+        new RequestRecord { UserId = User, TmdbId = dto.TmdbId, MediaType = dto.MediaType, Title = dto.Title, Season = dto.Season, Episode = dto.Episode },
+        CancellationToken.None);
+    }
+
+    return store;
+  }
+
+  private static CreateRequestDto Tv(int? season = null, int? episode = null)
+    => new() { TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = season, Episode = episode };
+
+  [Fact]
+  public async Task Create_RefusesASeason_AlreadyCoveredByAWholeSeriesRequest()
+  {
+    var controller = CreateController(await StoreWith(Tv()), tmdb: ThreeSeasonsOfTen());
+
+    var result = await controller.Create(Tv(season: 2), CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Create_RefusesAnEpisode_AlreadyCoveredByItsSeason()
+  {
+    var controller = CreateController(await StoreWith(Tv(season: 2)), tmdb: ThreeSeasonsOfTen());
+
+    var result = await controller.Create(Tv(season: 2, episode: 4), CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Create_RefusesAWholeSeries_WhenANarrowerRequestIsAlreadyActive()
+  {
+    // The reverse direction: the series would re-download what the season request already pulls.
+    var controller = CreateController(await StoreWith(Tv(season: 1)), tmdb: ThreeSeasonsOfTen());
+
+    var result = await controller.Create(Tv(), CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Create_StillRefusesAnExactDuplicate()
+  {
+    var controller = CreateController(await StoreWith(Tv(season: 2, episode: 4)), tmdb: ThreeSeasonsOfTen());
+
+    var result = await controller.Create(Tv(season: 2, episode: 4), CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Create_AllowsARequestThatDoesNotOverlap()
+  {
+    // A different season of the same show, and another episode of another season: neither is covered.
+    var controller = CreateController(await StoreWith(Tv(season: 1), Tv(season: 2, episode: 4)), tmdb: ThreeSeasonsOfTen());
+
+    Assert.IsType<OkObjectResult>((await controller.Create(Tv(season: 3), CancellationToken.None)).Result);
+    Assert.IsType<OkObjectResult>((await controller.Create(Tv(season: 2, episode: 5), CancellationToken.None)).Result);
+  }
+
+  [Fact]
+  public async Task Create_IgnoresDeniedRequests_WhenLookingForAnOverlap()
+  {
+    var store = new FakeRequestStore();
+    var denied = await store.CreateAsync(
+      new RequestRecord { UserId = User, TmdbId = 100604, MediaType = "tv", Title = "Stalk" },
+      CancellationToken.None);
+    await store.UpdateStatusAsync(denied.Id, RequestStatus.Denied, Guid.NewGuid(), CancellationToken.None);
+    var controller = CreateController(store, tmdb: ThreeSeasonsOfTen());
+
+    // A denied request holds nothing on disk, so it must not block a new one.
+    Assert.IsType<OkObjectResult>((await controller.Create(Tv(season: 1), CancellationToken.None)).Result);
+  }
+
   // ---------- Quota reservation is sized by what the request actually pulls ----------
 
   private static StubTmdbClient ThreeSeasonsOfTen()
@@ -830,14 +913,6 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
       record.HeldForQuota = true;
       return Task.FromResult<RequestRecord?>(record);
     }
-
-    public Task<bool> ExistsActiveAsync(Guid userId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken)
-      => Task.FromResult(_items.Any(r =>
-        r.UserId == userId && r.TmdbId == tmdbId
-        && string.Equals(r.MediaType, mediaType, StringComparison.Ordinal)
-        && r.Season == season
-        && r.Episode == episode
-        && r.Status != RequestStatus.Denied));
 
     public Task<int> CountUserRequestsSinceAsync(Guid userId, DateTime sinceUtc, CancellationToken cancellationToken)
       => Task.FromResult(_items.Count(r => r.UserId == userId && r.Status != RequestStatus.Denied && r.RequestedAt >= sinceUtc));

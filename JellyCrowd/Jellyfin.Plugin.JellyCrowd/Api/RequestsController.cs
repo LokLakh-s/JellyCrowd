@@ -120,9 +120,26 @@ public class RequestsController : ControllerBase
       return StatusCode(StatusCodes.Status403Forbidden, "This request granularity is not allowed on this server.");
     }
 
-    if (await _store.ExistsActiveAsync(userId, dto.TmdbId, dto.MediaType, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false))
+    // Overlap, not merely an exact duplicate: a season already covered by a whole-series request — or the
+    // reverse — downloads the same files a second time and bills them twice against the quota.
+    var wanted = new RequestScope(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode);
+    foreach (var existing in await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false))
     {
-      return Conflict("You already have an active request for this title.");
+      if (existing.Status == RequestStatus.Denied)
+      {
+        continue;
+      }
+
+      var existingScope = RequestScope.Of(existing);
+      if (existingScope.Contains(wanted))
+      {
+        return Conflict("You already have an active request covering this title.");
+      }
+
+      if (wanted.Contains(existingScope))
+      {
+        return Conflict("This would duplicate a narrower request you already have; cancel that one first.");
+      }
     }
 
     if (config is not null)

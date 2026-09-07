@@ -75,18 +75,6 @@ public interface IRequestStore
   Task<RequestRecord?> HoldForQuotaAsync(Guid id, CancellationToken cancellationToken);
 
   /// <summary>
-  /// Determines whether the user already has a non-denied request for the same title.
-  /// </summary>
-  /// <param name="userId">The user identifier.</param>
-  /// <param name="tmdbId">The TMDB identifier.</param>
-  /// <param name="mediaType">The media type.</param>
-  /// <param name="season">The season number (null for movies/whole show).</param>
-  /// <param name="episode">The episode number (null for movies/whole season).</param>
-  /// <param name="cancellationToken">The cancellation token.</param>
-  /// <returns><c>true</c> when an active duplicate exists.</returns>
-  Task<bool> ExistsActiveAsync(Guid userId, int tmdbId, string mediaType, int? season, int? episode, CancellationToken cancellationToken);
-
-  /// <summary>
   /// Counts the user's non-denied requests created at or after the given UTC instant (for rate limiting).
   /// </summary>
   /// <param name="userId">The user identifier.</param>

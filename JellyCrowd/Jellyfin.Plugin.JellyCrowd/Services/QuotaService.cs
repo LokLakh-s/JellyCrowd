@@ -90,14 +90,11 @@ public sealed class QuotaService : IQuotaService
     // Displayed usage counts only fulfilled (Available) requests at their real on-disk size. In-flight
     // requests do not count against the displayed figure; their theoretical footprint lives only in
     // CanRequestAsync, where it gates whether a new request would exceed the quota (held pending if so).
+    // Overlapping claims are reduced first: a whole-series claim's size already covers its seasons.
     long used = 0;
-    var counted = new HashSet<string>(StringComparer.Ordinal);
-    foreach (var request in requests)
+    foreach (var request in QuotaClaims.Deduplicate(Fulfilled(requests)))
     {
-      if (request.Status == RequestStatus.Available && counted.Add(TitleKey(request)))
-      {
-        used += SizeOf(request, sizes);
-      }
+      used += SizeOf(request, sizes);
     }
 
     var info = new QuotaInfo { UsedBytes = used, QuotaBytes = quota, Unlimited = quota <= 0 };
@@ -159,17 +156,14 @@ public sealed class QuotaService : IQuotaService
     var now = DateTime.UtcNow;
 
     long committed = 0;
-    var counted = new HashSet<string>(StringComparer.Ordinal);
+    foreach (var request in QuotaClaims.Deduplicate(Fulfilled(requests)))
+    {
+      committed += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
+    }
+
     foreach (var request in requests)
     {
-      if (request.Status == RequestStatus.Available)
-      {
-        if (counted.Add(TitleKey(request)))
-        {
-          committed += _libraryMatcher.GetSizeBytes(request.MediaType, request.TmdbId, request.Season, request.Episode);
-        }
-      }
-      else if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
+      if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
         && (request.DesiredAt is null || request.DesiredAt <= now))
       {
         committed += EstimateBytes(request.MediaType) * Math.Max(1, request.EstimatedEpisodes);
@@ -177,6 +171,21 @@ public sealed class QuotaService : IQuotaService
     }
 
     return committed;
+  }
+
+  // The fulfilled requests, which are the ones billed at their real size on disk.
+  private static List<RequestRecord> Fulfilled(IReadOnlyList<RequestRecord> requests)
+  {
+    var fulfilled = new List<RequestRecord>(requests.Count);
+    foreach (var request in requests)
+    {
+      if (request.Status == RequestStatus.Available)
+      {
+        fulfilled.Add(request);
+      }
+    }
+
+    return fulfilled;
   }
 
   // The library query behind a size is the expensive part of a quota sweep; the same title never has two
