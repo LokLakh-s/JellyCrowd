@@ -77,6 +77,7 @@ public sealed class IntroAnalysisTask : IScheduledTask
     var timeout = Math.Max(30, config.IntroAnalyzeTimeoutSeconds);
     var minConfirmations = Math.Max(1, config.IntroMinConfirmations);
     var minDurationSeconds = Math.Max(1, config.IntroMinDurationSeconds);
+    var minCoverage = Math.Clamp(config.SegmentMinSeasonCoveragePercent, 0, 100);
 
     var seasons = _libraryManager.GetItemList(new InternalItemsQuery
     {
@@ -99,8 +100,11 @@ public sealed class IntroAnalysisTask : IScheduledTask
         .OrderBy(e => e.IndexNumber ?? int.MaxValue)
         .ToList();
 
-      // Need at least two episodes to find a shared intro; skip a season already fully analyzed.
-      if (episodes.Count < 2 || episodes.All(e => _store.Get(e.Id) is not null))
+      // Need at least two episodes to find a shared intro. Re-analyze unless every episode already has a
+      // FOUND intro: an episode cached as "analyzed, none" is retried on the next run, so a re-run fills
+      // gaps — and re-evaluates a season whose stored intros predate a change to the detection rules —
+      // instead of skipping it forever. Fingerprinting is audio-only, so a re-run stays cheap.
+      if (episodes.Count < 2 || episodes.All(e => IsFoundIntro(_store.Get(e.Id))))
       {
         continue;
       }
@@ -122,7 +126,8 @@ public sealed class IntroAnalysisTask : IScheduledTask
       var intros = FingerprintMatcher.FindSeasonIntros(
         fingerprints.Select(f => (IReadOnlyList<uint>)f).ToList(),
         minRunFrames: minRunFrames,
-        minConfirmations: minConfirmations);
+        minConfirmations: minConfirmations,
+        minSeasonCoveragePercent: minCoverage);
 
       var result = new Dictionary<Guid, IntroSegment?>(episodes.Count);
       var found = 0;
@@ -151,6 +156,15 @@ public sealed class IntroAnalysisTask : IScheduledTask
 
     progress.Report(100);
   }
+
+  /// <summary>
+  /// Whether a cached result is a real intro (found), as opposed to the "analyzed, none" sentinel or an
+  /// absent entry — the two cases a re-run should retry.
+  /// </summary>
+  /// <param name="cached">The store's cached segment for an episode, or <c>null</c>.</param>
+  /// <returns><c>true</c> when it is a usable intro.</returns>
+  internal static bool IsFoundIntro(IntroSegment? cached)
+    => cached is { StartTicks: >= 0 } segment && segment.EndTicks > segment.StartTicks;
 
   /// <inheritdoc />
   public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()

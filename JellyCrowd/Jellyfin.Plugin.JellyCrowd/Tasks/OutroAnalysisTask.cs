@@ -84,6 +84,7 @@ public sealed class OutroAnalysisTask : IScheduledTask
     var timeout = Math.Max(30, config.IntroAnalyzeTimeoutSeconds);
     var minConfirmations = Math.Max(1, config.IntroMinConfirmations);
     var minDurationSeconds = Math.Max(1, config.OutroMinCreditsSeconds);
+    var minCoverage = Math.Clamp(config.SegmentMinSeasonCoveragePercent, 0, 100);
 
     var seasons = _libraryManager.GetItemList(new InternalItemsQuery
     {
@@ -139,7 +140,8 @@ public sealed class OutroAnalysisTask : IScheduledTask
       var shared = FingerprintMatcher.FindSeasonIntros(
         fingerprints.Select(f => (IReadOnlyList<uint>)f).ToList(),
         minRunFrames: minRunFrames,
-        minConfirmations: minConfirmations);
+        minConfirmations: minConfirmations,
+        minSeasonCoveragePercent: minCoverage);
 
       var result = new Dictionary<Guid, OutroRegion>(episodes.Count);
       var found = 0;

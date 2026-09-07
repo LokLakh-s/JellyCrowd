@@ -376,6 +376,7 @@
         { key: 'ShowReviewAuthors', label: t('cfg_showreviewauthors'), type: 'check' },
         { key: 'SkipOutroEnabled', label: t('cfg_skipoutroenabled'), type: 'check' },
         { key: 'SkipIntroEnabled', label: t('cfg_skipintroenabled'), type: 'check' },
+        { key: 'SegmentMinSeasonCoveragePercent', label: t('cfg_segmentminseasoncoverage'), type: 'num', hint: t('cfg_segmentminseasoncoverage_hint') },
         { key: 'SegmentHwAccel', label: t('cfg_segmenthwaccel'), type: 'select', options: [['auto', t('adm_opt_auto_gpu')], ['none', t('adm_opt_cpu_only')], ['vaapi', 'Intel / AMD (VAAPI)'], ['qsv', 'Intel QuickSync (QSV)'], ['cuda', 'NVIDIA (CUDA)'], ['videotoolbox', 'macOS (VideoToolbox)']], hint: t('cfg_segmenthwaccel_hint') },
         { key: 'TmdbApiKey', label: t('cfg_tmdbapikey'), type: 'text', placeholder: t('adm_ph_tmdb_key') }
       ]);

@@ -69,6 +69,7 @@ public class PluginConfiguration : BasePluginConfiguration
     IntroAnalyzeTimeoutSeconds = 120;
     IntroMinDurationSeconds = 15;
     IntroMinConfirmations = 1;
+    SegmentMinSeasonCoveragePercent = 50;
     LocalIntrosEnabled = false;
     LocalIntrosFolderName = "intros";
     LocalIntrosOnMovies = true;
@@ -424,6 +425,15 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets how many sibling episodes must confirm a shared region before it is accepted as the intro.
   /// </summary>
   public int IntroMinConfirmations { get; set; }
+
+  /// <summary>
+  /// Gets or sets the percentage of a season's episodes that must share a sequence before any of it is
+  /// accepted, for both intro and end-credits fingerprinting. A real title or credits sequence recurs
+  /// across the season; when only a couple of episodes "share" something it is a coincidence between two
+  /// quiet passages, and serving it would put a skip button in the middle of a scene. <c>0</c> disables
+  /// the check.
+  /// </summary>
+  public int SegmentMinSeasonCoveragePercent { get; set; }
 
   // ----- Local intros (pre-roll played before content via Jellyfin's Cinema Mode) -----
 

@@ -474,6 +474,8 @@
   "cfg_scriptpath": "Chemin du script",
   "cfg_segmenthwaccel": "Skip Outro — accélération GPU",
   "cfg_segmenthwaccel_hint": "Décharge sur le GPU le décodage vidéo du générique de fin pendant l'analyse des segments — la partie lourde. Auto retombe sur le processeur si aucun décodeur GPU n'est disponible. (L'empreinte du Skip Intro est purement audio, elle n'est pas concernée.)",
+  "cfg_segmentminseasoncoverage": "Skip Intro/Outro — couverture minimale de la saison (%)",
+  "cfg_segmentminseasoncoverage_hint": "Un vrai générique se répète sur toute une saison. Si moins que cette proportion des épisodes d'une saison partagent la séquence détectée, elle est écartée comme une coïncidence plutôt que servie comme un bouton de saut au milieu d'une scène. 0 désactive le contrôle.",
   "cfg_showreviewauthors": "Afficher le nom des auteurs d'avis à tout le monde",
   "cfg_skipintroenabled": "Détecter les génériques de début (Skip Intro)",
   "cfg_skipoutroenabled": "Détecter les génériques de fin (Skip Outro)",

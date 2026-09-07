@@ -474,6 +474,8 @@
   "cfg_scriptpath": "Script path",
   "cfg_segmenthwaccel": "Skip Outro — GPU acceleration",
   "cfg_segmenthwaccel_hint": "Offloads the end-credits video decode to the GPU during the Media Segment Scan — the heavy part. Auto falls back to CPU when no GPU decoder is available. (The Skip Intro fingerprint is audio-only, so it is unaffected.)",
+  "cfg_segmentminseasoncoverage": "Skip Intro/Outro — minimum season coverage (%)",
+  "cfg_segmentminseasoncoverage_hint": "A real title or credits sequence recurs across a season. When fewer than this share of a season's episodes share the detected sequence, it is discarded as a coincidence rather than served as a skip button in the middle of a scene. 0 disables the check.",
   "cfg_showreviewauthors": "Show review author names to everyone",
   "cfg_skipintroenabled": "Detect episode intros (Skip Intro)",
   "cfg_skipoutroenabled": "Detect end credits (Skip Outro)",
