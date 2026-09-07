@@ -122,7 +122,7 @@ public sealed class QuotaService : IQuotaService
   }
 
   /// <inheritdoc />
-  public async Task<bool> CanRequestAsync(Guid userId, string mediaType, CancellationToken cancellationToken)
+  public async Task<bool> CanRequestAsync(Guid userId, string mediaType, int episodes, CancellationToken cancellationToken)
   {
     var quota = GetQuotaBytes(userId);
     if (quota <= 0)
@@ -131,7 +131,7 @@ public sealed class QuotaService : IQuotaService
     }
 
     var committed = await ComputeCommittedAsync(userId, cancellationToken).ConfigureAwait(false);
-    return committed + EstimateBytes(mediaType) <= quota;
+    return committed + (EstimateBytes(mediaType) * Math.Max(1, episodes)) <= quota;
   }
 
   /// <inheritdoc />
@@ -147,7 +147,8 @@ public sealed class QuotaService : IQuotaService
     return committed <= quota;
   }
 
-  // The user's committed footprint: in-flight requests (Pending/Approved) at the configured estimate,
+  // The user's committed footprint: in-flight requests (Pending/Approved) at the configured estimate
+  // times the episodes they cover (a season/series request downloads all of them),
   // fulfilled (Available) requests at their real on-disk size, de-duplicated by title for the latter.
   // A not-yet-released request (its dispatch is deferred to the release date, so DesiredAt is in the
   // future) reserves NO quota — it won't occupy disk until it is out. It starts counting only once it is
@@ -171,7 +172,7 @@ public sealed class QuotaService : IQuotaService
       else if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
         && (request.DesiredAt is null || request.DesiredAt <= now))
       {
-        committed += EstimateBytes(request.MediaType);
+        committed += EstimateBytes(request.MediaType) * Math.Max(1, request.EstimatedEpisodes);
       }
     }
 

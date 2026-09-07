@@ -164,7 +164,8 @@ public class RequestsController : ControllerBase
     var now = DateTime.UtcNow;
     var desiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, dto.DesiredAt, now);
     var downloadableNow = desiredAt <= now;
-    var withinQuota = !downloadableNow || await _quotaService.CanRequestAsync(userId, dto.MediaType, cancellationToken).ConfigureAwait(false);
+    var episodes = await ResolveEpisodesCoveredAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false);
+    var withinQuota = !downloadableNow || await _quotaService.CanRequestAsync(userId, dto.MediaType, episodes, cancellationToken).ConfigureAwait(false);
     var status = (requireApproval || !withinQuota) ? RequestStatus.Pending : RequestStatus.Approved;
 
     // Held purely by the quota (it did not need an admin): flag it so it resumes automatically — i.e. is
@@ -182,6 +183,7 @@ public class RequestsController : ControllerBase
         ReleaseDate = dto.ReleaseDate,
         Season = dto.Season,
         Episode = dto.Episode,
+        EstimatedEpisodes = episodes,
         DesiredAt = desiredAt,
         Status = status,
         HeldForQuota = heldForQuota
@@ -212,6 +214,37 @@ public class RequestsController : ControllerBase
     }
 
     return Ok(created);
+  }
+
+  /// <summary>
+  /// How many episodes a request will actually pull, so the quota reserves that much instead of a single
+  /// episode's estimate — a whole season or series downloads all of its episodes. Resolved from TMDB's
+  /// season list; a lookup failure falls back to one episode rather than refusing the request.
+  /// </summary>
+  /// <param name="mediaType">The requested media type.</param>
+  /// <param name="tmdbId">The TMDB id of the title.</param>
+  /// <param name="season">The requested season, or <c>null</c> for a whole series.</param>
+  /// <param name="episode">The requested episode, or <c>null</c> for a whole season/series.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The number of episodes covered; at least 1.</returns>
+  private async Task<int> ResolveEpisodesCoveredAsync(string mediaType, int tmdbId, int? season, int? episode, CancellationToken cancellationToken)
+  {
+    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal) || episode is not null)
+    {
+      return 1;
+    }
+
+    try
+    {
+      var seasons = await _tmdbClient.GetSeasonsAsync(tmdbId, "en-US", cancellationToken).ConfigureAwait(false);
+      return RequestFootprint.EpisodesCovered(mediaType, season, episode, seasons);
+    }
+    catch (Exception)
+    {
+      // TMDB unreachable or malformed: keep the request flowing on the previous one-episode reservation
+      // rather than blocking the user on metadata we only need for sizing.
+      return 1;
+    }
   }
 
   /// <summary>
@@ -767,6 +800,7 @@ public class RequestsController : ControllerBase
     }
 
     var status = dto.Status ?? RequestStatus.Approved;
+    var forUserEpisodes = await ResolveEpisodesCoveredAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false);
     var created = await _store.CreateAsync(
       new RequestRecord
       {
@@ -778,6 +812,7 @@ public class RequestsController : ControllerBase
         ReleaseDate = dto.ReleaseDate,
         Season = dto.Season,
         Episode = dto.Episode,
+        EstimatedEpisodes = forUserEpisodes,
         DesiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, null, DateTime.UtcNow),
         Status = status
       },

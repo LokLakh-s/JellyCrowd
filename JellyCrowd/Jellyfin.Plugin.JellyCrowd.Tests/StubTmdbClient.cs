@@ -10,11 +10,14 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests;
 /// <summary>
 /// Minimal <see cref="ITmdbClient"/> stub for tests that don't exercise TMDB. Everything returns empty
 /// except <see cref="Details"/>, which is returned by <see cref="GetDetailsAsync"/> (used for the
-/// genre-based auto-approval path).
+/// genre-based auto-approval path), and <see cref="Seasons"/>, returned by <see cref="GetSeasonsAsync"/>
+/// (used to size a season/series request against the quota).
 /// </summary>
 internal sealed class StubTmdbClient : ITmdbClient
 {
   public CatalogItem? Details { get; set; }
+
+  public IReadOnlyList<Season> Seasons { get; set; } = Array.Empty<Season>();
 
   public Task<IReadOnlyList<CatalogItem>> GetTrendingAsync(string language, CancellationToken cancellationToken)
     => Task.FromResult<IReadOnlyList<CatalogItem>>(Array.Empty<CatalogItem>());
@@ -32,7 +35,7 @@ internal sealed class StubTmdbClient : ITmdbClient
     => Task.FromResult<IReadOnlyList<WatchProvider>>(Array.Empty<WatchProvider>());
 
   public Task<IReadOnlyList<Season>> GetSeasonsAsync(int tmdbId, string language, CancellationToken cancellationToken)
-    => Task.FromResult<IReadOnlyList<Season>>(Array.Empty<Season>());
+    => Task.FromResult(Seasons);
 
   public Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken)
     => Task.FromResult<IReadOnlyList<Episode>>(Array.Empty<Episode>());

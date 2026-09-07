@@ -177,7 +177,7 @@ public sealed class QuotaServiceTests : IDisposable
     var service = Create(new SizeMatcher(0));
 
     // A movie estimate (4 GiB) alone exceeds the 2 GiB quota.
-    Assert.False(await service.CanRequestAsync(user, "movie", CancellationToken.None));
+    Assert.False(await service.CanRequestAsync(user, "movie", 1, CancellationToken.None));
   }
 
   [Fact]
@@ -192,7 +192,7 @@ public sealed class QuotaServiceTests : IDisposable
     var service = Create(new SizeMatcher(0));
 
     Assert.Equal(0, (await service.GetUsageAsync(user, CancellationToken.None)).UsedBytes);
-    Assert.False(await service.CanRequestAsync(user, "movie", CancellationToken.None));
+    Assert.False(await service.CanRequestAsync(user, "movie", 1, CancellationToken.None));
   }
 
   [Fact]
@@ -201,7 +201,52 @@ public sealed class QuotaServiceTests : IDisposable
     var service = Create(new SizeMatcher(0));
 
     // Default quota 10 GiB, one movie estimate 4 GiB.
-    Assert.True(await service.CanRequestAsync(Guid.NewGuid(), "movie", CancellationToken.None));
+    Assert.True(await service.CanRequestAsync(Guid.NewGuid(), "movie", 1, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task CanRequestAsync_ReservesOneEstimatePerEpisodeCovered()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 10 * Gib });
+    var service = Create(new SizeMatcher(0));
+
+    // One episode (1 GiB) fits in the 10 GiB quota; a 30-episode series (30 GiB) does not. Reserving a
+    // single episode's estimate for a whole series is what let a user commit far more disk than allowed.
+    Assert.True(await service.CanRequestAsync(user, "tv", 1, CancellationToken.None));
+    Assert.True(await service.CanRequestAsync(user, "tv", 10, CancellationToken.None));
+    Assert.False(await service.CanRequestAsync(user, "tv", 30, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task CanRequestAsync_CountsInFlightSeriesRequestsAtTheirFullEpisodeCount()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 10 * Gib });
+    // A whole-series request already in flight commits 8 episodes (8 GiB), not one.
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "S", EstimatedEpisodes = 8 },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.True(await service.CanRequestAsync(user, "tv", 2, CancellationToken.None));   // 8 + 2 = 10
+    Assert.False(await service.CanRequestAsync(user, "tv", 3, CancellationToken.None));  // 8 + 3 > 10
+  }
+
+  [Fact]
+  public async Task CanRequestAsync_TreatsARecordWithoutAnEpisodeCountAsOneEpisode()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 3 * Gib });
+    // EstimatedEpisodes is 0 on records written before the field existed: they must keep counting as one
+    // episode, exactly as they did before, rather than vanishing from the committed footprint.
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "Old" },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.True(await service.CanRequestAsync(user, "tv", 2, CancellationToken.None));   // 1 + 2 = 3
+    Assert.False(await service.CanRequestAsync(user, "tv", 3, CancellationToken.None));  // 1 + 3 > 3
   }
 
   [Fact]
@@ -211,7 +256,7 @@ public sealed class QuotaServiceTests : IDisposable
     _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 0 });
     var service = Create(new SizeMatcher(999 * Gib));
 
-    Assert.True(await service.CanRequestAsync(user, "movie", CancellationToken.None));
+    Assert.True(await service.CanRequestAsync(user, "movie", 1, CancellationToken.None));
   }
 
   [Fact]
@@ -282,7 +327,7 @@ public sealed class QuotaServiceTests : IDisposable
       CancellationToken.None);
     var service = Create(new SizeMatcher(0));
 
-    Assert.True(await service.CanRequestAsync(user, "movie", CancellationToken.None));
+    Assert.True(await service.CanRequestAsync(user, "movie", 1, CancellationToken.None));
   }
 
   private async Task SeedAsync(Guid user, RequestStatus status)
