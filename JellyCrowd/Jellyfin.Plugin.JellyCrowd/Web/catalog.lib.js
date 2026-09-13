@@ -18,6 +18,35 @@
     return supported.indexOf(code) >= 0 ? code : 'en';
   }
 
+  // Fetch an i18n catalog, retrying once before giving up. A single hiccup on this one request used to
+  // replace every label of a view with its raw key ("request_button", "report_problem") — silently, with
+  // nothing logged, and for as long as the view stayed open, because the loader assigned its empty
+  // fallback over the strings already in hand. Resolves to the catalog, or to null so the caller keeps
+  // whatever it had rather than degrading to identifiers.
+  function fetchStrings(url, fetchImpl) {
+    var doFetch = fetchImpl || (typeof fetch === 'function' ? fetch : null);
+    if (!doFetch) {
+      return Promise.resolve(null);
+    }
+
+    function attempt() {
+      return Promise.resolve()
+        .then(function () { return doFetch(url); })
+        .then(function (response) { return response && response.ok ? response.json() : null; })
+        .catch(function () { return null; });
+    }
+
+    return attempt()
+      .then(function (loaded) { return loaded || attempt(); })
+      .then(function (loaded) {
+        if (!loaded && typeof console !== 'undefined' && console && console.warn) {
+          console.warn('Jelly Crowd: could not load ' + url + ' — keeping the labels already loaded.');
+        }
+
+        return loaded || null;
+      });
+  }
+
   // Resolve the effective 2-letter language: an admin-forced language wins when supported,
   // otherwise 'auto' (or any unsupported value) follows the user's locale.
   function resolveLang(configLang, supported, userLocale) {
@@ -736,6 +765,7 @@
     formatBytesDecimal: formatBytesDecimal,
     downloadBadgeLabel: downloadBadgeLabel,
     pickLang: pickLang,
+    fetchStrings: fetchStrings,
     resolveLang: resolveLang,
     contentLocale: contentLocale,
     isoDate: isoDate,

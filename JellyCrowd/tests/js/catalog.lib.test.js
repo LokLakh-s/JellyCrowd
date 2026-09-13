@@ -486,3 +486,46 @@ test('settingsTabIdForHash returns null off the settings screens', () => {
   assert.strictEqual(lib.settingsTabIdForHash(''), null);
   assert.strictEqual(lib.settingsTabIdForHash(null), null);
 });
+
+// ---------- fetchStrings: a failed i18n load must never blank the labels ----------
+
+// A fetch double: each queued entry is one attempt's outcome.
+function fakeFetch(outcomes) {
+  const calls = [];
+  const fn = url => {
+    calls.push(url);
+    const outcome = outcomes.shift();
+    if (!outcome) { return Promise.reject(new Error('no outcome queued')); }
+    if (outcome.reject) { return Promise.reject(new Error('network')); }
+    return Promise.resolve({
+      ok: outcome.ok !== false,
+      json: () => (outcome.bad ? Promise.reject(new Error('bad json')) : Promise.resolve(outcome.body))
+    });
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+test('fetchStrings returns the catalog on success, in one attempt', async () => {
+  const f = fakeFetch([{ body: { request_button: 'Demander' } }]);
+  assert.deepStrictEqual(await lib.fetchStrings('/strings/fr.json', f), { request_button: 'Demander' });
+  assert.strictEqual(f.calls.length, 1);
+});
+
+test('fetchStrings retries once and recovers from a transient failure', async () => {
+  const f = fakeFetch([{ reject: true }, { body: { request_button: 'Demander' } }]);
+  assert.deepStrictEqual(await lib.fetchStrings('/strings/fr.json', f), { request_button: 'Demander' });
+  assert.strictEqual(f.calls.length, 2);
+});
+
+test('fetchStrings resolves to null rather than an empty catalog', async () => {
+  // null is what lets the caller keep the labels it already has; {} is what turned buttons into
+  // "request_button" on screen.
+  assert.strictEqual(await lib.fetchStrings('/x.json', fakeFetch([{ reject: true }, { reject: true }])), null);
+  assert.strictEqual(await lib.fetchStrings('/x.json', fakeFetch([{ ok: false }, { ok: false }])), null);
+  assert.strictEqual(await lib.fetchStrings('/x.json', fakeFetch([{ bad: true }, { bad: true }])), null);
+});
+
+test('fetchStrings tolerates an environment with no fetch at all', async () => {
+  assert.strictEqual(await lib.fetchStrings('/x.json', null), null);
+});

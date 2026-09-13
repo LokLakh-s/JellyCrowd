@@ -66,10 +66,10 @@
   }
 
   function loadStrings() {
-    return fetch(pluginUrl('JellyCrowd/Web/strings/' + shortLang() + '.json'))
-      .then(function (r) { return r.ok ? r.json() : {}; })
-      .catch(function () { return {}; })
-      .then(function (loaded) { strings = loaded || {}; });
+    // Keep the labels already in hand when the catalog cannot be read: replacing them with an empty
+    // object turns every button in the view into its raw key.
+    return lib.fetchStrings(pluginUrl('JellyCrowd/Web/strings/' + shortLang() + '.json'))
+      .then(function (loaded) { if (loaded) { strings = loaded; } });
   }
 
   function setMessage(text) {
