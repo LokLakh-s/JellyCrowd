@@ -173,10 +173,17 @@
   }
 
   function loadStrings() {
-    return fetch(getUrl('JellyCrowd/Web/strings/' + lang() + '.json'))
-      .then(function (r) { return r.ok ? r.json() : {}; })
-      .then(function (d) { strings = d || {}; })
-      .catch(function () { strings = {}; });
+    // Same rule as the views, inline because catalog.lib.js is only pulled in lazily here: a failed read
+    // must leave the labels already loaded alone rather than blank the header into raw keys.
+    var url = getUrl('JellyCrowd/Web/strings/' + lang() + '.json');
+    if (window.JellyCrowdLib && window.JellyCrowdLib.fetchStrings) {
+      return window.JellyCrowdLib.fetchStrings(url).then(function (d) { if (d) { strings = d; } });
+    }
+
+    return fetch(url)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (d) { if (d) { strings = d; } });
   }
 
   // ---------- overlay app ----------

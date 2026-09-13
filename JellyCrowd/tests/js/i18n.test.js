@@ -61,3 +61,17 @@ test('user-visible labels are not hardcoded in the admin panel', () => {
   }
   assert.deepStrictEqual(offenders, [], 'these strings must go through t()');
 });
+
+test('a failed i18n load never overwrites the labels already loaded', () => {
+  // The regression this guards: `strings = loaded || {}` replaced a whole view's labels with their raw
+  // keys ("request_button") on a single failed fetch, silently. Loading must keep what it has instead.
+  const offenders = [];
+  for (const [name, src] of sources) {
+    if (!/function loadStrings/.test(src)) { continue; }
+    const body = src.slice(src.indexOf('function loadStrings'), src.indexOf('function loadStrings') + 700);
+    if (/strings\s*=\s*[A-Za-z_$][\w$]*\s*\|\|\s*\{\}/.test(body) || /strings\s*=\s*\{\}/.test(body)) {
+      offenders.push(name);
+    }
+  }
+  assert.deepStrictEqual(offenders, [], 'loadStrings must not assign an empty catalog over good strings');
+});
