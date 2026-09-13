@@ -2,6 +2,7 @@ using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 
 namespace Jellyfin.Plugin.JellyCrowd.Api;
 
@@ -15,6 +16,11 @@ namespace Jellyfin.Plugin.JellyCrowd.Api;
 public class WebController : ControllerBase
 {
   private const string ResourcePrefix = "Jellyfin.Plugin.JellyCrowd.Web.";
+
+  // The plugin build these assets were compiled into. Embedded resources cannot change without it, so it
+  // is exactly the right cache validator.
+  private static readonly string PluginVersion =
+    typeof(WebController).Assembly.GetName().Version?.ToString() ?? "0";
 
   /// <summary>
   /// Returns an embedded web asset by relative path (e.g. <c>catalog.html</c>, <c>strings/en.json</c>).
@@ -41,8 +47,23 @@ public class WebController : ControllerBase
       return NotFound();
     }
 
-    return File(stream, ContentTypeFor(path));
+    // Without a validator the browser was free to keep an asset indefinitely and had no way to learn the
+    // plugin had moved on: a page could run this version's scripts against the previous version's
+    // translation catalog, rendering the keys it did not know yet ("request_button") until the user hit
+    // Ctrl+F5. Revalidating on every request costs one 304 and cannot go stale.
+    Response.Headers.CacheControl = "no-cache";
+    return File(stream, ContentTypeFor(path), lastModified: null, entityTag: new EntityTagHeaderValue(AssetETag(PluginVersion, path)));
   }
+
+  /// <summary>
+  /// Builds the cache validator for an embedded asset. It changes when the plugin version changes, so
+  /// updating the plugin invalidates every cached script, fragment and translation catalog at once.
+  /// </summary>
+  /// <param name="version">The plugin assembly version.</param>
+  /// <param name="path">The asset path, already validated by <see cref="IsSafe"/>.</param>
+  /// <returns>A quoted entity tag.</returns>
+  internal static string AssetETag(string version, string path)
+    => "\"" + version + "/" + path + "\"";
 
   private static bool IsSafe(string path)
   {

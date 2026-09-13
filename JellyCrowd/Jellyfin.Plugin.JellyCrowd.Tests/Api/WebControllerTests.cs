@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.JellyCrowd.Api;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
@@ -9,6 +10,12 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
 /// </summary>
 public class WebControllerTests
 {
+  private static WebController Create()
+    => new()
+    {
+      ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+    };
+
   [Theory]
   [InlineData("catalog.html", "text/html; charset=utf-8")]
   [InlineData("catalog.js", "text/javascript; charset=utf-8")]
@@ -17,7 +24,7 @@ public class WebControllerTests
   [InlineData("strings/fr.json", "application/json; charset=utf-8")]
   public void GetAsset_KnownAsset_ReturnsFileWithContentType(string path, string expectedContentType)
   {
-    var controller = new WebController();
+    var controller = Create();
 
     var result = controller.GetAsset(path);
 
@@ -28,9 +35,40 @@ public class WebControllerTests
   [Fact]
   public void GetAsset_UnknownAsset_ReturnsNotFound()
   {
-    var controller = new WebController();
+    var controller = Create();
 
     Assert.IsType<NotFoundResult>(controller.GetAsset("does-not-exist.html"));
+  }
+
+  [Fact]
+  public void GetAsset_CarriesACacheValidator_SoAPluginUpdateIsNotServedStale()
+  {
+    // A cached asset with no validator is what let a browser run new scripts against an old translation
+    // catalog, showing raw keys until a hard refresh.
+    var controller = Create();
+
+    var file = Assert.IsType<FileStreamResult>(controller.GetAsset("strings/fr.json"));
+
+    Assert.NotNull(file.EntityTag);
+    Assert.Equal("no-cache", controller.Response.Headers.CacheControl);
+  }
+
+  [Fact]
+  public void AssetETag_ChangesWithThePluginVersion_AndWithTheAsset()
+  {
+    Assert.NotEqual(WebController.AssetETag("1.0.0.0", "catalog.js"), WebController.AssetETag("1.0.1.0", "catalog.js"));
+    Assert.NotEqual(WebController.AssetETag("1.0.0.0", "catalog.js"), WebController.AssetETag("1.0.0.0", "strings/fr.json"));
+    Assert.Equal(WebController.AssetETag("1.0.0.0", "catalog.js"), WebController.AssetETag("1.0.0.0", "catalog.js"));
+  }
+
+  [Fact]
+  public void AssetETag_IsAQuotedEntityTag()
+  {
+    var etag = WebController.AssetETag("1.2.3.4", "strings/fr.json");
+
+    Assert.StartsWith("\"", etag, System.StringComparison.Ordinal);
+    Assert.EndsWith("\"", etag, System.StringComparison.Ordinal);
+    Assert.DoesNotContain("\"", etag[1..^1], System.StringComparison.Ordinal);
   }
 
   [Theory]
@@ -40,7 +78,7 @@ public class WebControllerTests
   [InlineData("")]
   public void GetAsset_UnsafeOrEmptyPath_ReturnsNotFound(string path)
   {
-    var controller = new WebController();
+    var controller = Create();
 
     Assert.IsType<NotFoundResult>(controller.GetAsset(path));
   }
