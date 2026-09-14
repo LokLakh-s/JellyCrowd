@@ -33,11 +33,32 @@ public sealed class QuotaControllerTests : IDisposable
     }
   }
 
-  private QuotaController CreateController()
-    => new(new FakeQuotaService(), new FakeUserAccessor(), _store, new FakeMatcher())
+  private QuotaController CreateController(bool isAdmin = false, long reservedBytes = 0)
+    => new(new FakeQuotaService(reservedBytes), new FakeUserAccessor(isAdmin), _store, new FakeMatcher())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
+
+  [Fact]
+  public async Task Me_HidesTheReservedFootprint_FromRegularUsers()
+  {
+    // The footprint is a deliberately pessimistic upper bound, not space taken: shown to a user it reads as
+    // a fuller quota than they really have.
+    var result = await CreateController(isAdmin: false, reservedBytes: 20L << 30).Me(CancellationToken.None);
+
+    var info = Assert.IsType<QuotaInfo>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(0, info.ReservedBytes);
+    Assert.Equal(7, info.UsedBytes); // the rest of the reading is untouched
+  }
+
+  [Fact]
+  public async Task Me_ShowsTheReservedFootprint_ToAdministrators()
+  {
+    var result = await CreateController(isAdmin: true, reservedBytes: 20L << 30).Me(CancellationToken.None);
+
+    var info = Assert.IsType<QuotaInfo>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(20L << 30, info.ReservedBytes);
+  }
 
   [Fact]
   public async Task MyMedia_ReturnsAvailableItemsWithSizes()
@@ -114,13 +135,21 @@ public sealed class QuotaControllerTests : IDisposable
 
   private sealed class FakeUserAccessor : ICurrentUserAccessor
   {
+    private readonly bool _isAdmin;
+
+    public FakeUserAccessor(bool isAdmin) => _isAdmin = isAdmin;
+
     public Task<Guid> GetUserIdAsync(HttpRequest request) => Task.FromResult(User);
 
-    public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(false);
+    public Task<bool> IsAdministratorAsync(HttpRequest request) => Task.FromResult(_isAdmin);
   }
 
   private sealed class FakeQuotaService : IQuotaService
   {
+    private readonly long _reservedBytes;
+
+    public FakeQuotaService(long reservedBytes) => _reservedBytes = reservedBytes;
+
     public long GetQuotaBytes(Guid userId) => 0;
 
     public long GetBaseQuotaBytes(Guid userId) => 0;
@@ -128,14 +157,14 @@ public sealed class QuotaControllerTests : IDisposable
 public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
       => Task.FromResult<IReadOnlyDictionary<Guid, QuotaInfo>>(userIds.ToDictionary(id => id, _ => new QuotaInfo()));
 
-    public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(new QuotaInfo());
+    public Task<QuotaInfo> GetUsageAsync(Guid userId, CancellationToken cancellationToken)
+      => Task.FromResult(new QuotaInfo { UsedBytes = 7, ReservedBytes = _reservedBytes, QuotaBytes = 100 });
 
     public Task<bool> CanRequestAsync(Guid userId, string mediaType, int episodes, CancellationToken cancellationToken) => Task.FromResult(true);
 
-  public long ReservationBytes(RequestRecord request) => 0;
+    public long ReservationBytes(RequestRecord request) => 0;
 
-  public Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(0L);
-
+    public Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(0L);
 
     public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(true);
   }
