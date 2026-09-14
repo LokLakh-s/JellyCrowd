@@ -237,6 +237,7 @@
   "quota_exceeded": "Quota dépassé",
   "requests_disabled": "Demandes désactivées",
   "quota_full_hint": "Quota dépassé — supprime des médias pour libérer de l'espace avant de demander plus.",
+  "quota_footprint": "empreinte",
   "quota_tier_ceiling": "Stockage bonus",
   "quota_tier_floor": "Stockage réduit",
   "quota_probation": "Bonus en sursis · {n}j restants",

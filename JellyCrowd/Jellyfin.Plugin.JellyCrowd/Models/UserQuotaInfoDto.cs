@@ -13,6 +13,9 @@ public class UserQuotaInfoDto
   /// <summary>Gets or sets the bytes currently used (real size of available media + estimates for in-flight requests).</summary>
   public long UsedBytes { get; set; }
 
+  /// <summary>Gets or sets the bytes reserved by the user's in-flight requests (not yet on disk).</summary>
+  public long ReservedBytes { get; set; }
+
   /// <summary>Gets or sets the effective quota in bytes (0 when unlimited).</summary>
   public long QuotaBytes { get; set; }
 

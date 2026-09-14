@@ -237,6 +237,7 @@
   "quota_exceeded": "Quota exceeded",
   "requests_disabled": "Requests disabled",
   "quota_full_hint": "Quota exceeded — delete some media to free space before requesting more.",
+  "quota_footprint": "reserved",
   "quota_tier_ceiling": "Bonus storage",
   "quota_tier_floor": "Reduced storage",
   "quota_probation": "Bonus under review · {n}d left",

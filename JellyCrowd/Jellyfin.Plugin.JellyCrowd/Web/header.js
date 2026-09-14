@@ -509,11 +509,15 @@
           els.label.textContent = t('quota_storage') + ': ' + bytes(q.UsedBytes) + ' / ' + t('quota_unlimited');
           els.track.style.display = 'none';
         } else {
-          els.label.textContent = bytes(q.UsedBytes) + ' / ' + bytes(q.QuotaBytes);
+          els.label.textContent = bytes(q.UsedBytes) + ' / ' + bytes(q.QuotaBytes)
+            + (q.ReservedBytes > 0 ? ' (+ ' + bytes(q.ReservedBytes) + ')' : '');
           els.track.style.display = '';
           var p = q.QuotaBytes > 0 ? Math.min(100, q.UsedBytes / q.QuotaBytes * 100) : 0;
           els.fill.style.width = p + '%';
           els.fill.style.background = quotaColor(p);
+          var r = q.QuotaBytes > 0 && q.ReservedBytes > 0 ? (q.ReservedBytes / q.QuotaBytes) * 100 : 0;
+          els.reserved.style.width = Math.max(0, Math.min(100 - p, r)) + '%';
+          els.reserved.title = t('quota_footprint') + ' : ' + bytes(q.ReservedBytes);
         }
         if (q.AdaptiveEnabled) {
           if (q.InProbation) {
@@ -559,16 +563,20 @@
     var tier = document.createElement('span');
     tier.style.cssText = 'font-weight:700;white-space:nowrap;display:none;';
     var track = document.createElement('span');
-    track.style.cssText = 'height:.35em;border-radius:.2em;background:rgba(255,255,255,.2);overflow:hidden;display:block;margin-top:.2em;';
+    track.style.cssText = 'height:.35em;border-radius:.2em;background:rgba(255,255,255,.2);overflow:hidden;display:flex;margin-top:.2em;';
     var fill = document.createElement('span');
-    fill.style.cssText = 'display:block;height:100%;background:' + quotaColor(0) + ';width:0%;';
+    fill.style.cssText = 'display:block;height:100%;background:' + quotaColor(0) + ';width:0%;flex:0 0 auto;';
+    // What requests still downloading have spoken for, drawn in neutral grey next to the disk usage.
+    var reserved = document.createElement('span');
+    reserved.style.cssText = 'display:block;height:100%;background:rgba(255,255,255,.3);width:0%;flex:0 0 auto;';
     track.appendChild(fill);
+    track.appendChild(reserved);
     box.appendChild(caption);
     box.appendChild(label);
     box.appendChild(tier);
     box.appendChild(track);
 
-    box._jc = { label: label, tier: tier, track: track, fill: fill };
+    box._jc = { label: label, tier: tier, track: track, fill: fill, reserved: reserved };
     quotaBox = box;
     refreshQuota();
     return box;

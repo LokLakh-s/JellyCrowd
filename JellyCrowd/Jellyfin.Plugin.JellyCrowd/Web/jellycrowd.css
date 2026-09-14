@@ -1234,6 +1234,7 @@ body.jellycrowd-overlay-open {
 }
 
 .jellycrowd-quota-track {
+  display: flex;
   height: 0.6em;
   border-radius: 0.3em;
   overflow: hidden;
@@ -1241,8 +1242,17 @@ body.jellycrowd-overlay-open {
 }
 
 .jellycrowd-quota-fill {
+  flex: 0 0 auto;
   height: 100%;
   background: #00a4dc;
+  transition: width 0.3s ease;
+}
+
+/* What is only reserved by requests still downloading: neutral grey, next to the disk usage. */
+.jellycrowd-quota-reserved {
+  flex: 0 0 auto;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.3);
   transition: width 0.3s ease;
 }
 
