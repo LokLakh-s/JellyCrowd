@@ -58,22 +58,28 @@ public sealed class QuotaHoldPromoter : IQuotaHoldPromoter
     {
       cancellationToken.ThrowIfCancellationRequested();
 
-      // A held request is already counted in the user's committed footprint, so promoting it does not
-      // change that footprint: if the user is now within quota, all of their held requests fit at once.
-      if (!await _quotaService.IsWithinQuotaAsync(group.Key, cancellationToken).ConfigureAwait(false))
-      {
-        continue;
-      }
+      // Release held requests one at a time, against a running footprint. A held request reserves nothing
+      // while it waits, so releasing them all at once would put the user straight back over quota and the
+      // dispatcher would hold them again on the spot. Oldest first; one that still does not fit is skipped
+      // rather than blocking everything behind it, so an oversized request cannot starve the queue.
+      var quota = _quotaService.GetQuotaBytes(group.Key);
+      var committed = await _quotaService.GetCommittedBytesAsync(group.Key, cancellationToken).ConfigureAwait(false);
 
-      // Oldest first, so resumption respects the order requests were made.
       foreach (var request in group.OrderBy(r => r.RequestedAt))
       {
+        var reservation = _quotaService.ReservationBytes(request);
+        if (quota > 0 && committed + reservation > quota)
+        {
+          continue;
+        }
+
         var updated = await _store.PromoteFromQuotaHoldAsync(request.Id, cancellationToken).ConfigureAwait(false);
         if (updated is null)
         {
           continue; // raced with an admin decision or another promotion — leave it be
         }
 
+        committed += reservation;
         await _notificationService.NotifyRequestEventAsync(updated, NotificationEvent.Approved, cancellationToken).ConfigureAwait(false);
         _ = _downloadDispatcher.DispatchAsync(updated, CancellationToken.None);
         promoted++;

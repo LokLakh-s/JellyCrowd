@@ -138,6 +138,77 @@ public sealed class QuotaHoldPromoterTests : IDisposable
     Assert.Single(_dispatcher.Dispatched); // promoted and dispatched exactly once
   }
 
+  private async Task<RequestRecord> CreateHeldSeasonAsync(Guid user, int tmdbId, int season, int episodes)
+    => await _store.CreateAsync(
+      new RequestRecord
+      {
+        UserId = user,
+        TmdbId = tmdbId,
+        MediaType = "tv",
+        Title = "Show " + tmdbId,
+        Season = season,
+        EstimatedEpisodes = episodes,
+        Status = RequestStatus.Pending,
+        HeldForQuota = true
+      },
+      CancellationToken.None);
+
+  [Fact]
+  public async Task Promote_ReleasesWhatFits_AndDoesNotDeadlockOnItsOwnHolds()
+  {
+    // The reported case: two 11-episode season requests, nothing on disk, a 30 GiB quota and a 1.5 GiB
+    // per-episode estimate. Together they reserve 33 GiB. Counting held requests in the footprint that
+    // decides whether they may resume made that footprint 33 GiB for ever: neither could ever be released
+    // and the user saw a quota reading of zero while being told the quota was full.
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 30 * Gib });
+    _config.EstimatedEpisodeSizeBytes = 3 * Gib / 2;
+    var first = await CreateHeldSeasonAsync(user, tmdbId: 7, season: 3, episodes: 11);
+    var second = await CreateHeldSeasonAsync(user, tmdbId: 7, season: 4, episodes: 11);
+    var promoter = Create(new SizeMatcher(0));
+
+    var count = await promoter.PromoteAsync(CancellationToken.None);
+
+    // Exactly one is released — the oldest — and the other keeps waiting rather than over-committing.
+    Assert.Equal(1, count);
+    Assert.Equal(RequestStatus.Approved, (await _store.GetByIdAsync(first.Id, CancellationToken.None))!.Status);
+    var stillHeld = await _store.GetByIdAsync(second.Id, CancellationToken.None);
+    Assert.Equal(RequestStatus.Pending, stillHeld!.Status);
+    Assert.True(stillHeld.HeldForQuota);
+  }
+
+  [Fact]
+  public async Task Promote_IsStable_WhenRunAgainWithNothingFreed()
+  {
+    // A second sweep must not release the one that still does not fit (which the dispatcher would then
+    // hold straight back), and must not re-release the one already running.
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 30 * Gib });
+    _config.EstimatedEpisodeSizeBytes = 3 * Gib / 2;
+    await CreateHeldSeasonAsync(user, tmdbId: 7, season: 3, episodes: 11);
+    await CreateHeldSeasonAsync(user, tmdbId: 7, season: 4, episodes: 11);
+    var promoter = Create(new SizeMatcher(0));
+
+    Assert.Equal(1, await promoter.PromoteAsync(CancellationToken.None));
+    Assert.Equal(0, await promoter.PromoteAsync(CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Promote_SkipsAnOversizedHold_WithoutStarvingTheOnesBehindIt()
+  {
+    // A request that cannot fit whatever happens must not block the smaller ones queued after it.
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 10 * Gib });
+    _config.EstimatedEpisodeSizeBytes = 1 * Gib;
+    var oversized = await CreateHeldSeasonAsync(user, tmdbId: 1, season: 1, episodes: 40);
+    var small = await CreateHeldSeasonAsync(user, tmdbId: 2, season: 1, episodes: 2);
+    var promoter = Create(new SizeMatcher(0));
+
+    Assert.Equal(1, await promoter.PromoteAsync(CancellationToken.None));
+    Assert.Equal(RequestStatus.Pending, (await _store.GetByIdAsync(oversized.Id, CancellationToken.None))!.Status);
+    Assert.Equal(RequestStatus.Approved, (await _store.GetByIdAsync(small.Id, CancellationToken.None))!.Status);
+  }
+
   private async Task<RequestRecord> CreateHeldAsync(Guid user, int tmdbId)
     => await _store.CreateAsync(
       new RequestRecord { UserId = user, TmdbId = tmdbId, MediaType = "movie", Title = "Held " + tmdbId, Status = RequestStatus.Pending, HeldForQuota = true },

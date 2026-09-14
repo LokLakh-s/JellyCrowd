@@ -58,6 +58,24 @@ public interface IQuotaService
   Task<bool> CanRequestAsync(Guid userId, string mediaType, int episodes, CancellationToken cancellationToken);
 
   /// <summary>
+  /// The quota a single in-flight request reserves: the configured estimate for its media type, times the
+  /// episodes it covers.
+  /// </summary>
+  /// <param name="request">The request.</param>
+  /// <returns>The reserved bytes.</returns>
+  long ReservationBytes(RequestRecord request);
+
+  /// <summary>
+  /// The user's committed footprint: fulfilled requests at their real size on disk plus the reservations
+  /// of the requests actually in flight. Requests held for quota are excluded — they are not downloading,
+  /// so they must not count against the decision to release them.
+  /// </summary>
+  /// <param name="userId">The user identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The committed bytes.</returns>
+  Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Determines whether the user's current committed footprint (their existing in-flight estimates plus
   /// the real size of fulfilled requests) is within their quota — i.e. nothing new is added. Used to
   /// decide whether requests held back purely by the quota can now resume.

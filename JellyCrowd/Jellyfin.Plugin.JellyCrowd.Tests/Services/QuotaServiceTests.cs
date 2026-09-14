@@ -303,6 +303,44 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
+  public async Task CommittedFootprint_ExcludesRequestsHeldForQuota()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 10 * Gib });
+    // A held request is not downloading and occupies no disk. Counting it made it block its own release.
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "Held", EstimatedEpisodes = 11, HeldForQuota = true },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(0, await service.GetCommittedBytesAsync(user, CancellationToken.None));
+    Assert.True(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task CommittedFootprint_StillCountsRequestsThatAreActuallyInFlight()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 10 * Gib });
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "Running", EstimatedEpisodes = 4, Status = RequestStatus.Approved },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(4 * Gib, await service.GetCommittedBytesAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public void ReservationBytes_IsTheEstimateTimesTheEpisodesCovered()
+  {
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(11 * Gib, service.ReservationBytes(new RequestRecord { MediaType = "tv", EstimatedEpisodes = 11 }));
+    Assert.Equal(1 * Gib, service.ReservationBytes(new RequestRecord { MediaType = "tv" }));      // unknown = one
+    Assert.Equal(4 * Gib, service.ReservationBytes(new RequestRecord { MediaType = "movie" }));
+  }
+
+  [Fact]
   public async Task CanRequestAsync_TrueWhenUnlimited()
   {
     var user = Guid.NewGuid();

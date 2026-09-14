@@ -144,12 +144,28 @@ public sealed class QuotaService : IQuotaService
     return committed <= quota;
   }
 
+  /// <inheritdoc />
+  public long ReservationBytes(RequestRecord request)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    return EstimateBytes(request.MediaType) * Math.Max(1, request.EstimatedEpisodes);
+  }
+
+  /// <inheritdoc />
+  public Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken)
+    => ComputeCommittedAsync(userId, cancellationToken);
+
   // The user's committed footprint: in-flight requests (Pending/Approved) at the configured estimate
   // times the episodes they cover (a season/series request downloads all of them),
   // fulfilled (Available) requests at their real on-disk size, de-duplicated by title for the latter.
   // A not-yet-released request (its dispatch is deferred to the release date, so DesiredAt is in the
   // future) reserves NO quota — it won't occupy disk until it is out. It starts counting only once it is
   // due, at which point the quota is re-checked before it downloads (see the download dispatcher).
+  //
+  // A request HELD for quota reserves nothing either: it is not downloading and occupies no disk. Counting
+  // it deadlocked the user — held requests inflated the footprint that decides whether they may resume, so
+  // a user whose holds alone exceeded their quota could never get any of them released, while their
+  // displayed usage sat at zero.
   private async Task<long> ComputeCommittedAsync(Guid userId, CancellationToken cancellationToken)
   {
     var requests = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
@@ -164,9 +180,10 @@ public sealed class QuotaService : IQuotaService
     foreach (var request in requests)
     {
       if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
+        && !request.HeldForQuota
         && (request.DesiredAt is null || request.DesiredAt <= now))
       {
-        committed += EstimateBytes(request.MediaType) * Math.Max(1, request.EstimatedEpisodes);
+        committed += ReservationBytes(request);
       }
     }
 
