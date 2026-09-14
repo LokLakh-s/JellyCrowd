@@ -367,3 +367,70 @@ test('clearSkeletons removes the placeholders and leaves the real content', () =
   assert.strictEqual(grid.querySelectorAll('.real').length, 1);
   assert.strictEqual(lib.clearSkeletons(null), 0);
 });
+
+// ---------- maskSecret: sensitive settings stay masked until revealed ----------
+
+const SECRET_LABELS = { show: 'Show', hide: 'Hide' };
+
+test('maskSecret turns an input into a password field until the admin reveals it', () => {
+  const doc = setup('');
+  const input = doc.createElement('input');
+  input.type = 'text';
+  input.value = 'smtp-password';
+
+  const wrap = lib.maskSecret(input, SECRET_LABELS, doc);
+  const button = wrap.querySelector('button');
+
+  assert.strictEqual(input.type, 'password');
+  assert.strictEqual(input.getAttribute('autocomplete'), 'new-password'); // no password-manager autofill
+  assert.strictEqual(button.textContent, 'Show');
+  assert.strictEqual(button.getAttribute('aria-pressed'), 'false');
+
+  button.click();
+  assert.strictEqual(input.type, 'text');
+  assert.strictEqual(button.textContent, 'Hide');
+  assert.strictEqual(button.getAttribute('aria-pressed'), 'true');
+
+  button.click();
+  assert.strictEqual(input.type, 'password');
+});
+
+test('maskSecret never alters the value, so saving still reads the real secret', () => {
+  const doc = setup('');
+  const input = doc.createElement('input');
+  input.value = 'api-key-123';
+
+  const wrap = lib.maskSecret(input, SECRET_LABELS, doc);
+  wrap.querySelector('button').click();
+  wrap.querySelector('button').click();
+
+  assert.strictEqual(input.value, 'api-key-123');
+  assert.ok(wrap.contains(input)); // the very control the form reads is still in the page
+});
+
+test('maskSecret hides a textarea behind a masked stand-in until revealed', () => {
+  const doc = setup('');
+  const area = doc.createElement('textarea');
+  area.value = 'Authorization: Bearer abc123';
+
+  const wrap = lib.maskSecret(area, SECRET_LABELS, doc);
+  const standIn = wrap.querySelector('.jellycrowd-secret-standin');
+
+  assert.strictEqual(area.style.display, 'none');
+  assert.ok(!standIn.textContent.includes('Bearer'));
+  assert.strictEqual(standIn.textContent.length, 8);
+
+  standIn.click(); // clicking the masked value reveals it too
+  assert.strictEqual(area.style.display, '');
+  assert.strictEqual(standIn.style.display, 'none');
+  assert.strictEqual(area.value, 'Authorization: Bearer abc123');
+});
+
+test('maskSecret shows an empty stand-in when there is no secret yet', () => {
+  const doc = setup('');
+  const area = doc.createElement('textarea');
+
+  const wrap = lib.maskSecret(area, SECRET_LABELS, doc);
+
+  assert.strictEqual(wrap.querySelector('.jellycrowd-secret-standin').textContent, '');
+});
