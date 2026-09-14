@@ -75,3 +75,23 @@ test('a failed i18n load never overwrites the labels already loaded', () => {
   }
   assert.deepStrictEqual(offenders, [], 'loadStrings must not assign an empty catalog over good strings');
 });
+
+test('every secret setting is masked in the admin panel', () => {
+  // A password, API key, token or webhook URL shown in clear ends up in screenshots and over shoulders.
+  // Driven by the configuration class, so a secret setting added later cannot slip through as plain text.
+  const config = fs.readFileSync(path.join(WEB, '..', 'Configuration', 'PluginConfiguration.cs'), 'utf8');
+  const sensitive = [...config.matchAll(/public string\??\s+(\w+)\s*\{/g)]
+    .map(m => m[1])
+    .filter(name => /(Password|ApiKey|Token|Secret|WebhookUrl|WebhookHeaders|PushoverUser|NtfyTopic)$/.test(name));
+  assert.ok(sensitive.length >= 16, 'expected the known secret settings, found: ' + sensitive.join(', '));
+
+  const admin = sources.get('admin.js');
+  const exposed = [];
+  for (const name of sensitive) {
+    const m = admin.match(new RegExp("\\{\\s*key:\\s*'" + name + "'[^}]*?type:\\s*'(\\w+)'"));
+    if (m && m[1] !== 'secret' && m[1] !== 'secretArea') {
+      exposed.push(name + " (type '" + m[1] + "')");
+    }
+  }
+  assert.deepStrictEqual(exposed, [], 'these secret settings are displayed in clear');
+});

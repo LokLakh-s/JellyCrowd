@@ -297,7 +297,8 @@
   }
 
   // Builds config fields from a spec list into `host`; returns { apply(liveCfg) } to write the values back.
-  // spec: { key, label, type:'text'|'num'|'check'|'select'|'section', hint, placeholder, options, scale }
+  // spec: { key, label, type:'text'|'secret'|'area'|'secretArea'|'num'|'check'|'select'|'section', hint, placeholder, options, scale }
+  // 'secret' / 'secretArea' mask a password, API key, token or webhook URL until the admin reveals it.
   function cfgForm(host, cfg, specs) {
     var controls = {};
     specs.forEach(function (s) {
@@ -308,6 +309,14 @@
       if (s.type === 'check') { ctrl = vc = checkbox(cls, v === true); }
       else if (s.type === 'select') { ctrl = vc = selectInput(cls, v, s.options); }
       else if (s.type === 'color') { ctrl = colorField(cls, v || ''); vc = ctrl.querySelector('.' + cls); }
+      else if (s.type === 'secret') {
+        vc = textInput(cls, v != null ? v : '', s.placeholder);
+        ctrl = lib.maskSecret(vc, { show: t('adm_secret_show'), hide: t('adm_secret_hide') });
+      }
+      else if (s.type === 'secretArea') {
+        vc = document.createElement('textarea'); vc.className = cls + ' jellycrowd-text-input'; vc.rows = s.rows || 3; if (v != null) { vc.value = v; }
+        ctrl = lib.maskSecret(vc, { show: t('adm_secret_show'), hide: t('adm_secret_hide') });
+      }
       else if (s.type === 'area') { ctrl = vc = document.createElement('textarea'); ctrl.className = cls + ' jellycrowd-text-input'; ctrl.rows = s.rows || 3; ctrl.spellcheck = false; if (v != null) { ctrl.value = v; } }
       else if (s.type === 'num') { ctrl = vc = numberInput(cls, s.scale ? (v ? (v / s.scale) : '') : (v != null ? v : '')); }
       else { ctrl = vc = textInput(cls, v != null ? v : '', s.placeholder); }
@@ -378,7 +387,7 @@
         { key: 'SkipIntroEnabled', label: t('cfg_skipintroenabled'), type: 'check' },
         { key: 'SegmentMinSeasonCoveragePercent', label: t('cfg_segmentminseasoncoverage'), type: 'num', hint: t('cfg_segmentminseasoncoverage_hint') },
         { key: 'SegmentHwAccel', label: t('cfg_segmenthwaccel'), type: 'select', options: [['auto', t('adm_opt_auto_gpu')], ['none', t('adm_opt_cpu_only')], ['vaapi', 'Intel / AMD (VAAPI)'], ['qsv', 'Intel QuickSync (QSV)'], ['cuda', 'NVIDIA (CUDA)'], ['videotoolbox', 'macOS (VideoToolbox)']], hint: t('cfg_segmenthwaccel_hint') },
-        { key: 'TmdbApiKey', label: t('cfg_tmdbapikey'), type: 'text', placeholder: t('adm_ph_tmdb_key') }
+        { key: 'TmdbApiKey', label: t('cfg_tmdbapikey'), type: 'secret', placeholder: t('adm_ph_tmdb_key') }
       ]);
       host.appendChild(cfgSaveButton([form]));
     });
@@ -471,7 +480,7 @@
     cfgLoad(container, function (host, cfg) {
       var discord = cfgForm(host, cfg, [
         { type: 'section', label: t('cfgsec_discord') },
-        { key: 'DiscordWebhookUrl', label: t('cfg_discordwebhookurl'), type: 'text', placeholder: 'https://discord.com/api/webhooks/…', hint: t('cfg_discordwebhookurl_hint') },
+        { key: 'DiscordWebhookUrl', label: t('cfg_discordwebhookurl'), type: 'secret', placeholder: 'https://discord.com/api/webhooks/…', hint: t('cfg_discordwebhookurl_hint') },
         { key: 'DiscordNotifyCreated', label: t('cfg_discordnotifycreated'), type: 'check' },
         { key: 'DiscordNotifyApproved', label: t('cfg_discordnotifyapproved'), type: 'check' },
         { key: 'DiscordNotifyDenied', label: t('cfg_discordnotifydenied'), type: 'check' },
@@ -494,7 +503,7 @@
         { key: 'SmtpPort', label: t('cfg_smtpport'), type: 'num' },
         { key: 'SmtpUseSsl', label: t('cfg_smtpusessl'), type: 'check' },
         { key: 'SmtpUsername', label: t('cfg_smtpusername'), type: 'text' },
-        { key: 'SmtpPassword', label: t('cfg_smtppassword'), type: 'text' },
+        { key: 'SmtpPassword', label: t('cfg_smtppassword'), type: 'secret' },
         { key: 'SmtpFromAddress', label: t('cfg_smtpfromaddress'), type: 'text' },
         { key: 'NotificationEmailTo', label: t('cfg_notificationemailto'), type: 'text' },
         { key: 'EmailNotifyCreated', label: t('cfg_emailnotifycreated'), type: 'check' },
@@ -505,17 +514,17 @@
       ]);
       var channels = cfgForm(host, cfg, [
         { type: 'section', label: t('cfgsec_more_channels') },
-        { key: 'TelegramBotToken', label: t('cfg_telegrambottoken'), type: 'text' },
+        { key: 'TelegramBotToken', label: t('cfg_telegrambottoken'), type: 'secret' },
         { key: 'TelegramChatId', label: t('cfg_telegramchatid'), type: 'text' },
         { key: 'NtfyServer', label: t('cfg_ntfyserver'), type: 'text', placeholder: 'https://ntfy.sh' },
-        { key: 'NtfyTopic', label: t('notif_ntfy_topic'), type: 'text' },
-        { key: 'NtfyToken', label: t('cfg_ntfytoken'), type: 'text' },
+        { key: 'NtfyTopic', label: t('notif_ntfy_topic'), type: 'secret' },
+        { key: 'NtfyToken', label: t('cfg_ntfytoken'), type: 'secret' },
         { key: 'GotifyServer', label: t('cfg_gotifyserver'), type: 'text' },
-        { key: 'GotifyToken', label: t('cfg_gotifytoken'), type: 'text' },
-        { key: 'PushoverToken', label: t('cfg_pushovertoken'), type: 'text' },
-        { key: 'PushoverUser', label: t('cfg_pushoveruser'), type: 'text' },
-        { key: 'SlackWebhookUrl', label: t('cfg_slackwebhookurl'), type: 'text' },
-        { key: 'NotifyWebhookUrl', label: t('cfg_notifywebhookurl'), type: 'text' }
+        { key: 'GotifyToken', label: t('cfg_gotifytoken'), type: 'secret' },
+        { key: 'PushoverToken', label: t('cfg_pushovertoken'), type: 'secret' },
+        { key: 'PushoverUser', label: t('cfg_pushoveruser'), type: 'secret' },
+        { key: 'SlackWebhookUrl', label: t('cfg_slackwebhookurl'), type: 'secret' },
+        { key: 'NotifyWebhookUrl', label: t('cfg_notifywebhookurl'), type: 'secret' }
       ]);
       host.appendChild(cfgSaveButton([discord, email, channels]));
       host.appendChild(sectionHeading(t('adm_test_save_first')));
@@ -583,8 +592,8 @@
       var webhookWrap = document.createElement('div');
       var webhook = cfgForm(webhookWrap, cfg, [
         { type: 'section', label: t('cfgsec_webhook') },
-        { key: 'DownloadWebhookUrl', label: t('cfg_downloadwebhookurl'), type: 'text' },
-        { key: 'DownloadWebhookHeaders', label: t('cfg_downloadwebhookheaders'), type: 'area' }
+        { key: 'DownloadWebhookUrl', label: t('cfg_downloadwebhookurl'), type: 'secret' },
+        { key: 'DownloadWebhookHeaders', label: t('cfg_downloadwebhookheaders'), type: 'secretArea' }
       ]);
       host.appendChild(webhookWrap);
 
@@ -592,7 +601,7 @@
       servarrWrap.appendChild(sectionHeading(t('adm_radarr_movies')));
       var radarr = cfgForm(servarrWrap, cfg, [
         { key: 'RadarrUrl', label: t('cfg_radarrurl'), type: 'text', placeholder: 'http://localhost:7878' },
-        { key: 'RadarrApiKey', label: t('cfg_radarrapikey'), type: 'text' }
+        { key: 'RadarrApiKey', label: t('cfg_radarrapikey'), type: 'secret' }
       ]);
       var radarrRoot = servarrSelect(cfg.RadarrRootFolderPath, true);
       servarrWrap.appendChild(field(t('adm_radarr_root_folder'), radarrRoot));
@@ -606,7 +615,7 @@
       servarrWrap.appendChild(sectionHeading(t('adm_sonarr_shows')));
       var sonarr = cfgForm(servarrWrap, cfg, [
         { key: 'SonarrUrl', label: t('cfg_sonarrurl'), type: 'text', placeholder: 'http://localhost:8989' },
-        { key: 'SonarrApiKey', label: t('cfg_sonarrapikey'), type: 'text' }
+        { key: 'SonarrApiKey', label: t('cfg_sonarrapikey'), type: 'secret' }
       ]);
       var sonarrRoot = servarrSelect(cfg.SonarrRootFolderPath, true);
       servarrWrap.appendChild(field(t('adm_sonarr_root_folder'), sonarrRoot));
@@ -622,7 +631,7 @@
       servarrWrap.appendChild(sectionHeading(t('adm_prowlarr_optional')));
       var prowlarr = cfgForm(servarrWrap, cfg, [
         { key: 'ProwlarrUrl', label: t('cfg_prowlarrurl'), type: 'text' },
-        { key: 'ProwlarrApiKey', label: t('cfg_prowlarrapikey'), type: 'text' }
+        { key: 'ProwlarrApiKey', label: t('cfg_prowlarrapikey'), type: 'secret' }
       ]);
       servarrWrap.appendChild(sectionHeading(t('adm_stalled_downloads')));
       var stalled = cfgForm(servarrWrap, cfg, [

@@ -18,6 +18,71 @@
     return supported.indexOf(code) >= 0 ? code : 'en';
   }
 
+  // Wraps a sensitive form control — a password, API key, token or webhook URL — so its value stays masked
+  // until the admin chooses to reveal it: a secret shown in clear ends up in screenshots and over shoulders.
+  // An <input> becomes a password field, kept out of the browser's password manager; a <textarea>, which
+  // cannot be one, is hidden behind a masked stand-in. The control itself is never replaced or emptied, so
+  // saving still reads the real value. `labels` is { show, hide }; `doc` is injectable for tests.
+  function maskSecret(control, labels, doc) {
+    var d = doc || control.ownerDocument;
+    var isInput = control.tagName === 'INPUT';
+    var revealed = false;
+
+    var wrap = d.createElement('div');
+    wrap.className = 'jellycrowd-secret';
+    wrap.style.display = 'flex';
+    wrap.style.gap = '0.4em';
+    wrap.style.alignItems = 'flex-start';
+    control.style.flex = '1';
+    control.spellcheck = false;
+
+    var standIn = null;
+    if (isInput) {
+      control.setAttribute('autocomplete', 'new-password');
+    } else {
+      standIn = d.createElement('div');
+      standIn.className = 'jellycrowd-text-input jellycrowd-secret-standin';
+      standIn.style.flex = '1';
+      standIn.style.cursor = 'pointer';
+      wrap.appendChild(standIn);
+    }
+
+    var button = d.createElement('button');
+    button.type = 'button';
+    button.className = 'jellycrowd-request jellycrowd-secret-toggle';
+    button.style.flex = '0 0 auto';
+
+    function render() {
+      if (isInput) {
+        control.type = revealed ? 'text' : 'password';
+      } else {
+        control.style.display = revealed ? '' : 'none';
+        standIn.style.display = revealed ? 'none' : '';
+        standIn.textContent = control.value ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : '';
+      }
+      button.textContent = revealed ? labels.hide : labels.show;
+      button.setAttribute('aria-pressed', revealed ? 'true' : 'false');
+    }
+
+    function toggle() {
+      revealed = !revealed;
+      render();
+      if (revealed && typeof control.focus === 'function') {
+        control.focus();
+      }
+    }
+
+    button.addEventListener('click', toggle);
+    if (standIn) {
+      standIn.addEventListener('click', toggle);
+    }
+
+    wrap.appendChild(control);
+    wrap.appendChild(button);
+    render();
+    return wrap;
+  }
+
   // Fetch an i18n catalog, retrying once before giving up. A single hiccup on this one request used to
   // replace every label of a view with its raw key ("request_button", "report_problem") — silently, with
   // nothing logged, and for as long as the view stayed open, because the loader assigned its empty
@@ -789,6 +854,7 @@
     formatBytesDecimal: formatBytesDecimal,
     downloadBadgeLabel: downloadBadgeLabel,
     pickLang: pickLang,
+    maskSecret: maskSecret,
     fetchStrings: fetchStrings,
     resolveLang: resolveLang,
     contentLocale: contentLocale,

@@ -384,6 +384,8 @@
   "adm_show_discord_icon_in_the_header": "Afficher l'icône Discord dans l'en-tête",
   "adm_show_support_donation_icon_in_the": "Afficher l'icône de soutien / don dans l'en-tête",
   "adm_show_user_guide_icon_in_the": "Afficher l'icône du guide utilisateur (?) dans l'en-tête",
+  "adm_secret_show": "Afficher",
+  "adm_secret_hide": "Masquer",
   "adm_sonarr_language_profile": "Profil de langue Sonarr",
   "adm_sonarr_quality_profile": "Profil de qualité Sonarr",
   "adm_sonarr_root_folder": "Dossier racine Sonarr",
