@@ -53,11 +53,24 @@ public class RequestRecord
   public int? Episode { get; set; }
 
   /// <summary>
-  /// Gets or sets how many episodes this request covers — what it reserves against the disk quota while it
-  /// is in flight (a whole season or a whole series covers all of its episodes). <c>0</c>, the value a
-  /// record written before this field existed deserializes to, is read as one episode.
+  /// Gets or sets how many episodes this request has to download — what it reserves against the disk quota
+  /// while it is in flight. A whole season or series counts all of its episodes, minus those already on
+  /// disk or already on their way through another of the user's requests; <c>0</c> means there is nothing
+  /// left to download. <c>null</c>, on a record written before this field existed, is read as one episode.
   /// </summary>
-  public int EstimatedEpisodes { get; set; }
+  public int? EstimatedEpisodes { get; set; }
+
+  /// <summary>
+  /// Gets or sets how many of the episodes this season or series request covers were in the library at the
+  /// last reconciliation. It tracks progress: such a request is marked available once complete, or once no
+  /// new episode has arrived for a while.
+  /// </summary>
+  public int PresentEpisodes { get; set; }
+
+  /// <summary>
+  /// Gets or sets when <see cref="PresentEpisodes"/> last grew, or <c>null</c> when no episode has arrived yet.
+  /// </summary>
+  public DateTime? ProgressAt { get; set; }
 
   /// <summary>
   /// Gets or sets the current status.

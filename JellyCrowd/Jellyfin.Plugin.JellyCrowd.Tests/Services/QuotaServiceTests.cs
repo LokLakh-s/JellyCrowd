@@ -372,6 +372,55 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
+  public async Task ANeverFoundRequest_StopsReservingQuota()
+  {
+    // Searched for the whole retry window and never found: it must not lock the quota forever. It stays
+    // approved (and can still be retried), it just no longer reserves anything.
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 10 * Gib });
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "Lost", EstimatedEpisodes = 11, Status = RequestStatus.Approved, NotFoundNotifiedAt = DateTime.UtcNow.AddDays(-1) },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(0, await service.GetCommittedBytesAsync(user, CancellationToken.None));
+    Assert.Equal(0, (await service.GetUsageAsync(user, CancellationToken.None)).ReservedBytes);
+    Assert.True(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task ANeverFoundRequest_KeepsReserving_WhileSomeOfItHasArrived()
+  {
+    // Part of the season is on disk and the rest may still land: releasing it would leave that unbilled.
+    var user = Guid.NewGuid();
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "Partial", EstimatedEpisodes = 11, PresentEpisodes = 3, Status = RequestStatus.Approved, NotFoundNotifiedAt = DateTime.UtcNow.AddDays(-1) },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(11 * Gib, await service.GetCommittedBytesAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task ARequestWithNothingLeftToDownload_ReservesNothing()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 4 * Gib });
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "Already here", EstimatedEpisodes = 0, Status = RequestStatus.Approved },
+      CancellationToken.None);
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "Fills the quota", Status = RequestStatus.Approved },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    Assert.Equal(4 * Gib, await service.GetCommittedBytesAsync(user, CancellationToken.None));
+    // At the limit, a request that downloads nothing (everything already on disk) still fits.
+    Assert.True(await service.CanRequestAsync(user, "tv", 0, CancellationToken.None));
+    Assert.False(await service.CanRequestAsync(user, "tv", 1, CancellationToken.None));
+  }
+
+  [Fact]
   public async Task CanRequestAsync_TrueWhenUnlimited()
   {
     var user = Guid.NewGuid();
@@ -520,6 +569,8 @@ public sealed class QuotaServiceTests : IDisposable
   // Counts how many times the library is actually queried for a size.
   private sealed class CountingMatcher : ILibraryMatcher
   {
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
+
     private readonly long _size;
 
     public CountingMatcher(long size) => _size = size;
@@ -565,5 +616,7 @@ public sealed class QuotaServiceTests : IDisposable
     public long GetSizeBytes(string mediaType, int tmdbId) => _size;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
   }
 }

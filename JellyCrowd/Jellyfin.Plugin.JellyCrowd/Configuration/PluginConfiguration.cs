@@ -94,6 +94,7 @@ public class PluginConfiguration : BasePluginConfiguration
     BrandingPresetHideBackdrop = false;
     BrandingPresetButtonTweaks = false;
     MediaExpiryDays = 90;
+    PartialAvailabilityGraceHours = 48;
     EstimatedMovieSizeBytes = 5L * 1024 * 1024 * 1024; // 5 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
     MaxRequestsPerPeriod = 0;
@@ -627,6 +628,14 @@ public class PluginConfiguration : BasePluginConfiguration
   /// 0 disables expiry (ownerships never lapse).
   /// </summary>
   public int MediaExpiryDays { get; set; }
+
+  /// <summary>
+  /// Gets or sets how long a partly delivered season or whole-series request may go without a new episode
+  /// arriving before it is marked available with what it has. It is otherwise marked available only once
+  /// every aired episode is in the library — this keeps a never-found episode, or a show numbered
+  /// differently by TMDB and the library, from holding it pending forever.
+  /// </summary>
+  public int PartialAvailabilityGraceHours { get; set; }
 
   /// <summary>
   /// Gets or sets the genre allow-list (TMDB English genre names) gating size-based auto-approval: when

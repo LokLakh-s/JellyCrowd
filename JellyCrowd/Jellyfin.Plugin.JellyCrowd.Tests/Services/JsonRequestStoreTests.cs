@@ -32,6 +32,56 @@ public sealed class JsonRequestStoreTests : IDisposable
     }
   }
 
+  // ---------- RecordProgressAsync ----------
+
+  [Fact]
+  public async Task RecordProgressAsync_RecordsTheCount_WithoutTouchingAnInFlightRequestsOwnership()
+  {
+    var created = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 7, MediaType = "tv", Title = "S", Season = 1, Status = RequestStatus.Approved },
+      CancellationToken.None);
+    var when = DateTime.UtcNow;
+
+    var updated = await _store.RecordProgressAsync(created.Id, 4, when, restartOwnershipClock: true, CancellationToken.None);
+
+    Assert.Equal(4, updated!.PresentEpisodes);
+    Assert.Equal(when, updated.ProgressAt);
+    Assert.Null(updated.AvailableAt);
+  }
+
+  [Fact]
+  public async Task RecordProgressAsync_RestartsTheClock_OfAnAvailableRequest()
+  {
+    var created = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 7, MediaType = "tv", Title = "S", Season = 1, Status = RequestStatus.Available, AvailableAt = DateTime.UtcNow.AddDays(-80) },
+      CancellationToken.None);
+    var when = DateTime.UtcNow;
+
+    var updated = await _store.RecordProgressAsync(created.Id, 5, when, restartOwnershipClock: true, CancellationToken.None);
+
+    Assert.Equal(when, updated!.AvailableAt);
+  }
+
+  [Fact]
+  public async Task RecordProgressAsync_NeverRestartsTheClock_OfMediaFlaggedForDeletion()
+  {
+    // A new episode arriving must not quietly cancel the user's decision to delete the season.
+    var ownedSince = DateTime.UtcNow.AddDays(-80);
+    var flagged = DateTime.UtcNow.AddHours(-1);
+    var created = await _store.CreateAsync(
+      new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 7, MediaType = "tv", Title = "S", Season = 1, Status = RequestStatus.Available, AvailableAt = ownedSince, DeletionRequestedAt = flagged },
+      CancellationToken.None);
+
+    var updated = await _store.RecordProgressAsync(created.Id, 5, DateTime.UtcNow, restartOwnershipClock: true, CancellationToken.None);
+
+    Assert.Equal(ownedSince, updated!.AvailableAt);
+    Assert.Equal(flagged, updated.DeletionRequestedAt);
+  }
+
+  [Fact]
+  public async Task RecordProgressAsync_ReturnsNull_ForAnUnknownRequest()
+    => Assert.Null(await _store.RecordProgressAsync(Guid.NewGuid(), 1, DateTime.UtcNow, false, CancellationToken.None));
+
   [Fact]
   public async Task CreateAsync_AssignsIdStatusAndTimestamp()
   {

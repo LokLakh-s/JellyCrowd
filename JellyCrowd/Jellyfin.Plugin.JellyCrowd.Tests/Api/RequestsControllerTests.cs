@@ -20,9 +20,9 @@ public class RequestsControllerTests
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false, FakeQuotaService? quota = null, ILibraryMatcher? matcher = null, INotificationService? notifications = null)
+  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false, FakeQuotaService? quota = null, ILibraryMatcher? matcher = null, INotificationService? notifications = null, IRequestCreationGate? gate = null)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota ?? new FakeQuotaService(canRequest), notifications ?? new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), matcher ?? new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), _ => "tester")
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota ?? new FakeQuotaService(canRequest), notifications ?? new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), matcher ?? new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), gate ?? new RequestCreationGate(), _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -613,14 +613,15 @@ public class RequestsControllerTests
   }
 
   [Fact]
-  public async Task Create_RefusesAWholeSeries_WhenANarrowerRequestIsAlreadyActive()
+  public async Task Create_AllowsCompletingASeries_WhenOneSeasonIsAlreadyRequested()
   {
-    // The reverse direction: the series would re-download what the season request already pulls.
+    // Asking for the whole series while one season is already on its way used to be refused outright; it
+    // now completes the show (and, when TMDB lists the episodes, reserves only the other seasons).
     var controller = CreateController(await StoreWith(Tv(season: 1)), tmdb: ThreeSeasonsOfTen());
 
     var result = await controller.Create(Tv(), CancellationToken.None);
 
-    Assert.IsType<ConflictObjectResult>(result.Result);
+    Assert.IsType<OkObjectResult>(result.Result);
   }
 
   [Fact]
@@ -657,7 +658,162 @@ public class RequestsControllerTests
     Assert.IsType<OkObjectResult>((await controller.Create(Tv(season: 1), CancellationToken.None)).Result);
   }
 
-  // ---------- Quota reservation is sized by what the request actually pulls ----------
+  // ---------- Coverage is weighed episode by episode ----------
+
+  private const long Gib = 1024L * 1024 * 1024;
+
+  // Three seasons of ten aired episodes, with TMDB listing every episode.
+  private static StubTmdbClient ThreeSeasonsWithEpisodes()
+  {
+    var tmdb = ThreeSeasonsOfTen();
+    for (var season = 1; season <= 3; season++)
+    {
+      var episodes = new List<Episode>();
+      for (var episode = 1; episode <= 10; episode++)
+      {
+        episodes.Add(new Episode { SeasonNumber = season, EpisodeNumber = episode, AirDate = "2020-01-01" });
+      }
+
+      tmdb.EpisodesBySeason[season] = episodes;
+    }
+
+    return tmdb;
+  }
+
+  private static FakeLibraryMatcher LibraryWith(int season, params int[] episodes)
+  {
+    var matcher = new FakeLibraryMatcher();
+    foreach (var episode in episodes)
+    {
+      matcher.Episodes.Add(new EpisodeKey(season, episode));
+    }
+
+    return matcher;
+  }
+
+  private static async Task<FakeRequestStore> OwnedBy(Guid user, int? season)
+  {
+    var store = new FakeRequestStore();
+    await store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = season, Status = RequestStatus.Available },
+      CancellationToken.None);
+    return store;
+  }
+
+  [Fact]
+  public async Task Create_CompletesAPartlyOwnedSeries_ReservingOnlyTheMissingSeasons()
+  {
+    // Season 1 owned and on disk: the whole series is allowed and costs seasons 2 and 3 only.
+    var quota = new FakeQuotaService(canRequest: true);
+    var controller = CreateController(await OwnedBy(User, season: 1), tmdb: ThreeSeasonsWithEpisodes(), quota: quota, matcher: LibraryWith(1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+
+    var result = await controller.Create(Tv(), CancellationToken.None);
+
+    var created = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(20, created.EstimatedEpisodes);
+    Assert.Equal(20, quota.LastEpisodesRequested);
+  }
+
+  [Fact]
+  public async Task Create_CompletesAFulfilledSeason_ThatIsMissingAnEpisode()
+  {
+    // The whole series is owned, but season 2 arrived without episode 7: that season can be asked for again.
+    var quota = new FakeQuotaService(canRequest: true);
+    var controller = CreateController(await OwnedBy(User, season: null), tmdb: ThreeSeasonsWithEpisodes(), quota: quota, matcher: LibraryWith(2, 1, 2, 3, 4, 5, 6, 8, 9, 10));
+
+    var result = await controller.Create(Tv(season: 2), CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+    Assert.Equal(1, quota.LastEpisodesRequested);
+  }
+
+  [Fact]
+  public async Task Create_RefusesASeason_TheUserAlreadyOwnsInFull()
+  {
+    var controller = CreateController(await OwnedBy(User, season: null), tmdb: ThreeSeasonsWithEpisodes(), matcher: LibraryWith(2, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+
+    var result = await controller.Create(Tv(season: 2), CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Create_AllowsAnEpisode_MissingFromASeasonTheUserOwns()
+  {
+    var controller = CreateController(await OwnedBy(User, season: 2), tmdb: ThreeSeasonsWithEpisodes(), matcher: new NullLibraryMatcher());
+
+    var result = await controller.Create(Tv(season: 2, episode: 7), CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Create_RefusesARequestLargerThanTheWholeQuota()
+  {
+    // 30 episodes at 1 GiB against a 10 GiB quota could never be downloaded: refused, not held forever.
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 10 * Gib, BytesPerEpisode = Gib };
+    var store = new FakeRequestStore();
+    var controller = CreateController(store, tmdb: ThreeSeasonsWithEpisodes(), quota: quota, matcher: new NullLibraryMatcher());
+
+    var result = await controller.Create(Tv(), CancellationToken.None);
+
+    Assert.IsType<UnprocessableEntityObjectResult>(result.Result);
+    Assert.Empty(await store.GetAllAsync(CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Create_GoesThroughTheCreationGate_ForTheRequester()
+  {
+    var gate = new RecordingGate();
+    var controller = CreateController(new FakeRequestStore(), gate: gate);
+
+    await controller.Create(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(new[] { User }, gate.Entered);
+  }
+
+  [Fact]
+  public async Task CreateForUser_RefusesWhatTheUserAlreadyHasOnItsWay()
+  {
+    var target = Guid.NewGuid();
+    var store = new FakeRequestStore();
+    await store.CreateAsync(new RequestRecord { UserId = target, TmdbId = 100604, MediaType = "tv", Title = "Stalk", Status = RequestStatus.Approved }, CancellationToken.None);
+    var gate = new RecordingGate();
+
+    var result = await CreateController(store, isAdmin: true, tmdb: ThreeSeasonsWithEpisodes(), matcher: new NullLibraryMatcher(), gate: gate).CreateForUser(
+      new AdminCreateRequestDto { UserId = target, TmdbId = 100604, MediaType = "tv", Title = "Stalk", Season = 2 },
+      CancellationToken.None);
+
+    Assert.IsType<ConflictObjectResult>(result.Result);
+    Assert.Equal(new[] { target }, gate.Entered); // serialized on the user it is created for
+  }
+
+  [Fact]
+  public async Task CreateForUser_RefusesARequestLargerThanTheirWholeQuota()
+  {
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 10 * Gib, BytesPerEpisode = Gib };
+
+    var result = await CreateController(new FakeRequestStore(), isAdmin: true, tmdb: ThreeSeasonsWithEpisodes(), quota: quota, matcher: new NullLibraryMatcher()).CreateForUser(
+      new AdminCreateRequestDto { UserId = Guid.NewGuid(), TmdbId = 100604, MediaType = "tv", Title = "Stalk" },
+      CancellationToken.None);
+
+    Assert.IsType<UnprocessableEntityObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task CreateForUser_HoldsARequestThatDoesNotFitTheirQuotaYet()
+  {
+    // Acting for someone must not over-commit them: it waits for space like their own request would.
+    var result = await CreateController(new FakeRequestStore(), isAdmin: true, canRequest: false).CreateForUser(
+      new AdminCreateRequestDto { UserId = Guid.NewGuid(), TmdbId = 5, MediaType = "movie", Title = "Dune" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(RequestStatus.Pending, record.Status);
+    Assert.True(record.HeldForQuota);
+  }
+
+  // ---------- Quota reservation is sized by what the request actually pulls ----------  // ---------- Quota reservation is sized by what the request actually pulls ----------
 
   private static StubTmdbClient ThreeSeasonsOfTen()
     => new()
@@ -718,6 +874,24 @@ public class RequestsControllerTests
     Assert.Equal(1, quota.LastEpisodesRequested);
   }
 
+  private sealed class RecordingGate : IRequestCreationGate
+  {
+    public List<Guid> Entered { get; } = new();
+
+    public Task<IDisposable> EnterAsync(Guid userId, CancellationToken cancellationToken)
+    {
+      Entered.Add(userId);
+      return Task.FromResult<IDisposable>(new Released());
+    }
+
+    private sealed class Released : IDisposable
+    {
+      public void Dispose()
+      {
+      }
+    }
+  }
+
   private sealed class FakeQuotaService : IQuotaService
   {
     private readonly bool _canRequest;
@@ -727,7 +901,7 @@ public class RequestsControllerTests
     /// <summary>Gets the number of times <see cref="CanRequestAsync"/> was invoked (the create-time quota gate).</summary>
     public int CanRequestCalls { get; private set; }
 
-    public long GetQuotaBytes(Guid userId) => 0;
+    public long GetQuotaBytes(Guid userId) => QuotaBytes;
 
     public long GetBaseQuotaBytes(Guid userId) => 0;
 
@@ -750,7 +924,13 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken)
       => Task.FromResult(_canRequest);
 
-    public long ReservationBytes(RequestRecord request) => 0;
+    /// <summary>Gets or sets the quota the fake reports (0 = unlimited).</summary>
+    public long QuotaBytes { get; set; }
+
+    /// <summary>Gets or sets the size one episode reserves.</summary>
+    public long BytesPerEpisode { get; set; }
+
+    public long ReservationBytes(RequestRecord request) => BytesPerEpisode * (request.EstimatedEpisodes ?? 1);
 
     public Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(0L);
   }
@@ -839,6 +1019,8 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
   }
 
   private sealed class FakeLibraryMatcher : ILibraryMatcher
@@ -856,6 +1038,11 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     public long GetSizeBytes(string mediaType, int tmdbId) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+
+    public System.Collections.Generic.HashSet<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> Episodes { get; } = new();
+
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season)
+      => Episodes.Where(k => season is null || k.Season == season).ToHashSet();
   }
 
   private sealed class FakeRequestStore : IRequestStore
@@ -916,6 +1103,18 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
       record.Status = RequestStatus.Pending;
       record.HeldForQuota = true;
       return Task.FromResult<RequestRecord?>(record);
+    }
+
+    public Task<RequestRecord?> RecordProgressAsync(Guid id, int presentEpisodes, DateTime whenUtc, bool restartOwnershipClock, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is not null)
+      {
+        record.PresentEpisodes = presentEpisodes;
+        record.ProgressAt = whenUtc;
+      }
+
+      return Task.FromResult(record);
     }
 
     public Task<int> CountUserRequestsSinceAsync(Guid userId, DateTime sinceUtc, CancellationToken cancellationToken)

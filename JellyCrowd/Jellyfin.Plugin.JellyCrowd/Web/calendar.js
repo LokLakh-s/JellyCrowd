@@ -207,6 +207,7 @@
       button.textContent = t('requested');
     }).catch(function (error) {
       if (error && error.status === 409) { button.textContent = t('already_requested'); }
+      else if (error && error.status === 422) { button.textContent = t('request_too_large'); }
       else if (error && error.status === 403) { button.textContent = t('requests_disabled'); }
       else { button.disabled = false; button.textContent = t('request_button'); }
     });
