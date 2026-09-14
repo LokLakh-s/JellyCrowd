@@ -29,4 +29,9 @@ internal sealed class StubQuotaService : IQuotaService
   public Task<bool> CanRequestAsync(Guid userId, string mediaType, int episodes, CancellationToken cancellationToken) => Task.FromResult(_within);
 
   public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(_within);
+
+  public long ReservationBytes(RequestRecord request) => 0;
+
+  public Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(0L);
+
 }
