@@ -1,0 +1,32 @@
+name: 💡 Feature request
+description: Suggest an idea or improvement
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched existing issues and this isn't already requested.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What are you trying to do, and where does Jelly Crowd get in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see?
+      description: Describe the feature or change you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you're using, or other approaches you thought about.
+    validations:
+      required: false
