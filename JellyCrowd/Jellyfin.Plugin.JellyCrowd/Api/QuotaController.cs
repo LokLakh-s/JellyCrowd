@@ -56,6 +56,15 @@ public class QuotaController : ControllerBase
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var info = await _quotaService.GetUsageAsync(userId, cancellationToken).ConfigureAwait(false);
+
+    // The reserved footprint is a pessimistic upper bound (the estimate is sized for the worst case), not
+    // space actually taken: shown to a regular user it reads as a quota that is fuller than it is. Only
+    // administrators, who know what it stands for, get it.
+    if (!await _userAccessor.IsAdministratorAsync(Request).ConfigureAwait(false))
+    {
+      info.ReservedBytes = 0;
+    }
+
     return Ok(info);
   }
 
