@@ -303,6 +303,37 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
+  public async Task GetUsageAsync_ReportsWhatInFlightRequestsHaveReserved()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 30 * Gib });
+    // Nothing on disk yet, one season downloading: the gauge must be able to say where the space went,
+    // otherwise a refusal reads as "quota full" next to a usage of zero.
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "S", EstimatedEpisodes = 11, Status = RequestStatus.Approved },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    var info = await service.GetUsageAsync(user, CancellationToken.None);
+
+    Assert.Equal(0, info.UsedBytes);
+    Assert.Equal(11 * Gib, info.ReservedBytes);
+  }
+
+  [Fact]
+  public async Task GetUsageAsync_ReservesNothingForHeldRequests()
+  {
+    var user = Guid.NewGuid();
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "tv", Title = "Held", EstimatedEpisodes = 11, HeldForQuota = true },
+      CancellationToken.None);
+    var service = Create(new SizeMatcher(0));
+
+    // A held request is waiting, not downloading: it holds no space and must not colour the bar.
+    Assert.Equal(0, (await service.GetUsageAsync(user, CancellationToken.None)).ReservedBytes);
+  }
+
+  [Fact]
   public async Task CommittedFootprint_ExcludesRequestsHeldForQuota()
   {
     var user = Guid.NewGuid();

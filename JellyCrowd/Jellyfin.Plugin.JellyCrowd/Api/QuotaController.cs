@@ -85,6 +85,7 @@ public class QuotaController : ControllerBase
       {
         UserId = userId,
         UsedBytes = info.UsedBytes,
+        ReservedBytes = info.ReservedBytes,
         QuotaBytes = info.QuotaBytes,
         Unlimited = info.Unlimited,
         Tier = info.Tier

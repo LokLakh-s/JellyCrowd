@@ -529,3 +529,35 @@ test('fetchStrings resolves to null rather than an empty catalog', async () => {
 test('fetchStrings tolerates an environment with no fetch at all', async () => {
   assert.strictEqual(await lib.fetchStrings('/x.json', null), null);
 });
+
+// ---------- quotaSegments: the reserved footprint shown next to the disk usage ----------
+
+test('quotaSegments splits disk usage from what is merely reserved', () => {
+  // 3 GiB on disk and 16.5 GiB reserved by a season still downloading, against a 30 GiB quota.
+  const gib = 1024 ** 3;
+  assert.deepStrictEqual(lib.quotaSegments(3 * gib, 16.5 * gib, 30 * gib), { used: 10, reserved: 55 });
+});
+
+test('quotaSegments reports nothing reserved when nothing is in flight', () => {
+  const gib = 1024 ** 3;
+  assert.deepStrictEqual(lib.quotaSegments(15 * gib, 0, 30 * gib), { used: 50, reserved: 0 });
+});
+
+test('quotaSegments never lets the two segments overflow the bar', () => {
+  const gib = 1024 ** 3;
+  // The reported case: nothing on disk, but two seasons reserving more than the whole quota.
+  assert.deepStrictEqual(lib.quotaSegments(0, 33 * gib, 30 * gib), { used: 0, reserved: 100 });
+  // Already full on disk: the reserved part has nowhere to go.
+  assert.deepStrictEqual(lib.quotaSegments(30 * gib, 10 * gib, 30 * gib), { used: 100, reserved: 0 });
+  const both = lib.quotaSegments(20 * gib, 20 * gib, 30 * gib);
+  assert.strictEqual(both.used + both.reserved, 100);
+});
+
+test('quotaSegments is empty for an unlimited quota', () => {
+  assert.deepStrictEqual(lib.quotaSegments(5, 5, 0), { used: 0, reserved: 0 });
+});
+
+test('quotaSegments tolerates missing or negative values', () => {
+  assert.deepStrictEqual(lib.quotaSegments(null, undefined, 100), { used: 0, reserved: 0 });
+  assert.deepStrictEqual(lib.quotaSegments(10, -5, 100), { used: 10, reserved: 0 });
+});

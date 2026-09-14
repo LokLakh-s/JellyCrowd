@@ -11,6 +11,13 @@ public class QuotaInfo
   public long UsedBytes { get; set; }
 
   /// <summary>
+  /// Gets or sets the bytes reserved by requests that are in flight but not yet on disk. The quota gate
+  /// counts these on top of <see cref="UsedBytes"/>, so showing them is what makes a "quota full" refusal
+  /// legible while the usage reading is still low.
+  /// </summary>
+  public long ReservedBytes { get; set; }
+
+  /// <summary>
   /// Gets or sets the quota in bytes (0 when unlimited).
   /// </summary>
   public long QuotaBytes { get; set; }

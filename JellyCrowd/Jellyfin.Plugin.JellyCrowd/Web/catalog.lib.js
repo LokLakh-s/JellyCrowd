@@ -227,6 +227,30 @@
     return Math.round(p > 100 ? 100 : p);
   }
 
+  // Splits the quota bar into what is on disk and what is merely reserved by requests still downloading.
+  // The reserved part is drawn after the used part and the two are clamped to 100% together, so a bar
+  // that is already full never spills: a user seeing "0 used" while being refused a request needs to see
+  // where the space went.
+  function quotaSegments(used, reserved, quota) {
+    var usedPercent = quotaPercent(used, quota);
+    var q = Number(quota) || 0;
+    if (q <= 0) {
+      return { used: 0, reserved: 0 };
+    }
+
+    var r = Number(reserved) || 0;
+    var reservedPercent = r > 0 ? Math.round((r / q) * 100) : 0;
+    if (reservedPercent < 0) {
+      reservedPercent = 0;
+    }
+
+    if (usedPercent + reservedPercent > 100) {
+      reservedPercent = 100 - usedPercent;
+    }
+
+    return { used: usedPercent, reserved: reservedPercent };
+  }
+
   // Group catalog items by their release date (YYYY-MM-DD), returning date-ascending groups.
   // Items without a parseable date are dropped. Used by the releases calendar.
   function groupByReleaseDate(items) {
@@ -786,6 +810,7 @@
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,
+    quotaSegments: quotaSegments,
     quotaColor: quotaColor,
     groupByReleaseDate: groupByReleaseDate,
     buildMonthMatrix: buildMonthMatrix,

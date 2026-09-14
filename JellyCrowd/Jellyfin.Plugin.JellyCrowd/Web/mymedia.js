@@ -217,17 +217,31 @@
     label.style.color = '#fff';
     label.textContent = t('quota_storage') + ' : ' + lib.formatBytes(info.UsedBytes)
       + ' / ' + (unlimited ? t('quota_unlimited') : lib.formatBytes(info.QuotaBytes));
+    if (info.ReservedBytes > 0) {
+      // Space spoken for by requests still downloading: it is why a request can be refused while the
+      // disk figure is still low.
+      label.textContent += ' (+ ' + lib.formatBytes(info.ReservedBytes) + ' ' + t('quota_footprint') + ')';
+    }
+
     el.appendChild(label);
 
     if (!unlimited) {
-      var percent = lib.quotaPercent(info.UsedBytes, info.QuotaBytes);
+      var seg = lib.quotaSegments(info.UsedBytes, info.ReservedBytes, info.QuotaBytes);
       var track = document.createElement('div');
       track.className = 'jellycrowd-quota-track';
       var fill = document.createElement('div');
       fill.className = 'jellycrowd-quota-fill';
-      fill.style.width = percent + '%';
-      fill.style.background = lib.quotaColor(percent);
+      fill.style.width = seg.used + '%';
+      fill.style.background = lib.quotaColor(seg.used);
       track.appendChild(fill);
+      if (seg.reserved > 0) {
+        var reserved = document.createElement('div');
+        reserved.className = 'jellycrowd-quota-reserved';
+        reserved.style.width = seg.reserved + '%';
+        reserved.title = t('quota_footprint') + ' : ' + lib.formatBytes(info.ReservedBytes);
+        track.appendChild(reserved);
+      }
+
       el.appendChild(track);
     }
   }

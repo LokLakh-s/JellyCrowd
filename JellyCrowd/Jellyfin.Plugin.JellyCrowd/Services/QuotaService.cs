@@ -97,7 +97,22 @@ public sealed class QuotaService : IQuotaService
       used += SizeOf(request, sizes);
     }
 
-    var info = new QuotaInfo { UsedBytes = used, QuotaBytes = quota, Unlimited = quota <= 0 };
+    // What the quota gate counts on top of the disk usage: the reservations of requests already in flight.
+    // Held requests reserve nothing, so they are absent here too — the gauge shows what is actually
+    // spoken for, which is what makes a refusal understandable while the disk figure is still low.
+    var now = DateTime.UtcNow;
+    long reserved = 0;
+    foreach (var request in requests)
+    {
+      if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
+        && !request.HeldForQuota
+        && (request.DesiredAt is null || request.DesiredAt <= now))
+      {
+        reserved += ReservationBytes(request);
+      }
+    }
+
+    var info = new QuotaInfo { UsedBytes = used, ReservedBytes = reserved, QuotaBytes = quota, Unlimited = quota <= 0 };
     if (config.AdaptiveQuotaEnabled && GetBaseQuotaBytes(userId) > 0)
     {
       var activity = _activityStore.Get(userId);
