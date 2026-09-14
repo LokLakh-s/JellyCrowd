@@ -131,6 +131,8 @@ public sealed class QuotaControllerTests : IDisposable
     public long GetSizeBytes(string mediaType, int tmdbId) => 123456;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
   }
 
   private sealed class FakeUserAccessor : ICurrentUserAccessor

@@ -31,6 +31,7 @@ public class RequestsController : ControllerBase
   private readonly ILibraryMatcher _libraryMatcher;
   private readonly ITmdbClient _tmdbClient;
   private readonly IActivityLog _activityLog;
+  private readonly IRequestCreationGate _creationGate;
   private readonly Func<Guid, string> _resolveUserName;
 
   /// <summary>
@@ -45,6 +46,7 @@ public class RequestsController : ControllerBase
   /// <param name="libraryMatcher">The library matcher (resolves the Jellyfin item for a claim).</param>
   /// <param name="tmdbClient">The TMDB client (resolves genres for genre-based auto-approval).</param>
   /// <param name="activityLog">The activity log (records user actions).</param>
+  /// <param name="creationGate">Serializes request creation per user, so duplicate checks cannot race.</param>
   /// <param name="resolveUserName">Resolves a user id to a display name for log messages.</param>
   public RequestsController(
     IRequestStore store,
@@ -56,6 +58,7 @@ public class RequestsController : ControllerBase
     ILibraryMatcher libraryMatcher,
     ITmdbClient tmdbClient,
     IActivityLog activityLog,
+    IRequestCreationGate creationGate,
     Func<Guid, string> resolveUserName)
   {
     _store = store;
@@ -67,6 +70,7 @@ public class RequestsController : ControllerBase
     _libraryMatcher = libraryMatcher;
     _tmdbClient = tmdbClient;
     _activityLog = activityLog;
+    _creationGate = creationGate;
     _resolveUserName = resolveUserName;
   }
 
@@ -78,7 +82,8 @@ public class RequestsController : ControllerBase
   /// <response code="200">The created request (auto-approved, or pending when approval is required or the quota is exceeded).</response>
   /// <response code="400">The payload was invalid.</response>
   /// <response code="403">Requests are disabled for this user.</response>
-  /// <response code="409">The user already has an active request for this title.</response>
+  /// <response code="409">The user already has this title, or it is already on its way.</response>
+  /// <response code="422">The request is larger than the user's whole disk quota.</response>
   /// <response code="429">The user reached their request limit for the period.</response>
   /// <returns>The persisted request with its generated id and status.</returns>
   [HttpPost]
@@ -87,6 +92,7 @@ public class RequestsController : ControllerBase
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
   [ProducesResponseType(StatusCodes.Status403Forbidden)]
   [ProducesResponseType(StatusCodes.Status409Conflict)]
+  [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
   [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
   public async Task<ActionResult<RequestRecord>> Create([FromBody] CreateRequestDto dto, CancellationToken cancellationToken)
   {
@@ -120,26 +126,24 @@ public class RequestsController : ControllerBase
       return StatusCode(StatusCodes.Status403Forbidden, "This request granularity is not allowed on this server.");
     }
 
-    // Overlap, not merely an exact duplicate: a season already covered by a whole-series request — or the
-    // reverse — downloads the same files a second time and bills them twice against the quota.
-    var wanted = new RequestScope(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode);
-    foreach (var existing in await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false))
+    // One request at a time per user: what they already asked for is checked and the new request recorded
+    // as a single step, so two requests sent in the same instant cannot both slip past the check.
+    using var creation = await _creationGate.EnterAsync(userId, cancellationToken).ConfigureAwait(false);
+
+    // Weighed against what the user already has — on disk and owned, or on its way — episode by episode:
+    // owning a season no longer blocks completing the series, and a fulfilled season missing an episode can
+    // be completed, while anything already covered is still refused.
+    var coverage = await EvaluateCreationAsync(userId, dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false);
+    if (coverage.AlreadyCovered)
     {
-      if (existing.Status == RequestStatus.Denied)
-      {
-        continue;
-      }
+      return Conflict("You already have this title, or it is already on its way.");
+    }
 
-      var existingScope = RequestScope.Of(existing);
-      if (existingScope.Contains(wanted))
-      {
-        return Conflict("You already have an active request covering this title.");
-      }
-
-      if (wanted.Contains(existingScope))
-      {
-        return Conflict("This would duplicate a narrower request you already have; cancel that one first.");
-      }
+    // Larger than the whole quota, it could never be downloaded: refuse it now rather than hold it forever
+    // waiting for space that can never exist.
+    if (ExceedsWholeQuota(userId, dto.MediaType, coverage.EpisodesToReserve))
+    {
+      return UnprocessableEntity("This request is larger than your whole disk quota.");
     }
 
     if (config is not null)
@@ -181,7 +185,7 @@ public class RequestsController : ControllerBase
     var now = DateTime.UtcNow;
     var desiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, dto.DesiredAt, now);
     var downloadableNow = desiredAt <= now;
-    var episodes = await ResolveEpisodesCoveredAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false);
+    var episodes = coverage.EpisodesToReserve;
     var withinQuota = !downloadableNow || await _quotaService.CanRequestAsync(userId, dto.MediaType, episodes, cancellationToken).ConfigureAwait(false);
     var status = (requireApproval || !withinQuota) ? RequestStatus.Pending : RequestStatus.Approved;
 
@@ -213,15 +217,7 @@ public class RequestsController : ControllerBase
     // (not the normal "awaiting admin approval" case), so they understand why it is not progressing.
     if (heldForQuota)
     {
-      var heldStrings = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
-      _ = _notificationService.NotifyPersonalAsync(
-        userId,
-        PersonalNotifyKind.QuotaExpiry,
-        created.Title,
-        heldStrings("notif_quota_held_subject"),
-        heldStrings("notif_quota_held_request_body").Replace("{title}", created.Title, StringComparison.Ordinal),
-        created.PosterPath,
-        CancellationToken.None);
+      NotifyHeldForQuota(created);
     }
 
     // Auto-approved requests are dispatched right away (no-op if not yet due / no backend configured).
@@ -234,34 +230,155 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
-  /// How many episodes a request will actually pull, so the quota reserves that much instead of a single
-  /// episode's estimate — a whole season or series downloads all of its episodes. Resolved from TMDB's
-  /// season list; a lookup failure falls back to one episode rather than refusing the request.
+  /// Works out what a prospective request adds for a user: whether it is already covered — owned and on
+  /// disk, or on its way — and how many episodes it would have to download. A movie or a single episode is
+  /// one item. A season or a series is weighed episode by episode against TMDB's episode list and the
+  /// library, so completing a partly owned show is allowed and reserves only what is missing.
   /// </summary>
+  /// <param name="userId">The user the request is for.</param>
   /// <param name="mediaType">The requested media type.</param>
   /// <param name="tmdbId">The TMDB id of the title.</param>
   /// <param name="season">The requested season, or <c>null</c> for a whole series.</param>
   /// <param name="episode">The requested episode, or <c>null</c> for a whole season/series.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <returns>The number of episodes covered; at least 1.</returns>
-  private async Task<int> ResolveEpisodesCoveredAsync(string mediaType, int tmdbId, int? season, int? episode, CancellationToken cancellationToken)
+  /// <returns>Whether the request is already covered, and the episodes it must reserve.</returns>
+  private async Task<CoverageDecision> EvaluateCreationAsync(Guid userId, string mediaType, int tmdbId, int? season, int? episode, CancellationToken cancellationToken)
   {
-    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal) || episode is not null)
+    var wantedScope = new RequestScope(mediaType, tmdbId, season, episode);
+    var active = (await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false))
+      .Where(r => r.Status != RequestStatus.Denied)
+      .ToList();
+
+    // A movie: covered by any of the user's requests for it, as before.
+    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal))
     {
-      return 1;
+      return new CoverageDecision(active.Any(r => RequestScope.Of(r).Contains(wantedScope)), 1);
     }
 
+    // One episode: a single item, whose presence reads straight off the library. It reserves one estimate.
+    if (season is int s && episode is int e)
+    {
+      var wanted = new[] { new EpisodeKey(s, e) };
+      var present = _libraryMatcher.FindEpisodeItemId(tmdbId, s, e) is null ? Array.Empty<EpisodeKey>() : wanted;
+      var decision = RequestCoverage.Evaluate(wanted, present, CoveredBy(active, IsInFlight, wanted, tmdbId), CoveredBy(active, IsOwned, wanted, tmdbId));
+      return decision with { EpisodesToReserve = 1 };
+    }
+
+    var episodes = await ListWantedEpisodesAsync(tmdbId, season, cancellationToken).ConfigureAwait(false);
+    if (episodes is null)
+    {
+      // TMDB cannot list the episodes: compare request scopes instead. Anything already covered is refused;
+      // a broader request is allowed, reserving the full episode count since nothing can be subtracted.
+      if (active.Any(r => RequestScope.Of(r).Contains(wantedScope)))
+      {
+        return new CoverageDecision(true, 0);
+      }
+
+      IReadOnlyList<Season>? seasons = null;
+      try
+      {
+        seasons = await _tmdbClient.GetSeasonsAsync(tmdbId, "en-US", cancellationToken).ConfigureAwait(false);
+      }
+      catch (Exception)
+      {
+        // Unknown counts reserve one episode, as RequestFootprint documents.
+      }
+
+      return new CoverageDecision(false, RequestFootprint.EpisodesCovered(mediaType, season, null, seasons));
+    }
+
+    var inLibrary = _libraryMatcher.ListEpisodeKeys(tmdbId, season) ?? Array.Empty<EpisodeKey>();
+    return RequestCoverage.Evaluate(episodes, inLibrary, CoveredBy(active, IsInFlight, episodes, tmdbId), CoveredBy(active, IsOwned, episodes, tmdbId));
+  }
+
+  // Every episode a season or series request covers, according to TMDB. A whole series leaves out specials,
+  // which are not fetched with it. Null when TMDB cannot list them.
+  private async Task<IReadOnlyCollection<EpisodeKey>?> ListWantedEpisodesAsync(int tmdbId, int? season, CancellationToken cancellationToken)
+  {
     try
     {
-      var seasons = await _tmdbClient.GetSeasonsAsync(tmdbId, "en-US", cancellationToken).ConfigureAwait(false);
-      return RequestFootprint.EpisodesCovered(mediaType, season, episode, seasons);
+      var seasonNumbers = new List<int>();
+      if (season is int only)
+      {
+        seasonNumbers.Add(only);
+      }
+      else
+      {
+        foreach (var listed in await _tmdbClient.GetSeasonsAsync(tmdbId, "en-US", cancellationToken).ConfigureAwait(false))
+        {
+          if (listed.SeasonNumber > 0)
+          {
+            seasonNumbers.Add(listed.SeasonNumber);
+          }
+        }
+      }
+
+      var keys = new HashSet<EpisodeKey>();
+      foreach (var number in seasonNumbers)
+      {
+        foreach (var listed in await _tmdbClient.GetSeasonEpisodesAsync(tmdbId, number, "en-US", cancellationToken).ConfigureAwait(false))
+        {
+          keys.Add(new EpisodeKey(number, listed.EpisodeNumber));
+        }
+      }
+
+      return keys.Count == 0 ? null : keys;
     }
     catch (Exception)
     {
-      // TMDB unreachable or malformed: keep the request flowing on the previous one-episode reservation
-      // rather than blocking the user on metadata we only need for sizing.
-      return 1;
+      return null;
     }
+  }
+
+  private static bool IsInFlight(RequestRecord request) => request.Status is RequestStatus.Pending or RequestStatus.Approved;
+
+  private static bool IsOwned(RequestRecord request) => request.Status == RequestStatus.Available;
+
+  // The wanted episodes already covered by one of the user's TV requests for this title in the given state.
+  private static HashSet<EpisodeKey> CoveredBy(List<RequestRecord> requests, Func<RequestRecord, bool> inState, IReadOnlyCollection<EpisodeKey> wanted, int tmdbId)
+  {
+    var covered = new HashSet<EpisodeKey>();
+    var scopes = requests
+      .Where(r => inState(r) && r.TmdbId == tmdbId && string.Equals(r.MediaType, "tv", StringComparison.Ordinal))
+      .Select(RequestScope.Of)
+      .ToList();
+    if (scopes.Count == 0)
+    {
+      return covered;
+    }
+
+    foreach (var key in wanted)
+    {
+      var episodeScope = new RequestScope("tv", tmdbId, key.Season, key.Episode);
+      if (scopes.Any(scope => scope.Contains(episodeScope)))
+      {
+        covered.Add(key);
+      }
+    }
+
+    return covered;
+  }
+
+  // Whether a request would reserve more than the user's whole quota, so that it could never be downloaded.
+  private bool ExceedsWholeQuota(Guid userId, string mediaType, int episodes)
+  {
+    var quota = _quotaService.GetQuotaBytes(userId);
+    return quota > 0 && _quotaService.ReservationBytes(new RequestRecord { MediaType = mediaType, EstimatedEpisodes = episodes }) > quota;
+  }
+
+  // Tells a requester their request is waiting for disk space (not for an administrator), so they
+  // understand why it is not progressing.
+  private void NotifyHeldForQuota(RequestRecord created)
+  {
+    var heldStrings = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    _ = _notificationService.NotifyPersonalAsync(
+      created.UserId,
+      PersonalNotifyKind.QuotaExpiry,
+      created.Title,
+      heldStrings("notif_quota_held_subject"),
+      heldStrings("notif_quota_held_request_body").Replace("{title}", created.Title, StringComparison.Ordinal),
+      created.PosterPath,
+      CancellationToken.None);
   }
 
   /// <summary>
@@ -312,6 +429,7 @@ public class RequestsController : ControllerBase
 
     // Already owned — this exact scope, or a broader one that covers it (e.g. the whole series covers a
     // season) → renew the ownership (resets the expiry countdown) rather than duplicating.
+    using var creation = await _creationGate.EnterAsync(userId, cancellationToken).ConfigureAwait(false);
     var mine = await _store.GetByUserAsync(userId, cancellationToken).ConfigureAwait(false);
     var owned = mine.FirstOrDefault(r =>
       r.TmdbId == dto.TmdbId
@@ -774,17 +892,23 @@ public class RequestsController : ControllerBase
   }
 
   /// <summary>
-  /// Creates a request on behalf of another user (administrators only; bypasses quota/rate limits).
+  /// Creates a request on behalf of another user (administrators only). It skips the per-period request
+  /// limit, but follows the same quota and duplicate rules as the user's own requests: acting for someone
+  /// must not duplicate what they already have or over-commit their quota.
   /// </summary>
   /// <param name="dto">The request payload, including the target user.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">The created request.</response>
   /// <response code="400">The payload was invalid.</response>
+  /// <response code="409">The user already has this title, or it is already on its way.</response>
+  /// <response code="422">The request is larger than the user's whole disk quota.</response>
   /// <returns>The persisted request.</returns>
   [HttpPost("ForUser")]
   [Authorize(Policy = "RequiresElevation")]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
+  [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
   public async Task<ActionResult<RequestRecord>> CreateForUser([FromBody] AdminCreateRequestDto dto, CancellationToken cancellationToken)
   {
     if (dto is null || string.IsNullOrWhiteSpace(dto.Title))
@@ -816,8 +940,30 @@ public class RequestsController : ControllerBase
       }
     }
 
+    using var creation = await _creationGate.EnterAsync(dto.UserId, cancellationToken).ConfigureAwait(false);
+    var coverage = await EvaluateCreationAsync(dto.UserId, dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false);
+    if (coverage.AlreadyCovered)
+    {
+      return Conflict("This user already has this title, or it is already on its way.");
+    }
+
+    if (ExceedsWholeQuota(dto.UserId, dto.MediaType, coverage.EpisodesToReserve))
+    {
+      return UnprocessableEntity("This request is larger than the user's whole disk quota.");
+    }
+
+    // An approved request that does not fit the user's quota yet waits for space, exactly like their own.
+    var now = DateTime.UtcNow;
+    var desiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, null, now);
     var status = dto.Status ?? RequestStatus.Approved;
-    var forUserEpisodes = await ResolveEpisodesCoveredAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false);
+    var heldForQuota = status == RequestStatus.Approved
+      && desiredAt <= now
+      && !await _quotaService.CanRequestAsync(dto.UserId, dto.MediaType, coverage.EpisodesToReserve, cancellationToken).ConfigureAwait(false);
+    if (heldForQuota)
+    {
+      status = RequestStatus.Pending;
+    }
+
     var created = await _store.CreateAsync(
       new RequestRecord
       {
@@ -829,13 +975,19 @@ public class RequestsController : ControllerBase
         ReleaseDate = dto.ReleaseDate,
         Season = dto.Season,
         Episode = dto.Episode,
-        EstimatedEpisodes = forUserEpisodes,
-        DesiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, null, DateTime.UtcNow),
-        Status = status
+        EstimatedEpisodes = coverage.EpisodesToReserve,
+        DesiredAt = desiredAt,
+        Status = status,
+        HeldForQuota = heldForQuota
       },
       cancellationToken).ConfigureAwait(false);
 
     _ = _notificationService.NotifyRequestEventAsync(created, NotificationEvent.Created, CancellationToken.None);
+    if (heldForQuota)
+    {
+      NotifyHeldForQuota(created);
+    }
+
     if (status == RequestStatus.Approved)
     {
       _ = _downloadDispatcher.DispatchAsync(created, CancellationToken.None);
@@ -888,6 +1040,7 @@ public class RequestsController : ControllerBase
     }
 
     // Already owned by this user (this scope, or a broader one covering it) → renew rather than duplicate.
+    using var creation = await _creationGate.EnterAsync(dto.UserId, cancellationToken).ConfigureAwait(false);
     var theirs = await _store.GetByUserAsync(dto.UserId, cancellationToken).ConfigureAwait(false);
     var owned = theirs.FirstOrDefault(r =>
       r.TmdbId == dto.TmdbId

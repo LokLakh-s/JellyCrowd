@@ -257,6 +257,8 @@ public sealed class QuotaHoldPromoterTests : IDisposable
     public long GetSizeBytes(string mediaType, int tmdbId) => _size;
 
     public IReadOnlyList<LibraryMediaItem> ListLibraryMedia() => Array.Empty<LibraryMediaItem>();
+
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
   }
 
   private sealed class RecordingDispatcher : IDownloadDispatcher

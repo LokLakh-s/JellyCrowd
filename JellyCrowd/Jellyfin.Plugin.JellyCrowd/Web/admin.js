@@ -445,7 +445,8 @@
         { key: 'DeletionRetentionHours', label: t('cfg_deletionretentionhours'), type: 'num' },
         { key: 'RemoveEmptySeries', label: t('cfg_removeemptyseries'), type: 'check' },
         { key: 'EmptySeriesMinAgeHours', label: t('cfg_emptyseriesminagehours'), type: 'num' },
-        { key: 'MediaExpiryDays', label: t('cfg_mediaexpirydays'), type: 'num', hint: t('cfg_mediaexpirydays_hint') }
+        { key: 'MediaExpiryDays', label: t('cfg_mediaexpirydays'), type: 'num', hint: t('cfg_mediaexpirydays_hint') },
+        { key: 'PartialAvailabilityGraceHours', label: t('cfg_partialavailabilitygracehours'), type: 'num', hint: t('cfg_partialavailabilitygracehours_hint') }
       ]);
       var adaptForm = { apply: function (live) { live.AdaptiveQuotaEnabled = adaptEnable.checked; } };
       host.appendChild(cfgSaveButton([reqForm, scopeForm, genresForm, quotaForm, adaptForm, adapt, tail]));

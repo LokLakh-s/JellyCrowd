@@ -37,8 +37,10 @@ internal sealed class StubTmdbClient : ITmdbClient
   public Task<IReadOnlyList<Season>> GetSeasonsAsync(int tmdbId, string language, CancellationToken cancellationToken)
     => Task.FromResult(Seasons);
 
+  public Dictionary<int, IReadOnlyList<Episode>> EpisodesBySeason { get; } = new();
+
   public Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken)
-    => Task.FromResult<IReadOnlyList<Episode>>(Array.Empty<Episode>());
+    => Task.FromResult(EpisodesBySeason.TryGetValue(seasonNumber, out var episodes) ? episodes : (IReadOnlyList<Episode>)Array.Empty<Episode>());
 
   public Task<CatalogItem?> GetDetailsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken)
     => Task.FromResult(Details);

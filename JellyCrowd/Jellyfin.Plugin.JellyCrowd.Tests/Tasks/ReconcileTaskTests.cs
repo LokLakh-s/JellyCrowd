@@ -36,7 +36,7 @@ public sealed class ReconcileTaskTests : IDisposable
   public async Task Execute_MarksApprovedAvailable_WhenInLibrary()
   {
     var id = await SeedApprovedAsync();
-    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -48,7 +48,7 @@ public sealed class ReconcileTaskTests : IDisposable
   public async Task Execute_LeavesApproved_WhenNotInLibrary()
   {
     var id = await SeedApprovedAsync();
-    var reconciler = new RequestReconciler(_store, new StubMatcher(false), new NoopNotificationService(), new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(false), new NoopNotificationService(), new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -68,7 +68,7 @@ public sealed class ReconcileTaskTests : IDisposable
 
     // Series-level match succeeds, but the specific episode is absent.
     var matcher = new EpisodeStubMatcher(seriesFound: true, episodeFound: false);
-    var reconciler = new RequestReconciler(_store, matcher, new NoopNotificationService(), new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, matcher, new NoopNotificationService(), new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -85,7 +85,7 @@ public sealed class ReconcileTaskTests : IDisposable
     await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
 
     var matcher = new EpisodeStubMatcher(seriesFound: true, episodeFound: true);
-    var reconciler = new RequestReconciler(_store, matcher, new NoopNotificationService(), new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, matcher, new NoopNotificationService(), new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -106,7 +106,7 @@ public sealed class ReconcileTaskTests : IDisposable
       new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 5, MediaType = "movie", Title = "X" },
       CancellationToken.None); // stays Pending
 
-    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
     await reconciler.ReconcileAsync(CancellationToken.None);
 
     Assert.Equal(RequestStatus.Available, (await _store.GetByIdAsync(approved.Id, CancellationToken.None))!.Status);
@@ -124,7 +124,7 @@ public sealed class ReconcileTaskTests : IDisposable
     await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
     await _store.MarkAvailableAsync(created.Id, "item-x", CancellationToken.None);
 
-    var reconciler = new RequestReconciler(_store, new StubMatcher(false), new NoopNotificationService(), new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(false), new NoopNotificationService(), new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
     await reconciler.ReconcileAsync(CancellationToken.None);
 
     Assert.Equal(RequestStatus.Approved, (await _store.GetByIdAsync(created.Id, CancellationToken.None))!.Status);
@@ -138,7 +138,7 @@ public sealed class ReconcileTaskTests : IDisposable
     await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
     await _store.MarkDispatchedAsync(created.Id, DateTime.UtcNow, CancellationToken.None);
     var dispatcher = new RecordingDispatcher();
-    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), dispatcher, NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), dispatcher, new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -151,7 +151,7 @@ public sealed class ReconcileTaskTests : IDisposable
   {
     await SeedApprovedAsync(); // no DispatchedAt
     var dispatcher = new RecordingDispatcher();
-    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), dispatcher, NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), new NoopNotificationService(), dispatcher, new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -173,7 +173,7 @@ public sealed class ReconcileTaskTests : IDisposable
     }
 
     var notifier = new RecordingNotificationService();
-    var reconciler = new RequestReconciler(_store, new StubMatcher(true), notifier, new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), notifier, new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -200,7 +200,7 @@ public sealed class ReconcileTaskTests : IDisposable
     await SeedEpisodeAsync(bob, 1, 1);
 
     var notifier = new RecordingNotificationService();
-    var reconciler = new RequestReconciler(_store, new StubMatcher(true), notifier, new RecordingDispatcher(), NullLogger<RequestReconciler>.Instance);
+    var reconciler = new RequestReconciler(_store, new StubMatcher(true), notifier, new RecordingDispatcher(), new StubTmdbClient(), () => new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration(), NullLogger<RequestReconciler>.Instance);
 
     await reconciler.ReconcileAsync(CancellationToken.None);
 
@@ -236,6 +236,8 @@ public sealed class ReconcileTaskTests : IDisposable
     public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
   }
 
   private sealed class EpisodeStubMatcher : ILibraryMatcher
@@ -262,6 +264,8 @@ public sealed class ReconcileTaskTests : IDisposable
     public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
+
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
   }
 
   private sealed class RecordingDispatcher : IDownloadDispatcher

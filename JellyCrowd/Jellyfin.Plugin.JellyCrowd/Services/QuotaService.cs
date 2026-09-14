@@ -104,9 +104,7 @@ public sealed class QuotaService : IQuotaService
     long reserved = 0;
     foreach (var request in requests)
     {
-      if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
-        && !request.HeldForQuota
-        && (request.DesiredAt is null || request.DesiredAt <= now))
+      if (IsReserving(request, now))
       {
         reserved += ReservationBytes(request);
       }
@@ -143,7 +141,7 @@ public sealed class QuotaService : IQuotaService
     }
 
     var committed = await ComputeCommittedAsync(userId, cancellationToken).ConfigureAwait(false);
-    return committed + (EstimateBytes(mediaType) * Math.Max(1, episodes)) <= quota;
+    return committed + (EstimateBytes(mediaType) * Math.Max(0, episodes)) <= quota;
   }
 
   /// <inheritdoc />
@@ -163,7 +161,7 @@ public sealed class QuotaService : IQuotaService
   public long ReservationBytes(RequestRecord request)
   {
     ArgumentNullException.ThrowIfNull(request);
-    return EstimateBytes(request.MediaType) * Math.Max(1, request.EstimatedEpisodes);
+    return EstimateBytes(request.MediaType) * Math.Max(0, request.EstimatedEpisodes ?? 1);
   }
 
   /// <inheritdoc />
@@ -194,9 +192,7 @@ public sealed class QuotaService : IQuotaService
 
     foreach (var request in requests)
     {
-      if ((request.Status is RequestStatus.Pending or RequestStatus.Approved)
-        && !request.HeldForQuota
-        && (request.DesiredAt is null || request.DesiredAt <= now))
+      if (IsReserving(request, now))
       {
         committed += ReservationBytes(request);
       }
@@ -204,6 +200,16 @@ public sealed class QuotaService : IQuotaService
 
     return committed;
   }
+
+  // Whether an in-flight request currently holds quota. A request held for quota waits without
+  // downloading; one not yet due reserves nothing until it is out; and one the backend searched for over
+  // the whole retry window without finding anything — and of which nothing has arrived — stops reserving,
+  // so unobtainable media cannot lock a user's quota forever. It stays approved and can still be retried.
+  private static bool IsReserving(RequestRecord request, DateTime now)
+    => request.Status is RequestStatus.Pending or RequestStatus.Approved
+      && !request.HeldForQuota
+      && (request.DesiredAt is null || request.DesiredAt <= now)
+      && !(request.NotFoundNotifiedAt is not null && request.PresentEpisodes == 0);
 
   // The fulfilled requests, which are the ones billed at their real size on disk.
   private static List<RequestRecord> Fulfilled(IReadOnlyList<RequestRecord> requests)

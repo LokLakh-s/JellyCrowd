@@ -69,4 +69,13 @@ public interface ILibraryMatcher
   /// </summary>
   /// <returns>The library media items.</returns>
   IReadOnlyList<LibraryMediaItem> ListLibraryMedia();
+
+  /// <summary>
+  /// Lists the episodes of a series currently in the library, as season and episode numbers, optionally
+  /// restricted to one season. Placeholder items Jellyfin creates for missing episodes are not counted.
+  /// </summary>
+  /// <param name="seriesTmdbId">The TMDB id of the series.</param>
+  /// <param name="season">The season to restrict to, or <c>null</c> for every season.</param>
+  /// <returns>The episodes present; empty when the series is not in the library.</returns>
+  IReadOnlyCollection<EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season);
 }

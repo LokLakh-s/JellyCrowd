@@ -241,4 +241,18 @@ public interface IRequestStore
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns>The requests due for dispatch.</returns>
   Task<IReadOnlyList<RequestRecord>> GetDueForDispatchAsync(DateTime nowUtc, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Records how many of a season or series request's episodes are in the library, and when that number
+  /// grew. With <paramref name="restartOwnershipClock"/>, an available request that is not flagged for
+  /// deletion also restarts its ownership clock, so every newly arrived episode gets the full retention
+  /// period instead of expiring with the first one.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="presentEpisodes">How many of its episodes are in the library.</param>
+  /// <param name="whenUtc">The time of the observation.</param>
+  /// <param name="restartOwnershipClock">Whether to restart the ownership clock of an available request.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if it no longer exists.</returns>
+  Task<RequestRecord?> RecordProgressAsync(Guid id, int presentEpisodes, DateTime whenUtc, bool restartOwnershipClock, CancellationToken cancellationToken);
 }

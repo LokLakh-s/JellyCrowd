@@ -249,6 +249,48 @@ public sealed class LibraryMatcher : ILibraryMatcher
       && int.TryParse(tmdb, NumberStyles.Integer, CultureInfo.InvariantCulture, out tmdbId);
   }
 
+  /// <inheritdoc />
+  public IReadOnlyCollection<EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season)
+  {
+    var keys = new HashSet<EpisodeKey>();
+    var series = _libraryManager.GetItemList(new InternalItemsQuery
+    {
+      IncludeItemTypes = new[] { BaseItemKind.Series },
+      HasAnyProviderId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+      {
+        [MetadataProvider.Tmdb.ToString()] = seriesTmdbId.ToString(CultureInfo.InvariantCulture)
+      },
+      Recursive = true,
+      Limit = 1
+    });
+    if (series.Count == 0)
+    {
+      return keys;
+    }
+
+    var query = new InternalItemsQuery
+    {
+      IncludeItemTypes = new[] { BaseItemKind.Episode },
+      AncestorIds = new[] { series[0].Id },
+      Recursive = true
+    };
+    if (season is not null)
+    {
+      query.ParentIndexNumber = season;
+    }
+
+    foreach (var item in _libraryManager.GetItemList(query))
+    {
+      // A "missing episode" placeholder has no file: counting it would make an incomplete season look done.
+      if (!item.IsVirtualItem && item.ParentIndexNumber is int s && item.IndexNumber is int e)
+      {
+        keys.Add(new EpisodeKey(s, e));
+      }
+    }
+
+    return keys;
+  }
+
   private long SumEpisodeSizes(BaseItem series, int? season = null, int? episode = null)
   {
     var query = new InternalItemsQuery
