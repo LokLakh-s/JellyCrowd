@@ -66,7 +66,10 @@ test.beforeAll(async () => {
   server = http.createServer((req, res) => {
     const url = decodeURIComponent(req.url.split('?')[0]);
     const send = (body, type) => { res.writeHead(200, { 'Content-Type': type }); res.end(body); };
-    if (url === '/') { return send(SHELL, 'text/html; charset=utf-8'); }
+    // Jellyfin serves its client from /web/, so anything the view resolves relatively resolves
+    // against THAT, not against the plugin's asset route. Serving the stub anywhere else would
+    // quietly make relative paths work here and fail in production.
+    if (url === '/web/index.html') { return send(SHELL, 'text/html; charset=utf-8'); }
     if (ENDPOINTS[url]) { return send(JSON.stringify(ENDPOINTS[url]), 'application/json'); }
     const file = path.join(WEB, url.replace(/^\/JellyCrowd\/Web/, ''));
     if (!file.startsWith(WEB)) { res.writeHead(403); return res.end('no'); }
@@ -82,7 +85,7 @@ test.afterAll(async () => { await new Promise(resolve => server.close(resolve));
 
 // Away from Home is what makes opening a panel navigate the page behind it.
 const openGuideFromADeepPage = async page => {
-  await page.goto(`${origin}/#/details?id=abc`);
+  await page.goto(`${origin}/web/index.html#/details?id=abc`);
   await page.locator('.jcHeaderLink-guide').waitFor();
   await page.click('.jcHeaderLink-guide');
 };

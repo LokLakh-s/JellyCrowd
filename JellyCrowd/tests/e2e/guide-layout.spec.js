@@ -68,7 +68,10 @@ test.beforeAll(async () => {
       res.writeHead(200, { 'Content-Type': type, 'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff' });
       res.end(body);
     };
-    if (url === '/') { return send(HOST_PAGE, 'text/html; charset=utf-8'); }
+    // Jellyfin serves its client from /web/, so anything the view resolves relatively resolves
+    // against THAT, not against the plugin's asset route. Serving the stub anywhere else would
+    // quietly make relative paths work here and fail in production.
+    if (url === '/web/index.html') { return send(HOST_PAGE, 'text/html; charset=utf-8'); }
     const file = path.join(WEB, url.replace(/^\/JellyCrowd\/Web/, ''));
     if (!file.startsWith(WEB)) { res.writeHead(403); return res.end('no'); }
     return fs.readFile(file, (err, buf) => err
@@ -82,7 +85,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => { await new Promise(resolve => server.close(resolve)); });
 
 test('every screenshot renders under the production CSP', async ({ page }) => {
-  await page.goto(origin);
+  await page.goto(`${origin}/web/index.html`);
   await page.locator('.jcGuide .faq-sec').waitFor();
 
   const images = await page.$$eval('.jcGuide img', els =>
@@ -91,6 +94,8 @@ test('every screenshot renders under the production CSP', async ({ page }) => {
   for (const image of images) {
     // A data: URI is refused by this CSP, and a decoded image always has a width.
     expect(image.src.startsWith('data:')).toBe(false);
+    // It must address the plugin's asset route, not a path relative to the client's own /web/ page.
+    expect(image.src).toContain('/JellyCrowd/Web/img/');
     expect(image.w).toBeGreaterThan(0);
   }
 });
@@ -99,7 +104,7 @@ test('the language switch never runs into the overlay close button', async ({ pa
   // The narrow widths are the ones that used to collide: the guide's column fills the panel there.
   for (const width of [1920, 1440, 1100, 960, 820, 600]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto(origin);
+    await page.goto(`${origin}/web/index.html`);
     await page.locator('.jcGuide .seg').waitFor();
 
     const boxes = await page.evaluate(() => {
@@ -115,7 +120,7 @@ test('the language switch never runs into the overlay close button', async ({ pa
 
 test('the guide uses the panel width, and its styles stay inside it', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.goto(origin);
+  await page.goto(`${origin}/web/index.html`);
   await page.locator('.jcGuide .hero .wrap').waitFor();
 
   // It used to render in a 940px column — half of a wide screen, which read as a broken layout.
@@ -132,7 +137,7 @@ test('the guide uses the panel width, and its styles stay inside it', async ({ p
 });
 
 test('the language switch re-renders the guide', async ({ page }) => {
-  await page.goto(origin);
+  await page.goto(`${origin}/web/index.html`);
   await page.locator('.jcGuide .seg').waitFor();
 
   await page.click('.jcGuide .seg button[data-lang="en"]');
