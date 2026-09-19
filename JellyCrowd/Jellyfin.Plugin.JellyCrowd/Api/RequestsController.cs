@@ -366,6 +366,22 @@ public class RequestsController : ControllerBase
     return quota > 0 && _quotaService.ReservationBytes(new RequestRecord { MediaType = mediaType, EstimatedEpisodes = episodes }) > quota;
   }
 
+  // Whether a title already on disk still fits in what is left of the user's quota: their committed
+  // footprint (owned titles at their real size plus what in-flight requests reserve) plus this title's
+  // own size on disk. A user already over their quota fails this whatever the size — including the 0 a
+  // library lookup returns when it cannot measure the item, which must not become a free pass.
+  private async Task<bool> FitsInQuotaAsync(Guid userId, string mediaType, int tmdbId, int? season, int? episode, CancellationToken cancellationToken)
+  {
+    var quota = _quotaService.GetQuotaBytes(userId);
+    if (quota <= 0)
+    {
+      return true;
+    }
+
+    var committed = await _quotaService.GetCommittedBytesAsync(userId, cancellationToken).ConfigureAwait(false);
+    return committed + _libraryMatcher.GetSizeBytes(mediaType, tmdbId, season, episode) <= quota;
+  }
+
   // Tells a requester their request is waiting for disk space (not for an administrator), so they
   // understand why it is not progressing.
   private void NotifyHeldForQuota(RequestRecord created)
@@ -383,19 +399,24 @@ public class RequestsController : ControllerBase
 
   /// <summary>
   /// Adds an already-available title to the current user's media (shared ownership). It counts toward
-  /// the user's quota; the caller is expected to have shown the quota warning.
+  /// the user's quota at its real size on disk, and is refused when it does not fit — unlike a request,
+  /// a claim has nothing to wait for, so there is no point holding it: the space is needed now. Re-claiming
+  /// a title already owned renews it instead, which is refused too while the user is over their quota.
   /// </summary>
   /// <param name="dto">The title to claim; an optional <c>Season</c> claims just that season of a show.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <response code="200">The created available request.</response>
   /// <response code="400">Invalid payload, or the title is not in the library.</response>
   /// <response code="409">The user already owns this title.</response>
+  /// <response code="422">The title does not fit in what is left of the user's disk quota, or the user is
+  /// over their quota and may no longer renew an ownership.</response>
   /// <returns>The persisted available request.</returns>
   [HttpPost("Claim")]
   [Authorize]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
   [ProducesResponseType(StatusCodes.Status409Conflict)]
+  [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
   public async Task<ActionResult<RequestRecord>> Claim([FromBody] CreateRequestDto dto, CancellationToken cancellationToken)
   {
     if (dto is null || string.IsNullOrWhiteSpace(dto.Title))
@@ -438,8 +459,26 @@ public class RequestsController : ControllerBase
       && MediaScope.Overlaps(dto.Season, dto.Episode, r.Season, r.Episode));
     if (owned is not null)
     {
+      // Renewing adds no bytes, but a library that has grown PAST its quota has to shrink: while the user
+      // is over, ownerships stop being renewable, so the expiry prunes what they do not free themselves.
+      // Strictly over — at the quota, or near it, renewing still works. Lapsing only drops the ownership
+      // (and its quota charge); the file stays in the shared library, so nothing is destroyed by waiting.
+      if (await _quotaService.IsOverQuotaAsync(userId, cancellationToken).ConfigureAwait(false))
+      {
+        return UnprocessableEntity("Your library is over your disk quota. Free some space before renewing.");
+      }
+
       var renewed = await _store.RenewAvailableAsync(owned.Id, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
       return Ok(renewed);
+    }
+
+    // Claiming an already-downloaded title charges its real size on disk to the quota, so it is gated
+    // like a request — it just was not, which let a user grow past their quota one already-present title
+    // at a time (nothing else adds owned bytes without passing a gate). The size is known exactly here,
+    // the file being on disk, so no estimate is involved.
+    if (!await FitsInQuotaAsync(userId, dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, cancellationToken).ConfigureAwait(false))
+    {
+      return UnprocessableEntity("Adding this title would exceed your disk quota. Free some space first.");
     }
 
     var created = await _store.CreateAsync(

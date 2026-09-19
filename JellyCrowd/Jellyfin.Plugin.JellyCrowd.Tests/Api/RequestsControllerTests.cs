@@ -252,6 +252,100 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Claim_OverQuota_RefusedWithReason()
+  {
+    // A title already on disk is free to download but not free to own: claiming it charges its real size
+    // to the quota, so a user with no room left is refused outright (nothing to wait for).
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 30, CommittedBytes = 31 };
+    var controller = CreateController(new FakeRequestStore(), quota: quota, matcher: new FakeLibraryMatcher { SizeBytes = 1 });
+
+    var result = await controller.Claim(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status422UnprocessableEntity, Assert.IsType<UnprocessableEntityObjectResult>(result.Result).StatusCode);
+  }
+
+  [Fact]
+  public async Task Claim_OverQuota_RefusedEvenWhenTheSizeCannotBeMeasured()
+  {
+    // A library lookup that cannot measure the item returns 0 bytes; that must not become a free pass
+    // for someone already past their quota.
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 30, CommittedBytes = 99 };
+    var controller = CreateController(new FakeRequestStore(), quota: quota, matcher: new FakeLibraryMatcher { SizeBytes = 0 });
+
+    var result = await controller.Claim(ValidDto(), CancellationToken.None);
+
+    Assert.IsType<UnprocessableEntityObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Claim_TitleLargerThanWhatIsLeft_Refused()
+  {
+    // Still under quota, but this title does not fit in what is left of it.
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 30, CommittedBytes = 28 };
+    var controller = CreateController(new FakeRequestStore(), quota: quota, matcher: new FakeLibraryMatcher { SizeBytes = 5 });
+
+    var result = await controller.Claim(ValidDto(), CancellationToken.None);
+
+    Assert.IsType<UnprocessableEntityObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Claim_FitsInRemainingQuota_Accepted()
+  {
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 30, CommittedBytes = 28 };
+    var controller = CreateController(new FakeRequestStore(), quota: quota, matcher: new FakeLibraryMatcher { SizeBytes = 2 });
+
+    var result = await controller.Claim(ValidDto(), CancellationToken.None);
+
+    var created = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(RequestStatus.Available, created.Status);
+  }
+
+  [Fact]
+  public async Task Claim_UnlimitedQuota_NotGated()
+  {
+    // Quota 0 means unlimited: the committed footprint is irrelevant.
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 0, CommittedBytes = long.MaxValue / 2 };
+    var controller = CreateController(new FakeRequestStore(), quota: quota, matcher: new FakeLibraryMatcher { SizeBytes = 5 });
+
+    var result = await controller.Claim(ValidDto(), CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Claim_AlreadyOwned_RefusedWhileOverQuota()
+  {
+    // A library that has outgrown its quota must shrink: renewing is refused so the ownership lapses on
+    // its own unless the user frees something (lapsing drops the ownership, not the file).
+    var store = new FakeRequestStore();
+    await CreateController(store).Claim(ValidDto(), CancellationToken.None);
+
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 30, CommittedBytes = 99, OverQuota = true };
+    var result = await CreateController(store, quota: quota, matcher: new FakeLibraryMatcher { SizeBytes = 10 })
+      .Claim(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status422UnprocessableEntity, Assert.IsType<UnprocessableEntityObjectResult>(result.Result).StatusCode);
+  }
+
+  [Fact]
+  public async Task Claim_AlreadyOwned_StillRenewsWhenMerelyAtTheQuota()
+  {
+    // Exactly at the quota — or near it — is not over it: renewing adds no bytes, so it keeps working.
+    // The "does it fit" gate that guards a NEW claim must not leak into the renewal path.
+    var store = new FakeRequestStore();
+    var first = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(
+      (await CreateController(store).Claim(ValidDto(), CancellationToken.None)).Result).Value);
+
+    var quota = new FakeQuotaService(canRequest: true) { QuotaBytes = 30, CommittedBytes = 30, OverQuota = false };
+    var result = await CreateController(store, quota: quota, matcher: new FakeLibraryMatcher { SizeBytes = 10 })
+      .Claim(ValidDto(), CancellationToken.None);
+
+    var renewed = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(first.Id, renewed.Id);
+  }
+
+  [Fact]
   public async Task CancelDeletion_UnknownRequest_NotFound()
   {
     var result = await CreateController(new FakeRequestStore()).CancelDeletion(Guid.NewGuid(), CancellationToken.None);
@@ -924,6 +1018,11 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     public Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken)
       => Task.FromResult(_canRequest);
 
+    /// <summary>Gets or sets whether the user owns strictly more than their quota (blocks renewals).</summary>
+    public bool OverQuota { get; set; }
+
+    public Task<bool> IsOverQuotaAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(OverQuota);
+
     /// <summary>Gets or sets the quota the fake reports (0 = unlimited).</summary>
     public long QuotaBytes { get; set; }
 
@@ -932,7 +1031,10 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
 
     public long ReservationBytes(RequestRecord request) => BytesPerEpisode * (request.EstimatedEpisodes ?? 1);
 
-    public Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(0L);
+    /// <summary>Gets or sets the footprint the user has already committed (owned + in flight).</summary>
+    public long CommittedBytes { get; set; }
+
+    public Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(CommittedBytes);
   }
 
   private sealed class FakeNotificationService : INotificationService
@@ -1033,9 +1135,12 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
 
     public string? FindSeasonItemId(int seriesTmdbId, int season) => "season-" + seriesTmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => 0;
+    /// <summary>Gets or sets the on-disk size the matcher reports for any title.</summary>
+    public long SizeBytes { get; set; }
 
-    public long GetSizeBytes(string mediaType, int tmdbId) => 0;
+    public long GetSizeBytes(string mediaType, int tmdbId, int? season, int? episode) => SizeBytes;
+
+    public long GetSizeBytes(string mediaType, int tmdbId) => SizeBytes;
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
 

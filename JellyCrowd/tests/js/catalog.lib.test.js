@@ -530,6 +530,57 @@ test('fetchStrings tolerates an environment with no fetch at all', async () => {
   assert.strictEqual(await lib.fetchStrings('/x.json', null), null);
 });
 
+// ---------- quotaFull: no room left, so quota-consuming actions are offered disabled ----------
+
+test('quotaFull is true once the disk usage reaches the quota', () => {
+  const gib = 1024 ** 3;
+  assert.strictEqual(lib.quotaFull({ UsedBytes: 30 * gib, QuotaBytes: 30 * gib }), true);
+  // The reported case: an account far past its quota, which must not be able to add anything more.
+  assert.strictEqual(lib.quotaFull({ UsedBytes: 99.2 * gib, QuotaBytes: 30 * gib }), true);
+});
+
+test('quotaFull is false while space is left', () => {
+  const gib = 1024 ** 3;
+  assert.strictEqual(lib.quotaFull({ UsedBytes: 29 * gib, QuotaBytes: 30 * gib }), false);
+  assert.strictEqual(lib.quotaFull({ UsedBytes: 0, QuotaBytes: 30 * gib }), false);
+});
+
+test('quotaFull never blocks an unlimited quota', () => {
+  assert.strictEqual(lib.quotaFull({ UsedBytes: 999, QuotaBytes: 0 }), false);
+  assert.strictEqual(lib.quotaFull({ UsedBytes: 999, QuotaBytes: 10, Unlimited: true }), false);
+});
+
+test('quotaFull tolerates a missing or unreadable snapshot', () => {
+  // The quota call is best-effort: a failed read must not lock the buttons.
+  assert.strictEqual(lib.quotaFull(null), false);
+  assert.strictEqual(lib.quotaFull(undefined), false);
+  assert.strictEqual(lib.quotaFull({}), false);
+});
+
+// ---------- quotaOver: past the quota, so ownerships stop being renewable ----------
+
+test('quotaOver is true only strictly above the quota', () => {
+  const gib = 1024 ** 3;
+  assert.strictEqual(lib.quotaOver({ UsedBytes: 99.2 * gib, QuotaBytes: 30 * gib }), true);
+  // Exactly at the limit is full, but not over it: renewing still works there.
+  assert.strictEqual(lib.quotaOver({ UsedBytes: 30 * gib, QuotaBytes: 30 * gib }), false);
+  assert.strictEqual(lib.quotaOver({ UsedBytes: 29.9 * gib, QuotaBytes: 30 * gib }), false);
+});
+
+test('quotaOver and quotaFull differ exactly at the limit', () => {
+  const gib = 1024 ** 3;
+  const atLimit = { UsedBytes: 30 * gib, QuotaBytes: 30 * gib };
+  assert.strictEqual(lib.quotaFull(atLimit), true);   // nothing more fits
+  assert.strictEqual(lib.quotaOver(atLimit), false);  // but nothing has to go either
+});
+
+test('quotaOver never blocks an unlimited quota or an unreadable snapshot', () => {
+  assert.strictEqual(lib.quotaOver({ UsedBytes: 999, QuotaBytes: 0 }), false);
+  assert.strictEqual(lib.quotaOver({ UsedBytes: 999, QuotaBytes: 10, Unlimited: true }), false);
+  assert.strictEqual(lib.quotaOver(null), false);
+  assert.strictEqual(lib.quotaOver({}), false);
+});
+
 // ---------- quotaSegments: the reserved footprint shown next to the disk usage ----------
 
 test('quotaSegments splits disk usage from what is merely reserved', () => {

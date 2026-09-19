@@ -292,6 +292,29 @@
     return Math.round(p > 100 ? 100 : p);
   }
 
+  // Whether a quota snapshot leaves no room at all: an unlimited quota never does, otherwise it is full
+  // once the disk usage reaches it. What a title costs is only known server-side (its size on disk), so
+  // this answers the one case the UI can settle on its own — nothing can fit, so actions that consume
+  // quota are offered disabled with their reason rather than failing on click.
+  function quotaFull(info) {
+    if (!info || info.Unlimited) {
+      return false;
+    }
+    var quota = Number(info.QuotaBytes) || 0;
+    return quota > 0 && (Number(info.UsedBytes) || 0) >= quota;
+  }
+
+  // Whether the library has grown PAST the quota, which is stricter than quotaFull: exactly at the limit
+  // is full but not over. Only over does an ownership stop being renewable, so that a library that
+  // outgrew its quota shrinks by expiry unless its owner frees something first.
+  function quotaOver(info) {
+    if (!info || info.Unlimited) {
+      return false;
+    }
+    var quota = Number(info.QuotaBytes) || 0;
+    return quota > 0 && (Number(info.UsedBytes) || 0) > quota;
+  }
+
   // Splits the quota bar into what is on disk and what is merely reserved by requests still downloading.
   // The reserved part is drawn after the used part and the two are clamped to 100% together, so a bar
   // that is already full never spills: a user seeing "0 used" while being refused a request needs to see
@@ -876,6 +899,8 @@
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,
+    quotaFull: quotaFull,
+    quotaOver: quotaOver,
     quotaSegments: quotaSegments,
     quotaColor: quotaColor,
     groupByReleaseDate: groupByReleaseDate,

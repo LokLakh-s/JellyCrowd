@@ -76,6 +76,19 @@ public interface IQuotaService
   Task<long> GetCommittedBytesAsync(Guid userId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Whether the user's library has grown past their quota: what they own on disk, strictly above the
+  /// limit. Being exactly at the limit is not over it. This is the figure their gauge shows, and it
+  /// deliberately leaves out the reservations of requests in flight — those are pessimistic upper bounds
+  /// only administrators see, so they must never be what costs someone an ownership. Contrast
+  /// <see cref="IsWithinQuotaAsync"/>, which weighs the whole committed footprint to decide whether a
+  /// request held for quota may resume.
+  /// </summary>
+  /// <param name="userId">The user identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns><c>true</c> when the user owns more than their quota (never for an unlimited quota).</returns>
+  Task<bool> IsOverQuotaAsync(Guid userId, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Determines whether the user's current committed footprint (their existing in-flight estimates plus
   /// the real size of fulfilled requests) is within their quota — i.e. nothing new is added. Used to
   /// decide whether requests held back purely by the quota can now resume.

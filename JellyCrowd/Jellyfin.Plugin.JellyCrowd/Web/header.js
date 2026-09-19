@@ -1977,15 +1977,31 @@
     return ea == null || eb == null || ea === eb;
   }
 
-  function buildDetailClaim(item) {
+  // Mirrors JellyCrowdLib.quotaFull, duplicated because the base-page header has no access to that
+  // module (same reason as quotaColor above). A snapshot we could not read never blocks anything.
+  function jcQuotaFull(info) {
+    if (!info || info.Unlimited) { return false; }
+    var quota = Number(info.QuotaBytes) || 0;
+    return quota > 0 && (Number(info.UsedBytes) || 0) >= quota;
+  }
+
+  // The status of a failed ApiClient call, which reports it either as a field or inside the message.
+  function jcErrorStatus(e, status) {
+    return !!(e && (e.status === status || (e.message && e.message.indexOf(String(status)) >= 0)));
+  }
+
+  function buildDetailClaim(item, quotaFull) {
     var wrap = document.createElement('span');
     wrap.id = 'jcDetailClaim';
     wrap.style.cssText = 'display:inline-flex;margin:.4em .6em .4em 0;vertical-align:middle;';
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = t('add_to_my_media');
-    btn.title = t('claim_quota_warning');
-    btn.style.cssText = 'background:#00a4dc;border:0;color:#fff;padding:.5em 1em;border-radius:.25em;cursor:pointer;font-size:.95em;';
+    // Owning an already-present title costs its size on disk: with a full quota it can only be refused,
+    // so the button carries the reason instead of failing on click.
+    btn.title = quotaFull ? t('claim_quota_blocked') : t('claim_quota_warning');
+    btn.style.cssText = 'background:' + (quotaFull ? '#555' : '#00a4dc') + ';border:0;color:#fff;padding:.5em 1em;border-radius:.25em;cursor:' + (quotaFull ? 'not-allowed' : 'pointer') + ';font-size:.95em;';
+    btn.disabled = !!quotaFull;
     btn.addEventListener('click', function () {
       btn.disabled = true;
       apiAjax('POST', 'JellyCrowd/Requests/Claim', {
@@ -1996,8 +2012,15 @@
       })
         .then(function () { btn.textContent = t('added'); })
         .catch(function (e) {
-          if (e && (e.status === 409 || (e.message && e.message.indexOf('409') >= 0))) { btn.textContent = t('already_yours'); }
-          else { btn.disabled = false; }
+          if (jcErrorStatus(e, 409)) { btn.textContent = t('already_yours'); }
+          else if (jcErrorStatus(e, 422)) {
+            // Measured server-side against what is left of the quota: it does not fit. Retrying changes
+            // nothing until space is freed, so the button stays down with the reason.
+            btn.textContent = t('quota_exceeded');
+            btn.title = t('claim_quota_blocked');
+            btn.style.background = '#555';
+            btn.style.cursor = 'not-allowed';
+          } else { btn.disabled = false; }
         });
     });
     wrap.appendChild(btn);
@@ -2027,21 +2050,26 @@
     function proceed(target) {
       if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
 
-      function injectClaim() {
+      function injectClaim(quotaFull) {
         if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
         var old = document.getElementById('jcDetailClaim');
         if (old && old.parentNode) { old.parentNode.removeChild(old); }
         if (!anchor.isConnected) { detailClaimPendingId = null; return; }
-        anchor.appendChild(buildDetailClaim(target));
+        anchor.appendChild(buildDetailClaim(target, quotaFull));
         detailClaimLoadedId = id;
       }
 
       // N32: only offer "Add to my library" if the user doesn't already own this scope (a whole-series
-      // ownership also covers a season).
-      window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Requests/Mine'), dataType: 'json' })
-        .then(function (mine) {
+      // ownership also covers a season). The quota rides along so a full one shows as blocked rather
+      // than as a click that fails; a failed quota read just leaves the button live (the server gates).
+      Promise.all([
+        window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Requests/Mine'), dataType: 'json' }),
+        window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Quota/Me'), dataType: 'json' })
+          .catch(function () { return null; })
+      ])
+        .then(function (res) {
           if (currentDetailItemId() !== id) { detailClaimPendingId = null; return; }
-          var owned = (mine || []).some(function (r) {
+          var owned = (res[0] || []).some(function (r) {
             return r.TmdbId === target.tmdbId && r.MediaType === target.mediaType
               && (r.Status === 3 || r.Status === 'Available') && !r.DeletionRequestedAt
               && jcScopeOverlaps(target.season, null, r.Season, r.Episode);
@@ -2051,9 +2079,9 @@
             detailClaimLoadedId = id;
             return;
           }
-          injectClaim();
+          injectClaim(jcQuotaFull(res[1]));
         })
-        .catch(injectClaim); // ownership check failed: show it anyway (the 409 still guards the claim).
+        .catch(function () { injectClaim(false); }); // ownership check failed: show it anyway (the 409 still guards the claim).
     }
 
     window.ApiClient.getItem(uid, id)

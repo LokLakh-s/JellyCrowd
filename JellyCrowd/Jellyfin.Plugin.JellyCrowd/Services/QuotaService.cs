@@ -145,6 +145,21 @@ public sealed class QuotaService : IQuotaService
   }
 
   /// <inheritdoc />
+  public async Task<bool> IsOverQuotaAsync(Guid userId, CancellationToken cancellationToken)
+  {
+    var quota = GetQuotaBytes(userId);
+    if (quota <= 0)
+    {
+      return false;
+    }
+
+    // Disk usage only, and strictly above: this answers "has this library outgrown its quota", which is
+    // what the user reads on their gauge, not "would one more byte fit" (that is CanRequestAsync).
+    var usage = await GetUsageAsync(userId, cancellationToken).ConfigureAwait(false);
+    return usage.UsedBytes > quota;
+  }
+
+  /// <inheritdoc />
   public async Task<bool> IsWithinQuotaAsync(Guid userId, CancellationToken cancellationToken)
   {
     var quota = GetQuotaBytes(userId);

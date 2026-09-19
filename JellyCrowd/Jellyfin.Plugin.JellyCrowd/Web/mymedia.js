@@ -10,6 +10,9 @@
   var lib = window.JellyCrowdLib;
   var strings = {};
   var cfgLang = 'auto';
+  // Set from the quota snapshot before the rows are built: past their quota, a user can no longer renew
+  // an ownership, so the button is shown disabled with the reason rather than failing on click.
+  var overQuota = false;
 
   function shortLang() {
     return lib.resolveLang(cfgLang, SUPPORTED_LANGS, navigator.language || 'en-US');
@@ -59,7 +62,9 @@
     }
     return fetch(pluginUrl(path), { method: 'POST' }).then(function (r) {
       if (!r.ok) {
-        throw new Error('HTTP ' + r.status);
+        var err = new Error('HTTP ' + r.status);
+        err.status = r.status;
+        throw err;
       }
       return r;
     });
@@ -174,11 +179,24 @@
         renew.className = 'jellycrowd-request';
         renew.type = 'button';
         renew.textContent = t('renew_ownership');
+        if (overQuota) {
+          renew.classList.add('jellycrowd-request-blocked');
+          renew.disabled = true;
+          renew.title = t('renew_quota_blocked');
+        }
         renew.addEventListener('click', function () {
           renew.disabled = true;
           apiPost('JellyCrowd/Requests/Claim', { TmdbId: item.TmdbId, MediaType: item.MediaType, Title: item.Title, PosterPath: item.PosterPath })
             .then(function () { reloadMedia(); })
-            .catch(function () { renew.disabled = false; });
+            .catch(function (e) {
+              // Refused because the library is over quota: say why and leave the button down — it is the
+              // space that has to change, not the click.
+              if (e && e.status === 422) {
+                renew.classList.add('jellycrowd-request-blocked');
+                renew.title = t('renew_quota_blocked');
+                setMessage(t('renew_quota_blocked'));
+              } else { renew.disabled = false; }
+            });
         });
         row.appendChild(renew);
       }
@@ -466,14 +484,20 @@
   }
 
   function reloadMedia() {
-    apiGet('JellyCrowd/Quota/Me')
-      .then(renderQuota)
-      .catch(function () { /* quota bar is best-effort */ });
+    // Both reads start together; the bar paints as soon as its own lands. The rows wait for the quota
+    // too — they need to know whether renewing is still allowed — and a quota read that fails just
+    // leaves the buttons live (the server has the last word anyway).
+    var quota = apiGet('JellyCrowd/Quota/Me').catch(function () { return null; });
+    var media = apiGet('JellyCrowd/Quota/MyMedia');
+    quota.then(renderQuota);
     // Keep the header quota bar in sync after a deletion/keep/renew (M28).
     if (typeof window.jellyCrowdRefreshQuota === 'function') { window.jellyCrowdRefreshQuota(); }
 
-    apiGet('JellyCrowd/Quota/MyMedia')
-      .then(render)
+    Promise.all([media, quota])
+      .then(function (res) {
+        overQuota = lib.quotaOver(res[1]);
+        render(res[0]);
+      })
       .catch(function () {
         // Clear the placeholders too, or the page keeps pretending something is on its way.
         lib.clearSkeletons(document.getElementById('jcMediaList'));
