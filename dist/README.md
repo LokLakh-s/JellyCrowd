@@ -58,6 +58,8 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - ⭐ **Ratings & reviews** — rate titles (1–10) and leave reviews, shown anonymously to others.
 - 🕓 **Watch history** — a permanent personal history (a Dashboard sub-tab), searchable by keyword and date range; yours to clear or turn off.
 - 🙋 **Personal dashboard** — your watch time, top titles, activity chart, watch-time-by-library and storage.
+- 📖 **Built-in user guide** — a step-by-step guide hosted by the plugin (no external site, no second
+  sign-in), opened from a header icon. Servers can replace its text and screenshots with their own.
 - 📽️ **Local intros** — a pre-roll video before movies and the first episode of a series. Opt-in.
 - 🩹 **Problem reports** — flag an issue on a title (wrong version, missing subtitles…), or open a general
   one from your avatar menu (playback, account, a question). Admins are notified at once and answer you in

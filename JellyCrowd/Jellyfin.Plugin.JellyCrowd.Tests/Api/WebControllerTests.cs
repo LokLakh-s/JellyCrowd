@@ -23,9 +23,9 @@ public class WebControllerTests
   [InlineData("strings/en.json", "application/json; charset=utf-8")]
   [InlineData("strings/fr.json", "application/json; charset=utf-8")]
   [InlineData("logo.png", "image/png")]
-  // The guide's screenshots: served as real images, since the pages go out with nosniff and a
-  // data: URI is blocked by any CSP that does not list it (which is how they stopped rendering).
-  [InlineData("img/guide-catalog.jpg", "image/jpeg")]
+  // The guide's text: served as a document the client fetches, not baked into its script, so an
+  // instance can replace it with its own (see GuideController).
+  [InlineData("guide-content.json", "application/json; charset=utf-8")]
   public void GetAsset_KnownAsset_ReturnsFileWithContentType(string path, string expectedContentType)
   {
     var controller = Create();

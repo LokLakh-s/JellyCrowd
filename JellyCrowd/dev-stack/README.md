@@ -89,3 +89,17 @@ docker compose down            # stop containers (keeps data)
 docker compose down -v         # stop + remove anonymous volumes
 # To fully reset: stop, then delete the jellyfin/ radarr/ sonarr/ prowlarr/ media/ folders.
 ```
+
+## Recapturing the guide's screenshots
+
+The guide shipped with the plugin must show a neutral server, never a real library. Bring the stack up,
+deploy the plugin, sign in once, then:
+
+```bash
+npm --prefix ../tests/e2e ci     # once, for playwright
+JC_BASE_URL=http://127.0.0.1:8096 JC_USER=Testor JC_PASSWORD='Test101!' node capture-guide-shots.mjs
+```
+
+It writes the shots into `Jellyfin.Plugin.JellyCrowd/Web/img/` and prints the `images` block to paste into
+`Web/guide-content.json` (each step then declares its `figs`). An instance that wants its own screenshots
+does not touch any of this — it drops them in its data folder, see `CONFIGURATION.md`.
