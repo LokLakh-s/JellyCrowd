@@ -28,7 +28,16 @@ Jelly Crowd**, une page à onglets : **Demandes**, **Quotas utilisateurs**, **R�
 
 Liste tous les utilisateurs Jellyfin avec un champ **quota (Gio)** par utilisateur. Laisser vide pour
 utiliser le quota par défaut ; `0` = illimité. L'usage d'un utilisateur = somme des tailles de ses
-requêtes satisfaites (`Disponible`). Au-delà du quota, ses nouvelles requêtes sont refusées (403).
+requêtes satisfaites (`Disponible`), dédupliquée (une saison déjà couverte par la série entière n'est
+pas comptée deux fois).
+
+Ce que fait le quota quand il est atteint, selon l'action :
+
+| Action | Comportement |
+|---|---|
+| **Nouvelle demande** d'un titre absent | Acceptée mais **mise en attente** (`En attente`, drapeau *quota*) ; elle repart **toute seule** dès que de la place se libère. Une demande plus grosse que le quota entier est refusée d'emblée (422) — elle ne pourrait jamais passer. |
+| **« Ajouter à ma bibliothèque »** sur un titre déjà présent | **Refusée (422)** si sa taille réelle sur disque ne rentre pas dans ce qu'il reste : le fichier est déjà là, il n'y a rien à attendre. |
+| **« Conserver (renouveler) »** une possession qui expire | Autorisé tant que l'usage **ne dépasse pas** le quota (être pile à la limite reste permis). Au-delà, refusé (422) : les possessions expirent alors d'elles-mêmes jusqu'à repasser sous la limite. L'expiration retire la possession, **pas le fichier**. |
 
 ## Onglet Notifications
 
@@ -52,6 +61,30 @@ Chaque canal est optionnel (activé dès qu'il est configuré). Événements not
   - **Slack** : *incoming webhook URL*.
   - **Webhook** : URL recevant un POST JSON `{title, body}`.
 - Bouton **Test** par canal : envoie une notification de test (enregistrez d'abord vos réglages).
+- Bloc **Signalements (tickets)** — ce qui se passe quand un utilisateur ouvre un signalement :
+  - **Alerter chaque administrateur dans sa cloche** (activé par défaut) : le seul canal qui marche sans
+    rien configurer ; l'alerte apparaît dans le panneau 🔔 de chaque compte administrateur.
+  - **Notifier les autres canaux** (Telegram, ntfy, Gotify, Pushover, Slack, webhook) : ces canaux n'ont
+    pas d'interrupteur par événement, celui-ci les couvre tous. Discord et l'e-mail ont le leur dans leur
+    propre bloc (*Notifier à la création d'un signalement*).
+  - **Rappeler les signalements ouverts tous les (jours)** — `3` par défaut, `0` désactive. Un seul
+    **récapitulatif** couvre tous les signalements qui attendent depuis plus longtemps que ce délai
+    (« 4 signalements toujours en attente — le plus ancien, X, depuis 9 jours »), au maximum une fois par
+    période : un arriéré ne peut pas se transformer en pluie de messages. La tâche planifiée
+    *« Jelly Crowd: remind about open reports »* (toutes les heures) s'en charge.
+
+## Onglet Modération
+
+Sous-onglet **Signalements** : la file des tickets ouverts par les utilisateurs — depuis la fiche d'un
+titre (*Signaler un problème*) ou depuis le menu sous leur avatar (signalement **général**, sans titre
+associé). Filtre **Ouverts / Traités / Tous** avec les compteurs ; les ouverts sont listés **du plus
+ancien au plus récent**, c'est l'arriéré que les rappels décrivent. Par ligne : catégorie, auteur, date,
+message, puis **Résoudre** (avec une note facultative **envoyée au déclarant**) et **Supprimer**.
+
+Sous-onglet **Avis** : modération des notes/commentaires laissés sur les fiches.
+
+> La file est bornée (500 entrées) : au-delà, les signalements **traités** sont purgés en premier — un
+> ticket encore ouvert n'est jamais perdu silencieusement.
 
 ## Onglet Téléchargement
 
@@ -155,3 +188,7 @@ utiliser les boutons habituels (film / saison / épisode) : la demande est cré�
   suppression d'un média disponible, badge de planification.
 - **Barre de quota** (entre la recherche et l'avatar) : usage/quota, dégradé vert→jaune→rouge ; clic →
   « Mes médias ».
+- **Menu sous l'avatar** : *Réglages*, puis **« Signaler un problème »** — ouvre un ticket général
+  (catégorie + message) adressé aux administrateurs, pour tout ce qui ne concerne pas un titre précis.
+  Pour un souci sur un titre, le bouton **⚠ Signaler un problème** de la fiche catalogue pré-remplit le
+  média. Dans les deux cas la réponse de l'admin revient dans la 🔔 de l'utilisateur.

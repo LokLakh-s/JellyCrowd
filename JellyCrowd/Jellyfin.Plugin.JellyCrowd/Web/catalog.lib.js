@@ -292,6 +292,21 @@
     return Math.round(p > 100 ? 100 : p);
   }
 
+  // The admin report queue, filtered and ordered: 'open' (the default), 'resolved' or 'all'. Open ones
+  // always come first, and within each group the OLDEST first — the backlog is what needs attention, and
+  // it is exactly what the open-reports reminder describes. Returns a new array; the input is untouched.
+  function orderReports(reports, mode) {
+    var rows = (reports || []).filter(function (r) {
+      if (!r) { return false; }
+      if (mode === 'all') { return true; }
+      return mode === 'resolved' ? !!r.Resolved : !r.Resolved;
+    });
+    return rows.sort(function (a, b) {
+      if (!a.Resolved !== !b.Resolved) { return a.Resolved ? 1 : -1; }
+      return new Date(a.CreatedAt || 0) - new Date(b.CreatedAt || 0);
+    });
+  }
+
   // Whether a quota snapshot leaves no room at all: an unlimited quota never does, otherwise it is full
   // once the disk usage reaches it. What a title costs is only known server-side (its size on disk), so
   // this answers the one case the UI can settle on its own — nothing can fit, so actions that consume
@@ -899,6 +914,7 @@
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,
+    orderReports: orderReports,
     quotaFull: quotaFull,
     quotaOver: quotaOver,
     quotaSegments: quotaSegments,

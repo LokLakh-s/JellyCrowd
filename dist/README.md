@@ -59,7 +59,9 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 🕓 **Watch history** — a permanent personal history (a Dashboard sub-tab), searchable by keyword and date range; yours to clear or turn off.
 - 🙋 **Personal dashboard** — your watch time, top titles, activity chart, watch-time-by-library and storage.
 - 📽️ **Local intros** — a pre-roll video before movies and the first episode of a series. Opt-in.
-- 🩹 **Problem reports** — flag an issue on a title (wrong version, missing subtitles…); the admin follows up.
+- 🩹 **Problem reports** — flag an issue on a title (wrong version, missing subtitles…), or open a general
+  one from your avatar menu (playback, account, a question). Admins are notified at once and answer you in
+  your notifications.
 - 🔔 **Notifications** — in-app alerts for your requests, with optional email / ntfy delivery you control.
 - 📉 **Storage quota bar** — a live gauge in the header shows how much of your space you've used.
 
@@ -124,7 +126,9 @@ Paste your TMDB API key in **Dashboard → Plugins → Jelly Crowd**, then manag
 - **Requests** — approve / deny / edit / delete, with live download status; retry a single blocked request
   or **retry all** stuck ones at once.
 - **Stats** — totals, top media & users, activity chart, live *Now playing*, per-user drill-down.
-- **Moderation** — triage user problem reports, and hide / show / delete community reviews.
+- **Moderation** — triage user problem reports (filter open / resolved, oldest first, resolve with a note
+  sent back to the reporter), and hide / show / delete community reviews. New reports alert every admin and
+  the configured channels, with an automatic recap of the ones left open.
 - **Users** — per-user quota & policy overrides (with **bulk edit**), **user groups** (shared settings,
   Jellyfin library access, targeted announcements and a **child mode** with an age-filtered catalog), who
   owns which media, and **assign** an existing title's ownership to a user.
@@ -155,7 +159,8 @@ Jelly Crowd adds navbar entries: **Catalog**, **Calendar**, **My requests**, **D
 - **Calendar** — upcoming releases of movies & shows.
 - **My requests** — track statuses (pending → in progress → available); cancel pending ones; the
   **release date** is shown for unreleased titles.
-- **My media** — what you own; request deletion to free your quota, or renew to keep it.
+- **My media** — what you own; request deletion to free your quota, or renew to keep it (renewing pauses
+  while you are over quota, so the oldest media expires until you are back under it).
 - **Dashboard** — an **Overview** (watch time, top watched, recent activity, requests, storage) and a
   **Watch history** sub-tab: your permanent history, searchable by keyword and date range, and yours to
   clear or turn off.

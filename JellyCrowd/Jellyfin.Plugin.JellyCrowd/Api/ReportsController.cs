@@ -24,7 +24,9 @@ public class ReportsController : ControllerBase
 {
   private const int MaxMessageLength = 2000;
 
-  private static readonly string[] KnownTypes = { "bug", "subtitles", "audio", "quality", "other" };
+  // The media categories, then "account" for the reports that come with no title (access, sign-in…).
+  // "other" catches anything unknown, so a client sending a category we do not know still files its report.
+  private static readonly string[] KnownTypes = { "bug", "subtitles", "audio", "quality", "account", "other" };
 
   private readonly IReportStore _store;
   private readonly ICurrentUserAccessor _userAccessor;
@@ -63,7 +65,9 @@ public class ReportsController : ControllerBase
   }
 
   /// <summary>
-  /// Submits an issue report about a title.
+  /// Submits an issue report. It concerns a title when the media fields are filled in (the catalogue's
+  /// "Report a problem" button), otherwise it is a general one — the user reaching an administrator about
+  /// something that is not a specific title.
   /// </summary>
   /// <param name="dto">The report payload.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
@@ -80,9 +84,14 @@ public class ReportsController : ControllerBase
       return BadRequest("A message is required.");
     }
 
-    if (!string.Equals(dto.MediaType, "movie", StringComparison.Ordinal) && !string.Equals(dto.MediaType, "tv", StringComparison.Ordinal))
+    // No media type at all = a general report, which carries no title. A media type that is set must
+    // still be one we understand: a typo would silently file the ticket against nothing.
+    var general = string.IsNullOrWhiteSpace(dto.MediaType);
+    if (!general
+        && !string.Equals(dto.MediaType, "movie", StringComparison.Ordinal)
+        && !string.Equals(dto.MediaType, "tv", StringComparison.Ordinal))
     {
-      return BadRequest("The 'mediaType' must be 'movie' or 'tv'.");
+      return BadRequest("The 'mediaType' must be 'movie', 'tv', or empty for a general report.");
     }
 
     var message = dto.Message.Trim();
@@ -95,9 +104,9 @@ public class ReportsController : ControllerBase
     var created = await _store.AddAsync(
       new MediaReport
       {
-        MediaType = dto.MediaType,
-        TmdbId = dto.TmdbId,
-        Title = dto.Title,
+        MediaType = general ? string.Empty : dto.MediaType,
+        TmdbId = general ? 0 : dto.TmdbId,
+        Title = general ? string.Empty : dto.Title,
         UserId = userId,
         UserName = _resolveUserName(userId),
         Message = message,
@@ -105,8 +114,18 @@ public class ReportsController : ControllerBase
       },
       cancellationToken).ConfigureAwait(false);
 
+    var subjectOf = ReportDigest.LogSubjectOf(created);
     await _activityLog.LogAsync(
-      "info", "report", $"New report ({created.Type}): {created.Title} — {created.UserName}", created.UserName, cancellationToken).ConfigureAwait(false);
+      "info", "report", $"New report ({created.Type}): {subjectOf} — {created.UserName}", created.UserName, cancellationToken).ConfigureAwait(false);
+
+    // Tell the administrators now: until this existed, a report only reached them if they happened to
+    // open the moderation screen (and the user guide promised otherwise).
+    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    _ = _notifications.NotifyAdminsAsync(
+      t("notif_report_new_subject"),
+      ReportDigest.NewReportBody(created, t),
+      CancellationToken.None);
+
     return Ok(created);
   }
 

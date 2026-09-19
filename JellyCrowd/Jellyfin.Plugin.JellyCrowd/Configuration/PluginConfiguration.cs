@@ -141,6 +141,11 @@ public class PluginConfiguration : BasePluginConfiguration
     PushoverUser = string.Empty;
     SlackWebhookUrl = string.Empty;
     NotifyWebhookUrl = string.Empty;
+    ReportNotifyBell = true;
+    DiscordNotifyReports = true;
+    EmailNotifyReports = true;
+    ReportNotifyOtherChannels = true;
+    ReportReminderDays = 3;
     Language = "auto";
     DownloadBackend = "none";
     DownloadWebhookUrl = string.Empty;
@@ -833,6 +838,38 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets a generic notification webhook URL (POSTed a <c>{title, body}</c> JSON). Empty disables it.
   /// </summary>
   public string NotifyWebhookUrl { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether a new report raises an in-app alert in every administrator's
+  /// bell. On by default: it is the only channel that needs no configuration, so turning it off should be
+  /// a deliberate choice.
+  /// </summary>
+  public bool ReportNotifyBell { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether Discord is notified when a report is opened.</summary>
+  public bool DiscordNotifyReports { get; set; }
+
+  /// <summary>Gets or sets a value indicating whether the ops mailbox is notified when a report is opened.</summary>
+  public bool EmailNotifyReports { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the other text channels (Telegram, ntfy, Gotify, Pushover,
+  /// Slack, webhook) are notified when a report is opened. They have no per-event toggles of their own.
+  /// </summary>
+  public bool ReportNotifyOtherChannels { get; set; }
+
+  /// <summary>
+  /// Gets or sets how many days a report may stay open before administrators are reminded, and how long
+  /// between two reminders. 0 disables reminders entirely. One recap covers every open report, so a
+  /// backlog cannot turn into a flood of messages.
+  /// </summary>
+  public int ReportReminderDays { get; set; }
+
+  /// <summary>
+  /// Gets or sets when the last open-reports recap was sent. Internal state kept with the settings so it
+  /// survives a restart — an admin has no reason to edit it.
+  /// </summary>
+  public DateTime? LastReportReminderUtc { get; set; }
 
   /// <summary>
   /// Gets or sets the UI/notification language. <c>"auto"</c> (default) follows each user's

@@ -47,6 +47,25 @@ public sealed class JsonReportStoreTests : IDisposable
   }
 
   [Fact]
+  public async Task AddAsync_AtTheCap_DropsResolvedReportsBeforeOpenOnes()
+  {
+    // The store is bounded. An open report is work still waiting on a human, so it must survive the trim
+    // while resolved history is dropped — losing a live ticket silently would be the worst outcome.
+    var open = await _store.AddAsync(New("open-and-old"), CancellationToken.None);
+    for (var i = 0; i < 520; i++)
+    {
+      var resolved = New("resolved-" + i.ToString(System.Globalization.CultureInfo.InvariantCulture));
+      resolved.Resolved = true;
+      await _store.AddAsync(resolved, CancellationToken.None);
+    }
+
+    var all = await _store.GetAllAsync(CancellationToken.None);
+
+    Assert.Equal(500, all.Count);
+    Assert.Contains(all, r => r.Id == open.Id);
+  }
+
+  [Fact]
   public async Task SetResolved_And_Delete()
   {
     var a = await _store.AddAsync(New("a"), CancellationToken.None);

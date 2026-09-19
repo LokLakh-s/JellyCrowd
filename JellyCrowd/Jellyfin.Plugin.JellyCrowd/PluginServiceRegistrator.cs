@@ -71,6 +71,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IStatsService, StatsService>();
     serviceCollection.AddSingleton<IPlaybackReportingImporter, PlaybackReportingImporter>();
     serviceCollection.AddSingleton<Func<PluginConfiguration>>(_ => () => Plugin.Instance!.Configuration);
+    // Persisting the configuration is a service of its own so the pieces that write settings back (the
+    // open-reports reminder stamps when it last ran) stay testable without a live plugin instance.
+    serviceCollection.AddSingleton<Action<PluginConfiguration>>(_ => _ => Plugin.Instance!.SaveConfiguration());
     serviceCollection.AddSingleton<IQuotaService>(sp => new QuotaService(
       sp.GetRequiredService<IRequestStore>(),
       sp.GetRequiredService<ILibraryMatcher>(),

@@ -31,7 +31,9 @@ middleware ASP.NET intégré.
   par saison ou par épisode. **Fulfilment automatique** via Radarr/Sonarr, webhook ou script.
 - 💾 **Quotas disque par utilisateur** — quota par défaut + overrides ; **quota adaptatif** optionnel qui
   récompense les utilisateurs actifs ; expiration des médias pour libérer de l'espace ; limites de requêtes.
-- ⭐ **Avis & signalements** — notes/critiques in-app avec modération, plus un canal de signalement.
+- ⭐ **Avis & tickets** — notes/critiques in-app avec modération, plus un canal de signalement : sur une
+  fiche ou en général (depuis le menu avatar), avec notification immédiate des admins et rappels des
+  tickets laissés ouverts.
 - 🔔 **Notifications** — Discord, e-mail, Telegram, ntfy, Gotify, Pushover, Slack ou webhook.
 - 🎨 **Branding** — thème complet de l'interface : logo, favicon, couleurs, police, fond, CSS custom, liens du menu.
 - 📊 **Statistiques & dashboards** — analytics de lecture pour l'admin (top médias & utilisateurs, graphes
