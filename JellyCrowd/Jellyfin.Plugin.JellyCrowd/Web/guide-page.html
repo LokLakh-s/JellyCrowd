@@ -80,7 +80,7 @@
   .callout .ic{font-size:1.05rem;line-height:1.5;}
   .callout p{margin:0;font-size:.96rem;color:var(--muted);}
 
-  .legend-sec,.quota-sec,.faq-sec{padding:38px 0 8px;border-top:1px solid var(--border);}
+  .legend-sec,.quota-sec,.lib-sec,.faq-sec{padding:38px 0 8px;border-top:1px solid var(--border);}
   h2.sec{font-size:1.42rem;margin:0 0 4px;}
   .sec-intro{color:var(--muted);margin:.15em 0 20px;max-width:46em;}
   .legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px;}
@@ -93,6 +93,15 @@
   .qbar-label{display:flex;justify-content:space-between;font-size:.86rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-bottom:6px;}
   .qbar{height:10px;border-radius:999px;background:var(--panel-2);border:1px solid var(--border);overflow:hidden;}
   .qbar>span{display:block;height:100%;width:38%;background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 60%,var(--s-blue)));}
+
+  /* "My library" mock-up: the real rows, drawn in HTML rather than screenshotted, so the guide can show
+     the expiry chip and the greyed-out renew without going stale every time the UI is restyled. */
+  .lib-demo{margin:18px 0 6px;max-width:560px;border:1px solid var(--border);border-radius:12px;background:var(--panel);overflow:hidden;}
+  .lib-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--border);font-size:.92rem;flex-wrap:wrap;}
+  .lib-row:first-child{border-top:0;}
+  .lib-row .t{flex:1 1 9em;min-width:0;font-weight:600;}
+  .lib-row .sz{color:var(--muted);font-size:.86rem;font-variant-numeric:tabular-nums;}
+  .lib-row .btn{border:1px solid var(--border);background:var(--panel-2);color:var(--muted);border-radius:7px;padding:.2em .62em;font-size:.79rem;white-space:nowrap;}
 
   details{border:1px solid var(--border);border-radius:11px;background:var(--panel);padding:2px 16px;margin:10px 0;}
   details[open]{background:var(--panel-2);}
