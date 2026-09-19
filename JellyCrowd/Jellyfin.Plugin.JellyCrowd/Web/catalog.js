@@ -1164,11 +1164,21 @@
         actions.appendChild(openBtn);
       }
 
+      // Owning an already-present title still costs its size on disk, so a full quota blocks it exactly
+      // like a request: the button is shown disabled with the reason rather than letting the click fail.
+      var claimNote = document.createElement('div');
+      claimNote.className = 'jellycrowd-request-sub';
+      claimNote.textContent = quotaExceeded ? t('claim_quota_blocked') : t('claim_quota_warning');
+
       var claimBtn = document.createElement('button');
       claimBtn.className = 'jellycrowd-request jellycrowd-request-secondary';
       claimBtn.type = 'button';
       claimBtn.textContent = t('add_to_my_media');
-      claimBtn.title = t('claim_quota_warning');
+      claimBtn.title = quotaExceeded ? t('claim_quota_blocked') : t('claim_quota_warning');
+      if (quotaExceeded) {
+        claimBtn.classList.add('jellycrowd-request-blocked');
+        claimBtn.disabled = true;
+      }
       claimBtn.addEventListener('click', function () {
         claimBtn.disabled = true;
         apiPost('JellyCrowd/Requests/Claim', {
@@ -1182,14 +1192,18 @@
           refreshHeaderQuota();
         }).catch(function (error) {
           if (error && error.status === 409) { claimBtn.textContent = t('already_yours'); }
-          else { claimBtn.disabled = false; }
+          else if (error && error.status === 422) {
+            // The server measured the title against what is left: it does not fit. Say so where the
+            // warning was, and leave the button blocked — retrying changes nothing until space is freed.
+            claimBtn.textContent = t('quota_exceeded');
+            claimBtn.title = t('claim_quota_blocked');
+            claimBtn.classList.add('jellycrowd-request-blocked');
+            claimNote.textContent = t('claim_quota_blocked');
+          } else { claimBtn.disabled = false; }
         });
       });
       actions.appendChild(claimBtn);
       reqTarget.appendChild(actions);
-      var claimNote = document.createElement('div');
-      claimNote.className = 'jellycrowd-request-sub';
-      claimNote.textContent = t('claim_quota_warning');
       reqTarget.appendChild(claimNote);
     }
 
@@ -2010,7 +2024,7 @@
 
       apiGet('JellyCrowd/Quota/Me')
         .then(function (q) {
-          quotaExceeded = !!(q && !q.Unlimited && q.QuotaBytes > 0 && q.UsedBytes >= q.QuotaBytes);
+          quotaExceeded = lib.quotaFull(q);
         })
         .catch(function () { /* quota check is best-effort */ })
         .then(loadWatchlist)

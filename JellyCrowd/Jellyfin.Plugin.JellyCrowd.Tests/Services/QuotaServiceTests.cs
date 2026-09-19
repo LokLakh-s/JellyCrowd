@@ -258,6 +258,55 @@ public sealed class QuotaServiceTests : IDisposable
   }
 
   [Fact]
+  public async Task IsOverQuotaAsync_TrueOnlyStrictlyAboveTheQuota()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 4 * Gib });
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "A", Status = RequestStatus.Available },
+      CancellationToken.None);
+
+    // Exactly at the quota is not over it: renewals keep working there, only a library that outgrew its
+    // quota is pushed to shrink.
+    Assert.False(await Create(new SizeMatcher(4 * Gib)).IsOverQuotaAsync(user, CancellationToken.None));
+    Assert.False(await Create(new SizeMatcher(3 * Gib)).IsOverQuotaAsync(user, CancellationToken.None));
+    Assert.True(await Create(new SizeMatcher(5 * Gib)).IsOverQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task IsOverQuotaAsync_IgnoresWhatIsMerelyReserved()
+  {
+    // In-flight reservations are pessimistic upper bounds, shown to admins only: they must not be what
+    // costs a user an ownership. Only what is really on disk decides.
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 4 * Gib });
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "Owned", Status = RequestStatus.Available },
+      CancellationToken.None);
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 2, MediaType = "movie", Title = "Downloading", Status = RequestStatus.Approved },
+      CancellationToken.None);
+
+    var service = Create(new SizeMatcher(3 * Gib));
+
+    // 3 GiB on disk + a 4 GiB reservation is over the committed limit, but the library itself is not.
+    Assert.False(await service.IsWithinQuotaAsync(user, CancellationToken.None));
+    Assert.False(await service.IsOverQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task IsOverQuotaAsync_NeverTrueForAnUnlimitedQuota()
+  {
+    var user = Guid.NewGuid();
+    _config.QuotaOverrides.Add(new UserQuotaOverride { UserId = user, QuotaBytes = 0 });
+    await _store.CreateAsync(
+      new RequestRecord { UserId = user, TmdbId = 1, MediaType = "movie", Title = "A", Status = RequestStatus.Available },
+      CancellationToken.None);
+
+    Assert.False(await Create(new SizeMatcher(500 * Gib)).IsOverQuotaAsync(user, CancellationToken.None));
+  }
+
+  [Fact]
   public async Task CanRequestAsync_ReservesOneEstimatePerEpisodeCovered()
   {
     var user = Guid.NewGuid();
