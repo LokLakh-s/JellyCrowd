@@ -1,20 +1,125 @@
 <!--
-  Jelly Crowd "Guide" view: the user guide, hosted by the plugin (no external site, no SSO) and shown in
-  an overlay panel. It is a self-contained page (guide-page.html + guide.js) rendered in a same-origin
-  iframe so its own styles/theme stay isolated from the Jellyfin UI.
+  Jelly Crowd "Guide" view: the user guide, rendered directly in the overlay panel (no iframe, no
+  external site, no second sign-in). Its styles are all scoped under .jcGuide so they cannot leak into
+  the Jellyfin UI around it, which is what the iframe used to buy us — at the cost of a nested scroll
+  area and a page that could not inherit the panel's own scrolling.
 -->
-<div class="jellycrowd jellycrowd-guide-view">
-  <iframe id="jcGuideFrame" title="Guide" loading="lazy"
-    style="display:block;width:100%;height:82vh;border:0;border-radius:10px;background:transparent;"></iframe>
+<div class="jcGuide">
+  <style>
+    /* Palette. On :root in the standalone days; on the container now, so nothing else inherits it. */
+    .jcGuide {
+      --bg: #0c110e; --panel: #141b17; --panel-2: #1a221d; --border: #2a332d;
+      --ink: #e9efea; --muted: #93a49a; --faint: #6f7e75;
+      --accent: #37bd60; --accent-ink: #08120b; --accent-soft: #153021;
+      --s-blue: #4aa3e6; --s-amber: #e2a412; --s-purple: #9384f4; --s-green: #37bd60; --s-grey: #7c8a82;
+      --shadow: 0 18px 44px -22px rgba(0, 0, 0, .65); --maxw: 940px;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* The client's own rules for h1/h2/p/li/button would otherwise win inside the panel: the guide is
+       not an iframe any more, so it states its typography rather than inheriting whatever is around. */
+    .jcGuide h1, .jcGuide h2, .jcGuide h3, .jcGuide p, .jcGuide li,
+    .jcGuide summary, .jcGuide figcaption, .jcGuide span, .jcGuide div {
+      font-family: inherit;
+    }
+    .jcGuide * { box-sizing: border-box; }
+    .jcGuide a { color: var(--accent); }
+    .jcGuide .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+
+    .jcGuide .langbar { position: sticky; top: 0; z-index: 3; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .jcGuide .langbar .wrap { display: flex; align-items: center; justify-content: flex-end; height: 48px; }
+    .jcGuide .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; background: var(--panel); }
+    .jcGuide .seg button { appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .82rem; font-weight: 700; letter-spacing: .03em; padding: .34em .8em; cursor: pointer; }
+    .jcGuide .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+    .jcGuide .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--border); display: block;
+      background: radial-gradient(120% 90% at 85% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%), linear-gradient(180deg, var(--panel-2), var(--bg)); }
+    .jcGuide .hero .wrap { padding-top: 40px; padding-bottom: 36px; }
+    .jcGuide .kicker { display: inline-flex; align-items: center; gap: .55em; font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 700; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); background: var(--accent-soft); padding: .4em .8em; border-radius: 999px; }
+    .jcGuide h1 { font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.08; margin: .55em 0 .25em; letter-spacing: -.02em; text-wrap: balance; font-weight: 800; color: var(--ink); }
+    .jcGuide .lede { font-size: 1.12rem; color: var(--muted); max-width: 39em; text-wrap: pretty; }
+    .jcGuide .where { margin-top: 20px; font-size: .98rem; color: var(--muted); max-width: 44em; border-left: 3px solid var(--accent); background: var(--panel-2); padding: 12px 16px; border-radius: 0 10px 10px 0; }
+
+    .jcGuide main { display: block; padding: 8px 0 40px; }
+    .jcGuide .step { padding: 38px 0 6px; border-top: 1px solid var(--border); }
+    .jcGuide .step:first-of-type { border-top: 0; }
+    .jcGuide .step-head { display: flex; gap: 16px; align-items: flex-start; }
+    .jcGuide .num { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-weight: 800; font-size: 1.05rem; background: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 70%, transparent); }
+    .jcGuide .step h2 { font-size: 1.42rem; margin: .1em 0 .15em; letter-spacing: -.01em; color: var(--ink); }
+    .jcGuide .step-head p { margin: 0; color: var(--muted); max-width: 44em; }
+    .jcGuide .body { margin-top: 16px; }
+    .jcGuide .body > p { max-width: 46em; }
+    .jcGuide ul.clean { margin: .4em 0 0; padding-left: 1.15em; color: var(--muted); list-style: disc; }
+    .jcGuide ul.clean li { margin: .3em 0; }
+    .jcGuide ul.clean b, .jcGuide .body b { color: var(--ink); font-weight: 600; }
+
+    .jcGuide figure { margin: 22px 0 6px; }
+    .jcGuide .shot { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--panel); box-shadow: var(--shadow); }
+    .jcGuide .shot.narrow { max-width: 430px; }
+    .jcGuide .shot img { display: block; width: 100%; height: auto; }
+    .jcGuide figcaption { margin-top: 10px; font-size: .86rem; color: var(--faint); text-align: center; }
+
+    .jcGuide .callout { margin: 22px 0 4px; display: flex; gap: 12px; align-items: flex-start; background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 14px 16px; }
+    .jcGuide .callout .ic { font-size: 1.05rem; line-height: 1.5; }
+    .jcGuide .callout p { margin: 0; font-size: .96rem; color: var(--muted); }
+
+    .jcGuide .legend-sec, .jcGuide .quota-sec, .jcGuide .lib-sec, .jcGuide .faq-sec { padding: 38px 0 8px; border-top: 1px solid var(--border); }
+    .jcGuide h2.sec { font-size: 1.42rem; margin: 0 0 4px; color: var(--ink); }
+    .jcGuide .sec-intro { color: var(--muted); margin: .15em 0 20px; max-width: 46em; }
+    .jcGuide .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 12px; }
+    .jcGuide .lg { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; }
+    .jcGuide .pill { display: inline-block; font-size: .8rem; font-weight: 700; color: #fff; padding: .24em .7em; border-radius: 7px; }
+    .jcGuide .lg p { margin: .6em 0 0; font-size: .9rem; color: var(--muted); }
+    .jcGuide .p-blue { background: var(--s-blue); } .jcGuide .p-amber { background: var(--s-amber); }
+    .jcGuide .p-purple { background: var(--s-purple); } .jcGuide .p-green { background: var(--s-green); }
+    .jcGuide .p-grey { background: var(--s-grey); }
+
+    .jcGuide .qbar-demo { margin: 16px 0 6px; max-width: 520px; }
+    .jcGuide .qbar-label { display: flex; justify-content: space-between; font-size: .86rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+    .jcGuide .qbar { height: 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); overflow: hidden; }
+    .jcGuide .qbar > span { display: block; height: 100%; width: 38%; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--s-blue))); }
+
+    /* "My library" mock-up: the real rows, drawn in HTML rather than screenshotted. */
+    .jcGuide .lib-demo { margin: 18px 0 6px; max-width: 560px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; }
+    .jcGuide .lib-row { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-top: 1px solid var(--border); font-size: .92rem; flex-wrap: wrap; }
+    .jcGuide .lib-row:first-child { border-top: 0; }
+    .jcGuide .lib-row .t { flex: 1 1 9em; min-width: 0; font-weight: 600; }
+    .jcGuide .lib-row .sz { color: var(--muted); font-size: .86rem; font-variant-numeric: tabular-nums; }
+    .jcGuide .lib-row .btn { border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); border-radius: 7px; padding: .2em .62em; font-size: .79rem; white-space: nowrap; }
+
+    .jcGuide details { border: 1px solid var(--border); border-radius: 11px; background: var(--panel); padding: 2px 16px; margin: 10px 0; }
+    .jcGuide details[open] { background: var(--panel-2); }
+    .jcGuide summary { cursor: pointer; padding: 13px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; align-items: center; color: var(--ink); }
+    .jcGuide summary::-webkit-details-marker { display: none; }
+    .jcGuide summary::after { content: "+"; color: var(--accent); font-weight: 800; font-size: 1.2rem; }
+    .jcGuide details[open] summary::after { content: "–"; }
+    .jcGuide details p { margin: 0 0 14px; color: var(--muted); font-size: .96rem; }
+
+    .jcGuide footer { display: block; border-top: 1px solid var(--border); color: var(--faint); font-size: .86rem; }
+    .jcGuide footer .wrap { padding: 22px 20px 40px; }
+    .jcGuide :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    @media (max-width: 560px) { .jcGuide .num { width: 32px; height: 32px; } }
+  </style>
+
+  <div class="langbar"><div class="wrap">
+    <div class="seg" role="group" aria-label="Language">
+      <button type="button" data-lang="fr" aria-pressed="true">FR</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div></div>
+
+  <div class="jcGuideApp"></div>
 </div>
 <script>
   (function () {
-    var f = document.getElementById('jcGuideFrame');
-    if (!f) { return; }
     var get = (window.ApiClient && typeof window.ApiClient.getUrl === 'function')
       ? function (p) { return window.ApiClient.getUrl(p); }
       : function (p) { return '/' + p; };
-    // Same-origin (plugin-served) → no X-Frame-Options / CSP issue, unlike the external keeklah.fr page.
-    f.src = get('JellyCrowd/Web/guide-page.html');
+    var s = document.createElement('script');
+    s.src = get('JellyCrowd/Web/guide.js');
+    document.head.appendChild(s);
   })();
 </script>

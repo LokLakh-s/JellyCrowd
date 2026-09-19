@@ -292,6 +292,24 @@
     return Math.round(p > 100 ? 100 : p);
   }
 
+  // Whether a navigation event should close the plugin overlay, given the deadline set when the overlay
+  // itself asked the page behind it to go Home. Those navigations are ours and must be ignored; anything
+  // after the deadline is the user really leaving. Each ignored event pushes the deadline back, because
+  // one navigation can surface as several events (hashchange then popstate) spread over time.
+  //
+  // A plain "ignore for 200 ms" flag used to lose this race: a home navigation that reported late closed
+  // the panel a click had just opened.
+  function navCloseAllowed(nowMs, suppressUntilMs) {
+    return Number(nowMs) >= (Number(suppressUntilMs) || 0);
+  }
+
+  // The deadline after an event we chose to ignore: never earlier than the one we already had.
+  function navSuppressWindow(nowMs, suppressUntilMs, extendMs) {
+    var extended = Number(nowMs) + (Number(extendMs) || 0);
+    var current = Number(suppressUntilMs) || 0;
+    return extended > current ? extended : current;
+  }
+
   // The admin report queue, filtered and ordered: 'open' (the default), 'resolved' or 'all'. Open ones
   // always come first, and within each group the OLDEST first — the backlog is what needs attention, and
   // it is exactly what the open-reports reminder describes. Returns a new array; the input is untouched.
@@ -914,6 +932,8 @@
     orderPair: orderPair,
     formatBytes: formatBytes,
     quotaPercent: quotaPercent,
+    navCloseAllowed: navCloseAllowed,
+    navSuppressWindow: navSuppressWindow,
     orderReports: orderReports,
     quotaFull: quotaFull,
     quotaOver: quotaOver,
