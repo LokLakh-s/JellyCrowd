@@ -382,12 +382,14 @@ public class PluginConfiguration : BasePluginConfiguration
 
   /// <summary>
   /// Gets or sets a value indicating whether a "user guide" icon is shown in the header (admin opt-in,
-  /// off by default). Only rendered when enabled and <see cref="GuideLinkUrl"/> is set.
+  /// off by default). The icon opens the guide the plugin hosts itself; no URL is involved.
   /// </summary>
   public bool GuideLinkEnabled { get; set; }
 
   /// <summary>
-  /// Gets or sets the user-guide URL the header icon links to.
+  /// Gets or sets the legacy external user-guide URL. Nothing reads it any more — the guide moved inside
+  /// the plugin, where it needs no external site and no second sign-in. Kept so upgrading does not drop
+  /// a value from existing configurations; it is no longer offered in the admin panel.
   /// </summary>
   public string GuideLinkUrl { get; set; }
 

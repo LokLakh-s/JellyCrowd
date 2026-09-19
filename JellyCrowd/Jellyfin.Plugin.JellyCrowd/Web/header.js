@@ -104,7 +104,6 @@
   var announcement = { text: '', level: 'green' };
   var discordUrl = '';        // admin opt-in: Discord invite link shown as a header icon ('' = hidden)
   var supportUrl = '';        // admin opt-in: support/donation link shown as a header icon ('' = hidden)
-  var guideUrl = '';          // legacy: external user-guide URL (kept for back-compat; no longer navigated to)
   var guideEnabled = false;   // admin opt-in: show the header guide (?) icon, which opens the in-app guide
   var hideNativeDrawer = false; // admin opt-in: hide Jellyfin's left drawer for non-admins
   var jcSkipOutro = false;    // whether the smart Skip Outro control is enabled (install the watcher if so)
@@ -123,7 +122,6 @@
         if (d) { announcement = { text: d.AnnouncementText || '', level: d.AnnouncementLevel || 'green' }; }
         discordUrl = (d && d.DiscordInviteUrl) ? String(d.DiscordInviteUrl) : '';
         supportUrl = (d && d.SupportLinkUrl) ? String(d.SupportLinkUrl) : '';
-        guideUrl = (d && d.GuideLinkUrl) ? String(d.GuideLinkUrl) : '';
         guideEnabled = !!(d && d.GuideEnabled);
         jcSkipOutro = !!(d && d.SkipOutroEnabled);
         hideNativeDrawer = !!(d && d.HideNativeDrawer);
