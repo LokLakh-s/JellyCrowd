@@ -1,13 +1,6 @@
 {
   "$comment": "Default guide content shipped with the plugin. An instance can override it (and add its own screenshots) by placing guide-content.json and img/ in <plugin data folder>/guide/.",
-  "images": {
-    "catalog": "guide-catalog.jpg",
-    "search": "guide-search.jpg",
-    "detail": "guide-detail.jpg",
-    "request": "guide-request.jpg",
-    "requests": "guide-requests.jpg",
-    "notif": "guide-notif.jpg"
-  },
+  "images": {},
   "languages": {
     "fr": {
       "doctitle": "Guide Jelly Crowd",
@@ -25,24 +18,14 @@
             "Affine avec les <b>genres</b>, les curseurs <b>Années</b> et <b>Note</b>, la <b>langue</b>, le <b>pays</b> et <b>Trier par</b>.",
             "Le badge vert <b>« Disponible »</b> sur une affiche = c'est déjà sur le serveur, regardable tout de suite."
           ],
-          "figs": [
-            [
-              "catalog",
-              "Le Catalogue : les filtres en haut, puis « Le plus demandé ici » et les suggestions."
-            ]
-          ]
+          "figs": []
         },
         {
           "n": 2,
           "title": "Cherche un titre précis",
           "intro": "Un nom en tête ? Tape-le dans la barre <b>Rechercher des films et séries…</b> en haut à droite, puis valide.",
           "bullets": [],
-          "figs": [
-            [
-              "search",
-              "Une recherche : le badge vert « Disponible » marque ce qui est déjà sur le serveur."
-            ]
-          ]
+          "figs": []
         },
         {
           "n": 3,
@@ -52,16 +35,7 @@
             "<b>Déjà disponible</b> → <b>Ouvrir dans Jellyfin</b> pour le lancer, ou <b>Ajouter à ma bibliothèque</b> (il compte alors dans ton quota, à sa taille réelle — l'ajout est refusé s'il n'y rentre plus).",
             "<b>Pas encore là</b> → un bouton vert <b>Demander</b>. Tu peux choisir une <b>date souhaitée</b>, puis valider. C'est tout&nbsp;!"
           ],
-          "figs": [
-            [
-              "detail",
-              "Titre déjà disponible : tu peux l'ouvrir dans Jellyfin ou l'ajouter à ta bibliothèque."
-            ],
-            [
-              "request",
-              "Titre pas encore là : choisis une date souhaitée, puis clique sur « Demander »."
-            ]
-          ],
+          "figs": [],
           "callout": {
             "icon": "⭐",
             "html": "<b>Pas décidé ?</b> L'étoile <b>« Ajouter à ma liste »</b> met le titre de côté sans le demander — tu le retrouves via <b>Ma liste</b> dans les filtres."
@@ -72,12 +46,7 @@
           "title": "Suis tes demandes",
           "intro": "L'onglet <b>Mes demandes</b> liste tout ce que tu as demandé, avec l'avancement de chacune et ton stockage utilisé en haut.",
           "bullets": [],
-          "figs": [
-            [
-              "requests",
-              "« Mes demandes » : l'état de chacune, et ton stockage utilisé en haut."
-            ]
-          ],
+          "figs": [],
           "callout": {
             "icon": "⏳",
             "html": "<b>Ce n'est pas en temps réel.</b> L'avancement se rafraîchit avec un peu de retard — un film peut déjà être lisible avant d'être marqué « Disponible » ici. C'est normal."
@@ -92,12 +61,7 @@
             "Choisis <b>ce qui déclenche un e-mail</b> : un titre demandé qui sort, une demande devenue disponible, une décision sur tes demandes, ou une alerte de quota.",
             "Clique <b>Enregistrer</b>. Les alertes dans l'appli (la cloche) restent toujours actives, même sans e-mail."
           ],
-          "figs": [
-            [
-              "notif",
-              "Le panneau de la cloche 🔔, et l'engrenage ⚙ qui mène aux préférences."
-            ]
-          ]
+          "figs": []
         }
       ],
       "legend": {
@@ -212,24 +176,14 @@
             "Narrow it down with <b>genres</b>, the <b>Years</b> and <b>Rating</b> sliders, <b>language</b>, <b>country</b> and <b>Sort by</b>.",
             "A green <b>“Available”</b> badge on a poster means it's already on the server — watch it right away."
           ],
-          "figs": [
-            [
-              "catalog",
-              "The Catalogue: filters on top, then \"Most requested here\" and the suggestions."
-            ]
-          ]
+          "figs": []
         },
         {
           "n": 2,
           "title": "Search for a specific title",
           "intro": "Got a name in mind? Type it in the <b>Search movies and shows…</b> box at the top right, then confirm.",
           "bullets": [],
-          "figs": [
-            [
-              "search",
-              "A search: the green \"Available\" badge marks what the server already has."
-            ]
-          ]
+          "figs": []
         },
         {
           "n": 3,
@@ -239,16 +193,7 @@
             "<b>Already available</b> → <b>Open in Jellyfin</b> to play it, or <b>Add to my library</b> (it then counts toward your quota, at its real size — it's refused if it no longer fits).",
             "<b>Not there yet</b> → a green <b>Request</b> button. You can pick a <b>desired date</b>, then confirm. That's it!"
           ],
-          "figs": [
-            [
-              "detail",
-              "A title that is already available: open it in Jellyfin, or add it to your library."
-            ],
-            [
-              "request",
-              "A title that is not there yet: pick a desired date, then click \"Request\"."
-            ]
-          ],
+          "figs": [],
           "callout": {
             "icon": "⭐",
             "html": "<b>Not sure yet?</b> The <b>“Add to my list”</b> star sets a title aside without requesting it — find it again via <b>My list</b> in the filters."
@@ -259,12 +204,7 @@
           "title": "Track your requests",
           "intro": "The <b>My requests</b> tab lists everything you've asked for, with each one's progress and your used storage up top.",
           "bullets": [],
-          "figs": [
-            [
-              "requests",
-              "\"My requests\": the status of each one, and your storage used at the top."
-            ]
-          ],
+          "figs": [],
           "callout": {
             "icon": "⏳",
             "html": "<b>It's not live.</b> Progress refreshes with a slight delay — a film may already be playable before it's marked “Available” here. That's normal."
@@ -279,12 +219,7 @@
             "Choose <b>what triggers an email</b>: a requested title getting released, a request becoming available, a decision on your requests, or a quota alert.",
             "Click <b>Save</b>. In-app alerts (the bell) always stay on, even without email."
           ],
-          "figs": [
-            [
-              "notif",
-              "The 🔔 bell panel, and the ⚙ gear that takes you to your preferences."
-            ]
-          ]
+          "figs": []
         }
       ],
       "legend": {
