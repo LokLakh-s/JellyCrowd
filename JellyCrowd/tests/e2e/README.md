@@ -1,8 +1,19 @@
-# Jelly Crowd — Playwright smoke e2e
+# Jelly Crowd — Playwright e2e
 
-A single full-stack smoke test: sign in to Jellyfin, open the Jelly Crowd catalog (populated from TMDB),
-and open a title's detail modal. It exercises what only breaks in a real browser against a live server —
-header injection, the web shell, the catalog API and the modal.
+Two specs, with different needs:
+
+- **`smoke.spec.js`** — full stack: sign in to Jellyfin, open the Jelly Crowd catalog (populated from
+  TMDB), and open a title's detail modal. It exercises what only breaks in a real browser against a live
+  server — header injection, the web shell, the catalog API and the modal. **Needs a live instance.**
+- **`guide-layout.spec.js`** — the user guide, mounted in a faithful copy of the overlay panel and served
+  under the production Content-Security-Policy. **Needs no server**: it starts its own on a free port and
+  serves `Web/` straight from the repo. It covers the two ways the guide has already broken — screenshots
+  refused by a CSP that forbids `data:` images, and the language switch colliding with the panel's close
+  button on narrow windows — plus the style isolation the iframe used to provide for free.
+
+```bash
+npx playwright test guide-layout.spec.js   # no Jellyfin required
+```
 
 It runs against a **live** Jellyfin instance with the plugin installed (see [`dev-stack/`](../../dev-stack)),
 so it is **not** part of the per-push CI. Run it locally, or on demand via the **E2E smoke (Playwright)**
