@@ -259,14 +259,30 @@
     }
     overlay = document.createElement('div');
     overlay.className = 'jellycrowd-overlay';
-    overlay.style.display = 'none';
+    // Its own geometry, inline. jellycrowd.css carries the same rules, but every VIEW used to be what
+    // pulled that stylesheet in: opening one that did not (the guide) as the FIRST view left the overlay
+    // completely unstyled — a static div as tall as its content, pushed below the page. Opening any other
+    // panel first hid the bug, which is exactly how it was reported ("fine when the panel is already
+    // open"). The stylesheet is now loaded here too, for the plugin components the views themselves use.
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:998;'
+      + 'display:none;flex-direction:column;overflow:hidden;background:var(--theme-body-background,#101013);';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', t('app_title'));
 
     viewHost = document.createElement('div');
     viewHost.className = 'jellycrowd-overlay-views';
+    viewHost.style.cssText = 'flex:1 1 auto;overflow:auto;';
     overlay.appendChild(viewHost);
+
+    // Same id the views use, so whoever gets there first wins and nothing is loaded twice.
+    if (!document.getElementById('jellycrowd-css')) {
+      var overlayCss = document.createElement('link');
+      overlayCss.id = 'jellycrowd-css';
+      overlayCss.rel = 'stylesheet';
+      overlayCss.href = getUrl('JellyCrowd/Web/jellycrowd.css');
+      document.head.appendChild(overlayCss);
+    }
 
     // A visible close button on the panel itself (the native header sits above; the panel is below it).
     var close = document.createElement('button');
@@ -325,7 +341,7 @@
       focusBeforeOverlay = document.activeElement;
     }
 
-    overlay.style.display = '';
+    overlay.style.display = 'flex';
     // Lock the page behind the overlay so it doesn't scroll under it (phantom scroll on mobile, where
     // the native header also hides on scroll). Restored in hideOverlay().
     document.body.classList.add('jellycrowd-overlay-open');
@@ -2473,9 +2489,15 @@
     // home navigation we trigger ourselves when opening a panel (N33), which must leave it open.
     function onNavClose() {
       if (Date.now() < suppressNavCloseUntil) {
-        // Our own open-time home navigation. Push the deadline: the burst can be several events, and
-        // the last of them must not be the one that closes the panel we just opened.
-        suppressNavCloseUntil = Date.now() + NAV_SUPPRESS_EXTEND_MS;
+        // Our own open-time home navigation. Hold the window open: the burst can be several events, and
+        // the last of them must not close the panel we just opened. Never SHORTEN it — assigning
+        // now+extend outright cut the 2.5 s window down to 400 ms as soon as the first event landed,
+        // which is the same race again with a smaller number.
+        var extended = Date.now() + NAV_SUPPRESS_EXTEND_MS;
+        if (extended > suppressNavCloseUntil) {
+          suppressNavCloseUntil = extended;
+        }
+
         return;
       }
       hideOverlay();
