@@ -173,6 +173,41 @@ qu'admin, un sélecteur **« Demander au nom de »** apparaît dans la fiche. Ch
 utiliser les boutons habituels (film / saison / épisode) : la demande est créée pour cet utilisateur
 (approuvée, sans quota/limite).
 
+## Guide utilisateur (et comment le remplacer)
+
+L'icône **?** du bandeau (activée dans *Branding → Icônes de l'en-tête*) ouvre un guide hébergé par le
+plugin : pas de site externe, pas de second identifiant. Le guide livré avec le plugin décrit Jelly Crowd
+**sans nommer aucun serveur et sans capture d'une bibliothèque réelle** — il est distribué à tout le monde.
+
+Une instance qui veut **son** guide (son nom, son ton, ses captures) dépose ses fichiers dans le dossier
+de données du plugin :
+
+```
+<données Jellyfin>/plugins/Jellyfin.Plugin.JellyCrowd/guide/
+├── guide-content.json     # tout le texte, FR + EN, et la liste des captures
+└── img/
+    ├── guide-catalog.jpg  # les noms sont ceux déclarés dans "images" du JSON
+    └── …
+```
+
+Ce qui est présent gagne, **fichier par fichier** ; le reste retombe sur la version du plugin. Rien à
+refaire après une mise à jour : le dossier de données n'est pas touché. Les fichiers sont lus à chaque
+appel (servis sans cache), donc une modification est visible après un simple rechargement de la page.
+
+Forme de `guide-content.json` :
+
+| Clé | Contenu |
+|---|---|
+| `images` | `{ "catalog": "guide-catalog.jpg", … }` — le nom de fichier dans `img/` pour chaque emplacement |
+| `languages` | `{ "fr": {…}, "en": {…} }` — un document par langue : `h1`, `lede`, `steps[]` (avec `figs`), `legend`, `quota`, `library`, `faq[]`, `footer` |
+
+Une langue absente du document n'est pas proposée dans le sélecteur ; un emplacement d'image sans fichier
+n'affiche **pas** de cadre vide. Le plus simple pour partir : copier le `guide-content.json` du plugin
+(`<votre-jellyfin>/JellyCrowd/Guide/Content`) et l'éditer.
+
+> Les captures d'un guide personnalisé sont servies par le plugin à toute personne qui connaît leur URL,
+> comme les images de branding. Ne pas y mettre d'informations que vos utilisateurs ne devraient pas voir.
+
 ## Pages utilisateur (bandeau Jellyfin)
 
 - **Catalog** : catalogue TMDB (films/séries), filtres (genres, années, note, tri, **langue d'origine**,

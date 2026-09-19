@@ -71,6 +71,12 @@ test.beforeAll(async () => {
     // quietly make relative paths work here and fail in production.
     if (url === '/web/index.html') { return send(SHELL, 'text/html; charset=utf-8'); }
     if (ENDPOINTS[url]) { return send(JSON.stringify(ENDPOINTS[url]), 'application/json'); }
+    // The guide asks the plugin for its content; here, the one the plugin ships.
+    if (url === '/JellyCrowd/Guide/Content') {
+      return fs.readFile(path.join(WEB, 'guide-content.json'), (err, buf) => err
+        ? (res.writeHead(404), res.end('{}'))
+        : send(buf, 'application/json; charset=utf-8'));
+    }
     const file = path.join(WEB, url.replace(/^\/JellyCrowd\/Web/, ''));
     if (!file.startsWith(WEB)) { res.writeHead(403); return res.end('no'); }
     return fs.readFile(file, (err, buf) => err

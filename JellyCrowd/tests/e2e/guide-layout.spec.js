@@ -61,6 +61,13 @@ const HOST_PAGE = `<!doctype html><html><head><meta charset="utf-8">
 let server;
 let origin;
 
+// What /JellyCrowd/Guide/Content answers with. Null = the plugin's own (public, no screenshots); set it
+// to pretend this instance dropped its own guide in the data folder.
+let servedContent = null;
+
+// A real 1x1 PNG, so an image that reaches the browser decodes instead of merely 200-ing.
+const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
 test.beforeAll(async () => {
   server = http.createServer((req, res) => {
     const url = decodeURIComponent(req.url.split('?')[0]);
@@ -72,6 +79,15 @@ test.beforeAll(async () => {
     // against THAT, not against the plugin's asset route. Serving the stub anywhere else would
     // quietly make relative paths work here and fail in production.
     if (url === '/web/index.html') { return send(HOST_PAGE, 'text/html; charset=utf-8'); }
+    // The guide's own routes: its content, and the screenshots that content names.
+    if (url === '/JellyCrowd/Guide/Content') {
+      return servedContent
+        ? send(JSON.stringify(servedContent), 'application/json; charset=utf-8')
+        : fs.readFile(path.join(WEB, 'guide-content.json'), (err, buf) => err
+          ? (res.writeHead(404), res.end('{}'))
+          : send(buf, 'application/json; charset=utf-8'));
+    }
+    if (url.startsWith('/JellyCrowd/Guide/Image/')) { return send(PIXEL, 'image/png'); }
     const file = path.join(WEB, url.replace(/^\/JellyCrowd\/Web/, ''));
     if (!file.startsWith(WEB)) { res.writeHead(403); return res.end('no'); }
     return fs.readFile(file, (err, buf) => err
@@ -84,18 +100,47 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => { await new Promise(resolve => server.close(resolve)); });
 
-test('every screenshot renders under the production CSP', async ({ page }) => {
+test.beforeEach(() => { servedContent = null; });
+
+// An instance's own guide: its wording, and screenshots it supplies itself.
+const withCustomGuide = () => {
+  const shipped = JSON.parse(fs.readFileSync(path.join(WEB, 'guide-content.json'), 'utf8'));
+  servedContent = {
+    images: { catalog: 'guide-catalog.png', search: 'guide-search.png' },
+    languages: JSON.parse(JSON.stringify(shipped.languages)),
+  };
+  const fr = servedContent.languages.fr;
+  fr.steps[0].figs = [['catalog', 'Le catalogue de ce serveur.']];
+  fr.steps[1].figs = [['search', 'Une recherche.']];
+  const en = servedContent.languages.en;
+  en.steps[0].figs = [['catalog', 'This server catalogue.']];
+  en.steps[1].figs = [['search', 'A search.']];
+};
+
+test('the guide the plugin ships carries no screenshots at all', async ({ page }) => {
+  // It is distributed to everyone: it must not contain captures of any real library, and it must not
+  // leave empty figure frames where an instance's own screenshots would go.
+  await page.goto(`${origin}/web/index.html`);
+  await page.locator('.jcGuide .faq-sec').waitFor();
+
+  expect(await page.locator('.jcGuide img').count()).toBe(0);
+  expect(await page.locator('.jcGuide figure').count()).toBe(0);
+  await expect(page.locator('.jcGuide h1')).not.toBeEmpty();
+});
+
+test("an instance's own screenshots render under the production CSP", async ({ page }) => {
+  withCustomGuide();
   await page.goto(`${origin}/web/index.html`);
   await page.locator('.jcGuide .faq-sec').waitFor();
 
   const images = await page.$$eval('.jcGuide img', els =>
     els.map(e => ({ src: e.getAttribute('src'), w: e.naturalWidth })));
-  expect(images.length).toBeGreaterThanOrEqual(6);
+  expect(images.length).toBe(2);
   for (const image of images) {
     // A data: URI is refused by this CSP, and a decoded image always has a width.
     expect(image.src.startsWith('data:')).toBe(false);
-    // It must address the plugin's asset route, not a path relative to the client's own /web/ page.
-    expect(image.src).toContain('/JellyCrowd/Web/img/');
+    // It must address the plugin's guide route, not a path relative to the client's own /web/ page.
+    expect(image.src).toContain('/JellyCrowd/Guide/Image/');
     expect(image.w).toBeGreaterThan(0);
   }
 });
