@@ -111,6 +111,18 @@ public class WebController : ControllerBase
       return "image/png";
     }
 
+    // The guide's screenshots. They must carry a real image type: the responses go out with
+    // X-Content-Type-Options: nosniff on most setups, so an octet-stream would simply not render.
+    if (path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+    {
+      return "image/jpeg";
+    }
+
+    if (path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+    {
+      return "image/webp";
+    }
+
     return "application/octet-stream";
   }
 }

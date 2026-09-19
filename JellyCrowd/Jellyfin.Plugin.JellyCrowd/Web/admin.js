@@ -2027,8 +2027,6 @@
       container.appendChild(field(t('adm_support_donation_link'), supUrl));
       var guideEnable = checkbox('jc-b-guide-en', b.GuideLinkEnabled === true);
       container.appendChild(field(t('adm_show_user_guide_icon_in_the'), guideEnable));
-      var guideUrl = textInput('jc-b-guide-url', b.GuideLinkUrl || '', 'https://…');
-      container.appendChild(field(t('adm_user_guide_link'), guideUrl));
 
       var hideDrawer = checkbox('jc-b-hidedrawer', b.HideNativeDrawerForNonAdmins === true);
       container.appendChild(field(t('adm_hide_drawer'), hideDrawer, t('adm_hide_drawer_hint')));
@@ -2087,7 +2085,6 @@
           live.SupportLinkEnabled = supEnable.checked;
           live.SupportLinkUrl = supUrl.value.trim();
           live.GuideLinkEnabled = guideEnable.checked;
-          live.GuideLinkUrl = guideUrl.value.trim();
           live.HideNativeDrawerForNonAdmins = hideDrawer.checked;
           live.LocalIntrosEnabled = liEnable.checked;
           live.LocalIntrosFolderName = liFolder.value.trim() || 'intros';
