@@ -530,6 +530,30 @@ test('fetchStrings tolerates an environment with no fetch at all', async () => {
   assert.strictEqual(await lib.fetchStrings('/x.json', null), null);
 });
 
+// ---------- navCloseAllowed / navSuppressWindow: the overlay must survive its own navigation ----------
+
+test('a navigation before the deadline never closes the overlay', () => {
+  assert.strictEqual(lib.navCloseAllowed(1000, 3500), false);
+  // The reported bug: the home navigation reported 900 ms after the panel opened, well past the old
+  // 200 ms flag, and closed the panel the click had just opened.
+  assert.strictEqual(lib.navCloseAllowed(900, 2500), false);
+});
+
+test('a navigation after the deadline closes the overlay', () => {
+  assert.strictEqual(lib.navCloseAllowed(3500, 3500), true);
+  assert.strictEqual(lib.navCloseAllowed(9000, 3500), true);
+});
+
+test('with no suppression pending, every navigation closes the overlay', () => {
+  assert.strictEqual(lib.navCloseAllowed(1, 0), true);
+  assert.strictEqual(lib.navCloseAllowed(1, undefined), true);
+});
+
+test('each ignored event pushes the deadline back', () => {
+  assert.strictEqual(lib.navSuppressWindow(1000, 2500, 400), 2500); // still inside: keep the later one
+  assert.strictEqual(lib.navSuppressWindow(2400, 2500, 400), 2800); // near the edge: extend
+});
+
 // ---------- orderReports: the admin ticket queue ----------
 
 const reportRows = () => ([

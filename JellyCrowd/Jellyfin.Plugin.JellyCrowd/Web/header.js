@@ -44,9 +44,18 @@
   // closes, activeNavId is null so all are grey.
   var headerNavButtons = {};
   var activeNavId = null;
-  // Set true around a programmatic navigation we trigger ourselves (sending the page behind the overlay
-  // to Home on open), so the hashchange listener doesn't mistake it for the user leaving and close us.
-  var suppressHashClose = false;
+  // Until this timestamp, navigation events are OURS (the jump to Home we trigger when a panel opens)
+  // and must not close the overlay. It used to be a boolean cleared on a 200 ms timer, which lost the
+  // race whenever Jellyfin emitted its hashchange/popstate later than that: the late event closed the
+  // panel the click had just opened. Most visible on the guide (?) icon, which — unlike the nav tabs,
+  // shown only on Home/library pages — is clickable from pages that DO need that jump to Home.
+  // Mirrors JellyCrowdLib.navCloseAllowed / navSuppressWindow (duplicated: the base page has no lib).
+  var suppressNavCloseUntil = 0;
+
+  // How long we keep ignoring navigation events after asking for the jump Home, and how far each
+  // ignored event pushes that deadline (a navigation burst can span several events).
+  var NAV_SUPPRESS_MS = 2500;
+  var NAV_SUPPRESS_EXTEND_MS = 400;
   var bellBadgeEl = null;          // the red unread-count badge on the header bell
   var announcementEls = null;      // { wrap, btn, icon, dot, panel } for the header announcement icon
   var NAV_GREY = 'rgba(255,255,255,0.6)';
@@ -465,12 +474,10 @@
     if (isOnHome()) {
       return; // already home: nothing to navigate, and no hashchange would fire to clear the flag.
     }
-    suppressHashClose = true; // the resulting nav event(s) are ours — ignored by the close listener.
+    // The resulting nav event(s) are ours — ignored by the close listener until the deadline below.
+    suppressNavCloseUntil = Date.now() + NAV_SUPPRESS_MS;
     var hb = document.querySelector('.headerHomeButton');
     if (hb) { hb.click(); } else { window.location.hash = '#/home.html'; }
-    // Clear shortly after so the whole navigation burst (hashchange and/or popstate) is covered, then
-    // normal "navigation closes the overlay" behaviour resumes.
-    setTimeout(function () { suppressHashClose = false; }, 200);
   }
 
   // Quota fill colour, grading green (empty) -> yellow (half) -> red (full). Mirrors
@@ -2465,8 +2472,11 @@
     // Any real navigation (Jellyfin menu, opening a library item) closes our overlay — except the
     // home navigation we trigger ourselves when opening a panel (N33), which must leave it open.
     function onNavClose() {
-      if (suppressHashClose) {
-        return; // our own open-time home navigation; the flag clears on a timer.
+      if (Date.now() < suppressNavCloseUntil) {
+        // Our own open-time home navigation. Push the deadline: the burst can be several events, and
+        // the last of them must not be the one that closes the panel we just opened.
+        suppressNavCloseUntil = Date.now() + NAV_SUPPRESS_EXTEND_MS;
+        return;
       }
       hideOverlay();
     }
