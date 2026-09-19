@@ -250,6 +250,15 @@
 - [ ] 🔧 **Retry par requête** dans l'onglet *Requests* admin (relance le backend, marche aussi sur les requêtes on-behalf).
 - [ ] 🔧 **Boîte ops e-mail** : ne reçoit plus tous les événements de tous les users — seulement « Created » par défaut (toggles par événement). Vérifier qu'une demande on-behalf n'inonde plus l'admin.
 
+### Ticketing (M33)
+
+- [ ] 🆕 **Ticket général** : menu sous l'avatar → **Signaler un problème** → catégorie + message → envoi. Le ticket apparaît dans *Admin › Modération › Signalements* avec le libellé « Général (sans titre) ».
+- [ ] 🆕 **Ticket sur un titre** : le bouton **⚠ Signaler un problème** de la fiche catalogue reste inchangé et rattache bien le média.
+- [ ] 🆕 **Notification admin** : à l'ouverture d'un ticket, alerte dans la 🔔 de **chaque** compte admin + envoi sur les canaux cochés (Discord / e-mail / autres). Vérifier qu'un admin qui n'a rien configuré reçoit quand même l'alerte in-app.
+- [ ] 🆕 **Réponse au déclarant** : *Résoudre* avec une note → l'utilisateur reçoit la réponse dans sa 🔔.
+- [ ] 🆕 **Rappels** : avec `Rappeler les signalements ouverts tous les (jours)` à 1, laisser un ticket ouvert 24 h → un **seul** récapitulatif, pas un message par ticket. À 0, aucun rappel.
+- [ ] 🆕 **File admin** : filtre *Ouverts / Traités / Tous* avec compteurs, ouverts en tête et du plus ancien au plus récent ; le filtre choisi survit à une résolution.
+
 ## Notes de Victor
 
 > Intégrées à la **ROADMAP** → section **« Patches de finition pré-1.0 → B. À faire »**

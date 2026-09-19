@@ -66,6 +66,8 @@ public sealed class UserNotificationsControllerTests : IDisposable
 
     public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task NotifyAdminsAsync(string subject, string body, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task SendPersonalTestAsync(Guid userId, CancellationToken cancellationToken)
     {
       TestedUser = userId;

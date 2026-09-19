@@ -31,6 +31,13 @@ public sealed class NotificationService : INotificationService
   // Notifications are not user-scoped, so enrich with the catalog's default language.
   private const string TmdbLanguage = "en-US";
 
+  // The bell key admin notices carry (reports and their reminders), so the UI can tell them apart from a
+  // user's own request notifications.
+  private const string AdminNoticeEvent = "Report";
+
+  // Amber: a report is neither a success nor a failure, it is something waiting for a human.
+  private const int ReportColor = 0xF59E0B;
+
   private readonly IHttpClientFactory _httpClientFactory;
   private readonly ITmdbClient _tmdbClient;
   private readonly IUserManager _userManager;
@@ -177,6 +184,98 @@ public sealed class NotificationService : INotificationService
         _logger.LogWarning(ex, "Failed to send {Channel} notification.", notifier.Channel);
       }
     }
+  }
+
+  /// <inheritdoc />
+  public async Task NotifyAdminsAsync(string subject, string body, CancellationToken cancellationToken)
+  {
+    var config = Plugin.Instance?.Configuration;
+    if (config is null)
+    {
+      return;
+    }
+
+    var t = ServerStrings.For(config.Language);
+
+    // The bell first: it is the only channel that works with nothing configured, so an administrator who
+    // set up no webhook still learns a report came in.
+    if (config.ReportNotifyBell)
+    {
+      foreach (var adminId in AdministratorIds())
+      {
+        try
+        {
+          await _userNotifications.AddAsync(
+            new UserNotification { UserId = adminId, Event = AdminNoticeEvent, Title = subject, Message = body },
+            cancellationToken).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // In-app notification is best-effort.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+          _logger.LogDebug(ex, "Could not store the in-app report notification for admin {UserId}.", adminId);
+        }
+      }
+    }
+
+    if (config.DiscordNotifyReports)
+    {
+      await SendDiscordAsync(config, NotificationEmbeds.BuildSimple(subject, body, ReportColor, DateTime.UtcNow), cancellationToken).ConfigureAwait(false);
+    }
+
+    if (config.EmailNotifyReports)
+    {
+      await SendEmailAsync(config, "[Jelly Crowd] " + subject, EmailTemplate.BuildNotice(subject, body, null, null, t), cancellationToken).ConfigureAwait(false);
+    }
+
+    if (!config.ReportNotifyOtherChannels)
+    {
+      return;
+    }
+
+    foreach (var notifier in _textNotifiers)
+    {
+      if (!notifier.IsConfigured(config))
+      {
+        continue;
+      }
+
+      try
+      {
+        await notifier.SendAsync(config, subject, body, cancellationToken).ConfigureAwait(false);
+      }
+#pragma warning disable CA1031 // A notification failure must never affect the reporting flow.
+      catch (Exception ex)
+#pragma warning restore CA1031
+      {
+        _logger.LogWarning(ex, "Failed to send the {Channel} report notification.", notifier.Channel);
+      }
+    }
+  }
+
+  // Every administrator account, for the bell fan-out. Read through the user DTO's policy, which is the
+  // supported way to ask Jellyfin 10.11 whether a user is an admin.
+  private List<Guid> AdministratorIds()
+  {
+    var ids = new List<Guid>();
+    try
+    {
+      foreach (var user in _userManager.GetUsers())
+      {
+        if (_userManager.GetUserDto(user, string.Empty)?.Policy?.IsAdministrator == true)
+        {
+          ids.Add(user.Id);
+        }
+      }
+    }
+#pragma warning disable CA1031 // Never let a user-store hiccup break the notification.
+    catch (Exception ex)
+#pragma warning restore CA1031
+    {
+      _logger.LogWarning(ex, "Could not list administrators for the report notification.");
+    }
+
+    return ids;
   }
 
   /// <inheritdoc />

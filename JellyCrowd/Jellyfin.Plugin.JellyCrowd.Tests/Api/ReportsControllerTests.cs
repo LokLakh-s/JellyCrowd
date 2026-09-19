@@ -105,6 +105,56 @@ public sealed class ReportsControllerTests : IDisposable
       Times.Once);
   }
 
+  [Fact]
+  public async Task Post_NoMediaType_FilesAGeneralReport()
+  {
+    // The avatar-menu entry point: a problem that is not about one title still has to reach an admin.
+    var result = await CreateController().Post(new ReportDto { Message = "I can't sign in", Type = "account" }, CancellationToken.None);
+
+    var report = Assert.IsType<MediaReport>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(string.Empty, report.MediaType);
+    Assert.Equal(0, report.TmdbId);
+    Assert.Equal(string.Empty, report.Title);
+    Assert.Equal("account", report.Type);
+  }
+
+  [Fact]
+  public async Task Post_GeneralReport_DropsAnyTitleSentAlongside()
+  {
+    // Without a media type there is nothing to point at, so a stray title must not be filed as if the
+    // report were about that title.
+    var result = await CreateController().Post(
+      new ReportDto { Message = "playback stutters", TmdbId = 42, Title = "Dune" }, CancellationToken.None);
+
+    var report = Assert.IsType<MediaReport>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(0, report.TmdbId);
+    Assert.Equal(string.Empty, report.Title);
+  }
+
+  [Fact]
+  public async Task Post_UnknownMediaType_BadRequest()
+  {
+    var result = await CreateController().Post(new ReportDto { MediaType = "book", TmdbId = 1, Message = "x" }, CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Post_NotifiesAdministrators()
+  {
+    var notifications = new RecordingNotificationService();
+    var controller = new ReportsController(_store, new FakeUserAccessor(), _ => "tester", Mock.Of<IActivityLog>(), notifications)
+    {
+      ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+    };
+
+    await controller.Post(new ReportDto { MediaType = "movie", TmdbId = 1, Title = "Dune", Message = "no sound" }, CancellationToken.None);
+
+    var notice = Assert.Single(notifications.AdminNotices);
+    Assert.Contains("no sound", notice.Body, StringComparison.Ordinal);
+    Assert.Contains("tester", notice.Body, StringComparison.Ordinal);
+  }
+
   private sealed class FakeUserAccessor : ICurrentUserAccessor
   {
     public Task<Guid> GetUserIdAsync(HttpRequest request) => Task.FromResult(User);

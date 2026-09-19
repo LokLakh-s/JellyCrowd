@@ -44,6 +44,17 @@ public interface INotificationService
   Task NotifyPersonalAsync(System.Guid userId, PersonalNotifyKind kind, string title, string subject, string body, string? posterPath, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Announces to administrators something that is not a request lifecycle event — a report just opened,
+  /// or the recap of the ones still waiting. Delivery goes to every administrator's in-app bell and to
+  /// the configured global channels, each gated by its report toggle. Never throws.
+  /// </summary>
+  /// <param name="subject">The short subject line.</param>
+  /// <param name="body">The message body.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when delivery has been attempted.</returns>
+  Task NotifyAdminsAsync(string subject, string body, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Sends a test notification to a single channel (<c>discord</c> or <c>email</c>). Throws on failure
   /// or when the channel is not configured, so the caller can report the outcome.
   /// </summary>

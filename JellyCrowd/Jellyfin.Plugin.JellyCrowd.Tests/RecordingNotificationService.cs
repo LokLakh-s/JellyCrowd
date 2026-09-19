@@ -38,6 +38,15 @@ internal sealed class RecordingNotificationService : INotificationService
     return Task.CompletedTask;
   }
 
+  // Each entry is one administrator broadcast (a report coming in, or a reminder about the open ones).
+  public List<(string Subject, string Body)> AdminNotices { get; } = new();
+
+  public Task NotifyAdminsAsync(string subject, string body, CancellationToken cancellationToken)
+  {
+    AdminNotices.Add((subject, body));
+    return Task.CompletedTask;
+  }
+
   public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
 
 

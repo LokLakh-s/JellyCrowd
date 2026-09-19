@@ -18,6 +18,8 @@ Once signed in to Jellyfin, a Jelly Crowd navigation bar appears at the top, nex
 - **My requests** — track your in-progress requests.
 - The **My library** area (right side) shows your **storage quota**; click it to manage your media.
 - The 🔔 **bell** holds your notifications.
+- Your **avatar menu** (top right) has *Settings* and **Report a problem** — see
+  [Reporting a problem](#reporting-a-problem).
 
 ## Requesting a movie or show
 
@@ -31,6 +33,16 @@ Once signed in to Jellyfin, a Jelly Crowd navigation bar appears at the top, nex
 The request shows up immediately in **My requests**. Your quota only goes up once the media actually
 becomes **available** (counted at its real file size) — a pending request doesn't use any quota yet. If a
 new request *would* push you over your quota, it's held until space frees up.
+
+### Adding a title that's already there
+
+On a title the server already has, the detail popup offers **Add to my library** instead of *Request*.
+It costs you nothing to download — the file exists — but it **becomes yours**, so it counts against your
+quota at its real size on disk, and you can then ask for its deletion or let it expire.
+
+Because the file is already there, there is nothing to wait for: if it doesn't fit in what's left of your
+quota, the button is **refused** rather than queued, and tells you to free some space first. When your
+quota is already full, the button is shown greyed out with the reason.
 
 ## Tracking your requests
 
@@ -60,6 +72,10 @@ The **My library** area shows `used / quota`. Click it to open your library:
 - A **Delete** button at each level (whole series, one season, one episode): deletion frees your quota
   and removes the media (after a short retention delay).
 - **Expiry**: media you don't re-watch eventually expires (freeing quota); **Keep (renew)** resets the timer.
+  Expiry only drops your ownership — **the file stays** in the shared library.
+- If your library has grown **past** your quota, **Keep (renew)** is greyed out until you free space: your
+  oldest media then expires on its own until you're back under the limit. Being exactly *at* your quota is
+  not over it — renewing still works there.
 
 If the admin enabled **adaptive quotas**, your quota can **grow** when you watch regularly (★ badge) and
 shrink after a long period of inactivity (⏳ badge).
@@ -81,5 +97,13 @@ grouped notification** per channel (e.g. "6 episodes now available") rather than
 
 ## Reporting a problem
 
-On an available title's detail view, **Report a problem** lets you flag an issue (wrong version, missing
-subtitles, wrong audio language…) to the administrator.
+Two ways in, both reaching the administrators the same way:
+
+- **About a title** — open its detail popup and click **⚠ Report a problem** at the top: wrong version,
+  missing subtitles, wrong audio language… The title is attached to your report automatically.
+- **About anything else** — open your **avatar menu** (top right) and pick **Report a problem**: playback
+  trouble, an account or access issue, or any question for the administrators. No title is attached.
+
+Pick a category, describe the issue, send. Administrators are notified **immediately** (in their own
+notifications, and on whichever channels the server has configured), and they're reminded automatically
+while your report stays open. When one of them resolves it, their answer arrives in your 🔔 bell.

@@ -350,7 +350,7 @@ Objectif : un même média peut « appartenir » à plusieurs utilisateurs, avec
 
 - ☑ **Commentaires** sur chaque film/série du catalogue, dans le **popup, sous le Synopsis**.
 - ☑ **Avis internes (notes + texte) visibles sur la fiche native Jellyfin** (film/série) : panneau « Reviews » injecté via `header.js` (déclenché sur navigation, défensif, gated par CommentsEnabled) — moyenne + saisie 1–10 + liste anonymisée. *(M25.2 — à vérifier en live)*
-- ☑ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée.
+- ☑ **Signalements** : un utilisateur signale un souci sur un média (mauvaise VF, sous-titres manquants…) → **file admin** dédiée. *(Étendu en M33 : tickets généraux + notifications admin + rappels.)*
 - ☑ Modération admin des commentaires/signalements (masquer/supprimer).
 
 ### M26 — Observabilité & canaux de version  ◑ *(livré : `v0.30.0`, M26.2 reporté)*
@@ -568,8 +568,17 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
 - ☐ **Popularité interne** : « le plus demandé / le plus regardé chez vous » mis en avant **dans le catalogue**.
 - ☐ **Informations admin** sur chaque média (dans la fiche / le catalogue).
 
-### M33 — Système de ticketing  ☐
+### M33 — Système de ticketing  ☑ *(livré)*
 
-- ☐ **Ouverture de tickets** : signaler bugs/problèmes média (sous-titres, mauvaise langue audio, etc.). *(Le canal « signalements » actuel en couvre une petite partie.)*
-- ☐ **Onglet admin dédié** : interface de gestion.
-- ☐ **Notifications et logs** : notifications aux concernés (configurables par l'admin), + logs.
+- ☑ **Ouverture de tickets** : le signalement n'est plus forcément attaché à un titre. Depuis une fiche,
+  **⚠ Signaler un problème** pré-remplit le média (comme avant) ; depuis le **menu sous l'avatar**
+  (juste après *Réglages*), **« Signaler un problème »** ouvre un ticket **général** — lecture, compte,
+  question. Catégories : lecture/bug, sous-titres, audio, qualité, **compte/accès**, autre.
+- ☑ **Onglet admin dédié** : *Modération → Signalements* — filtre **Ouverts / Traités / Tous** avec
+  compteurs, ouverts en tête et **du plus ancien au plus récent**, *Résoudre* avec note envoyée au
+  déclarant, *Supprimer*. Le cap du stockage purge désormais les **traités** avant les ouverts.
+- ☑ **Notifications et logs** : à l'ouverture, alerte dans la **cloche de chaque administrateur** + envoi
+  sur les canaux globaux (Discord, e-mail ops, Telegram/ntfy/Gotify/Pushover/Slack/webhook), chacun
+  débrayable. **Rappels** des tickets ouverts : un **récapitulatif unique** tous les *N* jours
+  (`ReportReminderDays`, 3 par défaut, 0 = off) via la tâche planifiée
+  *« Jelly Crowd: remind about open reports »*. Journal d'activité à la création et à la résolution.

@@ -530,6 +530,43 @@ test('fetchStrings tolerates an environment with no fetch at all', async () => {
   assert.strictEqual(await lib.fetchStrings('/x.json', null), null);
 });
 
+// ---------- orderReports: the admin ticket queue ----------
+
+const reportRows = () => ([
+  { Id: 'r1', Resolved: false, CreatedAt: '2026-09-10T00:00:00Z' },
+  { Id: 'r2', Resolved: true, CreatedAt: '2026-09-01T00:00:00Z' },
+  { Id: 'r3', Resolved: false, CreatedAt: '2026-09-02T00:00:00Z' },
+  { Id: 'r4', Resolved: true, CreatedAt: '2026-09-18T00:00:00Z' }
+]);
+
+test('orderReports shows open tickets oldest first by default', () => {
+  const ids = lib.orderReports(reportRows(), 'open').map(r => r.Id);
+  assert.deepStrictEqual(ids, ['r3', 'r1']);
+});
+
+test('orderReports can list the resolved ones instead', () => {
+  const ids = lib.orderReports(reportRows(), 'resolved').map(r => r.Id);
+  assert.deepStrictEqual(ids, ['r2', 'r4']);
+});
+
+test('orderReports puts open before resolved when showing everything', () => {
+  const ids = lib.orderReports(reportRows(), 'all').map(r => r.Id);
+  // Open (oldest first), then resolved (oldest first).
+  assert.deepStrictEqual(ids, ['r3', 'r1', 'r2', 'r4']);
+});
+
+test('orderReports never mutates the list it was given', () => {
+  const rows = reportRows();
+  lib.orderReports(rows, 'all');
+  assert.deepStrictEqual(rows.map(r => r.Id), ['r1', 'r2', 'r3', 'r4']);
+});
+
+test('orderReports tolerates an empty or unreadable list', () => {
+  assert.deepStrictEqual(lib.orderReports(null, 'open'), []);
+  assert.deepStrictEqual(lib.orderReports([], 'all'), []);
+  assert.deepStrictEqual(lib.orderReports([null], 'all'), []);
+});
+
 // ---------- quotaFull: no room left, so quota-consuming actions are offered disabled ----------
 
 test('quotaFull is true once the disk usage reaches the quota', () => {

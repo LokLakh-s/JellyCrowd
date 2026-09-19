@@ -40,10 +40,16 @@ public sealed class JsonReportStore : IReportStore, IDisposable
       report.CreatedAt = report.CreatedAt == default ? DateTime.UtcNow : report.CreatedAt;
       items.Add(report);
 
-      // Keep only the most recent MaxReports.
+      // Keep only the most recent MaxReports — but a resolved report is history, while an open one is
+      // work still waiting on a human. Drop the resolved ones first (oldest first), and reach into the
+      // open ones only if the cap is still exceeded, so a busy server cannot quietly lose a live report.
       if (items.Count > MaxReports)
       {
-        var keep = items.OrderByDescending(r => r.CreatedAt).Take(MaxReports).ToList();
+        var keep = items
+          .OrderBy(r => r.Resolved ? 1 : 0)
+          .ThenByDescending(r => r.CreatedAt)
+          .Take(MaxReports)
+          .ToList();
         items.Clear();
         items.AddRange(keep);
       }

@@ -1050,6 +1050,8 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
 
     public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task NotifyAdminsAsync(string subject, string body, CancellationToken cancellationToken) => Task.CompletedTask;
+
 
     public Task SendPersonalTestAsync(System.Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
   }
@@ -1101,6 +1103,8 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     }
 
     public Task SendTestAsync(string channel, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task NotifyAdminsAsync(string subject, string body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task SendPersonalTestAsync(System.Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
   }

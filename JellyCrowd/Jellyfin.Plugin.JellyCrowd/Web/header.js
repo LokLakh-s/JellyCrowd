@@ -849,6 +849,109 @@
     }
   }
 
+  // ---------- Report a problem (ticket) ----------
+  // Opened from the avatar menu, so a user with a problem that is not about one title still has a way to
+  // reach an administrator. The per-title button in the catalogue popup posts to the same endpoint with
+  // the media fields filled in; here they are left empty, which files a general report.
+  function openReportDialog() {
+    if (document.getElementById('jcReportDialog')) { return; }
+
+    var back = document.createElement('div');
+    back.id = 'jcReportDialog';
+    back.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1em;';
+
+    var pop = document.createElement('div');
+    pop.style.cssText = 'width:30em;max-width:100%;background:#1c1c1c;border:1px solid rgba(255,255,255,.18);border-radius:.5em;box-shadow:0 10px 30px rgba(0,0,0,.6);padding:1em;color:#fff;';
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    var h = document.createElement('div');
+    h.textContent = t('report_open_title');
+    h.style.cssText = 'font-size:1.1em;font-weight:700;margin-bottom:.3em;';
+    var intro = document.createElement('div');
+    intro.textContent = t('report_open_intro');
+    intro.style.cssText = 'font-size:.85em;opacity:.8;line-height:1.35;margin-bottom:.7em;';
+
+    var sel = document.createElement('select');
+    sel.style.cssText = 'width:100%;background:#111;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:.3em;padding:.4em;';
+    [['bug', 'report_type_bug'], ['subtitles', 'report_type_subtitles'], ['audio', 'report_type_audio'],
+      ['quality', 'report_type_quality'], ['account', 'report_type_account'], ['other', 'report_type_other']]
+      .forEach(function (o) {
+        var op = document.createElement('option');
+        op.value = o[0];
+        op.textContent = t(o[1]);
+        op.style.backgroundColor = '#1c1c1c';
+        op.style.color = '#fff';
+        sel.appendChild(op);
+      });
+
+    var ta = document.createElement('textarea');
+    ta.placeholder = t('report_placeholder');
+    ta.rows = 4;
+    ta.style.cssText = 'width:100%;box-sizing:border-box;margin-top:.5em;background:#111;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:.3em;padding:.5em;resize:vertical;';
+
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:.5em;margin-top:.7em;justify-content:flex-end;align-items:center;';
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = t('cancel');
+    cancel.style.cssText = 'background:none;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:.3em;padding:.35em .8em;cursor:pointer;';
+    var send = document.createElement('button');
+    send.type = 'button';
+    send.textContent = t('report_send');
+    send.style.cssText = 'background:#00a4dc;border:0;color:#fff;border-radius:.3em;padding:.35em .9em;cursor:pointer;';
+
+    function close() {
+      document.removeEventListener('keydown', onKey, true);
+      back.remove();
+    }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); close(); } }
+
+    cancel.addEventListener('click', close);
+    send.addEventListener('click', function () {
+      var msg = (ta.value || '').trim();
+      if (!msg) { ta.style.border = '1px solid #c62828'; ta.focus(); return; }
+      send.disabled = true;
+      cancel.disabled = true;
+      // No MediaType/TmdbId: this is a general report, not one about a title.
+      apiAjax('POST', 'JellyCrowd/Reports', { Message: msg, Type: sel.value })
+        .then(function () {
+          pop.innerHTML = '';
+          var done = document.createElement('div');
+          done.textContent = t('report_thanks');
+          done.style.cssText = 'padding:.4em 0 .8em;';
+          var ok = document.createElement('button');
+          ok.type = 'button';
+          ok.textContent = t('report_sent_close');
+          ok.style.cssText = 'background:#00a4dc;border:0;color:#fff;border-radius:.3em;padding:.35em .9em;cursor:pointer;';
+          ok.addEventListener('click', close);
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;justify-content:flex-end;';
+          row.appendChild(ok);
+          pop.appendChild(done);
+          pop.appendChild(row);
+          ok.focus();
+        })
+        .catch(function () {
+          send.disabled = false;
+          cancel.disabled = false;
+          ta.style.border = '1px solid #c62828';
+        });
+    });
+
+    actions.appendChild(cancel);
+    actions.appendChild(send);
+    pop.appendChild(h);
+    pop.appendChild(intro);
+    pop.appendChild(sel);
+    pop.appendChild(ta);
+    pop.appendChild(actions);
+    back.appendChild(pop);
+    back.addEventListener('click', close); // click outside the card dismisses
+    document.body.appendChild(back);
+    document.addEventListener('keydown', onKey, true);
+    ta.focus();
+  }
+
   // ---------- Avatar dropdown ----------
   // Clicking the header avatar opens our own popover instead of navigating to the native prefs page: a
   // replica of the native "My preferences" links (same client routes), admin shortcuts, native SyncPlay /
@@ -917,6 +1020,9 @@
     // carries a sub-tab bar (injected below) to move between Profile / Quick Connect / Display / Playback /
     // Subtitles / Controls / Notifications.
     menu.appendChild(avatarItem('settings', t('avm_settings'), '#/userprofile' + q));
+    // Same block as Settings: reaching an administrator is an account-level action, not a media one, and
+    // it costs the header bar nothing.
+    menu.appendChild(avatarItem('report_problem', t('avm_report'), null, openReportDialog));
 
     if (isAdmin) {
       menu.appendChild(avatarSep());
@@ -1021,6 +1127,8 @@
         return '🟥';
       case 'QuotaExpiry':
         return '🟨';
+      case 'Report':
+        return '⚠️';
       default:
         return '🔔';
     }

@@ -485,6 +485,7 @@
         { key: 'DiscordNotifyApproved', label: t('cfg_discordnotifyapproved'), type: 'check' },
         { key: 'DiscordNotifyDenied', label: t('cfg_discordnotifydenied'), type: 'check' },
         { key: 'DiscordNotifyAvailable', label: t('cfg_discordnotifyavailable'), type: 'check' },
+        { key: 'DiscordNotifyReports', label: t('cfg_discordnotifyreports'), type: 'check' },
         { key: 'DiscordColorCreated', label: t('cfg_discordcolorcreated'), type: 'color' },
         { key: 'DiscordColorApproved', label: t('cfg_discordcolorapproved'), type: 'color' },
         { key: 'DiscordColorDenied', label: t('cfg_discordcolordenied'), type: 'color' },
@@ -510,6 +511,7 @@
         { key: 'EmailNotifyApproved', label: t('cfg_emailnotifyapproved'), type: 'check' },
         { key: 'EmailNotifyDenied', label: t('cfg_emailnotifydenied'), type: 'check' },
         { key: 'EmailNotifyAvailable', label: t('cfg_emailnotifyavailable'), type: 'check' },
+        { key: 'EmailNotifyReports', label: t('cfg_emailnotifyreports'), type: 'check' },
         { key: 'SmtpAllowInvalidCertificate', label: t('cfg_smtpallowinvalidcertificate'), type: 'check' }
       ]);
       var channels = cfgForm(host, cfg, [
@@ -526,7 +528,13 @@
         { key: 'SlackWebhookUrl', label: t('cfg_slackwebhookurl'), type: 'secret' },
         { key: 'NotifyWebhookUrl', label: t('cfg_notifywebhookurl'), type: 'secret' }
       ]);
-      host.appendChild(cfgSaveButton([discord, email, channels]));
+      var reports = cfgForm(host, cfg, [
+        { type: 'section', label: t('cfgsec_reports') },
+        { key: 'ReportNotifyBell', label: t('cfg_reportnotifybell'), type: 'check', hint: t('cfg_reportnotifybell_hint') },
+        { key: 'ReportNotifyOtherChannels', label: t('cfg_reportnotifyotherchannels'), type: 'check' },
+        { key: 'ReportReminderDays', label: t('cfg_reportreminderdays'), type: 'num', hint: t('cfg_reportreminderdays_hint') }
+      ]);
+      host.appendChild(cfgSaveButton([discord, email, channels, reports]));
       host.appendChild(sectionHeading(t('adm_test_save_first')));
       var res = resultSpan();
       var row = document.createElement('div'); row.className = 'jellycrowd-admin-actions';
@@ -2100,63 +2108,110 @@
   }
 
   // ---------- Reports ----------
+  // Tickets: a user reporting a problem, about a title or not. Open ones come first and oldest first —
+  // the backlog is what needs attention, and the reminder e-mails talk about exactly this list.
   function renderReports(container) {
-    setMessage(t('loading'));
-    function reload() { renderReports(container); }
-    apiGet('JellyCrowd/Reports')
-      .then(function (reports) {
-        container.innerHTML = '';
-        reports = reports || [];
-        if (!reports.length) { setMessage(t('admin_no_reports')); return; }
-        setMessage('');
-        var table = document.createElement('table');
-        table.className = 'jellycrowd-admin-table';
-        var tbody = document.createElement('tbody');
-        reports.forEach(function (r) {
-          var tr = document.createElement('tr');
-          if (r.Resolved) { tr.style.opacity = '0.55'; }
-          var tdMain = document.createElement('td');
-          var title = document.createElement('div');
-          title.style.fontWeight = '600';
-          title.textContent = r.Title + (r.Resolved ? ' ✓' : '');
-          var msg = document.createElement('div');
-          msg.className = 'jellycrowd-admin-sub';
-          msg.textContent = r.Message;
-          var sub = document.createElement('div');
-          sub.className = 'jellycrowd-admin-sub';
-          sub.textContent = t('report_type_' + (r.Type || 'other')) + ' · ' + (usersById[r.UserId] || r.UserName || '?') + ' · ' + (r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '');
-          tdMain.appendChild(title);
-          tdMain.appendChild(msg);
-          tdMain.appendChild(sub);
-          if (r.AdminResponse) {
-            var resp = document.createElement('div');
-            resp.className = 'jellycrowd-admin-sub';
-            resp.textContent = '↳ ' + r.AdminResponse;
-            tdMain.appendChild(resp);
-          }
-          tr.appendChild(tdMain);
-          var tdA = document.createElement('td');
-          tdA.className = 'jellycrowd-admin-actions';
-          if (!r.Resolved) {
-            var respInput = document.createElement('input');
-            respInput.type = 'text';
-            respInput.className = 'jellycrowd-report-response';
-            respInput.placeholder = t('admin_resolve_response');
-            tdA.appendChild(respInput);
-            tdA.appendChild(adminBtn(t('admin_resolve'), '', function () {
-              apiPostJson('JellyCrowd/Reports/' + r.Id + '/Resolve', { Response: respInput.value }).then(reload).catch(function () {});
-            }));
-          }
-          tdA.appendChild(adminBtn(t('admin_delete'), 'danger', function () {
-            apiPostNoResult('JellyCrowd/Reports/' + r.Id + '/Delete').then(reload).catch(function () {});
-          }));
-          tr.appendChild(tdA);
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        container.appendChild(table);
-      })
-      .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+    container.innerHTML = '';
+
+    var bar = document.createElement('div');
+    bar.className = 'jellycrowd-admin-filter';
+    var label = document.createElement('span');
+    label.textContent = t('admin_filter_status');
+    var filter = document.createElement('select');
+    ['open', 'resolved', 'all'].forEach(function (value) {
+      var opt = document.createElement('option');
+      opt.value = value;
+      filter.appendChild(opt);
+    });
+    bar.appendChild(label);
+    bar.appendChild(filter);
+    container.appendChild(bar);
+
+    var listHost = document.createElement('div');
+    container.appendChild(listHost);
+
+    var rows = [];
+
+    function countLabel(key, n) { return t(key).replace('{n}', String(n)); }
+
+    function paint() {
+      var open = rows.filter(function (r) { return !r.Resolved; });
+      filter.options[0].textContent = countLabel('admin_reports_open', open.length);
+      filter.options[1].textContent = countLabel('admin_reports_resolved', rows.length - open.length);
+      filter.options[2].textContent = countLabel('admin_reports_all', rows.length);
+
+      var mode = filter.value;
+      var shown = lib.orderReports(rows, mode);
+
+      listHost.innerHTML = '';
+      if (!shown.length) {
+        setMessage(rows.length ? (mode === 'open' ? t('admin_no_open_reports') : t('admin_no_reports')) : t('admin_no_reports'));
+        return;
+      }
+      setMessage('');
+
+      var table = document.createElement('table');
+      table.className = 'jellycrowd-admin-table';
+      var tbody = document.createElement('tbody');
+      shown.forEach(function (r) { tbody.appendChild(reportRow(r)); });
+      table.appendChild(tbody);
+      listHost.appendChild(table);
+    }
+
+    function reportRow(r) {
+      var tr = document.createElement('tr');
+      if (r.Resolved) { tr.style.opacity = '0.55'; }
+      var tdMain = document.createElement('td');
+      var title = document.createElement('div');
+      title.style.fontWeight = '600';
+      // A report with no title stands on its own (playback, account…): say so rather than show a blank.
+      title.textContent = (r.Title || t('report_general')) + (r.Resolved ? ' ✓' : '');
+      var msg = document.createElement('div');
+      msg.className = 'jellycrowd-admin-sub';
+      msg.textContent = r.Message;
+      var sub = document.createElement('div');
+      sub.className = 'jellycrowd-admin-sub';
+      sub.textContent = t('report_type_' + (r.Type || 'other')) + ' · ' + (usersById[r.UserId] || r.UserName || '?') + ' · ' + (r.CreatedAt ? new Date(r.CreatedAt).toLocaleString() : '');
+      tdMain.appendChild(title);
+      tdMain.appendChild(msg);
+      tdMain.appendChild(sub);
+      if (r.AdminResponse) {
+        var resp = document.createElement('div');
+        resp.className = 'jellycrowd-admin-sub';
+        resp.textContent = '↳ ' + r.AdminResponse;
+        tdMain.appendChild(resp);
+      }
+      tr.appendChild(tdMain);
+      var tdA = document.createElement('td');
+      tdA.className = 'jellycrowd-admin-actions';
+      if (!r.Resolved) {
+        var respInput = document.createElement('input');
+        respInput.type = 'text';
+        respInput.className = 'jellycrowd-report-response';
+        respInput.placeholder = t('admin_resolve_response');
+        tdA.appendChild(respInput);
+        tdA.appendChild(adminBtn(t('admin_resolve'), '', function () {
+          apiPostJson('JellyCrowd/Reports/' + r.Id + '/Resolve', { Response: respInput.value }).then(load).catch(function () {});
+        }));
+      }
+      tdA.appendChild(adminBtn(t('admin_delete'), 'danger', function () {
+        apiPostNoResult('JellyCrowd/Reports/' + r.Id + '/Delete').then(load).catch(function () {});
+      }));
+      tr.appendChild(tdA);
+      return tr;
+    }
+
+    function load() {
+      setMessage(t('loading'));
+      // Keep the chosen filter across a reload: resolving a ticket must not throw the admin back to
+      // another view mid-triage.
+      return apiGet('JellyCrowd/Reports')
+        .then(function (reports) { rows = reports || []; paint(); })
+        .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+    }
+
+    filter.addEventListener('change', paint);
+    load();
   }
 
   // ---------- Reviews moderation (sub-tab of Moderation) ----------
