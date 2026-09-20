@@ -99,8 +99,17 @@ for i in $(seq 1 90); do
   fi
   printf '.'; sleep 2
 done
+
+# "healthy" is the container reaching 127.0.0.1:8096 from the INSIDE. It flips the moment Kestrel binds,
+# a beat before the published port answers out here — so probing once at that instant is a coin flip, and
+# it is what had 10.11 and 12.1 taking turns failing on the same build. Give our own probe a budget too.
+up=0
+for i in $(seq 1 30); do
+  curl -sf "$BASE/System/Info/Public" >/dev/null 2>&1 && { up=1; break; }
+  printf '.'; sleep 2
+done
 echo
-curl -sf "$BASE/System/Info/Public" >/dev/null 2>&1 && ok "Jellyfin is up" || { ko "Jellyfin never came up"; docker logs --tail 40 "$NAME"; exit 1; }
+[ "$up" = 1 ] && ok "Jellyfin is up" || { ko "Jellyfin never came up"; docker logs --tail 40 "$NAME"; exit 1; }
 
 step "Complete the setup wizard + assert the plugin integrated"
 BASE="$BASE" node "$ROOT/tests/e2e/assert.js"
