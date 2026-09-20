@@ -1,10 +1,17 @@
 name: CI
 
-# Runs on pull requests and manual dispatch only. Pushes to `main` are handled by the Release workflow,
-# which builds and runs the full test suite before publishing — so a separate CI run on main-push would
-# just duplicate that work (both queued on the single self-hosted runner).
+# Pull requests, pushes to `main`, and manual dispatch. Release builds and tests on a main push too, so
+# the unit suites do run twice there — accepted on purpose: Release has no E2E step and the E2E lives
+# here, so without this trigger a direct push to `main` publishes without a single Jellyfin ever being
+# booted. Both queue on the one self-hosted runner, so they never race over the E2E container or the
+# build output. The automated `chore(release):` commit carries [skip ci], so a release does not bounce
+# back into this workflow.
 on:
   pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+  push:
     branches: [ main ]
     paths-ignore:
       - '**/*.md'
