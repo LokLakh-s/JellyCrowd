@@ -434,3 +434,111 @@ test('maskSecret shows an empty stand-in when there is no secret yet', () => {
 
   assert.strictEqual(wrap.querySelector('.jellycrowd-secret-standin').textContent, '');
 });
+
+// ---------- brandLogoSlot: where the branding logo lands in each header layout ----------
+
+// A Jellyfin 12 toolbar as the web client builds it: nav stack (server button + library shortcuts),
+// then the box holding the right-hand buttons.
+const MUI_TOOLBAR = '<header class="MuiToolbar-root">'
+  + '<div class="MuiStack-root">'
+  + '<a id="server" href="#/"><img src="icon-transparent.abc.png"></a>'
+  + '<a id="movies" href="#/movies"></a>'
+  + '</div>'
+  + '<div class="MuiBox-root"><button id="search"></button></div>'
+  + '</header>';
+
+test('brandLogoSlot puts the logo in the first slot of the Jellyfin 12 nav stack', () => {
+  const doc = setup(MUI_TOOLBAR);
+
+  const slot = lib.brandLogoSlot(doc.querySelector('.MuiToolbar-root'));
+
+  assert.strictEqual(slot.parent, doc.querySelector('.MuiStack-root'));
+  assert.strictEqual(slot.before, doc.getElementById('server')); // i.e. ahead of the native logo
+});
+
+test('brandLogoSlot skips the logo itself, so an already-placed logo is left alone', () => {
+  const doc = setup(MUI_TOOLBAR);
+  const stack = doc.querySelector('.MuiStack-root');
+  const logo = doc.createElement('img');
+  stack.insertBefore(logo, stack.firstChild);
+
+  const slot = lib.brandLogoSlot(doc.querySelector('.MuiToolbar-root'), logo);
+
+  assert.strictEqual(slot.parent, stack);
+  assert.strictEqual(slot.before, logo.nextSibling); // the caller's idempotence check now matches
+});
+
+test('brandLogoSlot falls back to the right-hand box when the toolbar has no nav stack', () => {
+  const doc = setup('<header class="MuiToolbar-root"><button id="drawer"></button>'
+    + '<div class="MuiBox-root"></div></header>');
+
+  const slot = lib.brandLogoSlot(doc.querySelector('.MuiToolbar-root'));
+
+  assert.strictEqual(slot.parent, doc.querySelector('.MuiToolbar-root'));
+  assert.strictEqual(slot.before, doc.querySelector('.MuiBox-root')); // after the drawer button
+});
+
+test('brandLogoSlot sits right after the drawer button on the classic 10.11 header', () => {
+  const doc = setup('<div class="headerLeft"><button class="mainDrawerButton"></button>'
+    + '<div class="pageTitleWithLogo"></div></div>');
+
+  const slot = lib.brandLogoSlot(doc.querySelector('.headerLeft'));
+
+  assert.strictEqual(slot.parent, doc.querySelector('.headerLeft'));
+  assert.strictEqual(slot.before, doc.querySelector('.pageTitleWithLogo'));
+});
+
+test('brandLogoSlot falls back to the front of a header with no drawer button', () => {
+  const doc = setup('<div class="headerLeft"><div id="first"></div></div>');
+
+  const slot = lib.brandLogoSlot(doc.querySelector('.headerLeft'));
+
+  assert.strictEqual(slot.before, doc.getElementById('first'));
+});
+
+test('brandLogoSlot has nowhere to place the logo without a header', () => {
+  assert.strictEqual(lib.brandLogoSlot(null), null);
+});
+
+// ---------- detailPanelAnchor: where our panels hang off the native item-detail page ----------
+
+// 10.11 keeps the sections under the poster/synopsis inside .detailPageContent; Jellyfin 12 dropped
+// that wrapper and hangs them off .detailPageSecondaryContainer itself.
+const DETAIL_1011 = '<div class="itemDetailPage"><div class="itemBackdrop"></div>'
+  + '<div class="detailPagePrimaryContainer"></div>'
+  + '<div class="detailPageSecondaryContainer"><div class="detailPageContent"></div></div></div>';
+const DETAIL_12 = '<div class="itemDetailPage"><div class="itemBackdrop"></div>'
+  + '<div class="detailPageWrapperContainer"><div class="detailPagePrimaryContainer"></div>'
+  + '<div class="detailPageSecondaryContainer"></div></div></div>';
+
+test('detailPanelAnchor uses the section wrapper on the 10.11 detail page', () => {
+  const doc = setup(DETAIL_1011);
+
+  assert.strictEqual(lib.detailPanelAnchor(doc), doc.querySelector('.detailPageContent'));
+});
+
+test('detailPanelAnchor falls back to the secondary container on Jellyfin 12', () => {
+  const doc = setup(DETAIL_12);
+
+  const anchor = lib.detailPanelAnchor(doc);
+
+  assert.strictEqual(anchor, doc.querySelector('.detailPageSecondaryContainer'));
+  assert.notStrictEqual(anchor, doc.querySelector('.itemDetailPage')); // never the page itself: that is the top of the page
+});
+
+test('detailPanelAnchor ignores a hidden detail page left in the DOM', () => {
+  const doc = setup('<div class="itemDetailPage hide"><div class="detailPageContent" id="stale"></div></div>'
+    + DETAIL_12);
+
+  assert.strictEqual(lib.detailPanelAnchor(doc), doc.querySelector('.detailPageSecondaryContainer'));
+});
+
+test('detailPanelAnchor has no anchor while the detail page is still rendering', () => {
+  const doc = setup('<div class="itemDetailPage"><div class="itemBackdrop"></div></div>');
+
+  assert.strictEqual(lib.detailPanelAnchor(doc), null); // the caller retries instead of injecting
+});
+
+test('detailPanelAnchor is null without a document to search', () => {
+  assert.strictEqual(lib.detailPanelAnchor(null), null);
+});
