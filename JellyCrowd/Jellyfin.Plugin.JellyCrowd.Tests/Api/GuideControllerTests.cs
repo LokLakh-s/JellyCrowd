@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Jellyfin.Plugin.JellyCrowd.Api;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -41,30 +42,40 @@ public class GuideControllerTests
   [Fact]
   public void GetContent_ShippedGuideNamesNoInstance()
   {
-    // The plugin is public: its guide must describe Jelly Crowd, not one server. An instance that wants
-    // its own name in there supplies its own content file.
+    // The plugin is public: its guide describes Jelly Crowd, not one server. A host name is how an
+    // instance's identity leaks into it, so the shipped text carries none — whoever wants their own name
+    // in there supplies their own content file. Matching the shape rather than one server's name keeps
+    // this test from naming anybody either.
     var result = Assert.IsType<FileStreamResult>(Create().GetContent());
 
     using var reader = new StreamReader(result.FileStream);
-    var json = reader.ReadToEnd();
-    Assert.DoesNotContain("Keeklah", json, System.StringComparison.OrdinalIgnoreCase);
+    var host = Regex.Match(reader.ReadToEnd(), "\\b[a-z0-9][a-z0-9-]*\\.(tv|fr|com|net|org|io)\\b", RegexOptions.IgnoreCase);
+
+    Assert.False(host.Success, "the shipped guide names a host: " + host.Value);
   }
 
   [Fact]
-  public void GetContent_ShippedGuideCarriesNobodysScreenshots()
+  public void GetContent_ShippedScreenshotsAreAllThere()
   {
+    // The guide may ship screenshots, but only ones taken on the dev stack (see dev-stack/). What this
+    // guards is the wiring: a step naming a figure the plugin does not carry would render a gap where
+    // the guide promises a picture.
     var result = Assert.IsType<FileStreamResult>(Create().GetContent());
 
     using var reader = new StreamReader(result.FileStream);
     using var document = JsonDocument.Parse(reader.ReadToEnd());
+    var images = document.RootElement.GetProperty("images");
 
-    // No images of any real library ship with the plugin, and no step claims one.
-    Assert.Empty(document.RootElement.GetProperty("images").EnumerateObject());
     foreach (var language in document.RootElement.GetProperty("languages").EnumerateObject())
     {
       foreach (var step in language.Value.GetProperty("steps").EnumerateArray())
       {
-        Assert.Equal(0, step.GetProperty("figs").GetArrayLength());
+        foreach (var fig in step.GetProperty("figs").EnumerateArray())
+        {
+          var key = fig[0].GetString()!;
+          Assert.True(images.TryGetProperty(key, out var file), $"{language.Name}: step figure '{key}' has no image");
+          Assert.IsType<FileStreamResult>(Create().GetImage(file.GetString()));
+        }
       }
     }
   }
