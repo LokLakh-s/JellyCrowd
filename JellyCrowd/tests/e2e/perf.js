@@ -19,13 +19,15 @@ const ADMIN = 'e2e-admin';
 const USER = 'e2e-user';
 const PW = 'e2e-Passw0rd!';
 
+// Jellyfin 12 dropped the legacy X-Emby-Authorization header (it answers 400); the standard
+// Authorization header carrying the same MediaBrowser scheme is accepted by 10.11 and 12 alike.
 const auth = (t) => `MediaBrowser Client="perf", Device="perf", DeviceId="perf-1", Version="1.0"${t ? `, Token="${t}"` : ''}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function api(path, { method = 'GET', body, token } = {}) {
   const res = await fetch(BASE + path, {
     method,
-    headers: { 'Content-Type': 'application/json', 'X-Emby-Authorization': auth(token) },
+    headers: { 'Content-Type': 'application/json', 'Authorization': auth(token) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   let json = null;
@@ -86,7 +88,7 @@ async function timeIt(path, token, n = 5) {
   const ts = [];
   for (let i = 0; i < n; i++) {
     const t = process.hrtime.bigint();
-    const res = await fetch(BASE + path, { headers: { 'X-Emby-Authorization': auth(token) } });
+    const res = await fetch(BASE + path, { headers: { 'Authorization': auth(token) } });
     await res.arrayBuffer();
     ts.push(Number(process.hrtime.bigint() - t) / 1e6);
   }

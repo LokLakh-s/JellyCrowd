@@ -49,7 +49,12 @@ jobs:
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          # Both: the plugin and its 10.11 companion are net9.0, while the Jellyfin 12 companion must be
+          # net10.0 (Jellyfin.Controller 12.x ships lib/net10.0 only). The net9 SDK stays listed because the
+          # test host runs on net9.
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -121,12 +126,17 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/*.dll artifacts/
-          # The isolated Skip Outro companion assembly (not in build.yaml artifacts, so Jellyfin never
-          # scans it — kept out of harm's way on a newer Jellyfin — but bundled so the plugin can load it).
-          cp Jellyfin.Plugin.JellyCrowd.Segments/bin/Release/net9.0/Jellyfin.Plugin.JellyCrowd.Segments.dll artifacts/
+          # The isolated Skip Outro companion ships as lib/*.dll.bin — BOTH halves, one built against the
+          # 10.11 SDK and one against 12.x; the plugin loads whichever one the running host can. Jellyfin
+          # loads every "*.dll" it finds under the plugin folder, and each half throws on the other's major,
+          # which would disable the WHOLE plugin. Neither defence that looks sufficient is: meta.json's
+          # "assemblies" allowlist is rewritten to [] by a manifest install, and the walk is recursive, so a
+          # plain subfolder is scanned too. Only the extension takes them out of the glob.
+          mkdir -p artifacts/lib
+          cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/lib/*.dll.bin artifacts/lib/
           cp build.yaml artifacts/
           zipname="jelly-crowd-${{ steps.bump.outputs.tag }}.zip"
-          (cd artifacts && zip "$zipname" *.dll build.yaml && md5sum "$zipname" > "$zipname.md5")
+          (cd artifacts && zip "$zipname" *.dll build.yaml lib/*.bin && md5sum "$zipname" > "$zipname.md5")
 
       - name: Commit version bump and tag (source repo)
         working-directory: ${{ github.workspace }}
