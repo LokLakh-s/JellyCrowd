@@ -59,7 +59,30 @@ fi
 # Push the plugin in. Jellyfin loads any folder under /config/plugins.
 docker cp "$PLUGIN_DIR" "$NAME:/tmp/jc" >/dev/null
 docker start "$NAME" >/dev/null
-docker exec "$NAME" sh -lc 'mkdir -p "/config/plugins/Jelly Crowd_e2e" && cp /tmp/jc/*.dll "/config/plugins/Jelly Crowd_e2e/"' >/dev/null
+# Reproduce the INSTALLED layout, not a convenient approximation of it, because the difference is exactly
+# where Jellyfin 12 compatibility is won or lost:
+#   * the main assembly at the top, the isolated companion as lib/*.dll.bin — give it a ".dll" name and
+#     Jellyfin 12 scans it (the walk is recursive), and the host disables the whole plugin;
+#   * a meta.json, with "assemblies": [] — what Jellyfin itself writes when installing from a repository
+#     manifest. A folder with NO meta.json is a mode no real install ever uses, and Jellyfin walks it
+#     recursively, which would scan lib/ and report a failure that cannot happen in production.
+GUID="$(grep -E '^guid:' "$ROOT/build.yaml" | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/' | tr -d '\r')"
+VERSION="$(grep -E '^version:' "$ROOT/build.yaml" | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/' | tr -d '\r')"
+ABI="$(grep -E '^targetAbi:' "$ROOT/build.yaml" | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/' | tr -d '\r')"
+docker exec "$NAME" sh -lc 'd="/config/plugins/Jelly Crowd_e2e"; mkdir -p "$d/lib" && cp /tmp/jc/*.dll "$d/" && cp /tmp/jc/lib/*.bin "$d/lib/"' >/dev/null
+docker exec "$NAME" sh -lc "cat > '/config/plugins/Jelly Crowd_e2e/meta.json' <<'META'
+{
+  \"guid\": \"$GUID\",
+  \"name\": \"Jelly Crowd\",
+  \"version\": \"$VERSION\",
+  \"targetAbi\": \"$ABI\",
+  \"framework\": \"net9.0\",
+  \"owner\": \"LokLakh-s\",
+  \"category\": \"General\",
+  \"overview\": \"E2E build\",
+  \"assemblies\": []
+}
+META" >/dev/null
 docker restart "$NAME" >/dev/null
 
 # Wait on the container's OWN health check, not on an HTTP probe from here: the restart above hands back

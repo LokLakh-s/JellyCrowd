@@ -1,22 +1,24 @@
-# Jelly Crowd — local test stack against Jellyfin 12.0 RC2.
+# Jelly Crowd — local test stack against Jellyfin 12.1 (stable).
 #
-# Purpose: get ahead on compatibility with the reworked 12.0 web UI. Brings up Jellyfin 12.0-rc2 plus
+# Purpose: validate compatibility with the reworked 12.x web UI. Brings up Jellyfin 12.1 plus
 # the Servarr backends Jelly Crowd dispatches to (Radarr = movies, Sonarr = shows, Prowlarr = indexers).
 #
 # Quick start (from this folder):
 #   1) pwsh ./deploy-plugin.ps1        # builds Jelly Crowd (Release) into ./jellyfin/config/plugins/JellyCrowd
 #   2) docker compose up -d
 #   3) http://localhost:8096           # finish the Jellyfin setup wizard
-#   4) Install the File Transformation plugin (see README) — required for the header UI to appear.
-#   5) In Jelly Crowd config: TMDB key + connect Radarr (http://radarr:7878) / Sonarr (http://sonarr:8989).
+#   4) In Jelly Crowd config: TMDB key + connect Radarr (http://radarr:7878) / Sonarr (http://sonarr:8989).
 #
-# The Jelly Crowd image tag is pinned to RC2 for reproducibility; `unstable` / `preview` also exist if
+# The Jellyfin image tag is pinned to 12.1 for reproducibility; `unstable` / `preview` also exist if
 # you want the very latest nightly.
 
 services:
   jellyfin:
-    image: jellyfin/jellyfin:12.0-rc2
+    image: jellyfin/jellyfin:12.1
     container_name: jellycrowd-jellyfin
+    # Run as the host user: the deploy script writes ./jellyfin*/config/plugins from the host,
+    # and the official image would otherwise create those trees as root.
+    user: "1000:1000"
     ports:
       - "8096:8096"
     volumes:
@@ -27,12 +29,14 @@ services:
       - TZ=Europe/Paris
     restart: unless-stopped
 
-  # Backward-compat check: the SAME plugin build must keep working on Jellyfin 10.11 (prod stays here).
-  # http://localhost:8097 — install File Transformation from the official repo on this one (it ships a
-  # 10.11-compatible build), then verify the classic header/overlay still work.
+  # Backward-compat check: the SAME source must keep working on Jellyfin 10.11 (prod stays here).
+  # http://localhost:8097 — verify the header/overlay still inject and the whole UI still works.
   jellyfin-1011:
     image: jellyfin/jellyfin:10.11
     container_name: jellycrowd-jellyfin-1011
+    # Run as the host user: the deploy script writes ./jellyfin*/config/plugins from the host,
+    # and the official image would otherwise create those trees as root.
+    user: "1000:1000"
     ports:
       - "8097:8096"
     volumes:

@@ -61,6 +61,8 @@ public sealed class DiagnosticsService : IDiagnosticsService
       results.Add(indexers);
     }
 
+    results.Add(CheckSegmentCompanion(config));
+
     if (Plugin.Instance is { } plugin)
     {
       results.Add(CheckDataFolder(plugin.DataFolderPath));
@@ -69,6 +71,36 @@ public sealed class DiagnosticsService : IDiagnosticsService
     }
 
     return results;
+  }
+
+  // Reports which media-segment companion half is live. The companion ships twice — built against the
+  // 10.11 SDK and against 12.x — and the plugin loads whichever one the running host can, swallowing the
+  // other's load failure. That silence is deliberate (a mismatch must never take the plugin down) but it
+  // also means a packaging slip would turn Skip Outro off with nothing to show for it. This surfaces it.
+  private static DiagnosticResult CheckSegmentCompanion(PluginConfiguration config)
+  {
+    var loaded = PluginServiceRegistrator.CompanionStatus;
+    var active = loaded.StartsWith("Loaded ", StringComparison.Ordinal);
+
+    if (!config.SkipOutroEnabled && !config.SkipIntroEnabled)
+    {
+      return new DiagnosticResult
+      {
+        Name = "Media segments",
+        Status = "info",
+        Detail = "Skip Outro and Local Intros are turned off in the settings. " + loaded
+      };
+    }
+
+    return new DiagnosticResult
+    {
+      Name = "Media segments",
+      Status = active ? "ok" : "error",
+      Detail = active
+        ? loaded
+        : loaded + " The feature is enabled in the settings but no compatible companion was found for this "
+          + "Jellyfin version — reinstall the plugin, and check that the lib/ folder shipped with it."
+    };
   }
 
   // Reports the enabled-indexer count for each configured *arr instance (Radarr and Sonarr) — these
