@@ -544,6 +544,42 @@
 
   // ---------- DOM helpers (operate on passed-in elements; still framework-free) ----------
 
+  // Where the branding logo belongs in the header, as { parent, before } for a single insertBefore().
+  // It stands in for the native "server button" (Jellyfin icon + server name), so on the Jellyfin 12
+  // toolbar it takes the first slot of the nav stack, and header.js hides that button. Toolbars that
+  // show the drawer button have no nav stack: there the logo follows the drawer/back buttons, i.e.
+  // sits just before the right-hand button box. On the classic 10.11 header it goes right after the
+  // drawer button. `logo` is the already-inserted logo, if any: it is never returned as `before`, so
+  // the caller can compare it with logo.nextSibling and only move the logo when the web client has
+  // rebuilt the header around it. Returns null when there is no header to place it in.
+  // Where a panel injected into the native item-detail page belongs: the block holding the sections
+  // under the poster/synopsis. 10.11 wraps them in .detailPageContent; Jellyfin 12 dropped that wrapper
+  // and hangs those sections off .detailPageSecondaryContainer itself. Scoped to the visible detail page
+  // when there is one (the web client keeps hidden pages in the DOM). Returns null when the page hasn't
+  // rendered yet, so the caller retries instead of falling back to the page root — which is what put the
+  // reviews panel above the backdrop, at the very top of the page, on Jellyfin 12.
+  function detailPanelAnchor(root) {
+    if (!root || !root.querySelector) { return null; }
+    var page = root.querySelector('.itemDetailPage:not(.hide)') || root;
+    return page.querySelector('.detailPageContent') || page.querySelector('.detailPageSecondaryContainer') || null;
+  }
+
+  function brandLogoSlot(header, logo) {
+    if (!header || !header.querySelector) { return null; }
+    // Skip over the logo itself so `before` is always a node the logo can be inserted in front of.
+    function slot(parent, before) {
+      return { parent: parent, before: (logo && before === logo) ? logo.nextSibling : before };
+    }
+    if (header.classList && header.classList.contains('MuiToolbar-root')) {
+      var stack = header.querySelector('.MuiStack-root');
+      if (stack) { return slot(stack, stack.firstChild); }
+      return slot(header, header.querySelector('.MuiBox-root'));
+    }
+    var drawer = header.querySelector('.mainDrawerButton');
+    return slot(header, drawer ? drawer.nextSibling : header.firstChild);
+  }
+
+
   // The focusable elements inside `container`, in DOM order. `opts.visible(el)` decides visibility
   // (default: the element has layout boxes — correct in a browser, including under a position:fixed
   // overlay where offsetParent would wrongly be null). Tests inject a predicate because jsdom has no
@@ -941,6 +977,8 @@
     quotaColor: quotaColor,
     groupByReleaseDate: groupByReleaseDate,
     buildMonthMatrix: buildMonthMatrix,
-    buildBrandingCss: buildBrandingCss
+    buildBrandingCss: buildBrandingCss,
+    brandLogoSlot: brandLogoSlot,
+    detailPanelAnchor: detailPanelAnchor
   };
 });

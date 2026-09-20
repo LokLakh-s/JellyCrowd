@@ -228,3 +228,10 @@ n'affiche **pas** de cadre vide. Le plus simple pour partir : copier le `guide-c
   (catégorie + message) adressé aux administrateurs, pour tout ce qui ne concerne pas un titre précis.
   Pour un souci sur un titre, le bouton **⚠ Signaler un problème** de la fiche catalogue pré-remplit le
   média. Dans les deux cas la réponse de l'admin revient dans la 🔔 de l'utilisateur.
+
+> **Sur Jellyfin 12** : le client place dans sa barre ses propres raccourcis (Favoris, une entrée par
+> bibliothèque, le menu « Plus »). Ils ne laissent plus de place aux entrées du plugin et poussent le
+> bloc de droite hors écran, donc Jelly Crowd les masque — comme il masque déjà les onglets natifs en
+> 10.11. Les bibliothèques restent accessibles depuis l'accueil et le menu latéral. Quand un **logo**
+> est configuré dans *Branding*, il prend la place du bouton serveur (icône Jellyfin + nom du serveur)
+> tout à gauche de la barre, au lieu de s'ajouter à sa droite.

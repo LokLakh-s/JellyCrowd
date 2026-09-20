@@ -1644,6 +1644,12 @@
       // Respect the OS "reduce motion" setting: no transitions or animations anywhere we own.
       '@media (prefers-reduced-motion: reduce){.jellycrowd-overlay,.jellycrowd-overlay *,.jcHeaderTab{transition:none !important;animation:none !important;scroll-behavior:auto !important;}}' +
       '.headerTabs .emby-tab-button{display:none !important;}' +
+      // Same idea on Jellyfin 12, whose toolbar carries its own shortcuts (Favorites, one button per
+      // library, the "More" overflow): they crowd out our nav and push the right-hand cluster off
+      // screen. Hide everything in that nav stack except our own items and the server button (Jellyfin
+      // icon + server name), which stays as the link Home. The libraries themselves remain reachable
+      // from the home screen and the left drawer.
+      '.MuiToolbar-root .MuiStack-root > *:not([data-jc-nav]):not(#jcBrandLogo):not(:has(img[src*="icon-transparent"])){display:none !important;}' +
       // Settings sub-tab bar injected at the top of the native preference pages (and mirrored in the
       // Notifications overlay). Neutral greys so it reads on both light and dark native themes.
       '.jcSettingsTabs{display:flex;flex-wrap:nowrap;justify-content:center;justify-content:safe center;gap:.4em;align-items:center;overflow-x:auto;scrollbar-width:none;padding:1em 1.2em .4em;}' +
@@ -1777,8 +1783,11 @@
       // Structural rules the pure builder doesn't own (sized to the runtime-injected elements):
       if (branding.LogoUrl) {
         css += '\n.jcBrandLogo{height:1.7em;width:auto;cursor:pointer;margin:0 .5em;vertical-align:middle;}';
-        // Replace the native Jellyfin header logo instead of showing a second one beside it.
+        // Replace the native Jellyfin header logo instead of showing a second one beside it: the page
+        // title on 10.11, and on Jellyfin 12 the toolbar's server button — the Jellyfin icon plus the
+        // server name, the only item of that nav stack holding an <img>.
         css += '\n.pageTitleWithLogo{display:none !important;}';
+        css += '\n.MuiToolbar-root .MuiStack-root > *:has(img[src*="icon-transparent"]){display:none !important;}';
       }
       if (branding.DefaultAvatarUrl) {
         // Best-effort: paint the configured image over the placeholder shown for users with no photo.
@@ -1813,23 +1822,26 @@
     if (!branding.LogoUrl) { return; }
     var host = document.querySelector('.MuiToolbar-root') || document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
     if (!host) { return; }
-    var img = document.getElementById('jcBrandLogo');
-    if (!img) {
-      img = document.createElement('img');
-      img.id = 'jcBrandLogo';
-      img.className = 'jcBrandLogo';
-      img.alt = '';
-      img.addEventListener('click', function () { window.location.hash = '#/home'; });
-    }
-    if (img.getAttribute('src') !== branding.LogoUrl) { img.src = branding.LogoUrl; }
-    // Sit the logo just to the RIGHT of the menu: after the drawer/menu button on the classic header
-    // (10.11), else after the nav cluster on the Jellyfin 12 MUI toolbar. Falls back to the front. The
-    // position check keeps this idempotent so the re-insert only fires when the client has moved it.
-    var afterEl = host.querySelector('.mainDrawerButton') || host.querySelector('.MuiStack-root');
-    var anchor = afterEl ? afterEl.nextSibling : host.firstChild;
-    if (img.parentNode !== host || img.previousElementSibling !== afterEl) {
-      host.insertBefore(img, anchor);
-    }
+    ensureBrandingLib(function (L) {
+      var img = document.getElementById('jcBrandLogo');
+      if (!img) {
+        img = document.createElement('img');
+        img.id = 'jcBrandLogo';
+        img.className = 'jcBrandLogo';
+        img.alt = '';
+        img.addEventListener('click', function () { window.location.hash = '#/home'; });
+      }
+      if (img.getAttribute('src') !== branding.LogoUrl) { img.src = branding.LogoUrl; }
+      // The logo takes the place of the native header logo (hidden by applyBrandingStyle): the first
+      // slot of the toolbar nav stack on Jellyfin 12, just right of the menu button on 10.11 — see
+      // brandLogoSlot. The position check keeps this idempotent, so the re-insert only fires when the
+      // web client has rebuilt the header around us.
+      var slot = L.brandLogoSlot(host, img);
+      if (!slot) { return; }
+      if (img.parentNode !== slot.parent || img.nextSibling !== slot.before) {
+        slot.parent.insertBefore(img, slot.before);
+      }
+    });
   }
 
   function applyDrawerLinks() {
@@ -1893,6 +1905,16 @@
     var h = window.location.hash || '';
     var m = h.match(/[?&]id=([a-f0-9]{32})/i);
     return m ? m[1] : null;
+  }
+
+  // Where our detail-page panels attach: the block holding the sections under the poster/synopsis —
+  // .detailPageContent on 10.11, .detailPageSecondaryContainer on Jellyfin 12, which dropped that inner
+  // wrapper. Mirrors JellyCrowdLib.detailPanelAnchor (duplicated: the base page has no lib). Null while
+  // the page is still rendering, so callers retry instead of falling back to the page root — that
+  // fallback is what put the reviews panel above the backdrop, at the very top of the page, on 12.
+  function detailPanelAnchor() {
+    var page = document.querySelector('.itemDetailPage:not(.hide)') || document;
+    return page.querySelector('.detailPageContent') || page.querySelector('.detailPageSecondaryContainer') || null;
   }
 
   function removeDetailReviews() {
@@ -2063,9 +2085,7 @@
     if (id === detailReviewsPendingId) { return; }
     if (!(window.ApiClient && window.ApiClient.getItem && window.ApiClient.getCurrentUserId)) { return; }
 
-    var anchor = document.querySelector('.itemDetailPage:not(.hide) .detailPageContent')
-      || document.querySelector('.itemDetailPage:not(.hide)')
-      || document.querySelector('.detailPageContent');
+    var anchor = detailPanelAnchor();
     if (!anchor) {
       // The detail DOM loads asynchronously; retry a few times before giving up.
       if ((retries || 0) < 12) { setTimeout(function () { maybeInjectDetailReviews((retries || 0) + 1); }, 300); }
@@ -2164,9 +2184,7 @@
     if (id === detailClaimPendingId) { return; }
     if (!(window.ApiClient && window.ApiClient.getItem && window.ApiClient.getCurrentUserId)) { return; }
 
-    var anchor = document.querySelector('.itemDetailPage:not(.hide) .mainDetailButtons')
-      || document.querySelector('.itemDetailPage:not(.hide) .detailPageContent')
-      || document.querySelector('.detailPageContent');
+    var anchor = document.querySelector('.itemDetailPage:not(.hide) .mainDetailButtons') || detailPanelAnchor();
     if (!anchor) {
       if ((retries || 0) < 12) { setTimeout(function () { maybeInjectClaimButton((retries || 0) + 1); }, 300); }
       return;
