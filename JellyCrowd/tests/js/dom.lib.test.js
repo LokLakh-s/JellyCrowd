@@ -542,3 +542,47 @@ test('detailPanelAnchor has no anchor while the detail page is still rendering',
 test('detailPanelAnchor is null without a document to search', () => {
   assert.strictEqual(lib.detailPanelAnchor(null), null);
 });
+
+// ---------- muiMenuItem: our entry in Jellyfin 12's own user menu ----------
+
+// A native entry as MUI renders it, emotion hashes and all.
+const MENU_TEMPLATE = '<ul class="MuiList-root">'
+  + '<li class="MuiButtonBase-root MuiMenuItem-root css-abc123" role="menuitem" tabindex="-1">'
+  + '<div class="MuiListItemIcon-root css-def456"><svg class="MuiSvgIcon-root"></svg></div>'
+  + '<div class="MuiListItemText-root css-ghi789"><span class="MuiTypography-root">Settings</span></div>'
+  + '</li></ul>';
+
+test('muiMenuItem copies the native entry classes so it looks like one', () => {
+  const doc = setup(MENU_TEMPLATE);
+
+  const item = lib.muiMenuItem(doc.querySelector('.MuiMenuItem-root'), 'Report a problem', 'report_problem');
+
+  assert.strictEqual(item.tagName, 'LI');
+  assert.ok(item.className.includes('MuiMenuItem-root'));
+  assert.ok(item.className.includes('css-abc123')); // the build-specific hash, read off the live menu
+  assert.strictEqual(item.getAttribute('role'), 'menuitem');
+  assert.strictEqual(item.getAttribute('tabindex'), '-1');
+});
+
+test('muiMenuItem carries our label and icon, not the copied ones', () => {
+  const doc = setup(MENU_TEMPLATE);
+
+  const item = lib.muiMenuItem(doc.querySelector('.MuiMenuItem-root'), 'Report a problem', 'report_problem');
+
+  assert.strictEqual(item.querySelector('.MuiTypography-root').textContent, 'Report a problem');
+  assert.strictEqual(item.querySelector('.material-icons').textContent, 'report_problem');
+  assert.strictEqual(item.querySelector('svg'), null); // the native icon is not cloned along
+  assert.ok(item.querySelector('.MuiListItemIcon-root')); // but its wrapper is, for the spacing
+});
+
+test('muiMenuItem still builds an entry when the native one has no icon or text wrapper', () => {
+  const doc = setup('<ul><li class="MuiMenuItem-root">Sign out</li></ul>');
+
+  const item = lib.muiMenuItem(doc.querySelector('.MuiMenuItem-root'), 'Report a problem', 'report_problem');
+
+  assert.strictEqual(item.textContent, 'report_problemReport a problem');
+});
+
+test('muiMenuItem has nothing to copy from without a template', () => {
+  assert.strictEqual(lib.muiMenuItem(null, 'Report a problem', 'report_problem'), null);
+});

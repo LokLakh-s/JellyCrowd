@@ -552,6 +552,37 @@
   // drawer button. `logo` is the already-inserted logo, if any: it is never returned as `before`, so
   // the caller can compare it with logo.nextSibling and only move the logo when the web client has
   // rebuilt the header around it. Returns null when there is no header to place it in.
+  // Build an entry for Jellyfin 12's own user menu, styled by borrowing the classes off a native entry
+  // (`template`): the emotion class hashes are build-specific, so they are read from the live menu rather
+  // than hard-coded. The icon is a material-icons ligature — the font the web client already loads. The
+  // caller wires the click. Returns null when there is no native entry to copy from (menu not built yet).
+  function muiMenuItem(template, label, icon) {
+    if (!template || !template.ownerDocument) { return null; }
+    var doc = template.ownerDocument;
+    var item = doc.createElement('li');
+    item.className = template.className;
+    item.setAttribute('role', 'menuitem');
+    item.setAttribute('tabindex', '-1');
+
+    var nativeIcon = template.querySelector('.MuiListItemIcon-root');
+    // cloneNode(false): the wrapper keeps the native spacing, its icon is ours.
+    var iconBox = nativeIcon ? nativeIcon.cloneNode(false) : doc.createElement('span');
+    var glyph = doc.createElement('span');
+    glyph.className = 'material-icons';
+    glyph.setAttribute('aria-hidden', 'true');
+    glyph.textContent = icon;
+    iconBox.appendChild(glyph);
+
+    var nativeText = template.querySelector('.MuiListItemText-root');
+    var textBox = nativeText ? nativeText.cloneNode(true) : doc.createElement('span');
+    var label_ = textBox.querySelector && textBox.querySelector('.MuiTypography-root');
+    (label_ || textBox).textContent = label;
+
+    item.appendChild(iconBox);
+    item.appendChild(textBox);
+    return item;
+  }
+
   // Where a panel injected into the native item-detail page belongs: the block holding the sections
   // under the poster/synopsis. 10.11 wraps them in .detailPageContent; Jellyfin 12 dropped that wrapper
   // and hangs those sections off .detailPageSecondaryContainer itself. Scoped to the visible detail page
@@ -979,6 +1010,7 @@
     buildMonthMatrix: buildMonthMatrix,
     buildBrandingCss: buildBrandingCss,
     brandLogoSlot: brandLogoSlot,
-    detailPanelAnchor: detailPanelAnchor
+    detailPanelAnchor: detailPanelAnchor,
+    muiMenuItem: muiMenuItem
   };
 });
