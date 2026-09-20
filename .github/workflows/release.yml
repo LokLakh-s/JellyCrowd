@@ -154,7 +154,7 @@ jobs:
           git push origin "refs/tags/${{ steps.bump.outputs.tag }}"
 
       - name: Publish release to the distribution repo
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           repository: ${{ env.DIST_REPO }}
           token: ${{ secrets.DIST_TOKEN }}
