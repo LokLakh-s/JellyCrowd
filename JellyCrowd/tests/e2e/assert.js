@@ -46,8 +46,12 @@ async function completeWizard() {
   // same as "the wizard is ready" — poll the wizard itself, then run it. Re-running against an already
   // configured server just gets rejected, which is harmless.
   for (let i = 0; i < 30; i++) {
-    const probe = await api('/Startup/User');
-    if (probe.status === 200 || probe.status === 403) { break; }
+    // A transport error here means "not ready yet", not "the run is broken": in the window between
+    // Kestrel binding and the startup routes being mapped, the socket still refuses or resets. Letting
+    // that throw killed the whole harness ("fetch failed") instead of polling through it.
+    let probe = null;
+    try { probe = await api('/Startup/User'); } catch { /* not accepting connections yet */ }
+    if (probe && (probe.status === 200 || probe.status === 403)) { break; }
     await sleep(1000);
   }
 
