@@ -586,3 +586,50 @@ test('muiMenuItem still builds an entry when the native one has no icon or text 
 test('muiMenuItem has nothing to copy from without a template', () => {
   assert.strictEqual(lib.muiMenuItem(null, 'Report a problem', 'report_problem'), null);
 });
+
+// ---------- movedToolbarButtons: the toolbar buttons we relocate to the avatar menu ----------
+
+const MOVED = [
+  { cls: 'jcUserMenuSyncPlay', selectors: ['[aria-controls="app-sync-play-menu"]'] },
+  { cls: 'jcUserMenuCast', selectors: ['[aria-controls="app-remote-play-menu"]', '[aria-controls="app-remote-play-active-menu"]'] }
+];
+
+test('movedToolbarButtons reports the buttons on the bar, with what to click', () => {
+  const doc = setup('<header class="MuiToolbar-root">'
+    + '<button id="sync" aria-controls="app-sync-play-menu"></button>'
+    + '<button id="cast" aria-controls="app-remote-play-menu"></button></header>');
+
+  const found = lib.movedToolbarButtons(doc, MOVED);
+
+  assert.deepStrictEqual(found.map(f => f.entry.cls), ['jcUserMenuSyncPlay', 'jcUserMenuCast']);
+  assert.strictEqual(found[1].button, doc.getElementById('cast'));
+});
+
+test('movedToolbarButtons follows the Cast button when a remote player is active', () => {
+  const doc = setup('<header class="MuiToolbar-root">'
+    + '<button id="casting" aria-controls="app-remote-play-active-menu"></button></header>');
+
+  const found = lib.movedToolbarButtons(doc, MOVED);
+
+  assert.deepStrictEqual(found.map(f => f.entry.cls), ['jcUserMenuCast']); // the second selector matched
+  assert.strictEqual(found[0].button, doc.getElementById('casting'));
+});
+
+test('movedToolbarButtons skips a button Jellyfin did not render', () => {
+  // SyncPlay is absent for a user whose policy forbids it — no entry should be offered for it.
+  const doc = setup('<header class="MuiToolbar-root">'
+    + '<button id="cast" aria-controls="app-remote-play-menu"></button></header>');
+
+  assert.deepStrictEqual(lib.movedToolbarButtons(doc, MOVED).map(f => f.entry.cls), ['jcUserMenuCast']);
+});
+
+test('movedToolbarButtons ignores a matching button outside the toolbar', () => {
+  const doc = setup('<div><button aria-controls="app-sync-play-menu"></button></div>');
+
+  assert.deepStrictEqual(lib.movedToolbarButtons(doc, MOVED), []);
+});
+
+test('movedToolbarButtons has nothing to move without a document or entries', () => {
+  assert.deepStrictEqual(lib.movedToolbarButtons(null, MOVED), []);
+  assert.deepStrictEqual(lib.movedToolbarButtons(setup(''), null), []);
+});

@@ -552,6 +552,23 @@
   // drawer button. `logo` is the already-inserted logo, if any: it is never returned as `before`, so
   // the caller can compare it with logo.nextSibling and only move the logo when the web client has
   // rebuilt the header around it. Returns null when there is no header to place it in.
+  // Which of the toolbar buttons we move into the avatar menu are on the bar right now, with the element
+  // to click for each: Jellyfin renders the SyncPlay button only when the user may use it, and the Cast
+  // button swaps between two ids depending on whether a remote player is active — so an entry is offered
+  // only when its button is really there. Each entry carries `selectors`, tried in order.
+  function movedToolbarButtons(root, entries) {
+    if (!root || !root.querySelector) { return []; }
+    var found = [];
+    (entries || []).forEach(function (entry) {
+      var button = null;
+      (entry.selectors || []).forEach(function (sel) {
+        if (!button) { button = root.querySelector('.MuiToolbar-root ' + sel); }
+      });
+      if (button) { found.push({ entry: entry, button: button }); }
+    });
+    return found;
+  }
+
   // Build an entry for Jellyfin 12's own user menu, styled by borrowing the classes off a native entry
   // (`template`): the emotion class hashes are build-specific, so they are read from the live menu rather
   // than hard-coded. The icon is a material-icons ligature — the font the web client already loads. The
@@ -1011,6 +1028,7 @@
     buildBrandingCss: buildBrandingCss,
     brandLogoSlot: brandLogoSlot,
     detailPanelAnchor: detailPanelAnchor,
-    muiMenuItem: muiMenuItem
+    muiMenuItem: muiMenuItem,
+    movedToolbarButtons: movedToolbarButtons
   };
 });

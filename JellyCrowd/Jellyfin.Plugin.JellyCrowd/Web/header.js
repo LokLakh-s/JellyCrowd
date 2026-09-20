@@ -717,7 +717,40 @@
   // the 10.11 hijack of .headerUserButton never fires there and our "report a problem" entry was missing
   // for every user. We add that single entry to the native menu rather than replace a menu we don't own:
   // profile, settings, dashboard and sign out are all already in it.
-  function insertMuiUserMenuItem() {
+  // The native toolbar buttons we move into the avatar menu, as the 10.11 header already does: SyncPlay
+  // and Cast. Keyed on the id of the menu each one opens (aria-controls), which is stable — the
+  // aria-label is translated. Cast swaps ids when a remote player is active, hence two selectors.
+  var MUI_MOVED_BUTTONS = [
+    {
+      cls: 'jcUserMenuSyncPlay',
+      labelKey: 'avm_syncplay',
+      icon: 'group',
+      selectors: ['[aria-controls="app-sync-play-menu"]']
+    },
+    {
+      cls: 'jcUserMenuCast',
+      labelKey: 'avm_cast',
+      icon: 'cast',
+      selectors: ['[aria-controls="app-remote-play-menu"]', '[aria-controls="app-remote-play-active-menu"]']
+    }
+  ];
+
+  // Add an entry of ours to 12's menu list, styled after a native one, before `before`.
+  function addMuiMenuItem(L, list, template, cls, label, icon, onActivate, before) {
+    var item = L.muiMenuItem(template, label, icon);
+    if (!item) { return null; }
+    item.className += ' ' + cls;
+    item.addEventListener('click', onActivate);
+    // MUI's arrow-key navigation walks the list's DOM children, so our entries are reachable — but it is
+    // React that turns Enter/Space into a click on its own items, and ours are not among them.
+    item.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate(); }
+    });
+    list.insertBefore(item, before);
+    return item;
+  }
+
+  function insertMuiUserMenuItems() {
     if (!pluginVisible()) {
       return;
     }
@@ -726,7 +759,7 @@
       return;
     }
     var list = menu.querySelector('ul');
-    if (!list || list.querySelector('.jcUserMenuReport')) {
+    if (!list) {
       return;
     }
     var template = list.querySelector('.MuiMenuItem-root');
@@ -734,21 +767,45 @@
       return; // the menu has not been built yet
     }
     ensureLib(function (L) {
-      if (list.querySelector('.jcUserMenuReport')) { return; }
-      var item = L.muiMenuItem(template, t('avm_report'), 'report_problem');
-      if (!item) { return; }
-      item.className += ' jcUserMenuReport';
-      function activate() { closeMuiUserMenu(); openReportDialog(); }
-      item.addEventListener('click', activate);
-      // MUI's arrow-key navigation walks the list's DOM children, so our entry is reachable — but it is
-      // React that turns Enter/Space into a click on its own items, and ours is not one of them.
-      item.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+      // Everything goes before the first separator, i.e. under Profile / Settings, in the order below —
+      // the native menu always has at least one separator.
+      var before = list.querySelector('.MuiDivider-root');
+      if (!list.querySelector('.jcUserMenuReport')) {
+        addMuiMenuItem(L, list, template, 'jcUserMenuReport', t('avm_report'), 'report_problem', function () {
+          closeMuiUserMenu();
+          openReportDialog();
+        }, before);
+      }
+
+      var moved = L.movedToolbarButtons(document, MUI_MOVED_BUTTONS);
+      moved.forEach(function (m) {
+        if (list.querySelector('.' + m.entry.cls)) { return; }
+        var item = addMuiMenuItem(L, list, template, m.entry.cls, t(m.entry.labelKey), m.entry.icon, function () {
+          closeMuiUserMenu();
+          // The real button is still there, hidden at zero width, so Jellyfin's own handler runs and
+          // anchors its menu where the button sits. Let the avatar menu finish closing first: two MUI
+          // popovers opening and closing in the same frame fight over the focus trap.
+          setTimeout(function () { clickMovedButton(m.entry); }, 150);
+        }, before);
+        if (item) { item.setAttribute('aria-haspopup', 'true'); }
       });
-      // Before the first separator, i.e. right under Profile / Settings — the account block, where the
-      // same entry sits in the 10.11 menu. The native menu always has at least one separator.
-      list.insertBefore(item, list.querySelector('.MuiDivider-root'));
+
+      // A separator of the native kind between the account block and the two playback entries.
+      var first = list.querySelector('.jcUserMenuSyncPlay, .jcUserMenuCast');
+      if (first && before && !list.querySelector('.jcUserMenuSep')) {
+        var sep = before.cloneNode(false);
+        sep.className += ' jcUserMenuSep';
+        list.insertBefore(sep, first);
+      }
     });
+  }
+
+  // Click the toolbar button behind a moved entry, whichever of its selectors is on the bar.
+  function clickMovedButton(entry) {
+    for (var i = 0; i < entry.selectors.length; i++) {
+      var btn = document.querySelector('.MuiToolbar-root ' + entry.selectors[i]);
+      if (btn) { btn.click(); return; }
+    }
   }
 
   // Close the native user menu the way the web client does — clicking its backdrop — so React keeps its
@@ -783,7 +840,7 @@
   // (Re)inject our whole header UI into the MUI toolbar. Each inserter is idempotent (host-scoped guard).
   function mountMui() {
     insertMuiNav();
-    insertMuiUserMenuItem();
+    insertMuiUserMenuItems();
     insertCatalogSearch();
     insertQuota();
     insertBell();
@@ -1731,6 +1788,14 @@
       // De-duplicate the header: SyncPlay/Groups and Cast are reachable from the avatar menu, so hide
       // their native header buttons (the menu shortcuts still click them programmatically).
       '.skinHeader .headerSyncButton,.skinHeader .headerCastButton{display:none !important;}' +
+      // Same on Jellyfin 12, where both are MUI icon buttons. They keep a zero-width box instead of
+      // display:none: the menus they open are anchored on the button itself, and an anchor with no
+      // layout would drop those menus in the top-left corner of the page.
+      '.MuiToolbar-root [aria-controls="app-sync-play-menu"],' +
+      '.MuiToolbar-root [aria-controls="app-remote-play-menu"],' +
+      '.MuiToolbar-root [aria-controls="app-remote-play-active-menu"]{width:0 !important;min-width:0 !important;'
+      + 'padding:0 !important;margin:0 !important;border:0 !important;overflow:hidden !important;'
+      + 'opacity:0 !important;pointer-events:none !important;}' +
       // Admin opt-in: hide the native left drawer (hamburger) for non-admins (body class set in JS).
       'body.jc-hide-native-drawer .mainDrawerButton{display:none !important;}' +
       // Some library types (Other/Books) hide the empty tab row — keep it shown when it hosts our nav.
@@ -1965,7 +2030,7 @@
     insertHeaderLinks(); // after the announcement, so we can anchor the links just left of it
     installAvatarMenu(); // hijack the header avatar to open our dropdown instead of the prefs page
     insertMuiNav();      // Jellyfin 12 (MUI) toolbar — no-op on 10.11
-    insertMuiUserMenuItem(); // and our entry in 12's own avatar menu
+    insertMuiUserMenuItems(); // and our entries in 12's own avatar menu
     watchMuiToolbar();   // re-inject our MUI tabs when React re-renders the toolbar
   }
 
