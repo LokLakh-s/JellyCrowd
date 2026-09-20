@@ -46,6 +46,33 @@ public class DiagnosticsServiceTests
   }
 
   [Fact]
+  public async Task MediaSegments_FeatureOff_Info()
+  {
+    // Nothing is wrong when the feature is simply not turned on, so this must not shout "error" at an
+    // admin who never wanted Skip Outro.
+    var config = new PluginConfiguration { TmdbApiKey = "k", DownloadBackend = "none", SkipOutroEnabled = false, SkipIntroEnabled = false };
+
+    var results = await Create(Mock.Of<ITmdbClient>(), Mock.Of<IDownloadDispatcher>(), config).RunAsync(CancellationToken.None);
+
+    Assert.Equal("info", Find(results, "Media segments").Status);
+  }
+
+  [Fact]
+  public async Task MediaSegments_EnabledButNoCompanionLoaded_Error()
+  {
+    // The companion probe swallows every load failure by design, so this check is the ONLY place a
+    // packaging slip that silently disables Skip Outro becomes visible. In this test process no companion
+    // is ever loaded, which is exactly the state being asserted.
+    var config = new PluginConfiguration { TmdbApiKey = "k", DownloadBackend = "none", SkipOutroEnabled = true };
+
+    var results = await Create(Mock.Of<ITmdbClient>(), Mock.Of<IDownloadDispatcher>(), config).RunAsync(CancellationToken.None);
+
+    var check = Find(results, "Media segments");
+    Assert.Equal("error", check.Status);
+    Assert.Contains("no compatible companion", check.Detail, StringComparison.Ordinal);
+  }
+
+  [Fact]
   public async Task Backend_None_Info()
   {
     var config = new PluginConfiguration { TmdbApiKey = "k", DownloadBackend = "none" };

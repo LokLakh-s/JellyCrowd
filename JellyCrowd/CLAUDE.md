@@ -21,7 +21,11 @@ Ce n'est **pas** `jelly-quotas` (app externe React/Node à côté de Jellyfin) �
 
 ## Stack & versions
 
-- **.NET 9** (`net9.0`) — Jellyfin **10.11.x**.
+- **.NET 9** (`net9.0`), compilé contre les références **10.11.x** — **un seul artefact couvre Jellyfin
+  10.11 ET 12.x** (vérifié : 12.1 charge l'assembly net9 et toutes les routes répondent). Le manifeste
+  reste estampillé `targetAbi: 10.11.0.0` : un serveur accepte tout ABI **inférieur ou égal** au sien,
+  donc cette seule entrée est proposée aux deux. Ne pas monter l'ABI sans raison — cela retirerait le
+  plugin du catalogue des serveurs 10.11.
 - Références host : `Jellyfin.Controller`, `Jellyfin.Model` (`ExcludeAssets=runtime`, fournis par le host).
 - UI user-facing : **aucun plugin tiers**. Jelly Crowd injecte son shell (`header.js`) dans `index.html`
   via son **propre middleware** (`WebInjectionStartupFilter` + `WebInjectionMiddleware`, au moment de la
@@ -62,6 +66,8 @@ Jellyfin.Plugin.JellyCrowd/
   Web/                       # assets user embarqués : catalog/requests/mymedia (.html/.js), header.js,
                              # catalog.lib.js (logique pure testée), jellycrowd.css, logo.png, strings/{en,fr}.json
 
+Jellyfin.Plugin.JellyCrowd.Segments/    # companion isolée (net9, SDK 10.11) : IMediaSegmentProvider
+Jellyfin.Plugin.JellyCrowd.Segments12/  # MÊME source, compilée net10 contre le SDK 12.x
 Jellyfin.Plugin.JellyCrowd.Tests/  # xUnit (+ Moq + node:test pour le JS) ; exécuté en CI
 ```
 
@@ -74,10 +80,16 @@ Racine : `CLAUDE.md`, `ROADMAP.md`, `README.md`, `LICENSE`, `build.yaml` (manife
 ## Build / test
 
 ```powershell
-dotnet build -c Release          # nécessite un SDK capable de cibler net9.0
+dotnet build -c Release          # nécessite les SDK net9.0 ET net10.0 (cf. ci-dessous)
 DOTNET_ROLL_FORWARD=Major dotnet test -c Release --no-build   # voir note ci-dessous
+(cd tests/js && npm ci)          # une fois : la suite DOM a besoin de jsdom
 node --test tests/js/*.test.js   # suite JS (logique pure des Web/*.lib.js)
 ```
+
+> **Deux SDK** : le plugin, sa companion 10.11 et les tests sont en `net9.0` ; la companion Jellyfin 12 est
+> en `net10.0` (`Jellyfin.Controller` 12.x ne publie que `lib/net10.0`). Le SDK 10 compile aussi bien le
+> net9, donc un conteneur `mcr.microsoft.com/dotnet/sdk:10.0` suffit pour toute la solution — c'est ce
+> qu'utilise `dev-stack/deploy-plugin.sh`.
 
 > ⚠️ **Local** : si seuls les runtimes ASP.NET **net8/net10** sont installés (pas net9), le testhost net9
 > ne démarre pas → préfixer par `DOTNET_ROLL_FORWARD=Major`. En CI (runner), `setup-dotnet` fournit le SDK
@@ -183,6 +195,33 @@ Les workflows tournent sur un **runner self-hosted** pour économiser les minute
 - **Compat** : ne pas casser 10.11 / net9. Les pages user sont **hébergées par Jelly Crowd** (overlay à
   onglets via `header.js`), injecté par **son propre middleware** (`WebInjectionStartupFilter` +
   `WebInjectionMiddleware` : sert `index.html` avec le `<script>` ajouté avant `</body>`, au moment de la requête).
+- **Packaging (règle vitale pour Jellyfin 12)** : l'assembly companion Skip Outro est livrée en
+  **`lib/Jellyfin.Plugin.JellyCrowd.Segments.dll.bin`** — jamais avec une extension `.dll`, nulle part dans le
+  dossier du plugin. Jellyfin charge **tout `*.dll`** qu'il trouve sous ce dossier ; la companion cible
+  `IMediaSegmentProvider` en SDK 10.11 et la 12 a déplacé ces types, donc son chargement lève une
+  `TypeLoadException` et l'hôte **désactive le plugin ENTIER** (`Malfunctioned` : toutes les routes en 500,
+  plus d'injection du shell). Deux protections qui semblent suffire ne le sont pas, c'est mesuré sur 12.1 :
+  l'allowlist `assemblies` de `meta.json` est **réécrite en `[]`** (« scanne tout ») par une installation
+  depuis le manifeste, et le scan est **récursif**, donc un simple sous-dossier est parcouru aussi. Seule
+  l'extension sort le fichier du glob ; le plugin le charge par chemin via réflexion. Gardé par
+  `Jellyfin.Plugin.JellyCrowd.Tests/Integration/CompanionAssemblyLayoutTests.cs`.
+  ⚠️ Corollaire opérationnel : `Malfunctioned` est **persistant** (meta.json + base). Une fois le plugin
+  cassé sur une instance, corriger le paquet ne suffit pas — il faut réinstaller.
+- **Companion livrée en DEUX moitiés** : `Jellyfin.Plugin.JellyCrowd.Segments` (net9, SDK 10.11) et
+  `Jellyfin.Plugin.JellyCrowd.Segments12` (net10, SDK 12.x). **Même fichier source**, lié par `<Compile
+  Include>` — une seule implémentation, deux compilations. Le loader essaie la 12 puis la 10.11 et garde
+  **la première qui se charge** : le runtime lui-même arbitre, donc une future majeure ne demandera pas de
+  nouvelle branche ici. Pourquoi deux : en 10.11 l'interface n'avait pas `CleanupExtractedData`, donc le
+  compilateur a émis la nôtre en **non-virtuelle** ; la 12 l'a ajoutée à l'interface et le runtime ne peut
+  pas remplir un slot d'interface avec une méthode non virtuelle. Recompilée contre l'interface 12, elle
+  sort en `virtual final`. `Jellyfin.Controller` 12.x ne publie que `lib/net10.0`, d'où le net10.
+  Vérifié : Skip Outro produit bien son segment sur **10.11 et 12.1**.
+- **Observabilité** : le probe avale toutes les erreurs par conception, donc la moitié réellement active est
+  remontée par le diagnostic admin **« Media segments »** (`GET /JellyCrowd/Diagnostics`). Sans lui, un raté
+  de packaging désactiverait Skip Outro sans que rien ne le signale.
+- **API 12** : l'en-tête legacy `X-Emby-Authorization` est **refusé** (400) ; utiliser `Authorization` avec le
+  même schéma `MediaBrowser`, accepté par 10.11 comme par 12. Les endpoints `/emby/` et `/mediabrowser/`
+  n'existent plus.
 - **Auth des contrôleurs (10.11)** : il n'existe PAS de policy nommée `DefaultAuthorization`. Pour un endpoint
   utilisateur authentifié → `[Authorize]` (policy par défaut). Pour un endpoint admin → `[Authorize(Policy = "RequiresElevation")]`.
   Assets statiques publics → `[AllowAnonymous]`.
@@ -195,4 +234,4 @@ Les workflows tournent sur un **runner self-hosted** pour économiser les minute
 | Fulfillment | Mode d'approbation (manuel/auto) + backends de DL : Webhook, Radarr/Sonarr, script local |
 | Catalogue | TMDB (découverte) + croisement biblio Jellyfin |
 | UI | Pages hébergées par Jelly Crowd (overlay à onglets via `header.js`), injectées par son propre middleware (`IStartupFilter`, au moment de la requête). Aucun plugin tiers. |
-| Version | Jellyfin 10.11.x / .NET 9 |
+| Version | Un artefact (ABI 10.11.0.0) pour Jellyfin 10.11.x **et** 12.x ; companion média livrée en deux moitiés, net9 et net10 |

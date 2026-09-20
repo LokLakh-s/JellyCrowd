@@ -263,6 +263,19 @@ public class CatalogControllerTests
   }
 
   [Fact]
+  public async Task Search_WhenNotConfigured_Returns503_LikeItsSiblings()
+  {
+    // Search's person lookup used to run outside the handler that maps an unconfigured TMDB key to 503,
+    // so this endpoint alone answered 500 — a server error for what is a configuration problem.
+    var controller = CreateController(new FakeTmdbClient { Throw = new InvalidOperationException("no key") });
+
+    var result = await controller.Search("matrix", null, null, CancellationToken.None);
+
+    var obj = Assert.IsType<ObjectResult>(result.Result);
+    Assert.Equal(StatusCodes.Status503ServiceUnavailable, obj.StatusCode);
+  }
+
+  [Fact]
   public async Task GetTrending_WhenNotConfigured_Returns503()
   {
     var controller = CreateController(new FakeTmdbClient { Throw = new InvalidOperationException("no key") });
@@ -290,7 +303,15 @@ public class CatalogControllerTests
     public IReadOnlyList<CatalogItem> Filmography { get; set; } = new List<CatalogItem>();
 
     public Task<int?> FindTopPersonAsync(string query, string language, CancellationToken cancellationToken)
-      => Task.FromResult(TopPerson);
+    {
+      // An unconfigured TMDB key throws on every call, this one included.
+      if (Throw is not null)
+      {
+        throw Throw;
+      }
+
+      return Task.FromResult(TopPerson);
+    }
 
     public Task<IReadOnlyList<CatalogItem>> GetPersonFilmographyAsync(int personId, string language, CancellationToken cancellationToken)
       => Task.FromResult(Filmography);

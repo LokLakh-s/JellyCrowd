@@ -20,6 +20,8 @@ const ok = (m) => { console.log(`  \x1b[32m✓\x1b[0m ${m}`); pass++; };
 const ko = (m) => { console.log(`  \x1b[31m✗\x1b[0m ${m}`); fail++; };
 const check = (cond, m) => (cond ? ok(m) : ko(m));
 
+// Jellyfin 12 dropped the legacy X-Emby-Authorization header (it answers 400); the standard
+// Authorization header carrying the same MediaBrowser scheme is accepted by 10.11 and 12 alike.
 const auth = (token) =>
   `MediaBrowser Client="e2e", Device="e2e", DeviceId="e2e-1", Version="1.0"` + (token ? `, Token="${token}"` : '');
 
@@ -28,7 +30,7 @@ async function api(path, { method = 'GET', body, token } = {}) {
     method,
     headers: {
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': auth(token),
+      'Authorization': auth(token),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

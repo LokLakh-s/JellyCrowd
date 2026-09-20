@@ -37,14 +37,29 @@
   </ItemGroup>
 
   <!--
-    Drop the built companion DLL into the MAIN plugin's output folder so every packaging path
-    (`cp .../Jellyfin.Plugin.JellyCrowd/bin/.../*.dll`) and the dev deploy pick it up automatically.
+    Ship the built companion as lib/<name>.dll.bin — a subfolder AND a non-".dll" extension — which is the
+    layout every packaging path then reproduces.
+
+    Jellyfin enumerates "*.dll" under the plugin folder and loads each one it finds. This companion
+    implements IMediaSegmentProvider against the 10.11 SDK; Jellyfin 12 moved those types, so loading it
+    there throws a TypeLoadException and the host disables the WHOLE plugin, not just Skip Outro. Two
+    defences that look sufficient are not: meta.json's "assemblies" allowlist is rewritten to [] ("scan
+    everything") by an install from a repository manifest, and the walk is RECURSIVE, so a plain subfolder
+    is scanned too (measured against 12.1). Only the extension takes the file out of that glob, and
+    reflection loads it by path regardless of what it is called.
     The main project builds first (this one depends on it), so its output folder already exists.
   -->
   <Target Name="CopyToMainPluginOutput" AfterTargets="Build">
+    <PropertyGroup>
+      <_JcPluginOutput>$(MSBuildProjectDirectory)/../Jellyfin.Plugin.JellyCrowd/bin/$(Configuration)/net9.0</_JcPluginOutput>
+    </PropertyGroup>
     <Copy SourceFiles="$(TargetPath)"
-          DestinationFolder="$(MSBuildProjectDirectory)/../Jellyfin.Plugin.JellyCrowd/bin/$(Configuration)/net9.0/"
+          DestinationFiles="$(_JcPluginOutput)/lib/$(TargetFileName).bin"
           SkipUnchangedFiles="true" />
+    <!-- An incremental build over a tree that predates this layout still has an old ".dll" copy that every
+         packaging path would pick up, so a developer would ship the very file that disables the plugin on
+         Jellyfin 12. Clean both past locations up rather than rely on anyone remembering to wipe bin/. -->
+    <Delete Files="$(_JcPluginOutput)/$(TargetFileName);$(_JcPluginOutput)/lib/$(TargetFileName)" />
   </Target>
 
 </Project>
