@@ -61,15 +61,17 @@ jobs:
       # Boots a REAL Jellyfin with this build and asserts what unit tests structurally cannot: that the
       # plugin loads, its services resolve out of Jellyfin's DI, its scheduled tasks register, its routes
       # answer, its authorization holds against an actual non-admin user, and its web shell is injected.
-      # Needs docker on the runner; skipped (not failed) when there is none.
+      # Needs docker on the runner, and treats its absence as a failure: this step sat silently green for
+      # weeks because the runner user was not in the `docker` group, so the check never actually ran. A
+      # skip that nobody sees is worse than no check at all.
       # Both supported majors, from the one build: a single artifact is published for 10.11 and 12 alike,
       # so a break on either is a break in what we ship. 12 is the one that catches a companion assembly
       # slipping back under a scanned name — there, the host disables the whole plugin.
       - name: Test (E2E, real Jellyfin)
         run: |
           if ! docker info >/dev/null 2>&1; then
-            echo "::warning::docker unavailable on this runner — skipping the E2E check"
-            exit 0
+            echo "::error::docker is unreachable from this runner — the E2E check cannot run. Check that $(id -un) is in the docker group."
+            exit 1
           fi
           rc=0
           for image in jellyfin/jellyfin:10.11 jellyfin/jellyfin:12.1; do
