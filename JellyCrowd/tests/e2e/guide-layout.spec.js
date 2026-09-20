@@ -87,7 +87,12 @@ test.beforeAll(async () => {
           ? (res.writeHead(404), res.end('{}'))
           : send(buf, 'application/json; charset=utf-8'));
     }
-    if (url.startsWith('/JellyCrowd/Guide/Image/')) { return send(PIXEL, 'image/png'); }
+    if (url.startsWith('/JellyCrowd/Guide/Image/')) {
+      const shipped = path.join(WEB, 'img', path.basename(url));
+      return fs.readFile(shipped, (err, buf) => err
+        ? send(PIXEL, 'image/png')            // a custom guide's own file, which this harness fakes
+        : send(buf, 'image/jpeg'));           // one the plugin ships
+    }
     const file = path.join(WEB, url.replace(/^\/JellyCrowd\/Web/, ''));
     if (!file.startsWith(WEB)) { res.writeHead(403); return res.end('no'); }
     return fs.readFile(file, (err, buf) => err
@@ -117,15 +122,22 @@ const withCustomGuide = () => {
   en.steps[1].figs = [['search', 'A search.']];
 };
 
-test('the guide the plugin ships carries no screenshots at all', async ({ page }) => {
-  // It is distributed to everyone: it must not contain captures of any real library, and it must not
-  // leave empty figure frames where an instance's own screenshots would go.
+test('the guide the plugin ships renders its screenshots under the production CSP', async ({ page }) => {
+  // They are dev-stack captures, not anybody's library (see dev-stack/capture-guide-shots.mjs), and they
+  // are addressed through the plugin rather than relatively — the two ways they have failed before.
   await page.goto(`${origin}/web/index.html`);
   await page.locator('.jcGuide .faq-sec').waitFor();
 
-  expect(await page.locator('.jcGuide img').count()).toBe(0);
-  expect(await page.locator('.jcGuide figure').count()).toBe(0);
-  await expect(page.locator('.jcGuide h1')).not.toBeEmpty();
+  const images = await page.$$eval('.jcGuide img', els =>
+    els.map(e => ({ src: e.getAttribute('src'), w: e.naturalWidth })));
+  expect(images.length).toBe(6);
+  for (const image of images) {
+    expect(image.src.startsWith('data:')).toBe(false);
+    expect(image.src).toContain('/JellyCrowd/Guide/Image/');
+    expect(image.w).toBeGreaterThan(0);
+  }
+  // Every figure carries its caption; a picture with no explanation is not a guide.
+  expect(await page.locator('.jcGuide figcaption').count()).toBe(6);
 });
 
 test("an instance's own screenshots render under the production CSP", async ({ page }) => {

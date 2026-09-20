@@ -177,7 +177,8 @@ utiliser les boutons habituels (film / saison / épisode) : la demande est cré�
 
 L'icône **?** du bandeau (activée dans *Branding → Icônes de l'en-tête*) ouvre un guide hébergé par le
 plugin : pas de site externe, pas de second identifiant. Le guide livré avec le plugin décrit Jelly Crowd
-**sans nommer aucun serveur et sans capture d'une bibliothèque réelle** — il est distribué à tout le monde.
+**sans nommer aucun serveur** — il est distribué à tout le monde. Ses captures viennent d'une instance de
+démonstration neutre (`dev-stack/`), jamais d'un serveur réel.
 
 Une instance qui veut **son** guide (son nom, son ton, ses captures) dépose ses fichiers dans le dossier
 de données du plugin :
