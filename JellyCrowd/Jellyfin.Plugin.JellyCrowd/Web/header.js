@@ -682,12 +682,24 @@
     if (!stack) {
       return;
     }
+    // Our links live in a group of their own, a sibling of the logo stack and of the button box rather
+    // than an appendix to the stack: those two then take an equal share of the free space (see
+    // injectHeaderStyle) and our group lands in the middle of the bar, the way the 10.11 tab row does.
+    var nav = toolbar.querySelector('.jcMuiNav');
+    if (!nav) {
+      nav = document.createElement('div');
+      nav.className = 'jcMuiNav';
+    }
+    if (nav.parentNode !== toolbar) {
+      toolbar.insertBefore(nav, toolbar.querySelector(':scope > .MuiBox-root'));
+    }
     // Clone the className of an existing native nav link (Movies / a tab link) so our tabs match exactly.
+    // They are hidden, not removed, so they still serve as the styling template.
     var template = stack.querySelector('a[href*="/movies"]') || stack.querySelector('a[href*="tab="]')
       || stack.querySelectorAll('a')[1] || stack.querySelector('a');
     var cls = template ? template.className : '';
     muiNavItems().forEach(function (item) {
-      if (stack.querySelector('[data-jc-nav="' + item.id + '"]')) {
+      if (nav.querySelector('[data-jc-nav="' + item.id + '"]')) {
         return; // already present
       }
       var a = document.createElement('a');
@@ -696,8 +708,58 @@
       a.setAttribute('data-jc-nav', item.id);
       a.textContent = t(item.labelKey);
       a.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggleView(item.id); });
-      stack.appendChild(a);
+      nav.appendChild(a);
     });
+  }
+
+  // ---------- Jellyfin 12 user menu ----------
+  // 12 renders the avatar menu itself (React/MUI, id="app-user-menu", kept mounted even while closed), so
+  // the 10.11 hijack of .headerUserButton never fires there and our "report a problem" entry was missing
+  // for every user. We add that single entry to the native menu rather than replace a menu we don't own:
+  // profile, settings, dashboard and sign out are all already in it.
+  function insertMuiUserMenuItem() {
+    if (!pluginVisible()) {
+      return;
+    }
+    var menu = document.getElementById('app-user-menu');
+    if (!menu) {
+      return;
+    }
+    var list = menu.querySelector('ul');
+    if (!list || list.querySelector('.jcUserMenuReport')) {
+      return;
+    }
+    var template = list.querySelector('.MuiMenuItem-root');
+    if (!template) {
+      return; // the menu has not been built yet
+    }
+    ensureLib(function (L) {
+      if (list.querySelector('.jcUserMenuReport')) { return; }
+      var item = L.muiMenuItem(template, t('avm_report'), 'report_problem');
+      if (!item) { return; }
+      item.className += ' jcUserMenuReport';
+      function activate() { closeMuiUserMenu(); openReportDialog(); }
+      item.addEventListener('click', activate);
+      // MUI's arrow-key navigation walks the list's DOM children, so our entry is reachable — but it is
+      // React that turns Enter/Space into a click on its own items, and ours is not one of them.
+      item.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+      });
+      // Before the first separator, i.e. right under Profile / Settings — the account block, where the
+      // same entry sits in the 10.11 menu. The native menu always has at least one separator.
+      list.insertBefore(item, list.querySelector('.MuiDivider-root'));
+    });
+  }
+
+  // Close the native user menu the way the web client does — clicking its backdrop — so React keeps its
+  // own state in step. Escape is the fallback when the menu is rendered without one.
+  function closeMuiUserMenu() {
+    var backdrop = document.querySelector('#app-user-menu .MuiBackdrop-root');
+    if (backdrop) {
+      backdrop.click();
+      return;
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   }
 
   // Right-cluster host: the MUI toolbar's icon box (next to Search) on Jellyfin 12, else the classic
@@ -721,6 +783,7 @@
   // (Re)inject our whole header UI into the MUI toolbar. Each inserter is idempotent (host-scoped guard).
   function mountMui() {
     insertMuiNav();
+    insertMuiUserMenuItem();
     insertCatalogSearch();
     insertQuota();
     insertBell();
@@ -789,9 +852,8 @@
         if (!tb) {
           return;
         }
-        var stack = tb.querySelector('.MuiStack-root');
         var box = tb.querySelector('.MuiBox-root');
-        var navMissing = stack && !stack.querySelector('[data-jc-nav]');
+        var navMissing = !tb.querySelector('.jcMuiNav [data-jc-nav]');
         var clusterMissing = box && !box.querySelector('.jcHeaderQuota');
         if (navMissing || clusterMissing) {
           mountMui();
@@ -1646,10 +1708,17 @@
       '.headerTabs .emby-tab-button{display:none !important;}' +
       // Same idea on Jellyfin 12, whose toolbar carries its own shortcuts (Favorites, one button per
       // library, the "More" overflow): they crowd out our nav and push the right-hand cluster off
-      // screen. Hide everything in that nav stack except our own items and the server button (Jellyfin
-      // icon + server name), which stays as the link Home. The libraries themselves remain reachable
-      // from the home screen and the left drawer.
-      '.MuiToolbar-root .MuiStack-root > *:not([data-jc-nav]):not(#jcBrandLogo):not(:has(img[src*="icon-transparent"])){display:none !important;}' +
+      // screen. Hide everything in that nav stack except our logo and the server button (Jellyfin icon +
+      // server name), which stays as the link Home. The libraries themselves remain reachable from the
+      // home screen and the left drawer.
+      '.MuiToolbar-root .MuiStack-root > *:not(#jcBrandLogo):not(:has(img[src*="icon-transparent"])){display:none !important;}' +
+      // 12 has a single toolbar row, so our links would otherwise sit hard against the logo. Give the
+      // logo stack and the button box an equal share of the free space and keep our group at its natural
+      // width between them: the links read as the middle of the bar, and a bar too narrow for all three
+      // pushes them aside instead of letting anything overlap.
+      '.MuiToolbar-root > .MuiStack-root{flex:1 1 0;}' +
+      '.MuiToolbar-root > .MuiBox-root:has(.jcHeaderQuota,.jcHeaderBell){flex:1 1 0;}' +
+      '.jcMuiNav{display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;}' +
       // Settings sub-tab bar injected at the top of the native preference pages (and mirrored in the
       // Notifications overlay). Neutral greys so it reads on both light and dark native themes.
       '.jcSettingsTabs{display:flex;flex-wrap:nowrap;justify-content:center;justify-content:safe center;gap:.4em;align-items:center;overflow-x:auto;scrollbar-width:none;padding:1em 1.2em .4em;}' +
@@ -1678,6 +1747,7 @@
       // container, present only while a video plays; covers both layouts (.jcHeaderNav on 10.11,
       // [data-jc-nav] links on 12) and hides the group parents (which also hides their tabs/links).
       'body:has(.videoPlayerContainer) .jcHeaderNav,' +
+      'body:has(.videoPlayerContainer) .jcMuiNav,' +
       'body:has(.videoPlayerContainer) [data-jc-nav],' +
       'body:has(.videoPlayerContainer) .jcHeaderLinks,' +
       'body:has(.videoPlayerContainer) .jcHeaderBell,' +
@@ -1687,6 +1757,7 @@
       // The login page shows the header shell but no user is signed in yet — hide all of our chrome (nav
       // tabs, links, bell, quota, announcement) there so a logged-out visitor never sees plugin controls.
       'body:has(#loginPage:not(.hide)) .jcHeaderNav,' +
+      'body:has(#loginPage:not(.hide)) .jcMuiNav,' +
       'body:has(#loginPage:not(.hide)) [data-jc-nav],' +
       'body:has(#loginPage:not(.hide)) .jcHeaderLinks,' +
       'body:has(#loginPage:not(.hide)) .jcHeaderLink,' +
@@ -1755,15 +1826,17 @@
 
   function brandingEnabled() { return !!(branding && branding.Enabled); }
 
-  // Load catalog.lib.js once (only when branding is on), then re-apply; subsequent calls are synchronous.
-  function ensureBrandingLib(cb) {
+  // Load catalog.lib.js once for the base page (which otherwise never pulls it in), then re-run the
+  // injectors that needed it; subsequent calls are synchronous. Callers guard on their own DOM first, so
+  // the fetch only happens on a page that actually has something to place.
+  function ensureLib(cb) {
     if (brandingLib) { cb(brandingLib); return; }
     if (window.JellyCrowdLib) { brandingLib = window.JellyCrowdLib; cb(brandingLib); return; }
-    if (document.getElementById('jcBrandingLib')) { return; } // load in flight; its onload re-applies
+    if (document.getElementById('jcLib')) { return; } // load in flight; its onload re-runs both
     var s = document.createElement('script');
-    s.id = 'jcBrandingLib';
+    s.id = 'jcLib';
     s.src = getUrl('JellyCrowd/Web/catalog.lib.js');
-    s.onload = function () { brandingLib = window.JellyCrowdLib || null; applyBranding(); };
+    s.onload = function () { brandingLib = window.JellyCrowdLib || null; applyBranding(); tryInsert(); };
     document.head.appendChild(s);
   }
 
@@ -1778,7 +1851,7 @@
   }
 
   function applyBrandingStyle() {
-    ensureBrandingLib(function (L) {
+    ensureLib(function (L) {
       var css = L.buildBrandingCss(branding);
       // Structural rules the pure builder doesn't own (sized to the runtime-injected elements):
       if (branding.LogoUrl) {
@@ -1822,7 +1895,7 @@
     if (!branding.LogoUrl) { return; }
     var host = document.querySelector('.MuiToolbar-root') || document.querySelector('.skinHeader .headerLeft') || document.querySelector('.headerLeft');
     if (!host) { return; }
-    ensureBrandingLib(function (L) {
+    ensureLib(function (L) {
       var img = document.getElementById('jcBrandLogo');
       if (!img) {
         img = document.createElement('img');
@@ -1892,6 +1965,7 @@
     insertHeaderLinks(); // after the announcement, so we can anchor the links just left of it
     installAvatarMenu(); // hijack the header avatar to open our dropdown instead of the prefs page
     insertMuiNav();      // Jellyfin 12 (MUI) toolbar — no-op on 10.11
+    insertMuiUserMenuItem(); // and our entry in 12's own avatar menu
     watchMuiToolbar();   // re-inject our MUI tabs when React re-renders the toolbar
   }
 

@@ -234,4 +234,7 @@ n'affiche **pas** de cadre vide. Le plus simple pour partir : copier le `guide-c
 > bloc de droite hors écran, donc Jelly Crowd les masque — comme il masque déjà les onglets natifs en
 > 10.11. Les bibliothèques restent accessibles depuis l'accueil et le menu latéral. Quand un **logo**
 > est configuré dans *Branding*, il prend la place du bouton serveur (icône Jellyfin + nom du serveur)
-> tout à gauche de la barre, au lieu de s'ajouter à sa droite.
+> tout à gauche de la barre, au lieu de s'ajouter à sa droite. Les entrées du plugin sont centrées entre
+> ce logo et les icônes de droite. Le menu sous l'avatar est celui de Jellyfin 12 (le plugin ne le
+> remplace pas comme en 10.11) : **« Signaler un problème »** y est ajouté sous *Profil / Réglages*, le
+> reste (SyncPlay, Cast, déconnexion…) restant natif.
