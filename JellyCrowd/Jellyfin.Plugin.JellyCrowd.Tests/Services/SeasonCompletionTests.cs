@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Xunit;
@@ -25,6 +26,11 @@ public class SeasonCompletionTests
     return set;
   }
 
+  // A HashSet has no stable order, so compare episode sets as sequences sorted the same way on both
+  // sides — comparing a set against a plain collection is otherwise undefined (xUnit2027).
+  private static List<EpisodeKey> Ordered(IEnumerable<EpisodeKey> keys)
+    => keys.OrderBy(k => k.Season).ThenBy(k => k.Episode).ToList();
+
   [Fact]
   public void AiredEpisodes_KeepsOnlyWhatHasAlreadyAired()
   {
@@ -36,7 +42,7 @@ public class SeasonCompletionTests
       new Episode { SeasonNumber = 1, EpisodeNumber = 4, AirDate = null },          // unknown = not aired
     };
 
-    Assert.Equal(Keys((1, 1), (1, 2)), SeasonCompletion.AiredEpisodes(episodes, Now, season: 1));
+    Assert.Equal(Ordered(Keys((1, 1), (1, 2))), Ordered(SeasonCompletion.AiredEpisodes(episodes, Now, season: 1)));
   }
 
   [Fact]
@@ -49,7 +55,7 @@ public class SeasonCompletionTests
       new Episode { SeasonNumber = 2, EpisodeNumber = 1, AirDate = "2021-01-01" },
     };
 
-    Assert.Equal(Keys((1, 1), (2, 1)), SeasonCompletion.AiredEpisodes(episodes, Now, season: null));
+    Assert.Equal(Ordered(Keys((1, 1), (2, 1))), Ordered(SeasonCompletion.AiredEpisodes(episodes, Now, season: null)));
   }
 
   [Fact]
@@ -61,7 +67,7 @@ public class SeasonCompletionTests
       new Episode { SeasonNumber = 2, EpisodeNumber = 1, AirDate = "2020-01-01" },
     };
 
-    Assert.Equal(Keys((2, 1)), SeasonCompletion.AiredEpisodes(episodes, Now, season: 2));
+    Assert.Equal(Ordered(Keys((2, 1))), Ordered(SeasonCompletion.AiredEpisodes(episodes, Now, season: 2)));
   }
 
   [Fact]

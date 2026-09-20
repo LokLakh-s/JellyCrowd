@@ -22,7 +22,7 @@ jobs:
     runs-on: [self-hosted]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # The runner isn't root: install the .NET SDK into the writable, persistent tool cache
       # instead of the default /usr/share/dotnet (which fails with "Permission denied").
@@ -30,7 +30,7 @@ jobs:
         run: echo "DOTNET_INSTALL_DIR=$RUNNER_TOOL_CACHE/dotnet" >> "$GITHUB_ENV"
 
       - name: Setup .NET 9
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           # Both: the plugin and its 10.11 companion are net9.0, while the Jellyfin 12 companion must be
           # net10.0 (Jellyfin.Controller 12.x ships lib/net10.0 only). The net9 SDK stays listed because the
@@ -40,9 +40,9 @@ jobs:
             10.0.x
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Restore
         run: dotnet restore
@@ -81,7 +81,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-results
           path: '**/test-results.trx'
@@ -101,7 +101,7 @@ jobs:
           cd artifacts && zip jelly-crowd.zip *.dll build.yaml lib/*.bin
 
       - name: Upload plugin artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: jelly-crowd-plugin
           path: JellyCrowd/artifacts/jelly-crowd.zip
