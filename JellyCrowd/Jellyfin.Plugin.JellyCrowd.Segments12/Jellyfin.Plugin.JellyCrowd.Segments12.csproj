@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Jellyfin 12 build of the isolated media-segment companion (Skip Outro / Local Intros).
+
+    Same source as Jellyfin.Plugin.JellyCrowd.Segments — linked, not copied, so there is ONE implementation
+    — compiled against the 12.x SDK. A rebuild is all it takes, and the reason is subtle: 10.11's
+    IMediaSegmentProvider had no CleanupExtractedData, so the compiler emitted ours as an ordinary
+    non-virtual method. Jellyfin 12 added it to the interface, and the runtime cannot fill an interface
+    slot with a non-virtual method — hence "Method 'CleanupExtractedData' ... does not have an
+    implementation" and a plugin disabled wholesale. Compiled here against the 12 interface, the same
+    method is emitted as virtual final and the type loads.
+
+    Jellyfin.Controller 12.x ships lib/net10.0 only, so this half MUST target net10.0 — which is also the
+    runtime Jellyfin 12 uses. The 10.11 half stays net9.0. Neither is ever loaded by the host: both ship as
+    lib/*.dll.bin and the plugin picks the one that loads (see PluginServiceRegistrator).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The type's full name must stay identical across both halves: the loader looks it up by name. -->
+    <RootNamespace>Jellyfin.Plugin.JellyCrowd.Segments</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.JellyCrowd.Segments12</AssemblyName>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- One implementation, two compilations. -->
+    <Compile Include="../Jellyfin.Plugin.JellyCrowd.Segments/JellyCrowdSegmentProvider.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="12.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile-time only: the main plugin assembly is loaded separately at runtime, don't copy it here.
+         A net10.0 project consuming this net9.0 one is the supported direction. -->
+    <ProjectReference Include="..\Jellyfin.Plugin.JellyCrowd\Jellyfin.Plugin.JellyCrowd.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target Name="CopyToMainPluginOutput" AfterTargets="Build">
+    <PropertyGroup>
+      <_JcPluginOutput>$(MSBuildProjectDirectory)/../Jellyfin.Plugin.JellyCrowd/bin/$(Configuration)/net9.0</_JcPluginOutput>
+    </PropertyGroup>
+    <!-- Ships beside its 10.11 sibling, under the same ".bin" rule: anything named "*.dll" in the plugin
+         folder gets scanned by the host, and this one throws on 10.11 exactly as the other throws on 12. -->
+    <Copy SourceFiles="$(TargetPath)"
+          DestinationFiles="$(_JcPluginOutput)/lib/$(TargetFileName).bin"
+          SkipUnchangedFiles="true" />
+    <Delete Files="$(_JcPluginOutput)/$(TargetFileName);$(_JcPluginOutput)/lib/$(TargetFileName)" />
+  </Target>
+
+</Project>

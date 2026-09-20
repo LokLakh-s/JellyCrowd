@@ -163,18 +163,24 @@ public class CatalogController : ControllerBase
     var lang = Normalize(language);
     var pageNumber = page ?? 1;
 
-    // Name search: when the best-ranked result is a person, show that person's filmography (movies + shows
-    // they are in) instead of title matches. It is a single page of results, so later pages are empty.
-    var personId = await _tmdbClient.FindTopPersonAsync(query, lang, cancellationToken).ConfigureAwait(false);
-    if (personId is int pid)
+    // The person lookup runs INSIDE ExecuteAsync like every other TMDB call: outside it, an unconfigured
+    // TMDB key threw straight through the action and this endpoint answered 500 where all its siblings
+    // answer 503.
+    return await ExecuteAsync(async () =>
     {
-      return await ExecuteAsync(() => pageNumber <= 1
-        ? _tmdbClient.GetPersonFilmographyAsync(pid, lang, cancellationToken)
-        : Task.FromResult<IReadOnlyList<CatalogItem>>(System.Array.Empty<CatalogItem>())).ConfigureAwait(false);
-    }
+      // Name search: when the best-ranked result is a person, show that person's filmography (movies +
+      // shows they are in) instead of title matches. It is a single page of results, so later pages are
+      // empty.
+      var personId = await _tmdbClient.FindTopPersonAsync(query, lang, cancellationToken).ConfigureAwait(false);
+      if (personId is int pid)
+      {
+        return pageNumber <= 1
+          ? await _tmdbClient.GetPersonFilmographyAsync(pid, lang, cancellationToken).ConfigureAwait(false)
+          : System.Array.Empty<CatalogItem>();
+      }
 
-    return await ExecuteAsync(
-      () => _tmdbClient.SearchAsync(query, lang, pageNumber, cancellationToken)).ConfigureAwait(false);
+      return await _tmdbClient.SearchAsync(query, lang, pageNumber, cancellationToken).ConfigureAwait(false);
+    }).ConfigureAwait(false);
   }
 
   /// <summary>

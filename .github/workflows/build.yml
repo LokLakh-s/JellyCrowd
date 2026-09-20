@@ -32,7 +32,12 @@ jobs:
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          # Both: the plugin and its 10.11 companion are net9.0, while the Jellyfin 12 companion must be
+          # net10.0 (Jellyfin.Controller 12.x ships lib/net10.0 only). The net9 SDK stays listed because the
+          # test host runs on net9.
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -57,13 +62,22 @@ jobs:
       # plugin loads, its services resolve out of Jellyfin's DI, its scheduled tasks register, its routes
       # answer, its authorization holds against an actual non-admin user, and its web shell is injected.
       # Needs docker on the runner; skipped (not failed) when there is none.
+      # Both supported majors, from the one build: a single artifact is published for 10.11 and 12 alike,
+      # so a break on either is a break in what we ship. 12 is the one that catches a companion assembly
+      # slipping back under a scanned name — there, the host disables the whole plugin.
       - name: Test (E2E, real Jellyfin)
         run: |
           if ! docker info >/dev/null 2>&1; then
             echo "::warning::docker unavailable on this runner — skipping the E2E check"
             exit 0
           fi
-          ./tests/e2e/run-e2e.sh
+          rc=0
+          for image in jellyfin/jellyfin:10.11 jellyfin/jellyfin:12.1; do
+            echo "::group::E2E against $image"
+            JF_IMAGE="$image" ./tests/e2e/run-e2e.sh || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
 
       - name: Upload test results
         if: always()
@@ -80,9 +94,11 @@ jobs:
           # Copy the plugin and its bundled runtime dependencies (MailKit/MimeKit/BouncyCastle);
           # host-provided assemblies are ExcludeAssets=runtime and absent from the output.
           cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/*.dll artifacts/
-          cp Jellyfin.Plugin.JellyCrowd.Segments/bin/Release/net9.0/Jellyfin.Plugin.JellyCrowd.Segments.dll artifacts/
+          # Both companion halves, as lib/*.dll.bin — see the Package step in release.yml for why.
+          mkdir -p artifacts/lib
+          cp Jellyfin.Plugin.JellyCrowd/bin/Release/net9.0/lib/*.dll.bin artifacts/lib/
           cp build.yaml artifacts/
-          cd artifacts && zip jelly-crowd.zip *.dll build.yaml
+          cd artifacts && zip jelly-crowd.zip *.dll build.yaml lib/*.bin
 
       - name: Upload plugin artifact
         uses: actions/upload-artifact@v4
