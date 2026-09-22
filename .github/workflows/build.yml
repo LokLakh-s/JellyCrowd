@@ -100,7 +100,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: '**/test-results.trx'
@@ -120,7 +120,7 @@ jobs:
           cd artifacts && zip jelly-crowd.zip *.dll build.yaml lib/*.bin
 
       - name: Upload plugin artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: jelly-crowd-plugin
           path: JellyCrowd/artifacts/jelly-crowd.zip
