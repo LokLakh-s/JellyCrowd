@@ -104,6 +104,11 @@ checks obligatoires. C'est le seul réglage qui protège sans rien casser — ex
 direct, exiger la CI verte bloquerait le commit `chore(release):` que le workflow pousse lui-même. À
 resserrer si des contributeurs externes arrivent.
 
+**Tags recalés** (2026-09-22) : les ~60 tags antérieurs à la fusion pointaient encore, côté GitHub, sur
+l'ancien historique mono-commit du dépôt de distribution — résidu d'un push de tags non forcé. Un
+`git push --force origin "refs/tags/*:refs/tags/*"` les a remis sur les vrais commits source. Symptôme
+disparu : `git fetch --tags` échouait en local avec « would clobber existing tag ».
+
 Reste, un jour :
 
 - Envisager la soumission au **catalogue officiel des plugins Jellyfin**, que l'AGPL rend possible.
