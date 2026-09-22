@@ -36,10 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET 9
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           # Both: the plugin and its 10.11 companion are net9.0, while the Jellyfin 12 companion must be
           # net10.0 (Jellyfin.Controller 12.x ships lib/net10.0 only). The net9 SDK stays listed because the
@@ -49,12 +49,12 @@ jobs:
             10.0.x
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
