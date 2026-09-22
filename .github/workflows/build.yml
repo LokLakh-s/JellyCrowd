@@ -72,9 +72,10 @@ jobs:
       # Needs docker on the runner, and treats its absence as a failure: this step sat silently green for
       # weeks because the runner user was not in the `docker` group, so the check never actually ran. A
       # skip that nobody sees is worse than no check at all.
-      # Both supported majors, from the one build: a single artifact is published for 10.11 and 12 alike,
-      # so a break on either is a break in what we ship. 12 is the one that catches a companion assembly
-      # slipping back under a scanned name — there, the host disables the whole plugin.
+      # Both supported majors, from the one build: a single artifact is published for 12 and 10.11 alike,
+      # so a break on either is a break in what we ship. 12 runs first — it is the announced target, and
+      # it is the one that catches a companion assembly slipping back under a scanned name, where the
+      # host disables the whole plugin. 10.11 follows: it is still supported, so it still gates a release.
       - name: Test (E2E, real Jellyfin)
         run: |
           if ! docker info >/dev/null 2>&1; then
@@ -82,7 +83,7 @@ jobs:
             exit 1
           fi
           rc=0
-          for image in jellyfin/jellyfin:10.11 jellyfin/jellyfin:12.1; do
+          for image in jellyfin/jellyfin:12.1 jellyfin/jellyfin:10.11; do
             echo "::group::E2E against $image"
             JF_IMAGE="$image" ./tests/e2e/run-e2e.sh || rc=1
             echo "::endgroup::"

@@ -21,11 +21,15 @@ Ce n'est **pas** `jelly-quotas` (app externe React/Node à côté de Jellyfin) �
 
 ## Stack & versions
 
+- **Cible annoncée : Jellyfin 12.** C'est la version pour laquelle le plugin est présenté et vers
+  laquelle vont les nouveautés. **La rétrocompatibilité 10.11 est conservée** : même artefact, mêmes
+  releases, et les deux majeures restent testées en E2E.
 - **.NET 9** (`net9.0`), compilé contre les références **10.11.x** — **un seul artefact couvre Jellyfin
   10.11 ET 12.x** (vérifié : 12.1 charge l'assembly net9 et toutes les routes répondent). Le manifeste
   reste estampillé `targetAbi: 10.11.0.0` : un serveur accepte tout ABI **inférieur ou égal** au sien,
-  donc cette seule entrée est proposée aux deux. Ne pas monter l'ABI sans raison — cela retirerait le
-  plugin du catalogue des serveurs 10.11.
+  donc cette seule entrée est proposée aux deux. **Ne pas monter l'ABI** — malgré l'annonce en 12, le
+  passer à 12.x retirerait le plugin du catalogue des serveurs 10.11, c'est-à-dire romprait exactement
+  la rétrocompatibilité qu'on garde.
 - Références host : `Jellyfin.Controller`, `Jellyfin.Model` (`ExcludeAssets=runtime`, fournis par le host).
 - UI user-facing : **aucun plugin tiers**. Jelly Crowd injecte son shell (`header.js`) dans `index.html`
   via son **propre middleware** (`WebInjectionStartupFilter` + `WebInjectionMiddleware`, au moment de la
@@ -234,4 +238,4 @@ Les workflows tournent sur un **runner self-hosted** pour économiser les minute
 | Fulfillment | Mode d'approbation (manuel/auto) + backends de DL : Webhook, Radarr/Sonarr, script local |
 | Catalogue | TMDB (découverte) + croisement biblio Jellyfin |
 | UI | Pages hébergées par Jelly Crowd (overlay à onglets via `header.js`), injectées par son propre middleware (`IStartupFilter`, au moment de la requête). Aucun plugin tiers. |
-| Version | Un artefact (ABI 10.11.0.0) pour Jellyfin 10.11.x **et** 12.x ; companion média livrée en deux moitiés, net9 et net10 |
+| Version | Annoncé pour Jellyfin 12, 10.11 toujours supporté. Un artefact (ABI 10.11.0.0) pour les deux ; companion média livrée en deux moitiés, net9 et net10 |

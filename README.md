@@ -6,7 +6,7 @@
 directement intégrés dans Jellyfin.
 
 ![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)
-![Jellyfin 10.11](https://img.shields.io/badge/Jellyfin-10.11%2B-00A4DC?style=for-the-badge&logo=jellyfin)
+![Jellyfin 12](https://img.shields.io/badge/Jellyfin-12-00A4DC?style=for-the-badge&logo=jellyfin)
 ![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet)
 
 </div>
@@ -43,7 +43,8 @@ middleware ASP.NET intégré.
 
 ## 📦 Pré-requis
 
-- **Jellyfin 10.11+**
+- **Jellyfin 12** — la cible du plugin. **10.11 reste supporté** et continue de recevoir chaque
+  release, mais les nouveautés visent la 12 d'abord.
 - Une **clé API TMDB** (gratuite) pour le catalogue.
 
 ## 🚀 Installation
