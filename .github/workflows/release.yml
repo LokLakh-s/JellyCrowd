@@ -55,7 +55,7 @@ jobs:
             10.0.x
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
