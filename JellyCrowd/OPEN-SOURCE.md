@@ -44,23 +44,23 @@ conserver la main, au prix d'une barrière à l'entrée. À trancher avant la pr
   `softprops/action-gh-release` épinglée à son commit plutôt qu'au tag mouvant `v3`.
 - Les deux dépôts sont fusionnés (voir plus bas) : `DIST_TOKEN` n'est plus utilisé par rien.
 
-## Réglages GitHub à appliquer — au moment de rendre le dépôt public
+## Réglages GitHub — appliqués
 
-Aucun de ces points ne vit dans un fichier ; ils se règlent dans les *Settings* du dépôt.
+| Réglage | Valeur posée |
+|---|---|
+| Licence détectée par GitHub | **AGPL-3.0** (le texte verbatim est ce qui permet la détection) |
+| Signalement privé de vulnérabilité | Activé — `SECURITY.md` y renvoie |
+| Secret scanning + push protection | Activés |
+| Dependabot : alertes + correctifs de sécurité | Activés |
+| Permissions par défaut du `GITHUB_TOKEN` | `read`, et approbation de PR par Actions interdite |
+| Approbation des workflows de fork | `all_external_contributors` (le défaut, « first-time contributors », ne suffisait pas) |
 
-| Réglage | Où | Valeur |
-|---|---|---|
-| Approbation des workflows de fork | Actions → General | **Require approval for all outside collaborators** (le défaut, « first-time contributors », ne suffit pas) |
-| Permissions du `GITHUB_TOKEN` | Actions → General | Read-only par défaut ; décocher « Allow GitHub Actions to create and approve pull requests » |
-| Signalement privé de vulnérabilité | Security | Activé (`SECURITY.md` y renvoie explicitement) |
-| Secret scanning + push protection | Security | Activé (gratuit sur dépôt public) |
-| Dependabot alerts + security updates | Security | Activé |
-| Protection de `main` | Branches | Au minimum : CI verte obligatoire. La revue obligatoire casse le push direct sur `main` — à arbitrer |
+Le seul réglage **non posé** est la **protection de `main`** : exiger une revue casserait le push direct,
+et exiger la CI verte bloquerait le commit `chore(release):` que le workflow pousse lui-même. À arbitrer
+si des contributeurs externes arrivent.
 
-⚠️ **Risque résiduel du runner self-hosted.** Il reste branché sur `main`. Toute modification de
-`.github/workflows/` fusionnée dans `main` s'exécute sur la machine perso. `CODEOWNERS` couvre ce dossier,
-mais il n'a d'effet que si la protection de branche exige la revue des fichiers possédés. Sinon, le seul
-garde-fou est de relire soi-même tout diff touchant `.github/`.
+L'ancien risque résiduel du runner self-hosted a disparu avec lui : plus aucun workflow ne tourne
+ailleurs que sur un runner GitHub jetable.
 
 ## Fusion des deux dépôts — faite
 
@@ -82,9 +82,20 @@ Ce qui a été fait :
   de développement vit dans `CONTRIBUTING.md` et dans ce dossier.
 - `manifest.json` repris tel quel depuis le dépôt public, avec ses trois entrées de versions.
 
-Reste à faire, à la main :
+Publié le 2026-09-22 en **v1.0.0.0** : 530 commits d'historique, 220 tags, la release et le manifeste mis
+à jour en place. Les 60 Releases antérieures et leurs `sourceUrl` sont intactes, donc aucune installation
+existante ne casse.
 
-- **Désenregistrer le runner self-hosted** de `JellyCrowd-dev` : plus rien ne l'utilise.
-- **Révoquer le PAT `DIST_TOKEN`** et retirer le secret du dépôt.
+Reste à faire, à la main (hors de portée d'une commande ici) :
+
+- **Désenregistrer le runner self-hosted** de `JellyCrowd-dev` et arrêter son agent : plus rien ne l'utilise.
+- **Révoquer le PAT `DIST_TOKEN`** et retirer le secret de `JellyCrowd-dev`.
 - **Archiver `LokLakh-s/JellyCrowd-dev`** (ne pas le supprimer : il reste le miroir de l'historique privé).
+- Renseigner la **description et les topics** du dépôt public, encore vides.
+- Trancher **DCO ou CLA** avant la première contribution externe (cf. plus haut).
 - Envisager la soumission au **catalogue officiel des plugins Jellyfin**, que l'AGPL rend possible.
+
+⚠️ Un piège constaté au passage : le push de fusion **n'a pas déclenché la CI**, seulement la Release.
+Le `paths-ignore` de `build.yml` ne sait pas calculer de diff face à un historique sans ancêtre commun.
+La 1.0 a donc été validée en E2E par un `workflow_dispatch` manuel après coup. Cas de figure unique à
+la fusion — les pushs ordinaires déclenchent bien les deux.
