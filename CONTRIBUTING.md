@@ -116,9 +116,15 @@ cd JellyCrowd && ./tests/e2e/run-e2e.sh        # KEEP=1 leaves the container up
 
 Keep commits focused and write messages that explain the reasoning, not the diff.
 
-**Sign off your commits.** Jelly Crowd uses the [Developer Certificate of Origin](https://developercertificate.org/):
-adding `Signed-off-by: Your Name <your@email>` — `git commit -s` does it — is how you state that you wrote
-the contribution, or otherwise have the right to submit it under the AGPL-3.0.
+**Sign the CLA.** On your first pull request a bot asks you to sign Jelly Crowd's
+[Contributor License Agreement](CLA.md) by replying to its comment. It takes one line, it is recorded
+once, and you are never asked again.
+
+You **keep the copyright** on everything you write — the agreement grants a licence, it does not take
+ownership. What it adds is the right to sublicense, which is what lets the project relicense itself later
+without having to find every past contributor. Code already released under the AGPL-3.0 stays under the
+AGPL-3.0, permanently; the agreement concerns future releases. [`CLA.md`](CLA.md) opens with a plain-words
+summary before the legal text.
 
 One caveat worth knowing before you open a pull request: **a merge into `main` publishes a release.** The
 version bump is driven by a keyword in the commit message — `[major]`, `[minor]`, `[revision]`, or a patch

@@ -14,10 +14,19 @@ GPL-3.0** (le cas de `n00bcodr/Jellyfin-Enhanced`, dont le périmètre recoupe l
 du code AGPL et le relicencier en GPL-3.0. La portion reste AGPL et contamine sa distribution. C'est de la
 friction, pas un mur, mais c'est le seul levier qui agit sur ce scénario.
 
-Corollaire à ne pas perdre de vue : **rester seul titulaire des droits** est ce qui laisse la porte ouverte
-à une relicence ultérieure. Le `CONTRIBUTING.md` demande aujourd'hui un simple **DCO** (`git commit -s`),
-qui ne transfère rien — chaque contributeur garde son copyright. Passer à un **CLA** est la seule façon de
-conserver la main, au prix d'une barrière à l'entrée. À trancher avant la première contribution externe.
+Corollaire : **garder la main sur la licence** suppose de pouvoir relicencier sans courir après chaque
+contributeur. D'où le **CLA** (`CLA.md`), tranché le 2026-09-22 en faveur d'une **concession de licence
+sublicenciable**, et non d'une cession de droits :
+
+- le contributeur **garde son copyright** — moins dissuasif, et une cession serait de toute façon fragile
+  en droit français (art. L131-3 CPI : écrit, périmètre, durée, territoire ; droit moral incessible) ;
+- la **sublicence** suffit à obtenir le résultat recherché — pouvoir relicencier ou double-licencier les
+  versions futures sans accord de quiconque ;
+- ce qui est déjà publié sous AGPL le reste définitivement : le CLA ne porte que sur l'avenir.
+
+Signature par commentaire de PR, via `contributor-assistant/github-action` épinglée au commit ; les bots
+sont en allowlist (Dependabot n'a aucun droit d'auteur à concéder). Si une commercialisation devient
+réelle, faire relire `CLA.md` par un juriste.
 
 ## Fait
 
@@ -92,7 +101,6 @@ Reste à faire, à la main (hors de portée d'une commande ici) :
 - **Révoquer le PAT `DIST_TOKEN`** et retirer le secret de `JellyCrowd-dev`.
 - **Archiver `LokLakh-s/JellyCrowd-dev`** (ne pas le supprimer : il reste le miroir de l'historique privé).
 - Renseigner la **description et les topics** du dépôt public, encore vides.
-- Trancher **DCO ou CLA** avant la première contribution externe (cf. plus haut).
 - Envisager la soumission au **catalogue officiel des plugins Jellyfin**, que l'AGPL rend possible.
 
 ⚠️ Un piège constaté au passage : le push de fusion **n'a pas déclenché la CI**, seulement la Release.
