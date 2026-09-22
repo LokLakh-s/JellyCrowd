@@ -2368,3 +2368,255 @@ body.jellycrowd-overlay-open {
     animation: none;
   }
 }
+
+/* ---------- Polls (published with the announcements) ---------- */
+
+/* Counter of polls the user still owes an answer to, on the header announcement icon. It sits at the
+   bottom-right, opposite the "new announcement" dot at the top-right: the two say different things. */
+.jcPollBadge {
+  position: absolute;
+  right: -0.1em;
+  bottom: -0.1em;
+  min-width: 1.25em;
+  padding: 0 0.25em;
+  border-radius: 0.8em;
+  background: #00a4dc;
+  color: #fff;
+  font-size: 0.62em;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* A slow pulse while an answer is owed: the icon has to catch the eye of someone who dismissed the
+   takeover with "later", without turning the header into a fairground. */
+.jcPollPending .material-icons {
+  animation: jellycrowd-poll-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes jellycrowd-poll-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jcPollPending .material-icons {
+    animation: none;
+  }
+}
+
+/* The takeover. Above the header popovers (z-index 100000) — it is the one thing to answer. */
+.jcPollModal {
+  z-index: 100002;
+}
+
+.jcPollCard {
+  width: min(32em, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 0.6em;
+  background: #1c1c1c;
+  color: #fff;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.65);
+}
+
+.jcPollHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.6em 0.9em;
+  background: #00a4dc;
+  color: #fff;
+  font-weight: 700;
+}
+
+.jcPollClose {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 1.4em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jcPoll {
+  padding: 0.9em;
+}
+
+.jcPollQuestion {
+  font-size: 1.1em;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.jcPollMeta {
+  margin-top: 0.25em;
+  font-size: 0.8em;
+  opacity: 0.65;
+}
+
+.jcPollHint {
+  margin-top: 0.7em;
+  font-size: 0.82em;
+  opacity: 0.75;
+}
+
+.jcPollOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  margin-top: 0.5em;
+}
+
+.jcPollOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+  padding: 0.45em 0.6em;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.35em;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.jcPollOption:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.jcPollOption input {
+  margin-top: 0.2em;
+  flex: 0 0 auto;
+}
+
+.jcPollNotice {
+  margin-top: 0.6em;
+  font-size: 0.76em;
+  opacity: 0.6;
+}
+
+.jcPollError {
+  margin-top: 0.5em;
+  font-size: 0.82em;
+  color: #ff8a80;
+}
+
+.jcPollThanks {
+  margin-top: 0.6em;
+  font-size: 0.9em;
+  color: #81c784;
+}
+
+.jcPollActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5em;
+  margin-top: 0.9em;
+}
+
+.jcPollBtn {
+  padding: 0.35em 0.9em;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.3em;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.jcPollBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.jcPollBtnPrimary {
+  border-color: #00a4dc;
+  background: #00a4dc;
+}
+
+.jcPollResults {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  margin-top: 0.7em;
+}
+
+.jcPollResultHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  font-size: 0.86em;
+  margin-bottom: 0.2em;
+}
+
+.jcPollBarTrack {
+  height: 0.5em;
+  border-radius: 0.25em;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.jcPollBar {
+  height: 100%;
+  border-radius: 0.25em;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* The option this user picked, so their own answer stands out in the tally. */
+.jcPollResultMine .jcPollBar {
+  background: #00a4dc;
+}
+
+.jcPollResultMine .jcPollResultHead {
+  font-weight: 600;
+}
+
+/* A poll listed inside the announcement popover, under the announcement text. */
+.jcAnnouncePoll {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Poll management (admin panel). */
+.jcPollAdminActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  align-items: center;
+}
+
+.jcPollOptionRow {
+  display: flex;
+  gap: 0.4em;
+  align-items: center;
+}
+
+.jcPollOptionRow input {
+  flex: 1 1 auto;
+}
+
+.jcPollOptionRemove {
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 1.2em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jcPollOptionRemove:hover {
+  opacity: 1;
+}
+
+.jcPollVoters {
+  margin-top: 0.15em;
+  font-size: 0.78em;
+  opacity: 0.6;
+}
+
+.jcPollAdminError {
+  color: #ff8a80;
+}

@@ -57,7 +57,9 @@
   var NAV_SUPPRESS_MS = 2500;
   var NAV_SUPPRESS_EXTEND_MS = 400;
   var bellBadgeEl = null;          // the red unread-count badge on the header bell
-  var announcementEls = null;      // { wrap, btn, icon, dot, panel } for the header announcement icon
+  var announcementEls = null;      // { wrap, btn, icon, dot, pollBadge, panel } for the header announcement icon
+  var polls = [];                  // the polls this user should see (JellyCrowd/Polls/Mine)
+  var pollModalEl = null;          // the poll modal while it is on screen, else null
   var NAV_GREY = 'rgba(255,255,255,0.6)';
   var NAV_WHITE = '#fff';
   var NAV_BLUE = '#00a4dc';
@@ -166,6 +168,7 @@
         }
         tryInsert();           // ensure elements are present now that visibility/admin is known
         refreshAnnouncement(); // re-render the banner to show the admin edit affordance (once, no loop)
+        refreshPolls();        // and fetch the polls, which are per-user like the announcement
       })
       .catch(function () {
         if (attempt < 5) {
@@ -253,6 +256,19 @@
     overlay.style.top = (top > 0 ? top : 0) + 'px';
   }
 
+  // Pulls in jellycrowd.css once. Same id the views use, so whoever gets there first wins and nothing is
+  // loaded twice. The overlay needs it, and so does anything the shell draws on the BASE page (the poll
+  // modal): every VIEW used to be what pulled the stylesheet in, and whatever opened first without it
+  // rendered unstyled.
+  function ensureStylesheet() {
+    if (document.getElementById('jellycrowd-css')) { return; }
+    var css = document.createElement('link');
+    css.id = 'jellycrowd-css';
+    css.rel = 'stylesheet';
+    css.href = getUrl('JellyCrowd/Web/jellycrowd.css');
+    document.head.appendChild(css);
+  }
+
   function ensureOverlay() {
     if (overlay) {
       return;
@@ -275,14 +291,7 @@
     viewHost.style.cssText = 'flex:1 1 auto;overflow:auto;';
     overlay.appendChild(viewHost);
 
-    // Same id the views use, so whoever gets there first wins and nothing is loaded twice.
-    if (!document.getElementById('jellycrowd-css')) {
-      var overlayCss = document.createElement('link');
-      overlayCss.id = 'jellycrowd-css';
-      overlayCss.rel = 'stylesheet';
-      overlayCss.href = getUrl('JellyCrowd/Web/jellycrowd.css');
-      document.head.appendChild(overlayCss);
-    }
+    ensureStylesheet();
 
     // A visible close button on the panel itself (the native header sits above; the panel is below it).
     var close = document.createElement('button');
@@ -1269,6 +1278,8 @@
         return '🟨';
       case 'Report':
         return '⚠️';
+      case 'Poll':
+        return '📊';
       default:
         return '🔔';
     }
@@ -1329,6 +1340,18 @@
       var line1 = document.createElement('div');
       line1.textContent = n.Title;
       line1.style.cssText = 'font-weight:600;font-size:.9em;';
+      // A poll notification is actionable: clicking the row opens the poll it announces.
+      if (n.Event === 'Poll' && n.RefId) {
+        row.style.cursor = 'pointer';
+        row.title = t('poll_title');
+        row.addEventListener('click', function () {
+          var target = null;
+          polls.forEach(function (p) { if (p.Id === n.RefId) { target = p; } });
+          if (!target) { return; }
+          panel.style.display = 'none';
+          openPollModal(target);
+        });
+      }
       var line2 = document.createElement('div');
       line2.textContent = n.Message;
       line2.style.cssText = 'font-size:.82em;opacity:.85;margin-top:.1em;';
@@ -1533,13 +1556,31 @@
     title.textContent = t('announcement_title');
     head.appendChild(title);
     if (isAdmin) {
+      var adminActions = document.createElement('span');
+      adminActions.style.cssText = 'display:inline-flex;gap:.6em;align-items:center;flex:0 0 auto;';
+      // Polls are authored in the admin panel (they need room for options, audience and results); this
+      // is the shortcut from where an admin actually thinks about them — next to the announcement.
+      var newPoll = document.createElement('button');
+      newPoll.type = 'button';
+      newPoll.textContent = t('poll_new');
+      newPoll.title = t('poll_new_full');
+      newPoll.style.cssText = 'background:none;border:0;color:inherit;cursor:pointer;font-size:.85em;';
+      newPoll.addEventListener('click', function (e) {
+        e.stopPropagation();
+        panel.style.display = 'none';
+        window.jellyCrowdAdminTab = 'polls';
+        showView('admin');
+      });
+      adminActions.appendChild(newPoll);
+
       var edit = document.createElement('button');
       edit.type = 'button';
       edit.textContent = hasText ? '✎' : t('announcement_add');
       edit.title = t('announcement_edit');
       edit.style.cssText = 'background:none;border:0;color:inherit;cursor:pointer;font-size:1em;flex:0 0 auto;';
       edit.addEventListener('click', function (e) { e.stopPropagation(); panel.style.display = 'none'; openAnnouncementEditor(); });
-      head.appendChild(edit);
+      adminActions.appendChild(edit);
+      head.appendChild(adminActions);
     }
     panel.appendChild(head);
 
@@ -1553,6 +1594,22 @@
       body.textContent = isAdmin ? t('announcement_placeholder') : '';
     }
     panel.appendChild(body);
+
+    // The polls live in the same popover as the announcement: same icon, same place, one thing to open.
+    ensureStylesheet();
+    polls.forEach(function (poll) {
+      var section = document.createElement('div');
+      section.className = 'jcAnnouncePoll';
+      section.appendChild(buildPollBlock(poll, {}));
+      panel.appendChild(section);
+    });
+    if (!polls.length && isAdmin) {
+      var noPoll = document.createElement('div');
+      noPoll.className = 'jcAnnouncePoll jcPollMeta';
+      noPoll.style.padding = '.6em .8em';
+      noPoll.textContent = t('poll_none');
+      panel.appendChild(noPoll);
+    }
   }
 
   // Refresh the header icon: visibility, level tint, and the red "new" dot; keep the panel content fresh.
@@ -1560,14 +1617,23 @@
     if (!announcementEls) { return; }
     var els = announcementEls;
     var hasText = !!(announcement.text && announcement.text.trim());
-    els.wrap.style.display = (!hasText && !isAdmin) ? 'none' : 'inline-flex';
+    var awaiting = pollsAwaiting().length;
+    els.wrap.style.display = (!hasText && !polls.length && !isAdmin) ? 'none' : 'inline-flex';
     // Keep the icon white like the rest of the header; only tint it for warning/alert levels so those
     // still stand out. (Green "info" stays white — a green icon among white ones looked out of place.)
+    // An unanswered poll outranks all of that: it is the one thing the user is asked to act on.
     var lvl = announcement.level;
-    els.icon.style.color = (hasText && (lvl === 'yellow' || lvl === 'red')) ? announcementColors(lvl).bg : '';
+    els.icon.style.color = awaiting ? NAV_BLUE : ((hasText && (lvl === 'yellow' || lvl === 'red')) ? announcementColors(lvl).bg : '');
+    els.btn.classList.toggle('jcPollPending', awaiting > 0);
     var isNew = hasText && (announcement.text.trim() !== lastSeenAnnouncement());
     els.dot.style.display = isNew ? '' : 'none';
-    renderAnnouncementPanel(els.panel);
+    // The counter is what makes an unanswered poll visible from the header alone, once the takeover has
+    // been pushed back to "later". It only clears when the poll is answered (or closes).
+    els.pollBadge.textContent = awaiting > 9 ? '9+' : String(awaiting);
+    els.pollBadge.style.display = awaiting ? '' : 'none';
+    // Only while the popover is closed: it is re-rendered when opened, and rebuilding it under someone
+    // who is half-way through ticking a poll answer would throw their selection away on the next refresh.
+    if (els.panel.style.display === 'none') { renderAnnouncementPanel(els.panel); }
   }
 
   function openAnnouncementEditor() {
@@ -1669,6 +1735,319 @@
     updateAnnouncementUi();
   }
 
+  // ---------- polls ----------
+  // A poll is published with the announcements but must not be missable the way a banner is: as long as
+  // the user owes an answer, the campaign icon carries a counter AND the poll takes over the screen once
+  // per browser session. "Later" silences the takeover for that session only; voting ends it for good.
+
+  function pollLib() { return window.JellyCrowdLib || null; }
+
+  // Radio groups are keyed per rendered block, not per poll: the popover and the takeover can show the
+  // same poll at the same time, and a shared name would make the two sets of radios fight each other.
+  var pollBlockSeq = 0;
+
+  function pollsAwaiting() {
+    var L = pollLib();
+    return L ? L.pollsAwaitingAnswer(polls) : [];
+  }
+
+  function sessionStore() {
+    try { return window.sessionStorage; } catch (e) { return null; }
+  }
+
+  // Replaces a poll in the local list with the version the server just returned (post-vote).
+  function replacePoll(updated) {
+    if (!updated) { return; }
+    for (var i = 0; i < polls.length; i++) {
+      if (polls[i].Id === updated.Id) { polls[i] = updated; return; }
+    }
+    polls.push(updated);
+  }
+
+  function refreshPolls() {
+    if (!pluginVisible()) { return; }
+    apiAjax('GET', 'JellyCrowd/Polls/Mine')
+      .then(function (d) {
+        polls = Array.isArray(d) ? d : [];
+        updateAnnouncementUi();
+        maybePromptPoll(0);
+      })
+      .catch(function () { /* keep whatever we already have */ });
+  }
+
+  // Opens the takeover for the first poll the user still owes an answer to. The pure helpers live in
+  // catalog.lib.js, which the base page only pulls in lazily — retry briefly rather than skip the prompt.
+  function maybePromptPoll(attempt) {
+    if (pollModalEl) { return; }
+    // Never in front of a playing video, and never on the login page: "unmissable" is not "on top of
+    // whatever you were doing". Both states pass — the periodic refresh brings the prompt back after.
+    if (document.querySelector('.videoPlayerContainer') || document.querySelector('#loginPage:not(.hide)')) { return; }
+    var L = pollLib();
+    if (!L) {
+      ensureLib(function () { /* loaded — the retry below picks it up */ });
+      if ((attempt || 0) < 10) { setTimeout(function () { maybePromptPoll((attempt || 0) + 1); }, 500); }
+      return;
+    }
+
+    // The badge could not be counted while the lib was missing; now that it is here, settle the header.
+    if (attempt) { updateAnnouncementUi(); }
+    var poll = L.pollToPrompt(polls, sessionStore());
+    if (poll) { openPollModal(poll); }
+  }
+
+  function closePollModal() {
+    if (!pollModalEl) { return; }
+    if (pollModalEl.parentNode) { pollModalEl.parentNode.removeChild(pollModalEl); }
+    pollModalEl = null;
+    document.removeEventListener('keydown', onPollModalKeydown, true);
+  }
+
+  function onPollModalKeydown(e) {
+    if (!pollModalEl) { return; }
+    if (e.key === 'Escape') { e.stopPropagation(); closePollModal(); return; }
+    // Capture phase, so the overlay's own handler never steals Tab from the modal sitting above it.
+    if (e.key === 'Tab' && window.JellyCrowdLib) { window.JellyCrowdLib.handleTrapKeydown(e, pollModalEl); }
+  }
+
+  function openPollModal(poll) {
+    if (pollModalEl || !poll) { return; }
+    ensureStylesheet();
+
+    var root = document.createElement('div');
+    root.className = 'jellycrowd-modal-overlay jcPollModal';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-label', t('poll_title'));
+
+    var card = document.createElement('div');
+    card.className = 'jcPollCard';
+
+    var head = document.createElement('div');
+    head.className = 'jcPollHead';
+    var title = document.createElement('span');
+    title.className = 'jcPollHeadTitle';
+    title.textContent = '📊 ' + t('poll_title');
+    head.appendChild(title);
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'jcPollClose';
+    close.setAttribute('aria-label', t('poll_later'));
+    close.textContent = '×';
+    // Closing the takeover is "later", not "never": remember it for this session so the next visit asks
+    // again, and leave the header counter up meanwhile.
+    close.addEventListener('click', function () { dismissPoll(poll); closePollModal(); });
+    head.appendChild(close);
+    card.appendChild(head);
+
+    card.appendChild(buildPollBlock(poll, { onDismiss: function (p) { dismissPoll(p); closePollModal(); }, onDone: closePollModal }));
+    root.appendChild(card);
+    // A click on the backdrop is the same "later" as the × — but a click inside the card is not.
+    root.addEventListener('click', function (e) { if (e.target === root) { dismissPoll(poll); closePollModal(); } });
+
+    document.body.appendChild(root);
+    pollModalEl = root;
+    document.addEventListener('keydown', onPollModalKeydown, true);
+    if (window.JellyCrowdLib && window.JellyCrowdLib.focusFirst) { window.JellyCrowdLib.focusFirst(root); }
+  }
+
+  function dismissPoll(poll) {
+    var L = pollLib();
+    if (L && poll) { L.pollDismiss(sessionStore(), poll.Id); }
+  }
+
+  // Renders one poll: the ballot while the user can still answer it, the tally once they have (or once
+  // it closed). Shared by the takeover modal and the announcement popover, which only differ in width
+  // and in what the buttons do afterwards.
+  function buildPollBlock(poll, opts) {
+    opts = opts || {};
+    var root = document.createElement('div');
+    root.className = 'jcPoll';
+    var selected = (poll.MyOptionIds || []).slice();
+    var editing = !!poll.CanVote && !poll.Voted;
+    var group = 'jcPoll' + (++pollBlockSeq);
+
+    function metaLine() {
+      var bits = [];
+      if (!poll.Open) {
+        bits.push(t('poll_closed'));
+      } else if (poll.ClosesAt) {
+        bits.push(t('poll_closes_on').replace('{date}', new Date(poll.ClosesAt).toLocaleString()));
+      }
+      if (poll.ResultsVisible) { bits.push(t('poll_voters_count').replace('{count}', poll.TotalVotes)); }
+      return bits.join(' · ');
+    }
+
+    function drawBallot(body) {
+      var hint = document.createElement('div');
+      hint.className = 'jcPollHint';
+      hint.textContent = poll.MultiChoice ? t('poll_multi_hint') : t('poll_single_hint');
+      body.appendChild(hint);
+
+      var list = document.createElement('div');
+      list.className = 'jcPollOptions';
+      (poll.Options || []).forEach(function (option) {
+        var label = document.createElement('label');
+        label.className = 'jcPollOption';
+        var input = document.createElement('input');
+        input.type = poll.MultiChoice ? 'checkbox' : 'radio';
+        input.name = group;
+        input.value = option.Id;
+        input.checked = selected.indexOf(option.Id) >= 0;
+        input.addEventListener('change', function () {
+          var L = pollLib();
+          selected = L ? L.pollToggleSelection(selected, option.Id, poll.MultiChoice) : [option.Id];
+          draw();
+        });
+        label.appendChild(input);
+        var text = document.createElement('span');
+        text.textContent = option.Text;
+        label.appendChild(text);
+        list.appendChild(label);
+      });
+      body.appendChild(list);
+
+      // Votes are nominative — the admin sees who answered what. Say so rather than let people find out.
+      var notice = document.createElement('div');
+      notice.className = 'jcPollNotice';
+      notice.textContent = t('poll_nominative_notice');
+      body.appendChild(notice);
+
+      var error = document.createElement('div');
+      error.className = 'jcPollError';
+      error.style.display = 'none';
+      body.appendChild(error);
+
+      var actions = document.createElement('div');
+      actions.className = 'jcPollActions';
+      if (opts.onDismiss) {
+        var later = document.createElement('button');
+        later.type = 'button';
+        later.className = 'jcPollBtn';
+        later.textContent = t('poll_later');
+        later.addEventListener('click', function () { opts.onDismiss(poll); });
+        actions.appendChild(later);
+      }
+
+      var vote = document.createElement('button');
+      vote.type = 'button';
+      vote.className = 'jcPollBtn jcPollBtnPrimary';
+      vote.textContent = t('poll_vote');
+      vote.addEventListener('click', function () {
+        var L = pollLib();
+        if (!L || !L.pollSelectionValid(poll, selected)) {
+          error.textContent = t('poll_pick_one');
+          error.style.display = '';
+          return;
+        }
+        vote.disabled = true;
+        vote.textContent = '…';
+        apiAjax('POST', 'JellyCrowd/Polls/' + poll.Id + '/Vote', { OptionIds: selected })
+          .then(function (updated) {
+            if (updated) { replacePoll(updated); poll = updated; }
+            selected = (poll.MyOptionIds || []).slice();
+            editing = false;
+            draw();
+            updateAnnouncementUi();
+          })
+          .catch(function () {
+            vote.disabled = false;
+            vote.textContent = t('poll_vote');
+            error.textContent = t('poll_vote_failed');
+            error.style.display = '';
+          });
+      });
+      actions.appendChild(vote);
+      body.appendChild(actions);
+    }
+
+    function drawResult(body) {
+      if (poll.Voted) {
+        var thanks = document.createElement('div');
+        thanks.className = 'jcPollThanks';
+        thanks.textContent = t('poll_thanks');
+        body.appendChild(thanks);
+      }
+
+      if (poll.ResultsVisible) {
+        var L = pollLib();
+        var list = document.createElement('div');
+        list.className = 'jcPollResults';
+        (poll.Options || []).forEach(function (option) {
+          var row = document.createElement('div');
+          row.className = 'jcPollResultRow' + ((poll.MyOptionIds || []).indexOf(option.Id) >= 0 ? ' jcPollResultMine' : '');
+          var head = document.createElement('div');
+          head.className = 'jcPollResultHead';
+          var name = document.createElement('span');
+          name.textContent = option.Text;
+          var value = document.createElement('span');
+          value.textContent = option.Percent + '% (' + option.Votes + ')';
+          head.appendChild(name);
+          head.appendChild(value);
+          var track = document.createElement('div');
+          track.className = 'jcPollBarTrack';
+          var bar = document.createElement('div');
+          bar.className = 'jcPollBar';
+          bar.style.width = (L ? L.pollBarPercent(option) : 0) + '%';
+          track.appendChild(bar);
+          row.appendChild(head);
+          row.appendChild(track);
+          list.appendChild(row);
+        });
+        body.appendChild(list);
+      } else if (poll.Voted) {
+        var hidden = document.createElement('div');
+        hidden.className = 'jcPollHint';
+        hidden.textContent = t('poll_results_hidden');
+        body.appendChild(hidden);
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'jcPollActions';
+      if (poll.CanVote) {
+        var change = document.createElement('button');
+        change.type = 'button';
+        change.className = 'jcPollBtn';
+        change.textContent = t('poll_change_answer');
+        change.addEventListener('click', function () { editing = true; draw(); });
+        actions.appendChild(change);
+      }
+
+      if (opts.onDone) {
+        var done = document.createElement('button');
+        done.type = 'button';
+        done.className = 'jcPollBtn jcPollBtnPrimary';
+        done.textContent = t('close');
+        done.addEventListener('click', function () { opts.onDone(poll); });
+        actions.appendChild(done);
+      }
+
+      if (actions.childNodes.length) { body.appendChild(actions); }
+    }
+
+    function draw() {
+      root.innerHTML = '';
+      var question = document.createElement('div');
+      question.className = 'jcPollQuestion';
+      question.textContent = poll.Question;
+      root.appendChild(question);
+
+      var meta = metaLine();
+      if (meta) {
+        var metaEl = document.createElement('div');
+        metaEl.className = 'jcPollMeta';
+        metaEl.textContent = meta;
+        root.appendChild(metaEl);
+      }
+
+      var body = document.createElement('div');
+      root.appendChild(body);
+      if (editing) { drawBallot(body); } else { drawResult(body); }
+    }
+
+    draw();
+    return root;
+  }
+
   // The announcement is a header ICON with a popover (like the bell): an inline multi-line banner was
   // cramped and clipped in the header. A red dot marks a new (unseen) announcement; the icon is tinted by
   // level. Built once; content refreshes via refreshAnnouncement().
@@ -1698,6 +2077,13 @@
     dot.className = 'jcAnnounceDot';
     dot.style.cssText = 'position:absolute;top:.1em;right:.1em;width:.5em;height:.5em;border-radius:50%;background:#e53935;display:none;box-sizing:border-box;z-index:1;pointer-events:none;';
     btn.appendChild(dot);
+
+    // Unanswered polls get a counter of their own, at the opposite corner from the "new announcement"
+    // dot: the two say different things and a user who pushed the takeover back must still see this one.
+    var pollBadge = document.createElement('span');
+    pollBadge.className = 'jcPollBadge';
+    pollBadge.style.display = 'none';
+    btn.appendChild(pollBadge);
 
     // Wider than the bell panel so announcements display nicely; fixed-position on <body> so it's never
     // clipped by the header's overflow/stacking context.
@@ -1744,7 +2130,7 @@
     var bell = host.querySelector('.jcHeaderBell');
     host.insertBefore(wrap, bell || host.querySelector('.jcHeaderQuota') || host.querySelector('.headerUserButton') || null);
 
-    announcementEls = { wrap: wrap, btn: btn, icon: icon, dot: dot, panel: panel };
+    announcementEls = { wrap: wrap, btn: btn, icon: icon, dot: dot, pollBadge: pollBadge, panel: panel };
     updateAnnouncementUi();
   }
 
@@ -1818,6 +2204,7 @@
       'body:has(.videoPlayerContainer) .jcHeaderBell,' +
       'body:has(.videoPlayerContainer) .jcHeaderQuota,' +
       'body:has(.videoPlayerContainer) .jcHeaderAnnounce,' +
+      'body:has(.videoPlayerContainer) .jcPollModal,' +
       'body:has(.videoPlayerContainer) #jcBrandLogo{display:none !important;}' +
       // The login page shows the header shell but no user is signed in yet — hide all of our chrome (nav
       // tabs, links, bell, quota, announcement) there so a logged-out visitor never sees plugin controls.
@@ -1828,6 +2215,7 @@
       'body:has(#loginPage:not(.hide)) .jcHeaderLink,' +
       'body:has(#loginPage:not(.hide)) .jcHeaderBell,' +
       'body:has(#loginPage:not(.hide)) .jcHeaderQuota,' +
+      'body:has(#loginPage:not(.hide)) .jcPollModal,' +
       'body:has(#loginPage:not(.hide)) .jcHeaderAnnounce{display:none !important;}' +
       // On a phone the header is too narrow for everything, and it can't scroll — items get cut off and
       // become unreachable (esp. the "My library" box). Drop the Discord/Support links (they're also in the
@@ -2642,6 +3030,9 @@
     applyBranding();
     setInterval(refreshBellBadge, 15000); // M28: notif badge appears faster (Note 10)
     window.jellyCrowdRefreshBell = refreshBellBadge;
+    // Polls change far less often than notifications, and a new one must not wait for a page reload.
+    setInterval(refreshPolls, 60000);
+    window.jellyCrowdRefreshPolls = refreshPolls;
     // Any real navigation (Jellyfin menu, opening a library item) closes our overlay — except the
     // home navigation we trigger ourselves when opening a panel (N33), which must leave it open.
     function onNavClose() {
@@ -2681,7 +3072,7 @@
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).
     document.addEventListener('click', function (e) {
       if (!overlay || overlay.style.display === 'none') { return; }
-      var keep = '.jellycrowd-overlay,.jellycrowd-modal-overlay,.jcHeaderNav,.jcHeaderQuota,.jcHeaderBell,.jcBellPanel,.jcHeaderAnnounce,.jcAnnouncePanel,#jcAnnEditor';
+      var keep = '.jellycrowd-overlay,.jellycrowd-modal-overlay,.jcHeaderNav,.jcHeaderQuota,.jcHeaderBell,.jcBellPanel,.jcHeaderAnnounce,.jcAnnouncePanel,#jcAnnEditor,.jcPollModal';
       if (e.target && e.target.closest && e.target.closest(keep)) { return; }
       hideOverlay();
     }, true);

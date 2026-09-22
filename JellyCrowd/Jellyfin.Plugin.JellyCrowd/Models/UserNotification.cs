@@ -26,6 +26,12 @@ public class UserNotification
   /// <summary>Gets or sets the TMDB relative poster path, if any.</summary>
   public string? PosterPath { get; set; }
 
+  /// <summary>
+  /// Gets or sets the id of the object the notification points to — currently the poll a
+  /// <c>Poll</c> notification is about, so the bell can open it. <c>null</c> when there is nothing to open.
+  /// </summary>
+  public Guid? RefId { get; set; }
+
   /// <summary>Gets or sets the UTC creation time.</summary>
   public DateTime CreatedAt { get; set; }
 

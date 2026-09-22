@@ -973,6 +973,59 @@
     return null;
   }
 
+  // ---------- polls (published with the announcements) ----------
+
+  // Whether a ballot may be submitted: something is picked, and a single-choice poll got exactly one pick.
+  function pollSelectionValid(poll, selected) {
+    var n = (selected || []).length;
+    if (n === 0) { return false; }
+    return !!(poll && poll.MultiChoice) || n === 1;
+  }
+
+  // Applies a click on an option: a checkbox toggles it, a radio replaces the whole selection.
+  function pollToggleSelection(selected, optionId, multiChoice) {
+    var current = (selected || []).slice();
+    if (!multiChoice) { return current.indexOf(optionId) >= 0 ? [] : [optionId]; }
+    var at = current.indexOf(optionId);
+    if (at >= 0) { current.splice(at, 1); } else { current.push(optionId); }
+    return current;
+  }
+
+  // The polls this user still owes an answer to (what the header badge counts).
+  function pollsAwaitingAnswer(polls) {
+    return (polls || []).filter(function (p) { return p && p.CanVote && !p.Voted; });
+  }
+
+  // The poll to put in front of the user right now: the first one they can still answer and have not
+  // pushed back during this browser session. Returns null when there is nothing to prompt.
+  function pollToPrompt(polls, store) {
+    var pending = pollsAwaitingAnswer(polls);
+    for (var i = 0; i < pending.length; i++) {
+      if (!pollDismissed(store, pending[i].Id)) { return pending[i]; }
+    }
+    return null;
+  }
+
+  // "Later" holds for the session only: the prompt comes back on the next visit, until they answer.
+  // sessionStorage can throw (private mode, blocked site data), so every access is guarded.
+  function pollDismissKey(pollId) { return 'jcPollLater:' + pollId; }
+
+  function pollDismissed(store, pollId) {
+    try { return !!(store && store.getItem(pollDismissKey(pollId))); } catch (e) { return false; }
+  }
+
+  function pollDismiss(store, pollId) {
+    try { if (store) { store.setItem(pollDismissKey(pollId), '1'); } } catch (e) { /* ignore */ }
+  }
+
+  // Bar width for an option, clamped: the server sends percentages of VOTERS, so on a multi-choice poll
+  // they can add up to more than 100 — each bar is still its own share of the voters.
+  function pollBarPercent(option) {
+    var p = Number((option && option.Percent) || 0);
+    if (!isFinite(p) || p < 0) { return 0; }
+    return p > 100 ? 100 : Math.round(p);
+  }
+
   return {
     normalizeRequestScope: normalizeRequestScope,
     filterHistory: filterHistory,
@@ -1029,6 +1082,14 @@
     brandLogoSlot: brandLogoSlot,
     detailPanelAnchor: detailPanelAnchor,
     muiMenuItem: muiMenuItem,
-    movedToolbarButtons: movedToolbarButtons
+    movedToolbarButtons: movedToolbarButtons,
+    pollSelectionValid: pollSelectionValid,
+    pollToggleSelection: pollToggleSelection,
+    pollsAwaitingAnswer: pollsAwaitingAnswer,
+    pollToPrompt: pollToPrompt,
+    pollDismissKey: pollDismissKey,
+    pollDismissed: pollDismissed,
+    pollDismiss: pollDismiss,
+    pollBarPercent: pollBarPercent
   };
 });

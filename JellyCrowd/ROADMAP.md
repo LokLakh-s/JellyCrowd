@@ -582,3 +582,30 @@ Objectif : passer le cap qualité avant de coller un « 1.0 ».
   débrayable. **Rappels** des tickets ouverts : un **récapitulatif unique** tous les *N* jours
   (`ReportReminderDays`, 3 par défaut, 0 = off) via la tâche planifiée
   *« Jelly Crowd: remind about open reports »*. Journal d'activité à la création et à la résolution.
+
+### M34 — Sondages  ☑ *(livré)*
+
+Les annonces ne servaient qu'à **dire** quelque chose. Un sondage **demande** quelque chose : il lui faut
+donc une visibilité d'un autre ordre qu'une bannière qu'on peut ne jamais ouvrir.
+
+- ☑ **Publication avec les annonces** : le sondage sort par la même icône 📣 (même popover, même ciblage
+  par groupes, mêmes comptes enfants exclus). Stockage à part (`JsonPollStore`, `polls.json`) et non en
+  configuration : un sondage porte des **votes par utilisateur**, ce que la config n'a pas à héberger.
+- ☑ **Impossible à rater** : tant qu'une réponse est due, le sondage **prend l'écran** (modale) à la
+  première visite de chaque session, et l'icône du header porte un **compteur** + une pulsation. « Plus
+  tard » ne vaut **que pour la session** ; seul le vote (ou la clôture) éteint le compteur.
+- ☑ **Réglages par sondage** : choix unique ou **multiple**, **date de clôture** (échéance dépassée à la
+  création = ignorée, sinon on publierait un sondage mort-né), **résultats visibles par les votants**
+  (après leur vote, ou une fois le sondage clos).
+- ☑ **Votes nominatifs** : l'admin voit **qui a répondu quoi** et **qui n'a pas répondu** ; l'utilisateur
+  en est averti dans la modale plutôt que de le découvrir. Un vote **remplace** le précédent tant que le
+  sondage est ouvert.
+- ☑ **Onglet admin « Sondages »** : création (question + 2 à 10 réponses + audience), édition **tant que
+  personne n'a voté** (réécrire les options sous les votants changerait leur réponse), clôture/réouverture,
+  suppression, résultats en barres. Raccourci « + Sondage » depuis le popover d'annonce.
+- ☑ **Cloche** : une notification in-app par destinataire à la publication (l'auteur excepté), cliquable
+  → ouvre le sondage. Pas de canal externe : choix assumé, un sondage n'est pas une alerte.
+- ☑ **Clôture** : un sondage clos reste consultable **7 jours** (`ClosedResultsGraceDays`) par ceux qui
+  pouvaient y répondre, sinon personne n'apprendrait jamais le résultat.
+- ☑ **Tests** : `PollPolicyTests`, `JsonPollStoreTests`, `PollsControllerTests` (.NET) + `poll.lib.test.js`
+  (logique pure du front : quoi proposer, ce que « plus tard » retient, validité d'un bulletin).
