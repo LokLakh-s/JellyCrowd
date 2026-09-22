@@ -15,4 +15,4 @@
 - [ ] New behaviour comes with tests — endpoints cover a failure case, services cover their logic,
       front-end logic lives in a tested `Web/*.lib.js` (see [CONTRIBUTING.md](../CONTRIBUTING.md))
 - [ ] New user-visible strings are in `Web/strings/en.json` (and ideally `fr.json`) — nothing hard-coded
-- [ ] Commits are signed off (`git commit -s`, Developer Certificate of Origin)
+- [ ] The [CLA](../CLA.md) is signed — the bot will ask on this pull request if it is your first
