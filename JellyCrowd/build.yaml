@@ -1,7 +1,7 @@
 ---
 name: "Jelly Crowd"
 guid: "a1994160-4ea2-4d81-bd3c-ffe825700d98"
-version: "1.0.0.0"
+version: "1.0.1.0"
 # Stays at 10.11.0.0 even though the plugin is now announced for Jellyfin 12: a server offers any
 # targetAbi at or BELOW its own, so this single stamp reaches 12 and 10.11 alike. Raising it to 12
 # would not "announce" anything — it would drop the plugin out of every 10.11 catalog, which is
