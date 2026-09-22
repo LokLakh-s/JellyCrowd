@@ -45,7 +45,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           # Both: the plugin and its 10.11 companion are net9.0, while the Jellyfin 12 companion must be
           # net10.0 (Jellyfin.Controller 12.x ships lib/net10.0 only). The net9 SDK stays listed because the
