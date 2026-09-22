@@ -38,7 +38,11 @@ jobs:
           branch: main
           # Bots author no copyright, so there is nothing for them to license: Dependabot's dependency
           # bumps would otherwise sit blocked forever waiting on a signature nobody can give.
-          allowlist: LokLakh-s,dependabot[bot],dependabot,*[bot]
+          # Trailing wildcards, and NOT the literal logins: the allowlist is glob-matched, so the
+          # brackets in "dependabot[bot]" are read as a character class — that entry matches
+          # "dependabotb", "dependaboto" and "dependabott", and never the account it names. Measured
+          # on PR #1, which the bot blocked while supposedly allowlisted.
+          allowlist: LokLakh-s,dependabot*,github-actions*,renovate*
           custom-notsigned-prcomment: >-
             Thanks for this pull request. Jelly Crowd asks contributors to sign its
             [Contributor License Agreement](https://github.com/LokLakh-s/JellyCrowd/blob/main/CLA.md)
