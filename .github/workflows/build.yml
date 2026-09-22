@@ -18,6 +18,11 @@ on:
       - '**/*.md'
   workflow_dispatch:
 
+# Least privilege: this workflow only ever reads the tree. Without the block it inherits the repository
+# default, which on a public repo may still be read/write for the GITHUB_TOKEN.
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: JellyCrowd
@@ -25,16 +30,22 @@ defaults:
 jobs:
   build-test:
     name: Build & Test
-    # Self-hosted runner ("JellyCrowd") to save GitHub-hosted minutes. ~/.nuget and the tool cache
-    # persist between runs on the runner host, so no actions/cache round-trip is needed.
-    runs-on: [self-hosted]
+    # A pull request carries code we have not reviewed — on a public repository, from anyone. Running it
+    # on the self-hosted runner would hand that code execution on a personal machine, with a persistent
+    # NuGet cache, a persistent tool cache and a docker socket to reach for. So: PRs go to a throwaway
+    # GitHub-hosted VM; only `main` (which nobody without write access can reach) and a manual dispatch
+    # (same gate) stay on the self-hosted runner, where the warm caches are worth having.
+    # GitHub-hosted minutes are free and unmetered on public repositories, so this costs nothing there.
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'self-hosted' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # The runner isn't root: install the .NET SDK into the writable, persistent tool cache
-      # instead of the default /usr/share/dotnet (which fails with "Permission denied").
+      # The self-hosted runner isn't root: install the .NET SDK into the writable, persistent tool cache
+      # instead of the default /usr/share/dotnet (which fails with "Permission denied"). A GitHub-hosted
+      # VM is root and already carries a usable dotnet root, so it wants none of this.
       - name: Configure .NET install dir
+        if: runner.environment == 'self-hosted'
         run: echo "DOTNET_INSTALL_DIR=$RUNNER_TOOL_CACHE/dotnet" >> "$GITHUB_ENV"
 
       - name: Setup .NET 9
@@ -51,6 +62,16 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
+
+      # Only on the throwaway VM: the self-hosted runner keeps ~/.nuget/packages between runs, so a
+      # cache round-trip there would be pure overhead.
+      - name: Cache NuGet packages
+        if: runner.environment == 'github-hosted'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore
         run: dotnet restore
@@ -120,8 +141,9 @@ jobs:
 
       # Keep the self-hosted runner's disk from growing: drop build outputs and the NuGet
       # http/temp caches (the bounded global-packages cache is kept for fast restores).
+      # Pointless on a GitHub-hosted VM, which is destroyed with the job.
       - name: Cleanup workspace
-        if: always()
+        if: always() && runner.environment == 'self-hosted'
         run: |
           rm -rf Jellyfin.Plugin.JellyCrowd/bin Jellyfin.Plugin.JellyCrowd/obj \
                  Jellyfin.Plugin.JellyCrowd.Tests/bin Jellyfin.Plugin.JellyCrowd.Tests/obj \
