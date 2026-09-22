@@ -21,8 +21,8 @@ conserver la main, au prix d'une barrière à l'entrée. À trancher avant la pr
 
 ## Fait
 
-- `LICENSE` et `dist/LICENSE` : texte AGPL-3.0 verbatim (gnu.org), sans préambule, pour que le détecteur
-  de licence de GitHub le reconnaisse.
+- `LICENSE` : texte AGPL-3.0 verbatim (gnu.org), sans préambule, pour que le détecteur de licence de
+  GitHub le reconnaisse.
 - Badges et sections *Licence* des trois README ; mentions « non affilié à Jellyfin » et attribution TMDB
   (exigée par les CGU de l'API) dans le README public.
 - **Offre de source AGPL article 13** dans le guide utilisateur, rendue par `Web/guide.js` et **pas** par
@@ -34,15 +34,15 @@ conserver la main, au prix d'une barrière à l'entrée. À trancher avant la pr
 
 ### Ce que le durcissement CI a changé
 
-- `build.yml` : une PR tourne désormais sur `ubuntu-latest`, plus sur le runner self-hosted. C'était le
-  vrai bloquant — sur un dépôt public, n'importe qui ouvre une PR depuis un fork et obtient l'exécution de
-  code arbitraire sur la machine perso, avec ses caches persistants et son socket Docker. Seuls `main` et
-  un dispatch manuel (qui exigent tous deux un accès en écriture) restent sur le self-hosted.
-- `build.yml` : `permissions: contents: read` explicite, cache NuGet sur les runners jetables uniquement,
-  étapes propres au self-hosted conditionnées par `runner.environment`.
+- **Plus aucun runner self-hosted**, ni en CI ni en release. C'était le vrai bloquant : sur un dépôt
+  public, n'importe qui ouvre une PR depuis un fork et obtient l'exécution de code arbitraire sur la
+  machine perso, avec ses caches persistants et son socket Docker. Les minutes GitHub étant gratuites et
+  illimitées sur un dépôt public, le seul argument du self-hosted tombait de toute façon. Effet de bord
+  utile : plus aucun workflow fusionné dans `main` ne peut atteindre une machine personnelle.
+- `build.yml` : `permissions: contents: read` explicite, cache NuGet.
 - `release.yml` : garde `github.repository_owner == 'LokLakh-s'` (un fork hérite du workflow), et
-  `softprops/action-gh-release` épinglée à son commit plutôt qu'au tag mouvant `v3` — c'est l'étape qui
-  manipule `DIST_TOKEN`.
+  `softprops/action-gh-release` épinglée à son commit plutôt qu'au tag mouvant `v3`.
+- Les deux dépôts sont fusionnés (voir plus bas) : `DIST_TOKEN` n'est plus utilisé par rien.
 
 ## Réglages GitHub à appliquer — au moment de rendre le dépôt public
 
@@ -62,34 +62,29 @@ Aucun de ces points ne vit dans un fichier ; ils se règlent dans les *Settings*
 mais il n'a d'effet que si la protection de branche exige la revue des fichiers possédés. Sinon, le seul
 garde-fou est de relire soi-même tout diff touchant `.github/`.
 
-## Étape différée : fusionner les deux dépôts
+## Fusion des deux dépôts — faite
 
-Aujourd'hui : source privée `LokLakh-s/JellyCrowd-dev`, distribution publique `LokLakh-s/JellyCrowd`
-(force-pushée à un commit unique à chaque release). Ce découpage n'existait que pour garder les sources
-fermées ; l'ouverture lui retire sa raison d'être.
+`LokLakh-s/JellyCrowd` est désormais le dépôt unique : source, distribution et documentation. Il a été
+choisi comme cible parce qu'il détenait trois choses qu'on ne pouvait pas casser — l'URL du manifeste
+`raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json` configurée dans le Jellyfin de chaque
+utilisateur installé, les GitHub Releases vers lesquelles pointent les `sourceUrl` de toutes les versions
+du manifeste, et ses étoiles.
 
-**Sens de la fusion : `LokLakh-s/JellyCrowd` devient le dépôt unique.** Il détient trois choses qu'on ne
-peut pas casser :
+Ce qui a été fait :
 
-1. l'URL du manifeste `raw.githubusercontent.com/LokLakh-s/JellyCrowd/main/manifest.json`, configurée dans
-   le Jellyfin de chaque utilisateur installé ;
-2. les GitHub Releases vers lesquelles pointent les `sourceUrl` de **toutes** les versions du manifeste ;
-3. ses étoiles.
+- `release.yml` réécrit : plus de clone du dépôt de distribution, plus de force-push à un commit unique,
+  et surtout **plus d'étape « Reset public releases & tags »** — elle effaçait toutes les Releases sauf la
+  dernière, ce qui aurait invalidé les `sourceUrl` des versions encore référencées par les manifestes
+  installés. Le `manifest.json` est maintenant mis à jour **en place**, dans le même commit que
+  l'estampille de version.
+- `dist/` remonté à la racine : le README public (anglais) devient le README du dépôt, avec `logo.png`,
+  `screenshots/` et les templates d'issues. L'ancien README racine en français est supprimé — son contenu
+  de développement vit dans `CONTRIBUTING.md` et dans ce dossier.
+- `manifest.json` repris tel quel depuis le dépôt public, avec ses trois entrées de versions.
 
-### Deux pièges, dans cet ordre
+Reste à faire, à la main :
 
-1. **Neutraliser d'abord le force-push** (étape *Publish the distribution repo* de `release.yml`) : tant
-   qu'il est là, la première release écrase l'historique qu'on vient de pousser.
-2. **Supprimer l'étape *Reset public releases & tags*** : elle efface toutes les Releases sauf la dernière,
-   ce qui invaliderait les `sourceUrl` des versions antérieures encore référencées par les manifestes
-   installés.
-
-### Ensuite
-
-- Pousser les commits et tags de `JellyCrowd-dev` dans `JellyCrowd`, en gardant `manifest.json` à la racine.
-- Remonter le contenu de `dist/` à la racine (README public, screenshots, logo, templates d'issues) et
-  supprimer le dossier.
-- Simplifier `release.yml` : plus de `DIST_TOKEN`, plus de clone ni de force-push du dépôt de distribution.
-  Révoquer le PAT ensuite.
-- `JellyCrowd/README.md` et le README racine : retirer la mention « dépôt source privé ».
+- **Désenregistrer le runner self-hosted** de `JellyCrowd-dev` : plus rien ne l'utilise.
+- **Révoquer le PAT `DIST_TOKEN`** et retirer le secret du dépôt.
+- **Archiver `LokLakh-s/JellyCrowd-dev`** (ne pas le supprimer : il reste le miroir de l'historique privé).
 - Envisager la soumission au **catalogue officiel des plugins Jellyfin**, que l'AGPL rend possible.

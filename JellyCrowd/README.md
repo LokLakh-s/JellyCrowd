@@ -13,9 +13,8 @@ quotas, branding et statistiques, sans aucune dépendance tierce.
 
 ---
 
-> Le README complet (présentation, fonctionnalités, installation) est à la **racine du dépôt** :
-> [`../README.md`](../README.md). La **documentation publique** (en anglais, admin + utilisateurs) vit
-> dans le dépôt de distribution **[`LokLakh-s/JellyCrowd`](https://github.com/LokLakh-s/JellyCrowd)**.
+> Le README public (présentation, fonctionnalités, installation, en anglais) est à la **racine du
+> dépôt** : [`../README.md`](../README.md). Ce dossier-ci porte les docs de travail, en français.
 
 ## Docs de ce dossier
 
@@ -32,7 +31,8 @@ dotnet build -c Release
 ```
 
 Copier le `.dll` produit dans `<jellyfin-data>/plugins/JellyCrowd/`, puis redémarrer Jellyfin.
-La distribution publique passe par le dépôt `LokLakh-s/JellyCrowd` (voir le README racine).
+La distribution publique est faite par `release.yml` : un push sur `main` construit, teste, publie
+l'archive en Release GitHub et met à jour le `manifest.json` à la racine — tout dans ce dépôt.
 
 ## Licence
 

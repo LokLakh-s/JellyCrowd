@@ -3,10 +3,9 @@ name: CI
 # Pull requests, pushes to `main`, and manual dispatch. Release builds and tests on a main push too, so
 # the unit suites do run twice there — accepted on purpose: Release has no E2E step and the E2E lives
 # here, so without this trigger a direct push to `main` publishes without a single Jellyfin ever being
-# booted. Both queue on the one self-hosted runner, so they never race over the E2E container or the
-# build output. The automated `chore(release):` commit carries [skip ci], so a release does not bounce
-# back into this workflow. Mind that marker anywhere in a commit message, subject or body: GitHub reads
-# the whole message and suppresses every workflow for that push, this one included.
+# booted. The automated `chore(release):` commit carries [skip ci], so a release does not bounce back
+# into this workflow. Mind that marker anywhere in a commit message, subject or body: GitHub reads the
+# whole message and suppresses every workflow for that push, this one included.
 on:
   pull_request:
     branches: [ main ]
@@ -30,23 +29,14 @@ defaults:
 jobs:
   build-test:
     name: Build & Test
-    # A pull request carries code we have not reviewed — on a public repository, from anyone. Running it
-    # on the self-hosted runner would hand that code execution on a personal machine, with a persistent
-    # NuGet cache, a persistent tool cache and a docker socket to reach for. So: PRs go to a throwaway
-    # GitHub-hosted VM; only `main` (which nobody without write access can reach) and a manual dispatch
-    # (same gate) stay on the self-hosted runner, where the warm caches are worth having.
-    # GitHub-hosted minutes are free and unmetered on public repositories, so this costs nothing there.
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'self-hosted' }}
+    # GitHub-hosted, always. A pull request carries code nobody has reviewed — on a public repository,
+    # from anyone — and a self-hosted runner would hand that code execution on a personal machine, with
+    # its persistent caches and its docker socket. A throwaway VM has nothing to keep and nothing to
+    # reach; minutes are free and unmetered on a public repository.
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
-      # The self-hosted runner isn't root: install the .NET SDK into the writable, persistent tool cache
-      # instead of the default /usr/share/dotnet (which fails with "Permission denied"). A GitHub-hosted
-      # VM is root and already carries a usable dotnet root, so it wants none of this.
-      - name: Configure .NET install dir
-        if: runner.environment == 'self-hosted'
-        run: echo "DOTNET_INSTALL_DIR=$RUNNER_TOOL_CACHE/dotnet" >> "$GITHUB_ENV"
 
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v5
@@ -63,10 +53,7 @@ jobs:
         with:
           node-version: 22
 
-      # Only on the throwaway VM: the self-hosted runner keeps ~/.nuget/packages between runs, so a
-      # cache round-trip there would be pure overhead.
       - name: Cache NuGet packages
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -138,17 +125,3 @@ jobs:
           name: jelly-crowd-plugin
           path: JellyCrowd/artifacts/jelly-crowd.zip
           retention-days: 7
-
-      # Keep the self-hosted runner's disk from growing: drop build outputs and the NuGet
-      # http/temp caches (the bounded global-packages cache is kept for fast restores).
-      # Pointless on a GitHub-hosted VM, which is destroyed with the job.
-      - name: Cleanup workspace
-        if: always() && runner.environment == 'self-hosted'
-        run: |
-          rm -rf Jellyfin.Plugin.JellyCrowd/bin Jellyfin.Plugin.JellyCrowd/obj \
-                 Jellyfin.Plugin.JellyCrowd.Tests/bin Jellyfin.Plugin.JellyCrowd.Tests/obj \
-                 artifacts
-          # `dotnet nuget locals` takes a single location at a time; clear each separately (keep
-          # global-packages so restores stay warm).
-          dotnet nuget locals http-cache --clear || true
-          dotnet nuget locals temp --clear || true

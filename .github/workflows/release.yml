@@ -7,10 +7,9 @@ name: Release
 #   anything else                          -> bump PATCH    (x.y.z+1.0)
 # Skip a release entirely with [skip release] in the commit message.
 #
-# Source stays in this (private) repo; the plugin ZIP + install manifest + README/screenshots (from dist/)
-# are published to the PUBLIC distribution repo LokLakh-s/JellyCrowd via the DIST_TOKEN secret (a
-# fine-grained PAT with Contents: Read and write on that repo). The public repo is force-pushed to a
-# single clean commit each release, so it never accumulates history.
+# Source, distribution and documentation all live in THIS repository. `manifest.json` at the root is the
+# install URL configured in every user's Jellyfin — it is updated in place, in the same commit as the
+# version stamp, and must never move or be rewritten from scratch.
 
 on:
   push:
@@ -27,15 +26,14 @@ defaults:
   run:
     working-directory: JellyCrowd
 
-env:
-  DIST_REPO: LokLakh-s/JellyCrowd
-
 jobs:
   release:
     name: Version & Release
-    runs-on: [self-hosted]
-    # The owner guard matters once the repository is public and forkable: a fork inherits the workflow
-    # file, and this job pushes tags, cuts releases and holds a token. It must only ever run here.
+    # GitHub-hosted, like CI: free and unmetered on a public repository, and nothing here needs a machine
+    # that persists. It also means no workflow merged into `main` can ever reach a personal host.
+    runs-on: ubuntu-latest
+    # The owner guard matters on a public, forkable repository: a fork inherits the workflow file, and
+    # this job pushes tags, commits and cuts releases. It must only ever run here.
     if: >-
       ${{ github.repository_owner == 'LokLakh-s'
           && !startsWith(github.event.head_commit.message, 'chore(release):')
@@ -46,10 +44,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure .NET install dir
-        run: echo "DOTNET_INSTALL_DIR=$RUNNER_TOOL_CACHE/dotnet" >> "$GITHUB_ENV"
-
-      - name: Setup .NET 9
+      - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           # Both: the plugin and its 10.11 companion are net9.0, while the Jellyfin 12 companion must be
@@ -70,8 +65,8 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
-          # Explicit override (used for the beta reset): [version=X.Y.Z.W] pins the exact version and
-          # bypasses the tag-based bump. Everything downstream (tag, stamp, manifest) uses it verbatim.
+          # Explicit override: [version=X.Y.Z.W] pins the exact version and bypasses the tag-based bump.
+          # Everything downstream (tag, stamp, manifest) uses it verbatim.
           # `|| true`: grep exits non-zero when there's no [version=] tag, which would abort the step
           # under `set -euo pipefail` and fail every normal (non-override) release.
           override=$(printf '%s' "$COMMIT_MSG" | grep -oiE '\[version=[0-9.]+\]' | head -n1 | tr -dc '0-9.' || true)
@@ -93,13 +88,10 @@ jobs:
             fi
             version="${major}.${minor}.${patch}.${revision}"
           fi
-          # History reset: fresh manifest (this version only) + wipe of prior public releases/tags.
-          if printf '%s' "$COMMIT_MSG" | grep -qiE '\[reset-history\]'; then reset=1; else reset=0; fi
           echo "version=$version"   >> "$GITHUB_OUTPUT"
           echo "assembly=$version"  >> "$GITHUB_OUTPUT"
           echo "tag=v$version"      >> "$GITHUB_OUTPUT"
-          echo "reset=$reset"       >> "$GITHUB_OUTPUT"
-          echo "Next version: $version (reset=$reset)"
+          echo "Next version: $version"
 
       - name: Abort if tag already exists
         run: |
@@ -141,38 +133,12 @@ jobs:
           zipname="jelly-crowd-${{ steps.bump.outputs.tag }}.zip"
           (cd artifacts && zip "$zipname" *.dll build.yaml lib/*.bin && md5sum "$zipname" > "$zipname.md5")
 
-      - name: Commit version bump and tag (source repo)
+      # The manifest is updated BEFORE the release exists, because both fields it needs are deterministic:
+      # the checksum comes from the zip we just built, and the download URL from the tag we are about to
+      # push. That keeps the version stamp and the manifest entry in one commit, which is what makes the
+      # published history readable — one commit per version, and nothing to reconcile afterwards.
+      - name: Update the install manifest
         working-directory: ${{ github.workspace }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add JellyCrowd/Directory.Build.props JellyCrowd/build.yaml
-          git commit -m "chore(release): ${{ steps.bump.outputs.tag }} [skip ci]"
-          # Annotated tag + explicit push: the version counter (git tag --list) lives in THIS repo, and
-          # `--follow-tags` only pushes annotated tags — a lightweight tag would never reach the remote,
-          # leaving the next run to recompute the same version and fail on an empty bump commit.
-          git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
-          git push origin HEAD:main
-          git push origin "refs/tags/${{ steps.bump.outputs.tag }}"
-
-      - name: Publish release to the distribution repo
-        # Pinned to a commit, not a tag: a moving tag on a third-party action is a supply-chain
-        # hand-off, and this step is the one holding the publication token.
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3
-        with:
-          repository: ${{ env.DIST_REPO }}
-          token: ${{ secrets.DIST_TOKEN }}
-          tag_name: ${{ steps.bump.outputs.tag }}
-          name: ${{ steps.bump.outputs.tag }}
-          files: |
-            JellyCrowd/artifacts/jelly-crowd-*.zip
-            JellyCrowd/artifacts/jelly-crowd-*.zip.md5
-
-      - name: Publish the distribution repo (single clean commit)
-        working-directory: ${{ github.workspace }}
-        env:
-          DIST_TOKEN: ${{ secrets.DIST_TOKEN }}
         run: |
           set -euo pipefail
           tag="${{ steps.bump.outputs.tag }}"
@@ -180,13 +146,8 @@ jobs:
           guid="a1994160-4ea2-4d81-bd3c-ffe825700d98"
           zipname="jelly-crowd-${tag}.zip"
           checksum=$(md5sum "JellyCrowd/artifacts/${zipname}" | cut -d' ' -f1)
-          sourceUrl="https://github.com/${DIST_REPO}/releases/download/${tag}/${zipname}"
+          sourceUrl="https://github.com/${{ github.repository }}/releases/download/${tag}/${zipname}"
           timestamp=$(date -u +%Y-%m-%dT%H:%M:%S.0000000Z)
-
-          # Read the current manifest from the distribution repo so the version history is preserved
-          # (git history is not — the public repo is kept to a single commit, see below).
-          rm -rf "${RUNNER_TEMP}/dist-repo"
-          git clone --depth 1 "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" "${RUNNER_TEMP}/dist-repo"
           entry=$(jq -n \
             --arg v "$asm" \
             --arg c "Release ${tag}" \
@@ -195,73 +156,36 @@ jobs:
             --arg sum "$checksum" \
             --arg ts "$timestamp" \
             '{version: $v, changelog: $c, targetAbi: $abi, sourceUrl: $url, checksum: $sum, timestamp: $ts}')
-          # Normal release: keep the 3 newest versions. History reset: publish ONLY this version.
-          jq --argjson e "$entry" --arg guid "$guid" --arg reset "${{ steps.bump.outputs.reset }}" \
-            'map(if .guid == $guid then .versions = (if $reset == "1" then [$e] else (([$e] + (.versions // [])) | .[0:3]) end) else . end)' \
-            "${RUNNER_TEMP}/dist-repo/manifest.json" > "${RUNNER_TEMP}/manifest.json"
+          # Newest first, three kept: a Jellyfin server offers the newest entry it can run, and the two
+          # behind it are what a rollback needs. Their releases stay published, so their URLs keep working.
+          jq --argjson e "$entry" --arg guid "$guid" \
+            'map(if .guid == $guid then .versions = (([$e] + (.versions // [])) | .[0:3]) else . end)' \
+            manifest.json > manifest.json.tmp
+          mv manifest.json.tmp manifest.json
+          jq -e --arg v "$asm" '.[0].versions[0].version == $v' manifest.json >/dev/null \
+            || { echo "::error::manifest.json did not take the new entry"; exit 1; }
 
-          # Assemble the public repo: updated manifest + the distribution assets kept in THIS (private)
-          # repo under dist/ (README, screenshots, logo, LICENSE, SECURITY.md, .github issue templates).
-          # Force-push a single commit so the public history is always exactly one clean commit.
-          staging="${RUNNER_TEMP}/dist-staging"
-          rm -rf "$staging"; mkdir -p "$staging"
-          cp "${RUNNER_TEMP}/manifest.json" "$staging/manifest.json"
-          cp -r dist/. "$staging/"
-          cd "$staging"
-          git init -q -b main
+      - name: Commit version bump and tag
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "Jelly Crowd ${tag}"
-          git push -f "https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git" HEAD:main
+          git add JellyCrowd/Directory.Build.props JellyCrowd/build.yaml manifest.json
+          git commit -m "chore(release): ${{ steps.bump.outputs.tag }} [skip ci]"
+          # Annotated tag + explicit push: the version counter (git tag --list) lives in this repo, and
+          # `--follow-tags` only pushes annotated tags — a lightweight tag would never reach the remote,
+          # leaving the next run to recompute the same version and fail on an empty bump commit.
+          git tag -a "${{ steps.bump.outputs.tag }}" -m "Release ${{ steps.bump.outputs.tag }}"
+          git push origin HEAD:main
+          git push origin "refs/tags/${{ steps.bump.outputs.tag }}"
 
-      - name: Reset public releases & tags (history wipe)
-        if: steps.bump.outputs.reset == '1'
-        working-directory: ${{ github.workspace }}
-        env:
-          DIST_TOKEN: ${{ secrets.DIST_TOKEN }}
-        run: |
-          # Best-effort (no `set -e`): the release + manifest are already published, so a wipe hiccup must
-          # never fail the ship. Delete every public GitHub Release and tag EXCEPT the one just published.
-          set -uo pipefail
-          keep="${{ steps.bump.outputs.tag }}"
-          api="https://api.github.com/repos/${DIST_REPO}"
-          auth=(-H "Authorization: Bearer ${DIST_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
-          echo "Wiping public releases & tags except ${keep}"
-          # Collect all release ids across pages BEFORE deleting (deleting shifts pagination).
-          ids=""; page=1
-          while :; do
-            rels=$(curl -fsS "${auth[@]}" "${api}/releases?per_page=100&page=${page}" || echo '[]')
-            n=$(printf '%s' "$rels" | jq 'length'); [ "$n" -eq 0 ] && break
-            ids="$ids $(printf '%s' "$rels" | jq -r --arg keep "$keep" '.[] | select(.tag_name != $keep) | .id')"
-            page=$((page+1))
-          done
-          for id in $ids; do
-            echo "  delete release id=$id"
-            curl -fsS -X DELETE "${auth[@]}" "${api}/releases/${id}" || echo "    (release $id delete failed; continuing)"
-          done
-          # Collect all tag names across pages, then delete each ref.
-          names=""; page=1
-          while :; do
-            tags=$(curl -fsS "${auth[@]}" "${api}/tags?per_page=100&page=${page}" || echo '[]')
-            n=$(printf '%s' "$tags" | jq 'length'); [ "$n" -eq 0 ] && break
-            names="$names $(printf '%s' "$tags" | jq -r --arg keep "$keep" '.[] | select(.name != $keep) | .name')"
-            page=$((page+1))
-          done
-          for name in $names; do
-            echo "  delete tag $name"
-            curl -fsS -X DELETE "${auth[@]}" "${api}/git/refs/tags/${name}" || echo "    (tag $name delete failed; continuing)"
-          done
-          echo "Public reset done; kept ${keep}."
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf Jellyfin.Plugin.JellyCrowd/bin Jellyfin.Plugin.JellyCrowd/obj \
-                 Jellyfin.Plugin.JellyCrowd.Tests/bin Jellyfin.Plugin.JellyCrowd.Tests/obj \
-                 artifacts
-          rm -rf "${RUNNER_TEMP}/dist-repo" || true
-          # `dotnet nuget locals` takes a single location at a time; clear each separately (keep
-          # global-packages so restores stay warm).
-          dotnet nuget locals http-cache --clear || true
-          dotnet nuget locals temp --clear || true
+      - name: Publish the GitHub release
+        # Pinned to a commit, not a tag: a moving tag on a third-party action is a supply-chain hand-off.
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3
+        with:
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: ${{ steps.bump.outputs.tag }}
+          files: |
+            JellyCrowd/artifacts/jelly-crowd-*.zip
+            JellyCrowd/artifacts/jelly-crowd-*.zip.md5
