@@ -39,7 +39,7 @@
     </PackageReference>
     <!-- Used only to build the JObject payload for the File Transformation plugin (header injection).
          Provided at runtime by the host / File Transformation; compile-time reference only. -->
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3">
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <!-- Read the Playback Reporting plugin's SQLite database (historical-playback import). Microsoft.Data.Sqlite
