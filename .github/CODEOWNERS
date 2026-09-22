@@ -1,0 +1,6 @@
+# Everything, by default.
+*                     @LokLakh-s
+
+# The build and release definitions run on a self-hosted runner and hold the publication token:
+# a change here is a change to what executes on a personal machine. Never merge one unreviewed.
+/.github/             @LokLakh-s

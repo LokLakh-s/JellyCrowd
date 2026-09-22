@@ -23,6 +23,7 @@ quotas, branding et statistiques, sans aucune dépendance tierce.
 - [`ROADMAP.md`](./ROADMAP.md) — état d'avancement vers la 1.0.
 - [`CONFIGURATION.md`](./CONFIGURATION.md) — référence des réglages (admin).
 - [`GETTING_STARTED.md`](./GETTING_STARTED.md) — prise en main (utilisateurs).
+- [`OPEN-SOURCE.md`](./OPEN-SOURCE.md) — passage en AGPL-3.0 : état, réglages GitHub, fusion des dépôts.
 
 ## Build local
 

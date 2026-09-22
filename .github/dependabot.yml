@@ -1,0 +1,25 @@
+# Keeps the two supply chains that reach a build current: NuGet packages, and the GitHub Actions the
+# workflows call — the release workflow pins a third-party action to a commit, which only stays a good
+# idea if something moves the pin when that action is updated.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /JellyCrowd
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # The Jellyfin SDK references drive what the plugin can target; they get their own pull request.
+      jellyfin:
+        patterns:
+          - Jellyfin.*
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: npm
+    directory: /JellyCrowd/tests/js
+    schedule:
+      interval: monthly
