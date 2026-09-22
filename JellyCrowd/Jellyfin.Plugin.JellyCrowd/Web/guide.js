@@ -19,6 +19,22 @@
   let IMG = {};   // filled from the served content
   let C = {};     // idem: the guide text, per language
 
+  // AGPL-3.0 section 13: whoever interacts with this plugin over a network must be offered its source.
+  // Deliberately NOT part of guide-content.json — an instance may replace that document wholesale (see
+  // GuideController), and the offer has to survive a guide rewritten by an administrator.
+  const SOURCE_URL = 'https://github.com/LokLakh-s/JellyCrowd';
+  const SOURCE_NOTICE = {
+    fr: 'Jelly Crowd est un <b>logiciel libre</b> placé sous licence <b>AGPL-3.0</b>. '
+      + 'Son code source, y compris celui de toute version modifiée servie ici, est disponible sur ',
+    en: 'Jelly Crowd is <b>free software</b> licensed under the <b>AGPL-3.0</b>. '
+      + 'Its source code — including that of any modified version served here — is available at '
+  };
+  function sourceNotice(lang){
+    const text = SOURCE_NOTICE[lang] || SOURCE_NOTICE.en;
+    return '<p class="jcSource">' + text
+      + '<a href="' + SOURCE_URL + '" target="_blank" rel="noopener noreferrer">' + SOURCE_URL + '</a>.</p>';
+  }
+
   function esc(){}
   // A figure is skipped when the content names no file for it: the guide shipped with the plugin carries
   // no screenshots of anyone's library, and an instance adds its own through the content it serves.
@@ -71,7 +87,7 @@
     h += '<section class="faq-sec"><h2 class="sec">'+t.faqTitle+'</h2>'
       + t.faq.map(([q,a])=>'<details><summary>'+q+'</summary><p>'+a+'</p></details>').join('')
       + '</section>';
-    h += '</main><footer><div class="wrap">'+t.footer+'</div></footer>';
+    h += '</main><footer><div class="wrap">'+t.footer+sourceNotice(lang)+'</div></footer>';
     root.querySelector('.jcGuideApp').innerHTML = h;
     root.setAttribute('lang', lang);
   }
