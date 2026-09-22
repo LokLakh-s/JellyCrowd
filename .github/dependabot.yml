@@ -19,10 +19,14 @@ updates:
     # so no major bumps. Measured: PR #8 raised Microsoft.Data.Sqlite.Core from 9.0.0 to 10.0.12 and CI
     # went red, because a 10.11 host runs on .NET 9 and carries the 9.x assembly.
     ignore:
+      # Newtonsoft and Sqlite are compile-time ONLY — nothing of them ships in the plugin zip, so a newer
+      # reference buys exactly nothing while risking a call into an API the installed host does not carry.
+      # Frozen at what Jellyfin ships; they move when Jellyfin moves them, not when nuget.org does.
       - dependency-name: Microsoft.Data.Sqlite.Core
-        update-types: [version-update:semver-major]
       - dependency-name: Newtonsoft.Json
-        update-types: [version-update:semver-major]
+      # The Jellyfin references do take patch/minor bumps — they define the API surface being written
+      # against — but never a major: that is what picks which Jellyfin generation each half targets, and
+      # the two halves disagreeing on purpose is the whole design (see PluginServiceRegistrator).
       - dependency-name: Jellyfin.Controller
         update-types: [version-update:semver-major]
       - dependency-name: Jellyfin.Model
