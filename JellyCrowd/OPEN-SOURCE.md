@@ -95,12 +95,17 @@ Publié le 2026-09-22 en **v1.0.0.0** : 530 commits d'historique, 220 tags, la r
 à jour en place. Les 60 Releases antérieures et leurs `sourceUrl` sont intactes, donc aucune installation
 existante ne casse.
 
-Reste à faire, à la main (hors de portée d'une commande ici) :
+Nettoyage post-ouverture : **fait**. Runner self-hosted désenregistré et agent arrêté, PAT `DIST_TOKEN`
+révoqué et secret retiré, `LokLakh-s/JellyCrowd-dev` archivé (conservé comme miroir de l'historique privé),
+description et topics renseignés. Le dossier local est passé de `JellyCrowd-dev` à `JellyCrowd`.
 
-- **Désenregistrer le runner self-hosted** de `JellyCrowd-dev` et arrêter son agent : plus rien ne l'utilise.
-- **Révoquer le PAT `DIST_TOKEN`** et retirer le secret de `JellyCrowd-dev`.
-- **Archiver `LokLakh-s/JellyCrowd-dev`** (ne pas le supprimer : il reste le miroir de l'historique privé).
-- Renseigner la **description et les topics** du dépôt public, encore vides.
+**Protection de `main`** (posée le 2026-09-22) : force-push et suppression bloqués, **sans** revue ni
+checks obligatoires. C'est le seul réglage qui protège sans rien casser — exiger une revue tuerait le push
+direct, exiger la CI verte bloquerait le commit `chore(release):` que le workflow pousse lui-même. À
+resserrer si des contributeurs externes arrivent.
+
+Reste, un jour :
+
 - Envisager la soumission au **catalogue officiel des plugins Jellyfin**, que l'AGPL rend possible.
 
 ⚠️ Un piège constaté au passage : le push de fusion **n'a pas déclenché la CI**, seulement la Release.
