@@ -78,7 +78,7 @@ Jellyfin.Plugin.JellyCrowd.Tests/  # xUnit (+ Moq + node:test pour le JS) ; exé
 Persistance : **JSON** (`JsonRequestStore`, fichier dans le data path) — SQLite abandonné (dépendance native).
 Réconciliation : **temps réel** sur `ILibraryManager.ItemAdded` + tâche planifiée de secours.
 
-Racine : `CLAUDE.md`, `ROADMAP.md`, `README.md`, `LICENSE`, `build.yaml` (manifest plugin),
+Racine : `CLAUDE.md`, `ROADMAP.md`, `OPEN-SOURCE.md`, `README.md`, `LICENSE`, `build.yaml` (manifest plugin),
 `Directory.Build.props`, `.editorconfig`, `jellyfin.ruleset`, `.sln`.
 
 ## Build / test
