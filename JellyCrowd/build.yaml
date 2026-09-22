@@ -2,6 +2,10 @@
 name: "Jelly Crowd"
 guid: "a1994160-4ea2-4d81-bd3c-ffe825700d98"
 version: "0.82.5.0"
+# Stays at 10.11.0.0 even though the plugin is now announced for Jellyfin 12: a server offers any
+# targetAbi at or BELOW its own, so this single stamp reaches 12 and 10.11 alike. Raising it to 12
+# would not "announce" anything — it would drop the plugin out of every 10.11 catalog, which is
+# exactly the backward compatibility we are keeping.
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "One plugin to rule them all — TMDB catalog, media requests, per-user quotas, branding and stats, inside Jellyfin."
@@ -14,7 +18,8 @@ description: >
   to Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or a webhook; full UI branding (logo,
   favicon, colours, font, background, custom CSS, left-menu links); and built-in statistics — admin
   playback dashboards (top media & users, activity charts, live "now playing") plus a personal
-  dashboard for every user. Entirely self-hosted by Jelly Crowd. For Jellyfin 10.11+.
+  dashboard for every user. Entirely self-hosted by Jelly Crowd. Built for Jellyfin 12; 10.11 is
+  still supported.
 category: "General"
 owner: "LokLakh-s"
 artifacts:

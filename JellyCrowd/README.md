@@ -6,7 +6,7 @@
 quotas, branding et statistiques, sans aucune dépendance tierce.
 
 ![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)
-![Jellyfin 10.11+](https://img.shields.io/badge/Jellyfin-10.11%2B-00A4DC?style=for-the-badge&logo=jellyfin)
+![Jellyfin 12](https://img.shields.io/badge/Jellyfin-12-00A4DC?style=for-the-badge&logo=jellyfin)
 ![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet)
 
 </div>

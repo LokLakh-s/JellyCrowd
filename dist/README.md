@@ -9,7 +9,7 @@
 A complete **media request & discovery platform** for Jellyfin — catalog, requests, quotas,
 notifications, full UI branding and built-in stats — all in one plugin, **no add-ons required**.
 
-[![Jellyfin](https://img.shields.io/badge/Jellyfin-10.11%2B-00A4DC?logo=jellyfin&logoColor=white)](https://jellyfin.org)
+[![Jellyfin](https://img.shields.io/badge/Jellyfin-12-00A4DC?logo=jellyfin&logoColor=white)](https://jellyfin.org)
 [![Dependencies](https://img.shields.io/badge/dependencies-none-2ea44f)](#-requirements)
 [![Self-hosted](https://img.shields.io/badge/distribution-self--hosted-6f42c1)](#-installation)
 [![License](https://img.shields.io/badge/license-proprietary-blue)](./LICENSE)
@@ -99,7 +99,9 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 
 ## 📦 Requirements
 
-- **Jellyfin 10.11+**
+- **Jellyfin 12** — what Jelly Crowd is built and tested for.
+  Jellyfin **10.11** still works and still receives every release: one artifact serves both, and each
+  one is booted against a real server of each major before it ships. New work targets 12 first, though.
 - A free **TMDB API key** (for the catalog)
 - No other plugin
 
