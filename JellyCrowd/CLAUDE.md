@@ -36,7 +36,7 @@ Ce n'est **pas** `jelly-quotas` (app externe React/Node à côté de Jellyfin) �
   requête), puis **héberge lui-même** ses pages dans un overlay à onglets.
 - Persistance : **fichiers JSON versionnés** (`VersionedJsonFile`, bornés en taille + rétention) dans le data folder du plugin. `Microsoft.Data.Sqlite` sert **uniquement** à lire la base de Playback Reporting lors de l'import.
 - Catalogue : **API TMDB** (clé API requise, stockée en config plugin).
-- Licence : **propriétaire** (tous droits réservés). Source privée ; distribution binaire via le dépôt public `jellycrowd-dist`.
+- Licence : **AGPL-3.0-or-later** (logiciel libre). Cohérente avec `Jellyfin.Controller`/`Jellyfin.Model`, sous GPL-3.0-only, contre lesquelles le plugin est lié. Distribution via le dépôt public `LokLakh-s/JellyCrowd`.
 
 ## Layout
 
@@ -115,7 +115,7 @@ lui-même son interface dans le client web (`WebInjectionMiddleware` ajouté via
   (`indent_size = 2`).
 - Namespace racine : `Jellyfin.Plugin.JellyCrowd`.
 - Style imposé par `.editorconfig` + `jellyfin.ruleset` (StyleCop) ; `TreatWarningsAsErrors=true`.
-- Licence **propriétaire** (pas d'en-tête GPL dans les fichiers) ; documentation XML sur les membres publics.
+- Licence **AGPL-3.0-or-later** (pas d'en-tête de licence dans les fichiers : le `LICENSE` racine fait foi) ; documentation XML sur les membres publics.
 - DTOs dans `Models/` ; pas de logique métier dans les contrôleurs (déléguer aux `Services/`).
 - GUID du plugin : `a1994160-4ea2-4d81-bd3c-ffe825700d98` (ne pas changer).
 

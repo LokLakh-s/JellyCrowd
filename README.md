@@ -5,7 +5,7 @@
 **One plugin to rule them all** — catalogue de découverte, requêtes, quotas, branding et stats,
 directement intégrés dans Jellyfin.
 
-![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)
+![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg?style=for-the-badge)
 ![Jellyfin 12](https://img.shields.io/badge/Jellyfin-12-00A4DC?style=for-the-badge&logo=jellyfin)
 ![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet)
 
@@ -78,4 +78,15 @@ jour du `manifest.json` dans le dépôt public `LokLakh-s/JellyCrowd` (via le se
 
 ## 📄 Licence
 
-Logiciel propriétaire — voir [`LICENSE`](./LICENSE). Tous droits réservés.
+**GNU Affero General Public License v3.0** — voir [`LICENSE`](./LICENSE).
+
+Copyright © 2026 LokLakh-s.
+
+Jelly Crowd est un logiciel libre : tu peux le redistribuer et le modifier selon les termes de l'AGPL-3.0,
+telle que publiée par la Free Software Foundation, en version 3 ou ultérieure. Il est distribué dans
+l'espoir d'être utile, mais **sans aucune garantie**.
+
+L'AGPL est le choix cohérent ici : `Jellyfin.Controller` et `Jellyfin.Model`, contre lesquelles le plugin
+est compilé et dans le processus desquelles il s'exécute, sont sous **GPL-3.0-only**. Son article 13 ajoute
+que toute personne interagissant avec une version modifiée **à travers un réseau** doit se voir offrir
+les sources correspondantes.

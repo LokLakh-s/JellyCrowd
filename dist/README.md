@@ -12,7 +12,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 [![Jellyfin](https://img.shields.io/badge/Jellyfin-12-00A4DC?logo=jellyfin&logoColor=white)](https://jellyfin.org)
 [![Dependencies](https://img.shields.io/badge/dependencies-none-2ea44f)](#-requirements)
 [![Self-hosted](https://img.shields.io/badge/distribution-self--hosted-6f42c1)](#-installation)
-[![License](https://img.shields.io/badge/license-proprietary-blue)](./LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](./LICENSE)
 
 </div>
 
@@ -184,5 +184,12 @@ Think you've found a **security vulnerability**? Please don't open a public issu
 
 ## 📜 License
 
-Jelly Crowd is **proprietary software** — see [`LICENSE`](./LICENSE). You may install and run official
-released builds as a Jellyfin plugin; no other rights are granted.
+Jelly Crowd is free software, licensed under the **GNU Affero General Public License v3.0** — see
+[`LICENSE`](./LICENSE). Copyright © 2026 LokLakh-s.
+
+You are free to use, study, modify and redistribute it, provided derivative works stay under the AGPL-3.0
+and their source remains available — including, under section 13, to anyone interacting with a modified
+version over a network.
+
+Jelly Crowd is an independent project and is **not affiliated with, endorsed by or certified by Jellyfin**.
+It uses the TMDB API but is **not endorsed or certified by TMDB**.
