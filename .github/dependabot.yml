@@ -13,6 +13,20 @@ updates:
       jellyfin:
         patterns:
           - Jellyfin.*
+    # Four references are `ExcludeAssets=runtime`: the assembly is PROVIDED BY THE JELLYFIN HOST at
+    # runtime, and compiling against a newer one than the host ships is how you get a MissingMethodException
+    # on a server that was working. Their version tracks Jellyfin, not the newest release on nuget.org —
+    # so no major bumps. Measured: PR #8 raised Microsoft.Data.Sqlite.Core from 9.0.0 to 10.0.12 and CI
+    # went red, because a 10.11 host runs on .NET 9 and carries the 9.x assembly.
+    ignore:
+      - dependency-name: Microsoft.Data.Sqlite.Core
+        update-types: [version-update:semver-major]
+      - dependency-name: Newtonsoft.Json
+        update-types: [version-update:semver-major]
+      - dependency-name: Jellyfin.Controller
+        update-types: [version-update:semver-major]
+      - dependency-name: Jellyfin.Model
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
