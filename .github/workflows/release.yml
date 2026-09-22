@@ -40,7 +40,7 @@ jobs:
           && !contains(github.event.head_commit.message, '[skip release]') }}
     steps:
       - name: Checkout (full history + tags)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
