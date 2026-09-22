@@ -34,8 +34,11 @@ jobs:
   release:
     name: Version & Release
     runs-on: [self-hosted]
+    # The owner guard matters once the repository is public and forkable: a fork inherits the workflow
+    # file, and this job pushes tags, cuts releases and holds a token. It must only ever run here.
     if: >-
-      ${{ !startsWith(github.event.head_commit.message, 'chore(release):')
+      ${{ github.repository_owner == 'LokLakh-s'
+          && !startsWith(github.event.head_commit.message, 'chore(release):')
           && !contains(github.event.head_commit.message, '[skip release]') }}
     steps:
       - name: Checkout (full history + tags)
@@ -154,7 +157,9 @@ jobs:
           git push origin "refs/tags/${{ steps.bump.outputs.tag }}"
 
       - name: Publish release to the distribution repo
-        uses: softprops/action-gh-release@v3
+        # Pinned to a commit, not a tag: a moving tag on a third-party action is a supply-chain
+        # hand-off, and this step is the one holding the publication token.
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3
         with:
           repository: ${{ env.DIST_REPO }}
           token: ${{ secrets.DIST_TOKEN }}
