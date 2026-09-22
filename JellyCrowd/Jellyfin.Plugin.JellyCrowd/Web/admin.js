@@ -134,6 +134,7 @@
     { id: 'requests', labelKey: 'tab_requests', render: renderRequests },
     { id: 'stats', labelKey: 'tab_stats', render: renderStats },
     { id: 'moderation', labelKey: 'nav_moderation', render: renderModeration },
+    { id: 'polls', labelKey: 'tab_polls', render: renderPolls },
     { id: 'users', labelKey: 'tab_users', render: renderUsers },
     { id: 'logs', labelKey: 'tab_logs', render: renderLogs },
     { id: 'configurations', labelKey: 'tab_configurations', render: renderConfigurations }
@@ -2391,6 +2392,297 @@
     return row;
   }
 
+  // ---------- Polls ----------
+  // Polls are published with the announcements but managed here: a poll needs room for its options, its
+  // audience and — since votes are nominative — who answered what and who has not answered at all.
+
+  function pollGroupNames(poll, groups) {
+    if (!poll.GroupIds || !poll.GroupIds.length) { return t('poll_everyone'); }
+    var names = [];
+    poll.GroupIds.forEach(function (id) {
+      groups.forEach(function (g) { if (g.Id === id) { names.push(g.Name || id); } });
+    });
+    return names.join(', ') || t('poll_everyone');
+  }
+
+  // <input type="datetime-local"> wants a local "YYYY-MM-DDTHH:MM"; the API speaks UTC ISO.
+  function toLocalInputValue(iso) {
+    if (!iso) { return ''; }
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) { return ''; }
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function renderPolls(container) {
+    container.innerHTML = '';
+    setMessage(t('loading'));
+    Promise.all([
+      apiGet('JellyCrowd/Polls/All'),
+      apiGet('JellyCrowd/Groups').catch(function () { return { Groups: [] }; })
+    ]).then(function (res) {
+      var polls = res[0] || [];
+      var groups = (res[1] && res[1].Groups) || [];
+      setMessage('');
+      container.innerHTML = '';
+
+      var editorHost = document.createElement('div');
+      var listHost = document.createElement('div');
+      listHost.className = 'jellycrowd-group-list';
+
+      var hint = document.createElement('p');
+      hint.className = 'jellycrowd-disclaimer';
+      hint.textContent = t('poll_edit_locked');
+      container.appendChild(hint);
+
+      var addBtn = adminBtn(t('poll_new_full'), 'ok', function () { openEditor(null); });
+      container.appendChild(addBtn);
+      container.appendChild(editorHost);
+      container.appendChild(listHost);
+
+      function reload() { renderPolls(container); }
+
+      function drawList() {
+        listHost.innerHTML = '';
+        if (!polls.length) {
+          var empty = document.createElement('p');
+          empty.className = 'jellycrowd-disclaimer';
+          empty.textContent = t('poll_admin_empty');
+          listHost.appendChild(empty);
+          return;
+        }
+        polls.forEach(function (poll) { listHost.appendChild(buildPollCard(poll)); });
+      }
+
+      function buildPollCard(poll) {
+        var card = document.createElement('div');
+        card.className = 'jellycrowd-group-card';
+
+        var head = document.createElement('div');
+        head.className = 'jellycrowd-group-head';
+        var question = document.createElement('strong');
+        question.textContent = poll.Question;
+        head.appendChild(question);
+
+        var actions = document.createElement('div');
+        actions.className = 'jcPollAdminActions';
+        if (poll.Editable) {
+          actions.appendChild(adminBtn(t('poll_edit'), '', function () { openEditor(poll); }));
+        }
+
+        actions.appendChild(adminBtn(poll.Closed ? t('poll_reopen') : t('poll_close_action'), '', function (btn) {
+          btn.disabled = true;
+          apiPostResult('JellyCrowd/Polls/' + poll.Id + (poll.Closed ? '/Reopen' : '/Close'))
+            .then(reload)
+            .catch(function () { btn.disabled = false; setMessage(t('error_generic')); });
+        }));
+
+        actions.appendChild(adminBtn(t('poll_delete'), 'danger', function () {
+          confirmAction({
+            title: t('poll_delete_title'),
+            message: t('poll_delete_msg').replace('{question}', poll.Question),
+            confirmLabel: t('poll_delete'),
+            danger: true
+          }).then(function (ok) {
+            if (!ok) { return; }
+            apiPostNoResult('JellyCrowd/Polls/' + poll.Id + '/Delete')
+              .then(reload)
+              .catch(function () { setMessage(t('error_generic')); });
+          });
+        }));
+        head.appendChild(actions);
+        card.appendChild(head);
+
+        var meta = document.createElement('div');
+        meta.className = 'jellycrowd-disclaimer';
+        var bits = [poll.Open ? t('poll_open_state') : t('poll_closed'), pollGroupNames(poll, groups)];
+        if (poll.ClosesAt) { bits.push(t('poll_closes_on').replace('{date}', new Date(poll.ClosesAt).toLocaleString())); }
+        bits.push(t('poll_voters_count').replace('{count}', poll.TotalVotes));
+        if (poll.MultiChoice) { bits.push(t('poll_multichoice')); }
+        if (!poll.ShowResults) { bits.push(t('poll_results_hidden')); }
+        meta.textContent = bits.join(' · ');
+        card.appendChild(meta);
+
+        var results = document.createElement('div');
+        results.className = 'jcPollResults';
+        (poll.Options || []).forEach(function (option) {
+          var row = document.createElement('div');
+          var rowHead = document.createElement('div');
+          rowHead.className = 'jcPollResultHead';
+          var name = document.createElement('span');
+          name.textContent = option.Text;
+          var value = document.createElement('span');
+          value.textContent = option.Percent + '% (' + option.Votes + ')';
+          rowHead.appendChild(name);
+          rowHead.appendChild(value);
+          row.appendChild(rowHead);
+          var track = document.createElement('div');
+          track.className = 'jcPollBarTrack';
+          var bar = document.createElement('div');
+          bar.className = 'jcPollBar';
+          bar.style.width = lib.pollBarPercent(option) + '%';
+          track.appendChild(bar);
+          row.appendChild(track);
+          if (option.Voters && option.Voters.length) {
+            var voters = document.createElement('div');
+            voters.className = 'jcPollVoters';
+            voters.textContent = t('poll_voters') + ': ' + option.Voters.join(', ');
+            row.appendChild(voters);
+          }
+          results.appendChild(row);
+        });
+        card.appendChild(results);
+
+        if (poll.NotVoted && poll.NotVoted.length) {
+          var pending = document.createElement('div');
+          pending.className = 'jcPollVoters';
+          pending.textContent = t('poll_not_voted') + ': ' + poll.NotVoted.join(', ');
+          card.appendChild(pending);
+        }
+
+        return card;
+      }
+
+      // The editor doubles as the creation form: `poll` is null for a new one, and an existing poll can
+      // only get here while it has no votes (the backend refuses the edit otherwise).
+      function openEditor(poll) {
+        editorHost.innerHTML = '';
+        addBtn.disabled = true;
+
+        var card = document.createElement('div');
+        card.className = 'jellycrowd-group-card';
+
+        var question = document.createElement('input');
+        question.type = 'text';
+        question.className = 'jc-poll-question';
+        question.value = poll ? poll.Question : '';
+        card.appendChild(labeledField(t('poll_question'), question));
+
+        var optionsTitle = document.createElement('div');
+        optionsTitle.className = 'jellycrowd-group-subtitle';
+        optionsTitle.textContent = t('poll_options');
+        card.appendChild(optionsTitle);
+
+        var optionList = document.createElement('div');
+        optionList.className = 'jellycrowd-group-checklist';
+        card.appendChild(optionList);
+
+        function addOptionRow(text) {
+          var row = document.createElement('div');
+          row.className = 'jcPollOptionRow';
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'jc-poll-option';
+          input.value = text || '';
+          row.appendChild(input);
+          var remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'jcPollOptionRemove';
+          remove.title = t('poll_remove_option');
+          remove.setAttribute('aria-label', t('poll_remove_option'));
+          remove.textContent = '×';
+          remove.addEventListener('click', function () { row.remove(); });
+          row.appendChild(remove);
+          optionList.appendChild(row);
+        }
+
+        var existing = (poll && poll.Options) || [];
+        if (existing.length) {
+          existing.forEach(function (o) { addOptionRow(o.Text); });
+        } else {
+          addOptionRow('');
+          addOptionRow('');
+        }
+
+        card.appendChild(adminBtn(t('poll_add_option'), '', function () { addOptionRow(''); }));
+
+        var settings = document.createElement('div');
+        settings.className = 'jellycrowd-group-settings';
+        var multi = checkbox('jc-poll-multi', poll ? poll.MultiChoice : false);
+        var showResults = checkbox('jc-poll-results', poll ? poll.ShowResults : true);
+        var deadline = document.createElement('input');
+        deadline.type = 'datetime-local';
+        deadline.className = 'jc-poll-deadline';
+        deadline.value = poll ? toLocalInputValue(poll.ClosesAt) : '';
+        settings.appendChild(labeledField(t('poll_multichoice'), multi));
+        settings.appendChild(labeledField(t('poll_showresults'), showResults));
+        settings.appendChild(labeledField(t('poll_deadline'), deadline));
+        card.appendChild(settings);
+
+        var audience = document.createElement('div');
+        audience.className = 'jellycrowd-group-members';
+        var audienceTitle = document.createElement('div');
+        audienceTitle.className = 'jellycrowd-group-subtitle';
+        audienceTitle.textContent = t('announcement_audience');
+        audience.appendChild(audienceTitle);
+        var audienceList = document.createElement('div');
+        audienceList.className = 'jellycrowd-group-checklist';
+        groups.forEach(function (g) {
+          var lbl = document.createElement('label');
+          lbl.className = 'jellycrowd-group-check';
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'jc-poll-group';
+          cb.value = g.Id;
+          cb.checked = !!(poll && poll.GroupIds && poll.GroupIds.indexOf(g.Id) >= 0);
+          lbl.appendChild(cb);
+          lbl.appendChild(document.createTextNode(g.Name || g.Id));
+          audienceList.appendChild(lbl);
+        });
+        audience.appendChild(audienceList);
+        var audienceHint = document.createElement('div');
+        audienceHint.className = 'jellycrowd-disclaimer';
+        audienceHint.textContent = t('poll_audience_hint');
+        audience.appendChild(audienceHint);
+        if (groups.length) { card.appendChild(audience); }
+
+        var error = document.createElement('div');
+        error.className = 'jellycrowd-disclaimer jcPollAdminError';
+        error.hidden = true;
+        card.appendChild(error);
+
+        var buttons = document.createElement('div');
+        buttons.className = 'jcPollAdminActions';
+        buttons.appendChild(adminBtn(t('cancel'), '', function () { editorHost.innerHTML = ''; addBtn.disabled = false; }));
+        buttons.appendChild(adminBtn(poll ? t('save') : t('poll_publish'), 'ok', function (btn) {
+          var labels = [];
+          [].forEach.call(optionList.querySelectorAll('.jc-poll-option'), function (i) {
+            if (i.value.trim()) { labels.push(i.value.trim()); }
+          });
+          if (!question.value.trim()) { error.textContent = t('poll_question_required'); error.hidden = false; return; }
+          if (labels.length < 2) { error.textContent = t('poll_min_options'); error.hidden = false; return; }
+
+          var groupIds = [];
+          [].forEach.call(audienceList.querySelectorAll('.jc-poll-group:checked'), function (c) { groupIds.push(c.value); });
+
+          var body = {
+            Question: question.value.trim(),
+            Options: labels,
+            MultiChoice: multi.checked,
+            ShowResults: showResults.checked,
+            ClosesAt: deadline.value ? new Date(deadline.value).toISOString() : null,
+            GroupIds: groupIds
+          };
+          btn.disabled = true;
+          error.hidden = true;
+          apiPostJson('JellyCrowd/Polls' + (poll ? '/' + poll.Id : ''), body)
+            .then(function () {
+              // The header shell owns the badge and the takeover; tell it a poll just changed.
+              if (typeof window.jellyCrowdRefreshPolls === 'function') { window.jellyCrowdRefreshPolls(); }
+              reload();
+            })
+            .catch(function () { btn.disabled = false; error.textContent = t('error_generic'); error.hidden = false; });
+        }));
+        card.appendChild(buttons);
+
+        editorHost.appendChild(card);
+        question.focus();
+      }
+
+      drawList();
+    }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  }
+
   // ---------- shell ----------
   function activate(id) {
     activeTab = id;
@@ -2405,6 +2697,16 @@
     var tab = null;
     TABS.forEach(function (x) { if (x.id === id) { tab = x; } });
     if (tab) { tab.render(content); }
+  }
+
+  // A tab the shell asked us to open (window.jellyCrowdAdminTab), consumed once so it does not stick.
+  function requestedTab() {
+    var wanted = window.jellyCrowdAdminTab;
+    window.jellyCrowdAdminTab = null;
+    for (var i = 0; i < TABS.length; i++) {
+      if (TABS[i].id === wanted) { return wanted; }
+    }
+    return null;
   }
 
   function buildTabBar() {
@@ -2428,9 +2730,13 @@
       if (logo) { logo.src = pluginUrl('JellyCrowd/Web/logo.png'); }
       document.getElementById('jcAdminTitle').textContent = t('nav_admin');
       buildTabBar();
-      activate(TABS[0].id);
+      activate(requestedTab() || TABS[0].id);
       if (typeof window.jellyCrowdRegisterRefresh === 'function') {
-        window.jellyCrowdRegisterRefresh('admin', function () { if (activeTab) { activate(activeTab); } });
+        // Re-opening the panel may also carry a tab request (the shell sets it before showing the view).
+        window.jellyCrowdRegisterRefresh('admin', function () {
+          var wanted = requestedTab();
+          if (wanted || activeTab) { activate(wanted || activeTab); }
+        });
       }
     });
   }

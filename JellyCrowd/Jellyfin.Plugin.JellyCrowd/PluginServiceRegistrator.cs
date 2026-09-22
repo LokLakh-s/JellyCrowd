@@ -20,6 +20,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   private const string UserPrefsFileName = "user-prefs.json";
   private const string CommentsFileName = "comments.json";
   private const string ReportsFileName = "reports.json";
+  private const string PollsFileName = "polls.json";
   private const string ActivityLogFileName = "activity.json";
   private const string UserActivityFileName = "user-activity.json";
   private const string PlaybackHistoryFileName = "playback-history.json";
@@ -67,6 +68,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       _ => new JsonMediaCommentStore(Path.Combine(Plugin.Instance!.DataFolderPath, CommentsFileName)));
     serviceCollection.AddSingleton<IReportStore>(
       _ => new JsonReportStore(Path.Combine(Plugin.Instance!.DataFolderPath, ReportsFileName)));
+    serviceCollection.AddSingleton<IPollStore>(
+      _ => new JsonPollStore(Path.Combine(Plugin.Instance!.DataFolderPath, PollsFileName)));
     serviceCollection.AddSingleton<IActivityLog>(
       _ => new JsonActivityLog(Path.Combine(Plugin.Instance!.DataFolderPath, ActivityLogFileName)));
     serviceCollection.AddSingleton<IUserActivityStore>(

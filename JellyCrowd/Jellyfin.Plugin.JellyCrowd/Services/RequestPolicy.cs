@@ -110,6 +110,33 @@ public static class RequestPolicy
   }
 
   /// <summary>
+  /// Whether a user belongs to the audience of something addressed to groups — an announcement, a poll.
+  /// An empty group list means "everyone"; otherwise the user must be a member of one of the listed
+  /// groups. Child accounts are never in an audience: they get neither announcements nor polls.
+  /// </summary>
+  /// <param name="config">The plugin configuration.</param>
+  /// <param name="groupIds">The target group ids; empty means global.</param>
+  /// <param name="userId">The user id.</param>
+  /// <returns><c>true</c> when the user is in the audience.</returns>
+  public static bool IsInAudience(PluginConfiguration config, ICollection<Guid> groupIds, Guid userId)
+  {
+    ArgumentNullException.ThrowIfNull(config);
+    ArgumentNullException.ThrowIfNull(groupIds);
+    if (ChildPolicyFor(config, userId).IsChild)
+    {
+      return false;
+    }
+
+    if (groupIds.Count == 0)
+    {
+      return true;
+    }
+
+    var group = GroupOf(config, userId);
+    return group is not null && groupIds.Contains(group.Id);
+  }
+
+  /// <summary>
   /// Whether the header announcement should be shown to a user. An announcement with no target groups is
   /// global (everyone sees it). A targeted announcement is shown only to members of a target group — and
   /// always to administrators, who create and manage it. An empty announcement is shown to no-one.
@@ -126,24 +153,7 @@ public static class RequestPolicy
       return false;
     }
 
-    if (isAdmin)
-    {
-      return true;
-    }
-
-    // Child accounts don't see announcements.
-    if (ChildPolicyFor(config, userId).IsChild)
-    {
-      return false;
-    }
-
-    if (config.AnnouncementGroupIds.Count == 0)
-    {
-      return true;
-    }
-
-    var group = GroupOf(config, userId);
-    return group is not null && config.AnnouncementGroupIds.Contains(group.Id);
+    return isAdmin || IsInAudience(config, config.AnnouncementGroupIds, userId);
   }
 
   /// <summary>

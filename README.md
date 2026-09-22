@@ -78,8 +78,9 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 💾 **Per-user quotas** — a storage budget per user, counted only when media becomes available, at its real size.
 - 📈 **Adaptive quota** — optionally grow a user's quota as they watch more, with a grace period when they go quiet.
 - 🧑‍🤝‍🧑 **User groups** — manage users together: shared settings they inherit, one-click Jellyfin library access, and group-targeted announcements.
-- 🧒 **Child mode** — mark a group as a kids group: its members get an age-filtered catalog (by age tier), no free-text search, and no reviews or announcements.
+- 🧒 **Child mode** — mark a group as a kids group: its members get an age-filtered catalog (by age tier), no free-text search, and no reviews, announcements or polls.
 - 📢 **Announcements** — post a header banner to everyone or to specific groups.
+- 📊 **Polls** — ask a question instead of stating one: a poll takes over the screen once per session until it is answered, with single or multiple choice, an optional deadline, results you can share with the voters, and an admin view of who answered what.
 - ⏳ **Media expiry** — reclaim space by expiring unwatched media after a configurable window.
 - 🔀 **Notification channels** — route events to Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or a webhook, per event.
 - 🔗 **Webhook backend** — prefer your own automation? POST each approved request to a webhook.
@@ -147,6 +148,12 @@ Paste your TMDB API key in **Dashboard → Plugins → Jelly Crowd**, then manag
   - **Diagnostics** — connectivity checks and a one-click configuration backup.
 
 **Announcements** — post a banner from the header announcement icon: to everyone, or targeted at specific groups.
+
+**Polls** — publish a poll from the same icon (**Admin → Polls**, or the *+ Poll* shortcut in the announcement
+popover). A poll reaches the same audience as an announcement, but does not wait to be opened: as long as a
+user owes an answer it takes over their screen once per browser session, and the header icon carries a
+counter until they vote. Votes are nominative — the results view shows who answered what and who has not
+answered yet, and voters are told so. Close a poll (or set a deadline) to freeze the result.
 
 </details>
 
