@@ -609,3 +609,38 @@ donc une visibilité d'un autre ordre qu'une bannière qu'on peut ne jamais ouvr
   pouvaient y répondre, sinon personne n'apprendrait jamais le résultat.
 - ☑ **Tests** : `PollPolicyTests`, `JsonPollStoreTests`, `PollsControllerTests` (.NET) + `poll.lib.test.js`
   (logique pure du front : quoi proposer, ce que « plus tard » retient, validité d'un bulletin).
+
+### M35 — Tri des listes de bibliothèque (Jellyfin 12)  ☑ *(livré)*
+
+Jellyfin 12 a déplacé la barre d'outils de bibliothèque (lecture, aléatoire, filtres, **tri**, affichage)
+dans l'app bar, à l'intérieur de la **même pile MUI** que les raccourcis par bibliothèque que Jelly Crowd
+masque pour loger ses propres onglets. Son menu de tri partait donc avec eux : chaque liste restait sur
+l'ordre mémorisé en dernier, **alphabétique** par défaut, sans moyen d'en changer.
+
+- ☑ **Contrôle de tri** sur toutes les listes, injecté comme **enfant direct** de la barre de bibliothèque
+  — hors de la pile masquée, à droite de la rangée, là où se tenaient les boutons natifs.
+- ☑ **Trois ordres, chacun dans les deux sens** : *Nom*, *Année* et *Date d'ajout*. Les chaînes
+  `ItemSortBy` sont celles du menu natif de 12, reprises **vue par vue** : `ProductionYear,
+  PremiereDate, SortName` pour l'année (allongée de `AlbumArtist, Album` sur les chansons),
+  `DateCreated, SortName` pour l'ajout, et le nom trié selon la vue (`SortName`, `SeriesSortName` pour
+  les épisodes, `Name` pour une piste). Le tri est donc fait **par le serveur**, pas sur la page.
+- ☑ **Partout où le client lui-même sait trier** : films, séries, épisodes, albums, chansons, livres,
+  vidéos, clips, photos, albums photo, dossiers, contenus mixtes, collections, playlists, favoris —
+  dans chacune des routes `/movies`, `/tv`, `/music`, `/books`, `/boxsets`, `/homevideos`,
+  `/musicvideos`, `/playlists`, `/mixed`. Les photos n'ont **pas** d'entrée « année » : son menu natif
+  n'en propose pas non plus.
+- ☑ **Nulle part ailleurs** : les onglets sans menu de tri natif (genres, suggestions, à venir, studios,
+  artistes, auteurs) et le Live TV n'en reçoivent pas. Table des onglets par route vérifiée contre les
+  deux tables dont le client la dérive (`LibraryRoutes` et le `Record<number, LibraryTabContent>` de
+  chaque type), qui concordent.
+- ☑ **Ordre courant affiché** sur le bouton : la barre native étant masquée, rien d'autre ne l'indique.
+  Il reste sur « Trier » quand l'ordre en place n'est pas l'un des nôtres — dont le cas d'une liste de
+  chansons neuve, que le client trie par `SortName` alors que son propre menu trie par `Name`.
+- ☑ **Pas de seconde liste** : on écrit la préférence du client lui-même (`LibraryViewSettings` de la vue,
+  dans `localStorage` sous `<vue> - <bibliothèque>`) puis on émet l'événement `local-storage` que son hook
+  `useLocalStorage` écoute — la liste native se re-rend avec filtres, pagination et index alphabétique.
+  Le choix est donc **mémorisé par vue et par bibliothèque**, comme celui du menu natif.
+- ☑ **Aucun effet sur Jellyfin 10.11**, dont la barre de tri n'est pas masquée.
+- ☑ **Tests** : `catalog.lib.test.js` — résolution de la vue et de la clé pour chaque route et chaque
+  onglet, onglets non triables écartés, vue d'atterrissage, chaînes de tri par vue, fusion des réglages
+  sans perdre les autres préférences, relecture de l'ordre courant.

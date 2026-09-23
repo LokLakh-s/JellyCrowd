@@ -695,5 +695,12 @@
   "poll_audience_hint": "No group ticked: everyone can vote.",
   "poll_everyone": "Everyone",
   "poll_new_full": "New poll",
-  "poll_voters": "Voters"
+  "poll_voters": "Voters",
+  "libsort_title": "Sort",
+  "libsort_name": "Name (A → Z)",
+  "libsort_year_desc": "Year (newest first)",
+  "libsort_year_asc": "Year (oldest first)",
+  "libsort_added_desc": "Date added (newest first)",
+  "libsort_added_asc": "Date added (oldest first)",
+  "libsort_track": "Track name (A → Z)"
 }

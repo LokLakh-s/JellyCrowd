@@ -1026,6 +1026,176 @@
     return p > 100 ? 100 : Math.round(p);
   }
 
+  // ---------- sort control on the Jellyfin 12 library lists ----------
+  // Jellyfin 12 moved the library toolbar (play, shuffle, filters, sort, layout) into the app bar, in
+  // the same MUI stack as the per-library shortcuts we hide to make room for our own tabs — so its sort
+  // menu goes with them and every library list is stuck on whatever order was stored last (alphabetical
+  // out of the box). These helpers back the sort control we put back on those lists.
+  //
+  // They drive the client's own preference rather than the request: 12 keeps one LibraryViewSettings
+  // object per view and per library in localStorage, under `<view> - <libraryId>`, read through
+  // usehooks-ts' useLocalStorage. Writing that key and firing the `local-storage` event the hook listens
+  // on makes the list re-render natively, filters, pagination and alphabet picker included.
+
+  // The tabs of each library route, in the order the client indexes them. Checked against both tables it
+  // derives them from (its LibraryRoutes and the per-type `Record<number, LibraryTabContent>`), which
+  // agree. `/livetv` is left out on purpose: none of its tabs carries a sort menu, and it is also the
+  // one route keying its settings on the literal 'livetv' rather than on a library id.
+  var LIBRARY_ROUTE_TABS = {
+    '/movies': ['movies', 'suggestions', 'favorites', 'collections', 'genres', 'studios', 'playlists'],
+    '/tv': ['series', 'suggestions', 'upcoming', 'genres', 'studios', 'episodes', 'collections', 'playlists'],
+    '/music': ['albums', 'suggestions', 'albumartists', 'artists', 'playlists', 'songs', 'genres', 'collections'],
+    '/books': ['folders', 'books', 'authors', 'suggestions', 'genres', 'collections', 'favorites'],
+    '/boxsets': ['collections', 'favorites', 'genres'],
+    '/homevideos': ['folders', 'photos', 'photoalbums', 'videos'],
+    '/musicvideos': ['folders', 'suggestions', 'musicvideos', 'playlists'],
+    '/playlists': ['playlists', 'favorites'],
+    '/mixed': ['folders', 'suggestions', 'mixed', 'collections', 'playlists']
+  };
+
+  var LIBRARY_SORT_NAME = ['SortName'];
+  var LIBRARY_SORT_YEAR = ['ProductionYear', 'PremiereDate', 'SortName'];
+  var LIBRARY_SORT_ADDED = ['DateCreated', 'SortName'];
+
+  // The views carrying a sort menu in Jellyfin 12, each with what sets it apart — every other view
+  // (genres, studios, artists, authors, suggestions, Live TV…) has none there, so we add none either.
+  // `name` is the chain the client sorts a title by (a track goes by Name, an episode by its series),
+  // and `year` its release-date chain, absent from photos and longer for songs. Taken from its own
+  // sortOptionsMapping so an order of ours is always one the server already serves for that view.
+  var LIBRARY_SORTABLE_VIEWS = {
+    movies: {},
+    series: {},
+    episodes: { name: ['SeriesSortName'] },
+    albums: {},
+    songs: {
+      name: ['Name'],
+      nameLabelKey: 'libsort_track',
+      year: ['ProductionYear', 'PremiereDate', 'AlbumArtist', 'Album', 'SortName']
+    },
+    books: {},
+    videos: {},
+    musicvideos: {},
+    photos: { year: null },
+    photoalbums: { year: null },
+    folders: {},
+    mixed: {},
+    collections: {},
+    playlists: {},
+    favorites: {}
+  };
+
+  function librarySortableView(viewType) {
+    return Object.prototype.hasOwnProperty.call(LIBRARY_SORTABLE_VIEWS, String(viewType))
+      ? LIBRARY_SORTABLE_VIEWS[viewType] : null;
+  }
+
+  // The orders we offer on `viewType`: title, year and date added, the last two both ways round.
+  // Empty for a view with no sort menu of its own.
+  function librarySortOptions(viewType) {
+    var spec = librarySortableView(viewType);
+    if (!spec) { return []; }
+    var year = Object.prototype.hasOwnProperty.call(spec, 'year') ? spec.year : LIBRARY_SORT_YEAR;
+    var options = [
+      {
+        id: 'name',
+        labelKey: spec.nameLabelKey || 'libsort_name',
+        icon: 'sort_by_alpha',
+        sortBy: spec.name || LIBRARY_SORT_NAME,
+        order: 'Ascending'
+      }
+    ];
+    if (year) {
+      options.push({ id: 'year-desc', labelKey: 'libsort_year_desc', icon: 'event', sortBy: year, order: 'Descending' });
+      options.push({ id: 'year-asc', labelKey: 'libsort_year_asc', icon: 'event', sortBy: year, order: 'Ascending' });
+    }
+    options.push({ id: 'added-desc', labelKey: 'libsort_added_desc', icon: 'schedule', sortBy: LIBRARY_SORT_ADDED, order: 'Descending' });
+    options.push({ id: 'added-asc', labelKey: 'libsort_added_asc', icon: 'schedule', sortBy: LIBRARY_SORT_ADDED, order: 'Ascending' });
+    return options;
+  }
+
+  // What the client itself stores for a view that has never been configured. Rebuilt here so a first
+  // sort writes a complete settings object instead of one holding only the order.
+  function defaultLibraryViewSettings(viewType) {
+    return {
+      ShowTitle: true,
+      ShowYear: true,
+      ViewMode: viewType === 'songs' ? 'list' : 'grid',
+      ImageType: 'Primary',
+      CardLayout: false,
+      // Its own default order, which is NOT always the "title" entry of that view's menu: a song list
+      // defaults to SortName while its menu sorts by Name, so a fresh music library matches no entry.
+      SortBy: viewType === 'episodes' ? ['SeriesSortName'] : LIBRARY_SORT_NAME,
+      SortOrder: 'Ascending',
+      StartIndex: 0
+    };
+  }
+
+  // The list `hash` points at: its view and the localStorage key holding that view's settings, or null
+  // when it is not a sortable library list — another route, or a tab that carries no sort menu natively
+  // (genres, suggestions, artists…). `landingFor` reads the user's configured landing view for a
+  // library, which picks the tab when the URL carries none.
+  function librarySortTarget(hash, landingFor) {
+    var h = String(hash || '').replace(/^#!?\/?/, '/');
+    var query = h.indexOf('?');
+    var path = query >= 0 ? h.slice(0, query) : h;
+    if (!Object.prototype.hasOwnProperty.call(LIBRARY_ROUTE_TABS, path)) { return null; }
+
+    var tabs = LIBRARY_ROUTE_TABS[path];
+    var params = new URLSearchParams(query >= 0 ? h.slice(query + 1) : '');
+    var libraryId = params.get('topParentId');
+    var tab = params.get('tab');
+    var index;
+    if (tab === null || tab === '') {
+      var landing = (libraryId && typeof landingFor === 'function') ? landingFor(libraryId) : null;
+      index = tabs.indexOf(String(landing || ''));
+      if (!libraryId || index < 0) { index = 0; } // the client's own fallback: the route's default tab
+    } else {
+      index = parseInt(tab, 10);
+    }
+    var viewType = tabs[index];
+    if (!librarySortableView(viewType)) { return null; }
+    // `${view} - ${topParentId}`, the client's own key, null id included.
+    return { viewType: viewType, key: viewType + ' - ' + libraryId };
+  }
+
+  // The settings to store for `option`, keeping every other preference of the view (layout, image type,
+  // filters) untouched. A new order restarts at the first page, as the native menu does.
+  function librarySortSettings(stored, option, viewType) {
+    var out = defaultLibraryViewSettings(viewType);
+    if (stored && typeof stored === 'object') {
+      out = {};
+      for (var k in stored) {
+        if (Object.prototype.hasOwnProperty.call(stored, k)) { out[k] = stored[k]; }
+      }
+    }
+    out.SortBy = option.sortBy.slice();
+    out.SortOrder = option.order;
+    out.StartIndex = 0;
+    return out;
+  }
+
+  // Which of the orders we offer on `viewType` the stored settings correspond to, so the control can
+  // show the current one. Null for an order we don't offer — one set from another client, from the
+  // native menu before we hid it, or the view's own default when its menu holds no entry for it.
+  function activeLibrarySortId(stored, viewType) {
+    var settings = (stored && typeof stored === 'object') ? stored : defaultLibraryViewSettings(viewType);
+    var by = (settings.SortBy || []).join(',');
+    var order = settings.SortOrder || 'Ascending';
+    var options = librarySortOptions(viewType);
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].sortBy.join(',') === by && options[i].order === order) { return options[i].id; }
+    }
+    return null;
+  }
+
+  function librarySortOption(viewType, id) {
+    var options = librarySortOptions(viewType);
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].id === id) { return options[i]; }
+    }
+    return null;
+  }
+
   return {
     normalizeRequestScope: normalizeRequestScope,
     filterHistory: filterHistory,
@@ -1090,6 +1260,13 @@
     pollDismissKey: pollDismissKey,
     pollDismissed: pollDismissed,
     pollDismiss: pollDismiss,
-    pollBarPercent: pollBarPercent
+    pollBarPercent: pollBarPercent,
+    LIBRARY_ROUTE_TABS: LIBRARY_ROUTE_TABS,
+    librarySortOptions: librarySortOptions,
+    defaultLibraryViewSettings: defaultLibraryViewSettings,
+    librarySortTarget: librarySortTarget,
+    librarySortSettings: librarySortSettings,
+    activeLibrarySortId: activeLibrarySortId,
+    librarySortOption: librarySortOption
   };
 });

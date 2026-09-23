@@ -2171,6 +2171,11 @@
       '.jcSettingsTab{padding:.5em 1.1em;border:none;border-radius:.4em;cursor:pointer;background:rgba(127,127,127,.16);color:inherit;font:inherit;font-weight:600;display:inline-flex;align-items:center;gap:.3em;}' +
       '.jcSettingsTab:hover{background:rgba(127,127,127,.3);}' +
       '.jcSettingsTab-active{background:#00a4dc;color:#fff;}' +
+      // Sort control on the Jellyfin 12 library toolbar: pushed to the far right of the row, where the
+      // native buttons sat. margin-left:auto rather than a spacer — the hidden stack takes up no width.
+      '.jcLibrarySort{display:flex;align-items:center;margin-left:auto;padding-left:.6em;}' +
+      '.jcSortMenu{min-width:17em;}' +
+      '.jcSortItem-active{font-weight:700;}' +
       // De-duplicate the header: SyncPlay/Groups and Cast are reachable from the avatar menu, so hide
       // their native header buttons (the menu shortcuts still click them programmatically).
       '.skinHeader .headerSyncButton,.skinHeader .headerCastButton{display:none !important;}' +
@@ -2285,11 +2290,16 @@
   function ensureLib(cb) {
     if (brandingLib) { cb(brandingLib); return; }
     if (window.JellyCrowdLib) { brandingLib = window.JellyCrowdLib; cb(brandingLib); return; }
-    if (document.getElementById('jcLib')) { return; } // load in flight; its onload re-runs both
+    if (document.getElementById('jcLib')) { return; } // load in flight; its onload re-runs them all
     var s = document.createElement('script');
     s.id = 'jcLib';
     s.src = getUrl('JellyCrowd/Web/catalog.lib.js');
-    s.onload = function () { brandingLib = window.JellyCrowdLib || null; applyBranding(); tryInsert(); };
+    s.onload = function () {
+      brandingLib = window.JellyCrowdLib || null;
+      applyBranding();
+      tryInsert();
+      maybeInjectLibrarySort();
+    };
     document.head.appendChild(s);
   }
 
@@ -3002,6 +3012,182 @@
     sections.parentNode.insertBefore(buildHomeCustomizeButton(), sections);
   }
 
+  // ---------- sort control on the Jellyfin 12 library lists ----------
+  // 12 moved the library toolbar (play, shuffle, filters, sort, layout) into the app bar, inside the
+  // same MUI stack as the per-library shortcuts we hide to make room for our own tabs — so its sort menu
+  // goes with them and a library list stays on whatever order was stored last, alphabetical by default.
+  // This puts a sort control back on every list that has one natively — movies, shows, episodes, albums,
+  // songs, books, videos, photos, folders, collections, playlists, favorites — as a direct child of the
+  // toolbar (outside the hidden stack), offering title, year and date added, each way round.
+  //
+  // It writes the client's own per-library preference and fires the event its storage hook listens on,
+  // so the list re-renders natively and the choice is remembered — no request of ours, no second list.
+  // No-op on 10.11, whose own sort menu is untouched (there is no .MuiAppBar-root).
+  var librarySortMenu = null;
+
+  // [0] is the app header, [1] the library toolbar — the client renders both in the same app bar and
+  // mounts the second only on a library route (verified: those are its only two MUI toolbars).
+  function libraryToolbar() {
+    var bars = document.querySelectorAll('.MuiAppBar-root > .MuiToolbar-root');
+    return bars.length > 1 ? bars[1] : null;
+  }
+
+  // The user's landing view for a library, as the client stores it: `<userId>-landing-<libraryId>`.
+  function libraryLanding(libraryId) {
+    var uid = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+    try { return window.localStorage.getItem(uid + '-landing-' + libraryId); } catch (e) { return null; }
+  }
+
+  function librarySortTarget() {
+    return window.JellyCrowdLib.librarySortTarget(window.location.hash || '', libraryLanding);
+  }
+
+  function readLibrarySettings(key) {
+    try {
+      var raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; } // absent, unreadable or corrupt -> treated as "never configured"
+  }
+
+  function applyLibrarySort(target, option) {
+    var L = window.JellyCrowdLib;
+    var key = target.key;
+    var settings = L.librarySortSettings(readLibrarySettings(key), option, target.viewType);
+    try {
+      window.localStorage.setItem(key, JSON.stringify(settings));
+      // The event useLocalStorage (usehooks-ts) listens on for writes made outside of it: it re-reads
+      // the key and re-renders the list. A bare setItem would only show up on the next mount.
+      window.dispatchEvent(new StorageEvent('local-storage', { key: key }));
+    } catch (e) { return; } // private mode / quota: leave the list on its current order
+    maybeInjectLibrarySort(); // relabel the control with the order we just stored
+  }
+
+  function closeLibrarySortMenu() {
+    if (!librarySortMenu) { return; }
+    librarySortMenu.remove();
+    librarySortMenu = null;
+    document.removeEventListener('click', onLibrarySortDocClick, true);
+    document.removeEventListener('keydown', onLibrarySortKey, true);
+    window.removeEventListener('resize', closeLibrarySortMenu);
+  }
+
+  function onLibrarySortDocClick(e) {
+    if (librarySortMenu && !librarySortMenu.contains(e.target)) { closeLibrarySortMenu(); }
+  }
+
+  function onLibrarySortKey(e) { if (e.key === 'Escape') { closeLibrarySortMenu(); } }
+
+  function buildLibrarySortMenu(target, activeId) {
+    var menu = document.createElement('div');
+    menu.className = 'jcAvatarMenu jcSortMenu';
+    menu.setAttribute('role', 'menu');
+    var head = document.createElement('div');
+    head.className = 'jcAvatarMenuHead';
+    head.textContent = t('libsort_title');
+    menu.appendChild(head);
+
+    window.JellyCrowdLib.librarySortOptions(target.viewType).forEach(function (option) {
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'jcAvatarItem' + (option.id === activeId ? ' jcSortItem-active' : '');
+      item.setAttribute('role', 'menuitemradio');
+      item.setAttribute('aria-checked', option.id === activeId ? 'true' : 'false');
+      var ic = document.createElement('span');
+      ic.className = 'material-icons jcAvatarItemIcon';
+      ic.setAttribute('aria-hidden', 'true');
+      ic.textContent = option.id === activeId ? 'check' : option.icon;
+      var tx = document.createElement('span');
+      tx.textContent = t(option.labelKey);
+      item.appendChild(ic);
+      item.appendChild(tx);
+      item.addEventListener('click', function () {
+        applyLibrarySort(target, option);
+        closeLibrarySortMenu();
+      });
+      menu.appendChild(item);
+    });
+    return menu;
+  }
+
+  function toggleLibrarySortMenu(btn, target, activeId) {
+    if (librarySortMenu) { closeLibrarySortMenu(); return; }
+    librarySortMenu = buildLibrarySortMenu(target, activeId);
+    document.body.appendChild(librarySortMenu);
+    var r = btn.getBoundingClientRect();
+    librarySortMenu.style.top = Math.round(r.bottom + 6) + 'px';
+    librarySortMenu.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+    // Defer so the opening click doesn't immediately dismiss it.
+    setTimeout(function () {
+      document.addEventListener('click', onLibrarySortDocClick, true);
+      document.addEventListener('keydown', onLibrarySortKey, true);
+      window.addEventListener('resize', closeLibrarySortMenu);
+    }, 0);
+  }
+
+  function removeLibrarySort() {
+    closeLibrarySortMenu();
+    var el = document.getElementById('jcLibrarySort');
+    if (el && el.parentNode) { el.parentNode.removeChild(el); }
+  }
+
+  function buildLibrarySortButton(target, activeId) {
+    var wrap = document.createElement('div');
+    wrap.id = 'jcLibrarySort';
+    wrap.className = 'jcLibrarySort';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'jcLibrarySortBtn';
+    btn.className = 'jcSettingsTab';
+    btn.setAttribute('aria-haspopup', 'true');
+    var ic = document.createElement('span');
+    ic.className = 'material-icons';
+    ic.setAttribute('aria-hidden', 'true');
+    ic.textContent = 'sort';
+    var option = activeId ? window.JellyCrowdLib.librarySortOption(target.viewType, activeId) : null;
+    // The label carries the current order: with the native toolbar hidden, this control is the only
+    // thing on the page telling the user how the list is sorted.
+    var tx = document.createElement('span');
+    tx.textContent = option ? t(option.labelKey) : t('libsort_title');
+    btn.appendChild(ic);
+    btn.appendChild(tx);
+    btn.setAttribute('title', t('libsort_title'));
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleLibrarySortMenu(btn, target, activeId);
+    });
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  // Idempotent + self-correcting, like the other injectors: the client is React and reconciles our node
+  // away, so rather than guarding "already done" we make sure the right control is in the current
+  // toolbar and rebuild it otherwise (which is also how the label follows a change of order).
+  function maybeInjectLibrarySort() {
+    if (!pluginVisible()) { removeLibrarySort(); return; } // native toolbar is back, ours would double it
+    if (!(window.JellyCrowdLib && window.JellyCrowdLib.librarySortTarget)) {
+      ensureLib(function () { maybeInjectLibrarySort(); }); // pulled in lazily; its load calls us back
+      return;
+    }
+    var target = librarySortTarget();
+    if (!target) { removeLibrarySort(); return; } // not a list the client itself lets you sort
+    var bar = libraryToolbar();
+    if (!bar) { return; } // toolbar not rendered yet — the observer calls us again on the next mutation
+
+    var activeId = window.JellyCrowdLib.activeLibrarySortId(readLibrarySettings(target.key), target.viewType);
+    var existing = document.getElementById('jcLibrarySort');
+    if (existing && bar.contains(existing)
+      && existing.getAttribute('data-jc-key') === target.key
+      && existing.getAttribute('data-jc-active') === (activeId || '')) {
+      return;
+    }
+    if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); }
+    var wrap = buildLibrarySortButton(target, activeId);
+    wrap.setAttribute('data-jc-key', target.key);
+    wrap.setAttribute('data-jc-active', activeId || '');
+    bar.appendChild(wrap);
+  }
+
   function start() {
     // Detail pages (and their review/claim anchors) render asynchronously and SPA route changes don't
     // always fire hashchange reliably — so besides the nav listeners, retry injection on DOM mutations,
@@ -3022,6 +3208,7 @@
       applyBranding(); // re-assert branding when the web client re-renders (idempotent)
       maybeInjectSettingsTabs(); // React reconciles the settings pages — keep our sub-tab bar present
       maybeInjectHomeCustomize(); // and the "Customize home" shortcut on the home screen
+      maybeInjectLibrarySort(); // and the sort control on the Jellyfin 12 library lists
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
       scheduleDetailInject();
     });
@@ -3059,6 +3246,7 @@
       removeProfileEmail(); maybeInjectProfileEmail(0);
       removeSettingsTabs(); maybeInjectSettingsTabs(0);
       maybeInjectHomeCustomize();
+      removeLibrarySort(); maybeInjectLibrarySort(); // the list and its tab are both in the hash
     }
     window.addEventListener('hashchange', onDetailNav);
     window.addEventListener('popstate', onDetailNav);
@@ -3067,6 +3255,7 @@
     maybeInjectProfileEmail(0); // initial load may already be the profile page
     maybeInjectSettingsTabs(0); // initial load may already be a settings page
     maybeInjectHomeCustomize(); // initial load may already be the home screen
+    maybeInjectLibrarySort(); // initial load may already be a library list
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).
