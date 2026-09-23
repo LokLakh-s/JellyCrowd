@@ -673,3 +673,207 @@ test('quotaSegments tolerates missing or negative values', () => {
   assert.deepStrictEqual(lib.quotaSegments(null, undefined, 100), { used: 0, reserved: 0 });
   assert.deepStrictEqual(lib.quotaSegments(10, -5, 100), { used: 10, reserved: 0 });
 });
+
+// ---------- sort control on the Jellyfin 12 library lists ----------
+
+const noLanding = () => null;
+const target = (hash, landing = noLanding) => lib.librarySortTarget(hash, landing);
+const optionIds = viewType => lib.librarySortOptions(viewType).map(o => o.id);
+
+test('librarySortTarget returns the view and the client key of a library list', () => {
+  assert.deepStrictEqual(target('#/movies?topParentId=7e64e319657a9516ec78490da03edccb'),
+    { viewType: 'movies', key: 'movies - 7e64e319657a9516ec78490da03edccb' });
+  assert.deepStrictEqual(target('#/tv?topParentId=abc'), { viewType: 'series', key: 'series - abc' });
+  assert.deepStrictEqual(target('#/music?topParentId=abc'), { viewType: 'albums', key: 'albums - abc' });
+});
+
+test('librarySortTarget resolves the tab of every library route', () => {
+  // One sortable tab per route, taken from the client's own tab order.
+  const cases = [
+    ['#/movies?topParentId=a&tab=2', 'favorites'],
+    ['#/tv?topParentId=a&tab=5', 'episodes'],
+    ['#/music?topParentId=a&tab=5', 'songs'],
+    ['#/books?topParentId=a&tab=1', 'books'],
+    ['#/boxsets?topParentId=a&tab=0', 'collections'],
+    ['#/homevideos?topParentId=a&tab=1', 'photos'],
+    ['#/homevideos?topParentId=a&tab=3', 'videos'],
+    ['#/musicvideos?topParentId=a&tab=2', 'musicvideos'],
+    ['#/playlists?topParentId=a&tab=0', 'playlists'],
+    ['#/mixed?topParentId=a&tab=2', 'mixed']
+  ];
+  for (const [hash, viewType] of cases) {
+    assert.deepStrictEqual(target(hash), { viewType, key: `${viewType} - a` }, hash);
+  }
+});
+
+test('librarySortTarget ignores the tabs the client itself does not let you sort', () => {
+  // Menu-only views (genres, suggestions, upcoming) and views whose sort button is disabled
+  // (studios, artists, album artists, authors).
+  const cases = [
+    '#/movies?topParentId=a&tab=1', // suggestions
+    '#/movies?topParentId=a&tab=4', // genres
+    '#/movies?topParentId=a&tab=5', // studios
+    '#/tv?topParentId=a&tab=2', // upcoming
+    '#/tv?topParentId=a&tab=4', // studios / networks
+    '#/music?topParentId=a&tab=2', // album artists
+    '#/music?topParentId=a&tab=3', // artists
+    '#/books?topParentId=a&tab=2' // authors
+  ];
+  for (const hash of cases) {
+    assert.strictEqual(target(hash), null, hash);
+  }
+});
+
+test('librarySortTarget ignores Live TV, whose tabs carry no sort menu', () => {
+  assert.strictEqual(target('#/livetv'), null);
+  assert.strictEqual(target('#/livetv?tab=2'), null);
+});
+
+test('librarySortTarget ignores non-library routes and the #! form is accepted', () => {
+  assert.strictEqual(target('#/home'), null);
+  assert.strictEqual(target('#/search?query=a'), null);
+  assert.strictEqual(target(''), null);
+  assert.strictEqual(target(null), null);
+  assert.deepStrictEqual(target('#!/movies?topParentId=abc'), { viewType: 'movies', key: 'movies - abc' });
+});
+
+test('librarySortTarget honors the landing view when the URL carries no tab', () => {
+  // A library that opens on Genres is not on a sortable list, even at /movies with no tab.
+  assert.strictEqual(target('#/movies?topParentId=abc', () => 'genres'), null);
+  assert.deepStrictEqual(target('#/tv?topParentId=abc', () => 'episodes'),
+    { viewType: 'episodes', key: 'episodes - abc' });
+  // An unknown landing value falls back to the route's default tab, as the client does.
+  assert.deepStrictEqual(target('#/tv?topParentId=abc', () => 'nonsense'),
+    { viewType: 'series', key: 'series - abc' });
+});
+
+test('librarySortTarget mirrors the client key for a library-less route', () => {
+  assert.deepStrictEqual(target('#/movies', () => 'genres'), { viewType: 'movies', key: 'movies - null' });
+});
+
+test('librarySortOptions offers title, year and date added, the last two both ways', () => {
+  assert.deepStrictEqual(optionIds('movies'), ['name', 'year-desc', 'year-asc', 'added-desc', 'added-asc']);
+  assert.deepStrictEqual(optionIds('series'), ['name', 'year-desc', 'year-asc', 'added-desc', 'added-asc']);
+});
+
+test('librarySortOptions drops the year where the client offers none', () => {
+  // Photos and photo albums have no release-date entry in Jellyfin 12's own menu.
+  assert.deepStrictEqual(optionIds('photos'), ['name', 'added-desc', 'added-asc']);
+  assert.deepStrictEqual(optionIds('photoalbums'), ['name', 'added-desc', 'added-asc']);
+});
+
+test('librarySortOptions is empty for a view with no sort menu', () => {
+  for (const view of ['genres', 'studios', 'artists', 'suggestions', 'guide', '', undefined]) {
+    assert.deepStrictEqual(lib.librarySortOptions(view), [], String(view));
+  }
+});
+
+test('librarySortOptions carries the chains the client uses for each view', () => {
+  const chain = (view, id) => lib.librarySortOption(view, id).sortBy;
+  // Titles: a song goes by Name, an episode by its series, everything else by SortName.
+  assert.deepStrictEqual(chain('movies', 'name'), ['SortName']);
+  assert.deepStrictEqual(chain('episodes', 'name'), ['SeriesSortName']);
+  assert.deepStrictEqual(chain('songs', 'name'), ['Name']);
+  // Year is the client's "release date": year first, hence sorting by year.
+  assert.deepStrictEqual(chain('movies', 'year-desc'), ['ProductionYear', 'PremiereDate', 'SortName']);
+  assert.deepStrictEqual(chain('songs', 'year-asc'),
+    ['ProductionYear', 'PremiereDate', 'AlbumArtist', 'Album', 'SortName']);
+  // Date added is the same chain everywhere.
+  for (const view of ['movies', 'series', 'songs', 'photos', 'books']) {
+    assert.deepStrictEqual(chain(view, 'added-desc'), ['DateCreated', 'SortName'], view);
+  }
+});
+
+test('librarySortOptions labels a song list by track name', () => {
+  assert.strictEqual(lib.librarySortOption('songs', 'name').labelKey, 'libsort_track');
+  assert.strictEqual(lib.librarySortOption('movies', 'name').labelKey, 'libsort_name');
+});
+
+test('librarySortOption is null for an unknown id or an unsortable view', () => {
+  assert.strictEqual(lib.librarySortOption('movies', 'nope'), null);
+  assert.strictEqual(lib.librarySortOption('genres', 'name'), null);
+  assert.strictEqual(lib.librarySortOption('photos', 'year-desc'), null); // no year on photos
+});
+
+test('librarySortSettings writes a complete settings object when none is stored', () => {
+  const settings = lib.librarySortSettings(null, lib.librarySortOption('movies', 'year-desc'), 'movies');
+  assert.deepStrictEqual(settings.SortBy, ['ProductionYear', 'PremiereDate', 'SortName']);
+  assert.strictEqual(settings.SortOrder, 'Descending');
+  assert.strictEqual(settings.ViewMode, 'grid');
+  assert.strictEqual(settings.ImageType, 'Primary');
+});
+
+test('librarySortSettings keeps the view defaults the client itself uses', () => {
+  // A song list is a list, not a grid, in Jellyfin 12's own defaults.
+  const songs = lib.librarySortSettings(null, lib.librarySortOption('songs', 'added-desc'), 'songs');
+  assert.strictEqual(songs.ViewMode, 'list');
+  const movies = lib.librarySortSettings(null, lib.librarySortOption('movies', 'added-desc'), 'movies');
+  assert.strictEqual(movies.ViewMode, 'grid');
+});
+
+test('librarySortSettings keeps the other preferences of the view', () => {
+  const stored = {
+    ShowTitle: false, ShowYear: true, ViewMode: 'list', ImageType: 'Banner', CardLayout: true,
+    SortBy: ['SortName'], SortOrder: 'Ascending', StartIndex: 100, Filters: { Genres: ['Horror'] }
+  };
+  const settings = lib.librarySortSettings(stored, lib.librarySortOption('movies', 'added-asc'), 'movies');
+  assert.strictEqual(settings.ViewMode, 'list');
+  assert.strictEqual(settings.ImageType, 'Banner');
+  assert.strictEqual(settings.CardLayout, true);
+  assert.deepStrictEqual(settings.Filters, { Genres: ['Horror'] });
+  assert.deepStrictEqual(settings.SortBy, ['DateCreated', 'SortName']);
+  assert.strictEqual(settings.SortOrder, 'Ascending');
+});
+
+test('librarySortSettings restarts at the first page', () => {
+  const settings = lib.librarySortSettings({ StartIndex: 500 }, lib.librarySortOption('movies', 'name'), 'movies');
+  assert.strictEqual(settings.StartIndex, 0);
+});
+
+test('librarySortSettings does not alias the option it was given', () => {
+  const option = lib.librarySortOption('movies', 'year-asc');
+  lib.librarySortSettings(null, option, 'movies').SortBy.push('Runtime');
+  assert.deepStrictEqual(option.sortBy, ['ProductionYear', 'PremiereDate', 'SortName']);
+});
+
+test('activeLibrarySortId reads back every order we offer, on every sortable view', () => {
+  for (const view of Object.keys(lib.LIBRARY_ROUTE_TABS)
+    .flatMap(route => lib.LIBRARY_ROUTE_TABS[route])
+    .filter(v => lib.librarySortOptions(v).length)) {
+    for (const option of lib.librarySortOptions(view)) {
+      const stored = lib.librarySortSettings(null, option, view);
+      assert.strictEqual(lib.activeLibrarySortId(stored, view), option.id, `${view}/${option.id}`);
+    }
+  }
+});
+
+test('activeLibrarySortId reports the client default for an unconfigured library', () => {
+  assert.strictEqual(lib.activeLibrarySortId(null, 'movies'), 'name');
+  assert.strictEqual(lib.activeLibrarySortId(null, 'episodes'), 'name'); // defaults to SeriesSortName
+  // A fresh song list defaults to SortName, which is not an entry of its own menu (it sorts by Name).
+  assert.strictEqual(lib.activeLibrarySortId(null, 'songs'), null);
+});
+
+test('activeLibrarySortId returns null for an order we do not offer', () => {
+  assert.strictEqual(lib.activeLibrarySortId({ SortBy: ['Random'], SortOrder: 'Ascending' }, 'movies'), null);
+  // Same chain, other direction: our year entries are direction-specific.
+  assert.strictEqual(lib.activeLibrarySortId({ SortBy: ['Runtime', 'SortName'], SortOrder: 'Descending' }, 'movies'), null);
+  // The year an unsortable view could never have been given.
+  assert.strictEqual(lib.activeLibrarySortId({ SortBy: ['ProductionYear', 'PremiereDate', 'SortName'], SortOrder: 'Descending' }, 'photos'), null);
+});
+
+test('every tab of every route is a known view, and each route keeps the client tab order', () => {
+  // Guards the table against a typo: a misspelt tab would silently disable sorting on that tab.
+  assert.strictEqual(lib.LIBRARY_ROUTE_TABS['/movies'][0], 'movies');
+  assert.strictEqual(lib.LIBRARY_ROUTE_TABS['/tv'][0], 'series');
+  assert.strictEqual(lib.LIBRARY_ROUTE_TABS['/music'][0], 'albums');
+  assert.strictEqual(lib.LIBRARY_ROUTE_TABS['/livetv'], undefined); // left out: nothing sortable there
+  const known = new Set(['movies', 'suggestions', 'favorites', 'collections', 'genres', 'studios',
+    'playlists', 'series', 'upcoming', 'episodes', 'albums', 'albumartists', 'artists', 'songs',
+    'folders', 'books', 'authors', 'photos', 'photoalbums', 'videos', 'musicvideos', 'mixed']);
+  for (const [route, tabs] of Object.entries(lib.LIBRARY_ROUTE_TABS)) {
+    for (const tab of tabs) {
+      assert.ok(known.has(tab), `${route}: ${tab}`);
+    }
+  }
+});

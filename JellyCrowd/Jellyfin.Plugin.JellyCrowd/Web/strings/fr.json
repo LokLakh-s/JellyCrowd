@@ -695,5 +695,12 @@
   "poll_audience_hint": "Aucun groupe coché : tout le monde peut voter.",
   "poll_everyone": "Tout le monde",
   "poll_new_full": "Nouveau sondage",
-  "poll_voters": "Votants"
+  "poll_voters": "Votants",
+  "libsort_title": "Trier",
+  "libsort_name": "Nom (A → Z)",
+  "libsort_year_desc": "Année (du plus récent)",
+  "libsort_year_asc": "Année (du plus ancien)",
+  "libsort_added_desc": "Date d'ajout (du plus récent)",
+  "libsort_added_asc": "Date d'ajout (du plus ancien)",
+  "libsort_track": "Titre de la piste (A → Z)"
 }
