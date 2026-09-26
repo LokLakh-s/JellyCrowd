@@ -950,10 +950,13 @@ body.jellycrowd-overlay-open {
   cursor: pointer;
 }
 
+/* Modals cover the native header: above the classic skinHeader (999) and the MUI layers of Jellyfin 12
+   (app bar 1100, drawer 1200, modal 1300) — below 1100 the app bar hid the close button on phones.
+   Stays under the header popovers (10000+) and the native dialogs (999999). */
 .jellycrowd-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 1350;
   display: flex;
   align-items: center;
   justify-content: center;
