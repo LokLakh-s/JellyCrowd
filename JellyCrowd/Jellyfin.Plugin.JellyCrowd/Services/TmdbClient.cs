@@ -115,9 +115,16 @@ public class TmdbClient : ITmdbClient
       .Append("?language=").Append(Escape(language))
       .Append("&include_adult=false&vote_count.gte=50&sort_by=").Append(SortBy(query.SortBy, isMovie));
 
-    if (!string.IsNullOrWhiteSpace(query.Genres))
+    // On shows, Horror and Thriller are keywords, not genres (see TvKeywordGenres).
+    var (genres, keywords) = isMovie ? (query.Genres, null) : TvKeywordGenres.Split(query.Genres);
+    if (!string.IsNullOrWhiteSpace(genres))
     {
-      builder.Append("&with_genres=").Append(Escape(query.Genres));
+      builder.Append("&with_genres=").Append(Escape(genres));
+    }
+
+    if (!string.IsNullOrWhiteSpace(keywords))
+    {
+      builder.Append("&with_keywords=").Append(Escape(keywords));
     }
 
     if (query.MinYear.HasValue)
@@ -183,7 +190,27 @@ public class TmdbClient : ITmdbClient
     EnsureMediaType(mediaType);
 
     var json = await GetAsync($"/genre/{mediaType}/list?language={Escape(language)}", cancellationToken).ConfigureAwait(false);
-    return TmdbResponseParser.ParseGenres(json);
+    var genres = TmdbResponseParser.ParseGenres(json);
+    if (string.Equals(mediaType, "movie", StringComparison.Ordinal))
+    {
+      return genres;
+    }
+
+    // The movie list only supplies localized labels for the keyword-backed TV genres: without it they
+    // fall back to English rather than failing the whole list.
+    IReadOnlyList<Genre> movieGenres;
+    try
+    {
+      var movieJson = await GetAsync($"/genre/movie/list?language={Escape(language)}", cancellationToken).ConfigureAwait(false);
+      movieGenres = TmdbResponseParser.ParseGenres(movieJson);
+    }
+    catch (HttpRequestException ex)
+    {
+      _logger.LogWarning(ex, "TMDB movie genre list unavailable; keyword genre labels fall back to English");
+      movieGenres = Array.Empty<Genre>();
+    }
+
+    return TvKeywordGenres.Merge(genres, movieGenres);
   }
 
   /// <inheritdoc />

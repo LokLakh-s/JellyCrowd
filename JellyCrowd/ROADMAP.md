@@ -644,3 +644,22 @@ l'ordre mémorisé en dernier, **alphabétique** par défaut, sans moyen d'en ch
 - ☑ **Tests** : `catalog.lib.test.js` — résolution de la vue et de la clé pour chaque route et chaque
   onglet, onglets non triables écartés, vue d'atterrissage, chaînes de tri par vue, fusion des réglages
   sans perdre les autres préférences, relecture de l'ordre courant.
+
+### M36 — Catalogue séries : nombre de saisons, Horreur & Thriller  ☑ *(livré)*
+
+- ☑ **Filtre-fourchette « Saisons »** (onglet Séries uniquement) : curseur double de 1 à « 20+ » (en haut,
+  pas de maximum). `/discover/tv` n'a **aucun** paramètre de nombre de saisons (doc TMDB vérifiée) : le
+  serveur filtre chaque page **après coup** (`SeasonRangeFilter`), d'après la liste des saisons de chaque
+  série (cache 12 h, 4 requêtes en parallèle), **saison 0 (spéciaux) exclue** comme le fait
+  `number_of_seasons`. Une série dont la liste échoue est écartée sans faire échouer la page.
+- ☑ **Conséquence assumée** : une page filtrée peut revenir courte, voire vide, alors que la suite contient
+  encore des séries dans la fourchette. Le flux saute donc jusqu'à **6 pages vides d'affilée** avant de
+  s'arrêter (`feedEndsOnEmptyPage`) ; sans filtre de saisons, la première page vide reste la fin.
+- ☑ **Horreur et Thriller** pour les séries : TMDB n'a pas ces genres côté TV (vérifié : `with_genres=27`
+  ou `53` sur `/discover/tv` → 0 résultat). Ils sont proposés sous leur **id de genre film** (27, 53), donc
+  sans collision avec un genre TV, et traduits côté serveur en **mots-clés TMDB** `horror` (315058) et
+  `thriller` (316362) → `with_keywords` (`TvKeywordGenres`). Libellés localisés par TMDB via la liste des
+  genres **films** de la même langue, repli anglais si elle échoue.
+- ☑ **Tests** : `TvKeywordGenresTests`, `SeasonRangeFilterTests`, `CatalogControllerTests` (fourchette
+  valide / invalide / ignorée pour les films), `ServarrHttpIntegrationTests` (URL `/discover/tv` et liste
+  des genres TV contre WireMock) + `catalog.lib.test.js` (requête, libellé « 20+ », fin de flux).

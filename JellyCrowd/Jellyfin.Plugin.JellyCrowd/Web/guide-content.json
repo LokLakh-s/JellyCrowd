@@ -22,7 +22,7 @@
           "intro": "Clique sur <b>Catalogue</b> en haut. Tu tombes sur « Le plus demandé ici », puis les nouveautés classées par plateforme.",
           "bullets": [
             "Bascule entre <b>Films</b> et <b>Séries</b> en haut à gauche.",
-            "Affine avec les <b>genres</b>, les curseurs <b>Années</b> et <b>Note</b>, la <b>langue</b>, le <b>pays</b> et <b>Trier par</b>.",
+            "Affine avec les <b>genres</b>, les curseurs <b>Années</b>, <b>Note</b> et, pour les séries, <b>Saisons</b>, la <b>langue</b>, le <b>pays</b> et <b>Trier par</b>.",
             "Le badge vert <b>« Disponible »</b> sur une affiche = c'est déjà sur le serveur, regardable tout de suite."
           ],
           "figs": [
@@ -209,7 +209,7 @@
           "intro": "Click <b>Catalogue</b> at the top. You'll land on “Most requested here”, then new arrivals grouped by platform.",
           "bullets": [
             "Switch between <b>Movies</b> and <b>Series</b> at the top left.",
-            "Narrow it down with <b>genres</b>, the <b>Years</b> and <b>Rating</b> sliders, <b>language</b>, <b>country</b> and <b>Sort by</b>.",
+            "Narrow it down with <b>genres</b>, the <b>Years</b>, <b>Rating</b> and, for shows, <b>Seasons</b> sliders, <b>language</b>, <b>country</b> and <b>Sort by</b>.",
             "A green <b>“Available”</b> badge on a poster means it's already on the server — watch it right away."
           ],
           "figs": [

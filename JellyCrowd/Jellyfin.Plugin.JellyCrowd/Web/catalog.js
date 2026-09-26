@@ -42,6 +42,8 @@
     maxYear: MAX_YEAR,
     minRating: 0,
     maxRating: 10,
+    minSeasons: 1,
+    maxSeasons: lib.SEASONS_RANGE_MAX,
     sortBy: 'popularity',
     watchProviders: '',
     originalLanguage: '',
@@ -1402,6 +1404,8 @@
   var feedLoading = false;
   var feedExhausted = false;
   var feedObserver = null;
+  // Empty pages in a row; a season-filtered feed may skip a few before it really ends.
+  var emptyPageStreak = 0;
 
   function setMessage(text) {
     var el = document.getElementById('jcMessage');
@@ -1421,7 +1425,7 @@
     return filters.genres.length > 0 || filters.minYear > MIN_YEAR || filters.maxYear < MAX_YEAR
       || filters.minRating > 0 || filters.maxRating < 10 || filters.sortBy !== 'popularity'
       || !!filters.watchProviders || !!filters.originalLanguage || !!filters.originCountry
-      || filters.personId > 0;
+      || filters.personId > 0 || lib.seasonRangeActive(filters);
   }
 
   function baseDiscover() {
@@ -1447,6 +1451,7 @@
     if (filters.originalLanguage) { p += '&originalLanguage=' + encodeURIComponent(filters.originalLanguage); }
     if (filters.originCountry) { p += '&originCountry=' + encodeURIComponent(filters.originCountry); }
     if (filters.personId) { p += '&withPeople=' + filters.personId; }
+    p += lib.seasonRangeQuery(filters);
     return p;
   }
 
@@ -1467,12 +1472,17 @@
     return apiGet(pagePath(page)).then(function (items) {
       lib.clearSkeletons(grid);
       if (!items || items.length === 0) {
+        emptyPageStreak++;
+        if (!lib.feedEndsOnEmptyPage(emptyPageStreak, lib.seasonRangeActive(filters))) {
+          return; // loadNext moves on to the next page while the sentinel is in view
+        }
         feedExhausted = true;
         if (grid && grid.childElementCount === 0 && !feedEl().querySelector('.jellycrowd-row')) {
           setMessage(t('no_results'));
         }
         return;
       }
+      emptyPageStreak = 0;
       setMessage('');
       items.forEach(function (item) { grid.appendChild(renderCard(item)); });
     }).catch(function (e) {
@@ -1605,6 +1615,7 @@
   function resetFeed() {
     feedLoading = false;
     feedExhausted = false;
+    emptyPageStreak = 0;
     gridPage = 0;
     feedEl().innerHTML = '';
     renderActiveFilters();
@@ -1711,6 +1722,15 @@
         filters.maxRating = 10;
         setupRatingSlider();
       } });
+    }
+    if (lib.seasonRangeActive(filters)) {
+      chips.push({
+        label: t('filters_seasons') + ' ' + lib.formatSeasonBound(filters.minSeasons) + '–' + lib.formatSeasonBound(filters.maxSeasons),
+        clear: function () {
+          resetSeasonRange();
+          setupSeasonSlider();
+        }
+      });
     }
     if (filters.sortBy && filters.sortBy !== 'popularity') {
       chips.push({ label: t('filters_sort'), clear: function () {
@@ -1830,6 +1850,26 @@
     });
   }
 
+  function setupSeasonSlider() {
+    dualSlider(document.getElementById('jcSeasons'), {
+      min: 1, max: lib.SEASONS_RANGE_MAX, step: 1, low: filters.minSeasons, high: filters.maxSeasons,
+      format: lib.formatSeasonBound,
+      onChange: function (lo, hi) { filters.minSeasons = Math.round(lo); filters.maxSeasons = Math.round(hi); resetFeed(); }
+    });
+  }
+
+  function resetSeasonRange() {
+    filters.minSeasons = 1;
+    filters.maxSeasons = lib.SEASONS_RANGE_MAX;
+  }
+
+  // The season range only means something on the Séries tab (a filmography is movies, see
+  // discoverMediaType): hide it anywhere else.
+  function syncSeasonFilter() {
+    var el = document.getElementById('jcFilterSeasons');
+    if (el) { el.hidden = lib.discoverMediaType(filters) !== 'tv'; }
+  }
+
   function buildSort() {
     var select = document.getElementById('jcSort');
     select.innerHTML = '';
@@ -1897,6 +1937,9 @@
     filters.mediaType = type;
     filters.genres = [];
     filters.watchProviders = '';
+    resetSeasonRange();
+    setupSeasonSlider();
+    syncSeasonFilter();
     document.getElementById('jcTypeMovie').classList.toggle('jellycrowd-chip-active', type === 'movie');
     document.getElementById('jcTypeTv').classList.toggle('jellycrowd-chip-active', type === 'tv');
     loadGenres();
@@ -1909,6 +1952,7 @@
     filters.maxYear = MAX_YEAR;
     filters.minRating = 0;
     filters.maxRating = 10;
+    resetSeasonRange();
     filters.sortBy = 'popularity';
     filters.watchProviders = '';
     filters.originalLanguage = '';
@@ -1924,6 +1968,8 @@
     document.getElementById('jcSearchInput').value = '';
     setupYearSlider();
     setupRatingSlider();
+    setupSeasonSlider();
+    syncSeasonFilter();
     loadGenres();
     resetFeed();
   }
@@ -1962,6 +2008,9 @@
     // A filmography is movies (TMDB has no person filter for TV), so land on the Movies tab: the click
     // can come from a show's cast, and leaving the tab on Séries would look like it did nothing.
     filters.mediaType = 'movie';
+    resetSeasonRange();
+    setupSeasonSlider();
+    syncSeasonFilter();
     var movieTab = document.getElementById('jcTypeMovie');
     var tvTab = document.getElementById('jcTypeTv');
     if (movieTab) { movieTab.classList.add('jellycrowd-chip-active'); }
@@ -1991,6 +2040,7 @@
     document.getElementById('jcLabelGenres').textContent = t('filters_genres');
     document.getElementById('jcLabelYear').textContent = t('filters_year');
     document.getElementById('jcLabelRating').textContent = t('filters_rating');
+    document.getElementById('jcLabelSeasons').textContent = t('filters_seasons');
     document.getElementById('jcLabelSort').textContent = t('filters_sort');
     document.getElementById('jcLabelLang').textContent = t('filters_language');
     document.getElementById('jcLabelCountry').textContent = t('filters_country');
@@ -2007,6 +2057,8 @@
       buildLanguageCountryFilters();
       setupYearSlider();
       setupRatingSlider();
+      setupSeasonSlider();
+      syncSeasonFilter();
 
       document.getElementById('jcTypeMovie').addEventListener('click', function () { setMediaType('movie'); });
       document.getElementById('jcTypeTv').addEventListener('click', function () { setMediaType('tv'); });

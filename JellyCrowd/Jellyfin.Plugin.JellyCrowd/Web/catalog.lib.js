@@ -753,6 +753,41 @@
     return (filters && filters.mediaType) || 'movie';
   }
 
+  // Top of the season-range slider. It reads "20+": at the top, the range has no upper bound.
+  var SEASONS_RANGE_MAX = 20;
+
+  // Consecutive empty pages a season-filtered feed tolerates before it stops. The server filters each
+  // TMDB page after the fact, so an empty page does not mean the end: matches can resume further on.
+  var SEASON_FEED_EMPTY_PAGES = 6;
+
+  function seasonRangeActive(filters) {
+    if (!filters || discoverMediaType(filters) !== 'tv') { return false; }
+    var lo = Number(filters.minSeasons) || 1;
+    var hi = Number(filters.maxSeasons) || SEASONS_RANGE_MAX;
+    return lo > 1 || hi < SEASONS_RANGE_MAX;
+  }
+
+  // Discover query string for the season range: empty unless the range restricts something (shows only).
+  function seasonRangeQuery(filters) {
+    if (!seasonRangeActive(filters)) { return ''; }
+    var lo = Number(filters.minSeasons) || 1;
+    var hi = Number(filters.maxSeasons) || SEASONS_RANGE_MAX;
+    var q = '';
+    if (lo > 1) { q += '&minSeasons=' + lo; }
+    if (hi < SEASONS_RANGE_MAX) { q += '&maxSeasons=' + hi; }
+    return q;
+  }
+
+  function formatSeasonBound(value) {
+    var n = Math.round(Number(value));
+    return n >= SEASONS_RANGE_MAX ? SEASONS_RANGE_MAX + '+' : String(n);
+  }
+
+  // Whether an empty page ends the feed. `emptyStreak` counts the empty pages in a row, this one included.
+  function feedEndsOnEmptyPage(emptyStreak, sparse) {
+    return !sparse || emptyStreak >= SEASON_FEED_EMPTY_PAGES;
+  }
+
   // A deliberately loose "does this look like an address" check, to catch a typo before a round-trip.
   // The server validates for real before it ever uses the value as an SMTP recipient — this must never
   // be the only gate, and must not reject addresses the server would accept.
@@ -1209,6 +1244,12 @@
     buildConfirmDialog: buildConfirmDialog,
     bulkFailureMessage: bulkFailureMessage,
     discoverMediaType: discoverMediaType,
+    SEASONS_RANGE_MAX: SEASONS_RANGE_MAX,
+    SEASON_FEED_EMPTY_PAGES: SEASON_FEED_EMPTY_PAGES,
+    seasonRangeActive: seasonRangeActive,
+    seasonRangeQuery: seasonRangeQuery,
+    formatSeasonBound: formatSeasonBound,
+    feedEndsOnEmptyPage: feedEndsOnEmptyPage,
     historyEntryLabel: historyEntryLabel,
     isEmailish: isEmailish,
     buildSkeletons: buildSkeletons,

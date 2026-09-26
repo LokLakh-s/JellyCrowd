@@ -1278,6 +1278,11 @@ body.jellycrowd-overlay-open {
   min-width: 12em;
 }
 
+/* `display: flex` above would otherwise override the attribute (the season range off the Séries tab). */
+.jellycrowd-filter[hidden] {
+  display: none;
+}
+
 .jellycrowd-filter-label {
   font-size: 0.8em;
   text-transform: uppercase;

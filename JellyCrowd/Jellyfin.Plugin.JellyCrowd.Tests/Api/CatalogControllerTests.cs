@@ -237,9 +237,74 @@ public class CatalogControllerTests
     var items = new List<CatalogItem> { new() { TmdbId = 7, MediaType = "movie", Title = "D" } };
     var controller = CreateController(new FakeTmdbClient { Results = items });
 
-    var result = await controller.Discover("movie", "28", 2000, 2020, 6.0, 9.0, "rating", null, null, null, null, null, null, null, null, CancellationToken.None);
+    var result = await controller.Discover("movie", "28", 2000, 2020, 6.0, 9.0, "rating", null, null, null, null, null, null, null, null, null, null, CancellationToken.None);
 
     Assert.IsType<OkObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Discover_TvWithSeasonRange_KeepsOnlyShowsInRange_InOrder()
+  {
+    var tmdb = new FakeTmdbClient
+    {
+      Results = new List<CatalogItem>
+      {
+        new() { TmdbId = 1, MediaType = "tv", Title = "One season" },
+        new() { TmdbId = 2, MediaType = "tv", Title = "Three seasons" },
+        new() { TmdbId = 3, MediaType = "tv", Title = "Two seasons" }
+      },
+      SeasonsById = new Dictionary<int, IReadOnlyList<Season>>
+      {
+        [1] = SeasonList(1),
+        [2] = SeasonList(3),
+        [3] = SeasonList(2)
+      }
+    };
+    var controller = CreateController(tmdb);
+
+    var result = await controller.Discover("tv", null, null, null, null, null, null, null, null, null, null, null, null, 2, 3, null, null, CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(ok.Value);
+    Assert.Equal(new[] { 2, 3 }, payload.Select(i => i.TmdbId));
+  }
+
+  [Fact]
+  public async Task Discover_MovieWithSeasonRange_IgnoresIt()
+  {
+    // Movies have no seasons: the range must not empty the page (nor cost a lookup per title).
+    var items = new List<CatalogItem> { new() { TmdbId = 7, MediaType = "movie", Title = "D" } };
+    var controller = CreateController(new FakeTmdbClient { Results = items });
+
+    var result = await controller.Discover("movie", null, null, null, null, null, null, null, null, null, null, null, null, 2, 3, null, null, CancellationToken.None);
+
+    var ok = Assert.IsType<OkObjectResult>(result.Result);
+    Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(ok.Value));
+  }
+
+  [Theory]
+  [InlineData(4, 2)]
+  [InlineData(0, 3)]
+  [InlineData(null, 0)]
+  public async Task Discover_TvWithInvalidSeasonRange_ReturnsBadRequest(int? minSeasons, int? maxSeasons)
+  {
+    var controller = CreateController(new FakeTmdbClient());
+
+    var result = await controller.Discover("tv", null, null, null, null, null, null, null, null, null, null, null, null, minSeasons, maxSeasons, null, null, CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result.Result);
+  }
+
+  private static IReadOnlyList<Season> SeasonList(int regularSeasons)
+  {
+    // Specials (season 0) are listed too, and must not count.
+    var seasons = new List<Season> { new() { SeasonNumber = 0, Name = "Specials" } };
+    for (var n = 1; n <= regularSeasons; n++)
+    {
+      seasons.Add(new Season { SeasonNumber = n, Name = "Season " + n });
+    }
+
+    return seasons;
   }
 
   [Fact]
@@ -293,6 +358,9 @@ public class CatalogControllerTests
     public CatalogItem? Detail { get; set; } = new() { TmdbId = 1, MediaType = "movie", Title = "Detail" };
 
     public IReadOnlyList<Season> Seasons { get; set; } = new List<Season>();
+
+    // Per-show seasons, when a test needs them to differ; otherwise every show gets Seasons.
+    public IReadOnlyDictionary<int, IReadOnlyList<Season>>? SeasonsById { get; set; }
 
     public IReadOnlyList<Episode> Episodes { get; set; } = new List<Episode>();
 
@@ -373,7 +441,7 @@ public class CatalogControllerTests
         throw Throw;
       }
 
-      return Task.FromResult(Seasons);
+      return Task.FromResult(SeasonsById is not null && SeasonsById.TryGetValue(tmdbId, out var byId) ? byId : Seasons);
     }
 
     public Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken)

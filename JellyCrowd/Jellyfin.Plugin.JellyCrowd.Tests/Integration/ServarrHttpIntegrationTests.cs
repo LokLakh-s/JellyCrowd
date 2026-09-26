@@ -219,6 +219,67 @@ public sealed class ServarrHttpIntegrationTests : IDisposable
     Assert.Single(_server.LogEntries);
   }
 
+  [Fact]
+  public async Task Tmdb_DiscoverTv_SendsHorrorAsAKeyword_AndKeepsRealGenres()
+  {
+    // TMDB has no Horror genre for shows: /discover/tv with_genres=27 returns nothing. The stub only
+    // matches the keyword form, with the real genre left in with_genres.
+    _server
+      .Given(Request.Create().WithPath("/discover/tv").UsingGet()
+        .WithParam("with_genres", "18").WithParam("with_keywords", "315058").WithParam("api_key", "TMKEY"))
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody("{\"results\":[{\"id\":1,\"name\":\"S\"}]}"));
+
+    var results = await Tmdb("TMKEY").DiscoverAsync(
+      "tv", new DiscoverQuery { Genres = "27,18" }, "en-US", CancellationToken.None);
+
+    Assert.Single(results);
+  }
+
+  [Fact]
+  public async Task Tmdb_DiscoverMovie_KeepsHorrorAsAGenre()
+  {
+    _server
+      .Given(Request.Create().WithPath("/discover/movie").UsingGet().WithParam("with_genres", "27"))
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody("{\"results\":[]}"));
+
+    await Tmdb("TMKEY").DiscoverAsync("movie", new DiscoverQuery { Genres = "27" }, "en-US", CancellationToken.None);
+
+    var entry = Assert.Single(_server.LogEntries);
+    Assert.DoesNotContain("with_keywords", entry.RequestMessage!.Url, StringComparison.Ordinal);
+  }
+
+  [Fact]
+  public async Task Tmdb_GetTvGenres_AddsHorrorAndThriller_WithTmdbsLocalizedLabels()
+  {
+    _server
+      .Given(Request.Create().WithPath("/genre/tv/list").UsingGet().WithParam("language", "fr-FR"))
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody("{\"genres\":[{\"id\":18,\"name\":\"Drame\"}]}"));
+    _server
+      .Given(Request.Create().WithPath("/genre/movie/list").UsingGet().WithParam("language", "fr-FR"))
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody(
+        "{\"genres\":[{\"id\":27,\"name\":\"Horreur\"},{\"id\":53,\"name\":\"Thriller\"},{\"id\":28,\"name\":\"Action\"}]}"));
+
+    var genres = await Tmdb("TMKEY").GetGenresAsync("tv", "fr-FR", CancellationToken.None);
+
+    Assert.Equal(new[] { "Drame", "Horreur", "Thriller" }, genres.Select(g => g.Name));
+    Assert.Equal(new[] { 18, 27, 53 }, genres.Select(g => g.Id));
+  }
+
+  [Fact]
+  public async Task Tmdb_GetTvGenres_WhenMovieListFails_StillListsThem_InEnglish()
+  {
+    _server
+      .Given(Request.Create().WithPath("/genre/tv/list").UsingGet())
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody("{\"genres\":[{\"id\":18,\"name\":\"Drama\"}]}"));
+    _server
+      .Given(Request.Create().WithPath("/genre/movie/list").UsingGet())
+      .RespondWith(Response.Create().WithStatusCode(500));
+
+    var genres = await Tmdb("TMKEY").GetGenresAsync("tv", "en-US", CancellationToken.None);
+
+    Assert.Equal(new[] { "Drama", "Horror", "Thriller" }, genres.Select(g => g.Name));
+  }
+
   private sealed class RealHttpClientFactory : IHttpClientFactory
   {
     public HttpClient CreateClient(string name) => new();

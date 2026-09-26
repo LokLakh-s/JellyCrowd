@@ -303,14 +303,18 @@ public class CatalogController : ControllerBase
   /// <param name="originalLanguage">Optional original-language filter (ISO 639-1, e.g. fr, es).</param>
   /// <param name="originCountry">Optional production/origin-country filter (ISO 3166-1, e.g. FR, JP).</param>
   /// <param name="withPeople">Optional TMDB person id to filter by (cast/crew) — a person's filmography.</param>
+  /// <param name="minSeasons">Optional minimum number of seasons (shows only).</param>
+  /// <param name="maxSeasons">Optional maximum number of seasons (shows only).</param>
   /// <param name="language">Optional TMDB language code.</param>
   /// <param name="region">Optional country code for the child-mode certification filter.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
-  /// <response code="200">Matching items returned.</response>
+  /// <response code="200">Matching items returned. With a season range, a page may be empty while later pages still match.</response>
+  /// <response code="400">The season range was invalid.</response>
   /// <response code="503">TMDB is not configured or unreachable.</response>
   /// <returns>The discovered catalog items.</returns>
   [HttpGet("Discover")]
   [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
   public async Task<ActionResult<IReadOnlyList<CatalogItem>>> Discover(
     [FromQuery] string? mediaType,
@@ -326,11 +330,19 @@ public class CatalogController : ControllerBase
     [FromQuery] string? originalLanguage,
     [FromQuery] string? originCountry,
     [FromQuery] int? withPeople,
+    [FromQuery] int? minSeasons,
+    [FromQuery] int? maxSeasons,
     [FromQuery] string? language,
     [FromQuery] string? region,
     CancellationToken cancellationToken)
   {
     var type = string.Equals(mediaType, "tv", StringComparison.Ordinal) ? "tv" : "movie";
+    var bySeasons = type == "tv" && SeasonRangeFilter.IsActive(minSeasons, maxSeasons);
+    if (bySeasons && !SeasonRangeFilter.IsValid(minSeasons, maxSeasons))
+    {
+      return BadRequest("The season range must be at least 1, with 'minSeasons' not above 'maxSeasons'.");
+    }
+
     var query = new DiscoverQuery
     {
       Genres = genres,
@@ -354,8 +366,24 @@ public class CatalogController : ControllerBase
       ApplyChildFilter(query, child.MaxAge, region ?? watchRegion);
     }
 
-    return await ExecuteAsync(
-      () => _tmdbClient.DiscoverAsync(type, query, Normalize(language), cancellationToken)).ConfigureAwait(false);
+    var lang = Normalize(language);
+    if (!bySeasons)
+    {
+      return await ExecuteAsync(
+        () => _tmdbClient.DiscoverAsync(type, query, lang, cancellationToken)).ConfigureAwait(false);
+    }
+
+    return await ExecuteAsync(async () =>
+    {
+      var items = await _tmdbClient.DiscoverAsync(type, query, lang, cancellationToken).ConfigureAwait(false);
+      return await SeasonRangeFilter.ApplyAsync(
+        items,
+        minSeasons,
+        maxSeasons,
+        (id, ct) => _tmdbClient.GetSeasonsAsync(id, lang, ct),
+        _logger,
+        cancellationToken).ConfigureAwait(false);
+    }).ConfigureAwait(false);
   }
 
   /// <summary>

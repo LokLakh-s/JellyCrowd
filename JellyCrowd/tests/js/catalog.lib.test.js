@@ -328,6 +328,44 @@ test('discoverMediaType: defaults to movie when nothing is set', () => {
   assert.strictEqual(lib.discoverMediaType(null), 'movie');
 });
 
+test('seasonRangeQuery: the full range sends nothing, so the catalog is not filtered', () => {
+  const max = lib.SEASONS_RANGE_MAX;
+  assert.strictEqual(lib.seasonRangeQuery({ mediaType: 'tv', minSeasons: 1, maxSeasons: max }), '');
+  assert.strictEqual(lib.seasonRangeActive({ mediaType: 'tv', minSeasons: 1, maxSeasons: max }), false);
+});
+
+test('seasonRangeQuery: only the bounds that restrict are sent; the top of the slider means no maximum', () => {
+  const max = lib.SEASONS_RANGE_MAX;
+  assert.strictEqual(lib.seasonRangeQuery({ mediaType: 'tv', minSeasons: 3, maxSeasons: max }), '&minSeasons=3');
+  assert.strictEqual(lib.seasonRangeQuery({ mediaType: 'tv', minSeasons: 1, maxSeasons: 2 }), '&maxSeasons=2');
+  assert.strictEqual(lib.seasonRangeQuery({ mediaType: 'tv', minSeasons: 2, maxSeasons: 5 }), '&minSeasons=2&maxSeasons=5');
+});
+
+test('seasonRangeQuery: ignored off the Séries tab, and on a filmography (always movies)', () => {
+  assert.strictEqual(lib.seasonRangeQuery({ mediaType: 'movie', minSeasons: 2, maxSeasons: 5 }), '');
+  assert.strictEqual(lib.seasonRangeQuery({ mediaType: 'tv', personId: 6193, minSeasons: 2, maxSeasons: 5 }), '');
+  assert.strictEqual(lib.seasonRangeActive({ mediaType: 'movie', minSeasons: 2, maxSeasons: 5 }), false);
+});
+
+test('formatSeasonBound: the top of the range reads as open-ended', () => {
+  const max = lib.SEASONS_RANGE_MAX;
+  assert.strictEqual(lib.formatSeasonBound(1), '1');
+  assert.strictEqual(lib.formatSeasonBound(max - 1), String(max - 1));
+  assert.strictEqual(lib.formatSeasonBound(max), max + '+');
+});
+
+test('feedEndsOnEmptyPage: an unfiltered feed ends on its first empty page', () => {
+  assert.strictEqual(lib.feedEndsOnEmptyPage(1, false), true);
+});
+
+test('feedEndsOnEmptyPage: a season-filtered feed skips empty pages up to the limit', () => {
+  // The server filters each TMDB page after the fact: an empty page is not the end of the catalog.
+  const limit = lib.SEASON_FEED_EMPTY_PAGES;
+  assert.strictEqual(lib.feedEndsOnEmptyPage(1, true), false);
+  assert.strictEqual(lib.feedEndsOnEmptyPage(limit - 1, true), false);
+  assert.strictEqual(lib.feedEndsOnEmptyPage(limit, true), true);
+});
+
 test('historyEntryLabel: an episode reads Series · SxEy · Episode name', () => {
   assert.strictEqual(
     lib.historyEntryLabel({ SeriesName: 'House of the Dragon', Season: 2, Episode: 5, Title: 'Regent' }),

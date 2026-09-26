@@ -212,7 +212,7 @@ n'affiche **pas** de cadre vide. Le plus simple pour partir : copier le `guide-c
 ## Pages utilisateur (bandeau Jellyfin)
 
 - **Catalog** : catalogue TMDB (films/séries), filtres (genres, années, note, tri, **langue d'origine**,
-  **pays de production**), recherche, fiche détaillée ; bouton **Requête** ouvrant la fiche d'où l'on
+  **pays de production**, et pour les séries le **nombre de saisons**), recherche, fiche détaillée ; bouton **Requête** ouvrant la fiche d'où l'on
   envoie la demande. **★** sur chaque carte/fiche pour suivre un titre ; la bascule **« Ma liste »**
   affiche les titres suivis (watchlist). Une rangée **« Pour vous »** suggère des titres d'après tes
   requêtes et ta watchlist (masquée tant qu'il n'y a pas assez d'historique).
