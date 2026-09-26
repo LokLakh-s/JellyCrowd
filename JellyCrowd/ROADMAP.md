@@ -668,3 +668,17 @@ l'ordre mémorisé en dernier, **alphabétique** par défaut, sans moyen d'en ch
   valide / invalide / ignorée pour les films), `ServarrHttpIntegrationTests` (URL `/discover/tv` et liste
   des genres TV contre WireMock) + `catalog.lib.test.js` (requête, libellé « 20+ », fin de flux).
 
+### M37 — App Android : bouton retour et fiche du catalogue  ☑ *(livré)*
+
+Suite de l'issue #16 (fiche recouverte par l'en-tête sur téléphone, corrigée en passant les popups à z-index 1350).
+
+- ☑ **Bouton retour** : l'app Android appelle `window.NavigationHelper.goBack()` (`NavigationPlugin.js`,
+  jellyfin-android v2.7.3), qui **quitte l'app** quand `Emby.Page.canGoBack()` est faux — toujours le cas
+  sous le panneau Jelly Crowd, qui laisse la page de fond sur `/home` (vérifié dans jellyfin-web 12.1).
+  `header.js` enveloppe ce `goBack` : il ferme d'abord la **popup du dessus** (fiche, confirmation — qui
+  répond « Annuler » —, sondage — « plus tard »), puis le **panneau**, et seulement ensuite laisse l'app
+  faire. `NavigationHelper` n'existe que dans l'app (jellyfin-web ne le référence pas) ; il est intercepté
+  qu'il soit créé avant ou après le shell.
+- ☑ **« Ouvrir dans Jellyfin »** ferme la fiche avant de naviguer : elle restait ouverte par-dessus la page.
+- ☑ **Tests** : `dom.lib.test.js` (`backCloseControl` : popup du dessus par z-index puis ordre, popup
+  masquée ignorée, contrôle de fermeture de chaque type).

@@ -633,3 +633,39 @@ test('movedToolbarButtons has nothing to move without a document or entries', ()
   assert.deepStrictEqual(lib.movedToolbarButtons(null, MOVED), []);
   assert.deepStrictEqual(lib.movedToolbarButtons(setup(''), null), []);
 });
+
+// ---------- backCloseControl: what the Android back button closes first ----------
+
+test('backCloseControl: nothing open, nothing to close', () => {
+  const doc = setup('<div class="jellycrowd-overlay"></div>');
+  assert.strictEqual(lib.backCloseControl(doc), null);
+});
+
+test('backCloseControl: picks the close control of the open popup, whatever its kind', () => {
+  const detail = setup('<div class="jellycrowd-modal-overlay"><button class="jellycrowd-modal-close" id="x"></button></div>');
+  assert.strictEqual(lib.backCloseControl(detail).id, 'x');
+  // A confirmation answers "cancel" to a back press, never "confirm".
+  const confirm = setup('<div class="jellycrowd-modal-overlay jellycrowd-confirm-overlay">'
+    + '<button class="jellycrowd-confirm-cancel" id="c"></button><button class="jellycrowd-confirm-ok"></button></div>');
+  assert.strictEqual(lib.backCloseControl(confirm).id, 'c');
+  const poll = setup('<div class="jellycrowd-modal-overlay jcPollModal"><button class="jcPollClose" id="p"></button></div>');
+  assert.strictEqual(lib.backCloseControl(poll).id, 'p');
+});
+
+test('backCloseControl: the topmost popup wins — highest z-index, then the later one', () => {
+  const stacked = setup(
+    '<div class="jellycrowd-modal-overlay"><button class="jellycrowd-modal-close" id="first"></button></div>'
+    + '<div class="jellycrowd-modal-overlay"><button class="jellycrowd-modal-close" id="second"></button></div>');
+  assert.strictEqual(lib.backCloseControl(stacked).id, 'second');
+  const pollOnTop = setup(
+    '<div class="jellycrowd-modal-overlay" style="z-index:100002"><button class="jcPollClose" id="poll"></button></div>'
+    + '<div class="jellycrowd-modal-overlay" style="z-index:1350"><button class="jellycrowd-modal-close" id="detail"></button></div>');
+  assert.strictEqual(lib.backCloseControl(pollOnTop).id, 'poll');
+});
+
+test('backCloseControl: a hidden popup (e.g. the poll during playback) is skipped', () => {
+  const doc = setup(
+    '<div class="jellycrowd-modal-overlay"><button class="jellycrowd-modal-close" id="detail"></button></div>'
+    + '<div class="jellycrowd-modal-overlay" style="display:none"><button class="jcPollClose" id="poll"></button></div>');
+  assert.strictEqual(lib.backCloseControl(doc).id, 'detail');
+});

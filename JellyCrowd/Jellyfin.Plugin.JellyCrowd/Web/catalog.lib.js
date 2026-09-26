@@ -753,6 +753,31 @@
     return (filters && filters.mediaType) || 'movie';
   }
 
+  // The close control of each Jelly Crowd popup: detail/calendar modal, confirmation, poll takeover.
+  var MODAL_CLOSE_CONTROLS = '.jellycrowd-modal-close, .jellycrowd-confirm-cancel, .jcPollClose';
+
+  // What a back press should close first: the close control of the topmost visible popup (highest
+  // z-index, the later one on a tie), or null when none is open.
+  function backCloseControl(doc) {
+    var view = doc.defaultView;
+    var best = null;
+    var bestZ = -Infinity;
+    var layers = doc.querySelectorAll('.jellycrowd-modal-overlay');
+    for (var i = 0; i < layers.length; i++) {
+      var style = view && view.getComputedStyle ? view.getComputedStyle(layers[i]) : null;
+      if (style && style.display === 'none') { continue; }
+      var control = layers[i].querySelector(MODAL_CLOSE_CONTROLS);
+      if (!control) { continue; }
+      var z = style ? parseInt(style.zIndex, 10) : NaN;
+      if (isNaN(z)) { z = 0; }
+      if (z >= bestZ) {
+        best = control;
+        bestZ = z;
+      }
+    }
+    return best;
+  }
+
   // Top of the season-range slider. It reads "20+": at the top, the range has no upper bound.
   var SEASONS_RANGE_MAX = 20;
 
@@ -1244,6 +1269,7 @@
     buildConfirmDialog: buildConfirmDialog,
     bulkFailureMessage: bulkFailureMessage,
     discoverMediaType: discoverMediaType,
+    backCloseControl: backCloseControl,
     SEASONS_RANGE_MAX: SEASONS_RANGE_MAX,
     SEASON_FEED_EMPTY_PAGES: SEASON_FEED_EMPTY_PAGES,
     seasonRangeActive: seasonRangeActive,

@@ -1100,7 +1100,8 @@
         openSeriesBtn.className = 'jellycrowd-request jellycrowd-open-jellyfin';
         openSeriesBtn.type = 'button';
         openSeriesBtn.textContent = t('open_in_jellyfin');
-        openSeriesBtn.addEventListener('click', function () { navigateToItem(item.JellyfinItemId); });
+        // Close the popup first: it sits above the page, which would open unseen behind it.
+        openSeriesBtn.addEventListener('click', function () { dismiss(); navigateToItem(item.JellyfinItemId); });
         openRow.appendChild(openSeriesBtn);
         reqTarget.appendChild(openRow);
       }
@@ -1162,7 +1163,7 @@
         openBtn.className = 'jellycrowd-request jellycrowd-open-jellyfin';
         openBtn.type = 'button';
         openBtn.textContent = t('open_in_jellyfin');
-        openBtn.addEventListener('click', function () { navigateToItem(item.JellyfinItemId); });
+        openBtn.addEventListener('click', function () { dismiss(); navigateToItem(item.JellyfinItemId); });
         actions.appendChild(openBtn);
       }
 

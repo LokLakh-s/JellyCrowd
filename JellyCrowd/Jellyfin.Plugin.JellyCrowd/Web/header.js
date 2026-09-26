@@ -409,6 +409,51 @@
     }
   }
 
+  // Android app back button: the app calls NavigationHelper.goBack(), which exits the app whenever the web
+  // router cannot go back — always the case under our panel, which parks the page on Home. Close our
+  // topmost layer first: a popup, then the panel. Returns true when something was closed.
+  function closeTopLayerOnBack() {
+    var L = window.JellyCrowdLib;
+    var control = L && L.backCloseControl ? L.backCloseControl(document) : null;
+    if (control) {
+      control.click();
+      return true;
+    }
+    if (overlay && overlay.style.display !== 'none') {
+      hideOverlay();
+      return true;
+    }
+    return false;
+  }
+
+  function hookNativeBack(helper) {
+    if (!helper || helper.jcBackHooked || typeof helper.goBack !== 'function') { return; }
+    var original = helper.goBack;
+    helper.goBack = function () {
+      if (closeTopLayerOnBack()) { return undefined; }
+      return original.apply(this, arguments);
+    };
+    helper.jcBackHooked = true;
+  }
+
+  // NavigationHelper only exists in the Android app (jellyfin-web never defines it), and may be created
+  // before or after this script: hook it now, or as soon as the app assigns it.
+  function installNativeBackHook() {
+    if (window.NavigationHelper) {
+      hookNativeBack(window.NavigationHelper);
+      return;
+    }
+    try {
+      var helper;
+      Object.defineProperty(window, 'NavigationHelper', {
+        configurable: true,
+        enumerable: true,
+        get: function () { return helper; },
+        set: function (value) { helper = value; hookNativeBack(value); }
+      });
+    } catch (e) { /* not definable: the app keeps its own back behaviour */ }
+  }
+
   // Clicking the already-active header link again closes the panel (so the native header alone remains).
   function toggleView(id) {
     if (!pluginVisible()) {
@@ -3239,6 +3284,7 @@
     }
     window.addEventListener('hashchange', onNavClose);
     window.addEventListener('popstate', onNavClose);
+    installNativeBackHook();
     // On every navigation, (re)inject internal reviews when landing on a detail page.
     function onDetailNav() {
       removeDetailReviews(); maybeInjectDetailReviews(0);
