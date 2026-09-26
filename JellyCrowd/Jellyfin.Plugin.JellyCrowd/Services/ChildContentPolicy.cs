@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using Jellyfin.Plugin.JellyCrowd.Models;
 
 namespace Jellyfin.Plugin.JellyCrowd.Services;
 
@@ -11,6 +14,9 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </summary>
 public static class ChildContentPolicy
 {
+  // TMDB's Horror genre id — a movie genre, also used for the keyword-backed Horror on shows (TvKeywordGenres).
+  private const int HorrorGenreId = 27;
+
   // Per-country movie certification ladders, indexed by age tier. Values are TMDB certification strings.
   private static readonly Dictionary<string, Dictionary<int, string>> Ladders = new(StringComparer.OrdinalIgnoreCase)
   {
@@ -47,6 +53,37 @@ public static class ChildContentPolicy
     }
 
     return null;
+  }
+
+  /// <summary>
+  /// Removes the genres a child account is never offered (Horror, on both tabs).
+  /// </summary>
+  /// <param name="genres">The genre list.</param>
+  /// <returns>The genres a child may pick from.</returns>
+  public static IReadOnlyList<Genre> VisibleGenres(IReadOnlyList<Genre> genres)
+  {
+    ArgumentNullException.ThrowIfNull(genres);
+    return genres.Where(g => g.Id != HorrorGenreId).ToList();
+  }
+
+  /// <summary>
+  /// Drops the genres a child account is never offered from a comma-separated discover filter, so a
+  /// hand-made request cannot bring them back.
+  /// </summary>
+  /// <param name="genres">The comma-separated genre ids.</param>
+  /// <returns>The remaining ids, or <c>null</c> when none remain.</returns>
+  public static string? AllowedGenres(string? genres)
+  {
+    if (string.IsNullOrWhiteSpace(genres))
+    {
+      return null;
+    }
+
+    var horror = HorrorGenreId.ToString(CultureInfo.InvariantCulture);
+    var kept = genres.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+      .Where(id => !string.Equals(id, horror, StringComparison.Ordinal))
+      .ToList();
+    return kept.Count > 0 ? string.Join(',', kept) : null;
   }
 
   // Snap an arbitrary age to one of the supported tiers (0, 10, 12, 16).

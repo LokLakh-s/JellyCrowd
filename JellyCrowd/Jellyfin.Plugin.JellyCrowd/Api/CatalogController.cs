@@ -364,6 +364,7 @@ public class CatalogController : ControllerBase
     if (child.IsChild)
     {
       ApplyChildFilter(query, child.MaxAge, region ?? watchRegion);
+      query.Genres = ChildContentPolicy.AllowedGenres(query.Genres);
     }
 
     var lang = Normalize(language);
@@ -414,6 +415,11 @@ public class CatalogController : ControllerBase
     try
     {
       var genres = await _tmdbClient.GetGenresAsync(mediaType, Normalize(language), cancellationToken).ConfigureAwait(false);
+      if ((await ResolveChildAsync().ConfigureAwait(false)).IsChild)
+      {
+        genres = ChildContentPolicy.VisibleGenres(genres);
+      }
+
       return Ok(genres);
     }
     catch (InvalidOperationException ex)

@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Xunit;
 
@@ -41,5 +44,30 @@ public class ChildContentPolicyTests
     Assert.Equal("PG", ChildContentPolicy.CertificationFor("US", 8)!.Value.Certification);  // → 10 tier
     Assert.Equal("PG-13", ChildContentPolicy.CertificationFor("US", 11)!.Value.Certification); // → 12 tier
     Assert.Equal("R", ChildContentPolicy.CertificationFor("US", 99)!.Value.Certification);  // → 16 tier
+  }
+
+  [Fact]
+  public void VisibleGenres_HidesHorror_KeepsTheRest()
+  {
+    var genres = new List<Genre>
+    {
+      new() { Id = 18, Name = "Drama" },
+      new() { Id = 27, Name = "Horror" },
+      new() { Id = 53, Name = "Thriller" }
+    };
+
+    Assert.Equal(new[] { 18, 53 }, ChildContentPolicy.VisibleGenres(genres).Select(g => g.Id));
+  }
+
+  [Theory]
+  [InlineData("27", null)]
+  [InlineData("27,18", "18")]
+  [InlineData(" 18 , 27 ,53", "18,53")]
+  [InlineData("18", "18")]
+  [InlineData("", null)]
+  [InlineData(null, null)]
+  public void AllowedGenres_DropsHorror_EvenFromAHandMadeRequest(string? genres, string? expected)
+  {
+    Assert.Equal(expected, ChildContentPolicy.AllowedGenres(genres));
   }
 }

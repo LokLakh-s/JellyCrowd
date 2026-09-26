@@ -78,7 +78,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 💾 **Per-user quotas** — a storage budget per user, counted only when media becomes available, at its real size.
 - 📈 **Adaptive quota** — optionally grow a user's quota as they watch more, with a grace period when they go quiet.
 - 🧑‍🤝‍🧑 **User groups** — manage users together: shared settings they inherit, one-click Jellyfin library access, and group-targeted announcements.
-- 🧒 **Child mode** — mark a group as a kids group: its members get an age-filtered catalog (by age tier), no free-text search, and no reviews, announcements or polls.
+- 🧒 **Child mode** — mark a group as a kids group: its members get an age-filtered catalog (by age tier) without the Horror genre, no free-text search, and no reviews, announcements or polls.
 - 📢 **Announcements** — post a header banner to everyone or to specific groups.
 - 📊 **Polls** — ask a question instead of stating one: a poll takes over the screen once per session until it is answered, with single or multiple choice, an optional deadline, results you can share with the voters, and an admin view of who answered what.
 - ⏳ **Media expiry** — reclaim space by expiring unwatched media after a configurable window.

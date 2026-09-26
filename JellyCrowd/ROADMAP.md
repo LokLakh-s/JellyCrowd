@@ -660,6 +660,11 @@ l'ordre mémorisé en dernier, **alphabétique** par défaut, sans moyen d'en ch
   sans collision avec un genre TV, et traduits côté serveur en **mots-clés TMDB** `horror` (315058) et
   `thriller` (316362) → `with_keywords` (`TvKeywordGenres`). Libellés localisés par TMDB via la liste des
   genres **films** de la même langue, repli anglais si elle échoue.
-- ☑ **Tests** : `TvKeywordGenresTests`, `SeasonRangeFilterTests`, `CatalogControllerTests` (fourchette
+- ☑ **Mode enfant** : le genre **Horreur** n'est plus proposé aux comptes enfants, sur les deux onglets
+  (`ChildContentPolicy.VisibleGenres`), et un id 27 envoyé à la main est retiré du filtre côté serveur
+  (`AllowedGenres`). Les films restaient déjà bornés par la classification d'âge ; les séries non (limite
+  TMDB), d'où ce retrait.
+- ☑ **Tests** : `TvKeywordGenresTests`, `SeasonRangeFilterTests`, `ChildContentPolicyTests`, `CatalogControllerTests` (fourchette
   valide / invalide / ignorée pour les films), `ServarrHttpIntegrationTests` (URL `/discover/tv` et liste
   des genres TV contre WireMock) + `catalog.lib.test.js` (requête, libellé « 20+ », fin de flux).
+
