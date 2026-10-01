@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Jellyfin.Plugin.JellyCrowd.Models;
 
 namespace Jellyfin.Plugin.JellyCrowd.Services;
@@ -24,6 +26,28 @@ public readonly record struct RequestScope(string? MediaType, int TmdbId, int? S
   {
     ArgumentNullException.ThrowIfNull(record);
     return new RequestScope(record.MediaType, record.TmdbId, record.Season, record.Episode);
+  }
+
+  /// <summary>
+  /// Lists what the other active requests for the same title still cover: every request but the given one
+  /// that is neither denied nor flagged for deletion — pending ones included, since they will want the media
+  /// once approved. What a cancellation or a deletion takes away from the backend must stay out of these.
+  /// </summary>
+  /// <param name="all">Every stored request.</param>
+  /// <param name="request">The request being withdrawn.</param>
+  /// <returns>The scopes still wanted by others.</returns>
+  public static IReadOnlyList<RequestScope> StillWantedByOthers(IEnumerable<RequestRecord> all, RequestRecord request)
+  {
+    ArgumentNullException.ThrowIfNull(all);
+    ArgumentNullException.ThrowIfNull(request);
+    return all
+      .Where(r => r.Id != request.Id
+        && r.TmdbId == request.TmdbId
+        && string.Equals(r.MediaType, request.MediaType, StringComparison.Ordinal)
+        && r.Status != RequestStatus.Denied
+        && r.DeletionRequestedAt is null)
+      .Select(Of)
+      .ToList();
   }
 
   /// <summary>

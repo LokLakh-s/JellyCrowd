@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
@@ -320,6 +321,78 @@ public sealed class DownloadDispatcherTests : IDisposable
     Assert.Empty(_client.Retried);
   }
 
+  private async Task<RequestRecord> SeedApprovedShowAsync(int? season, int? episode, Guid? user = null, RequestStatus status = RequestStatus.Approved, int tmdbId = 1396)
+  {
+    var created = await _store.CreateAsync(
+      new RequestRecord { UserId = user ?? Guid.NewGuid(), TmdbId = tmdbId, MediaType = "tv", Title = "BB", Season = season, Episode = episode },
+      CancellationToken.None);
+    return (await _store.UpdateStatusAsync(created.Id, status, Guid.NewGuid(), CancellationToken.None))!;
+  }
+
+  [Fact]
+  public async Task CancelAsync_WaitsForTheTitlesDispatchStillRunning_ThenWithdrawsIt()
+  {
+    // The user cancels while the dispatch is still adding the series: the cleanup must come after it, or
+    // the dispatch finishing later would monitor the cancelled request again.
+    var request = await SeedApprovedShowAsync(1, null);
+    _client.DispatchGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var dispatcher = CreateDispatcher();
+
+    var dispatching = dispatcher.DispatchAsync(request, CancellationToken.None);
+    await _client.DispatchStarted.Task;
+    await _store.CancelAsync(request.Id, request.UserId, CancellationToken.None);
+    var cancelling = dispatcher.CancelAsync(request, CancellationToken.None);
+    await Task.Delay(50);
+    Assert.False(cancelling.IsCompleted); // held behind the dispatch
+
+    _client.DispatchGate.SetResult();
+    await Task.WhenAll(dispatching, cancelling);
+
+    Assert.Equal(new[] { "dispatch", "cancel" }, _client.Calls);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_RequestCancelledMeanwhile_IsNotSent()
+  {
+    var request = await SeedApprovedShowAsync(1, 2);
+    await _store.CancelAsync(request.Id, request.UserId, CancellationToken.None);
+
+    var sent = await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+
+    Assert.False(sent);
+    Assert.Empty(_client.Dispatched);
+  }
+
+  [Fact]
+  public async Task RetryAsync_RequestCancelledMeanwhile_IsNotSearched()
+  {
+    var request = await SeedApprovedShowAsync(1, 2);
+    await _store.CancelAsync(request.Id, request.UserId, CancellationToken.None);
+
+    var retried = await CreateDispatcher().RetryAsync(request, CancellationToken.None);
+
+    Assert.False(retried);
+    Assert.Empty(_client.Retried);
+  }
+
+  [Fact]
+  public async Task CancelAndPurge_TellTheBackendWhatTheTitlesOtherActiveRequestsStillWant()
+  {
+    var request = await SeedApprovedShowAsync(1, null);
+    await SeedApprovedShowAsync(1, 2);                                 // another user's episode: kept
+    await SeedApprovedShowAsync(1, 3, status: RequestStatus.Pending);  // pending: kept, it will want it
+    await SeedApprovedShowAsync(1, 4, status: RequestStatus.Denied);   // denied: wants nothing
+    await SeedApprovedShowAsync(1, 5, tmdbId: 99);                     // another title
+    var dispatcher = CreateDispatcher();
+
+    await dispatcher.CancelAsync(request, CancellationToken.None);
+    await dispatcher.PurgeAsync(request, CancellationToken.None);
+
+    var expected = new[] { new RequestScope("tv", 1396, 1, 2), new RequestScope("tv", 1396, 1, 3) };
+    Assert.Equal(expected.OrderBy(k => k.Episode), _client.Cancelled.Single().KeepScopes.OrderBy(k => k.Episode));
+    Assert.Equal(expected.OrderBy(k => k.Episode), _client.Purged.Single().KeepScopes.OrderBy(k => k.Episode));
+  }
+
   [Fact]
   public async Task PurgeAsync_DelegatesToActiveClient()
   {
@@ -364,19 +437,34 @@ public sealed class DownloadDispatcherTests : IDisposable
 
     public bool Throw { get; set; }
 
+    /// <summary>Gets the order in which dispatches and cancellations reached the backend.</summary>
+    public List<string> Calls { get; } = new();
+
+    /// <summary>Gets or sets a gate a dispatch waits on, to hold it "in flight".</summary>
+    public TaskCompletionSource? DispatchGate { get; set; }
+
+    /// <summary>Gets a signal raised once a dispatch has reached the backend.</summary>
+    public TaskCompletionSource DispatchStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public string Backend => "webhook";
 
     public bool IsConfigured(PluginConfiguration config) => true;
 
-    public Task DispatchAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
+    public async Task DispatchAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
     {
       if (Throw)
       {
         throw new InvalidOperationException("boom");
       }
 
+      DispatchStarted.TrySetResult();
+      if (DispatchGate is not null)
+      {
+        await DispatchGate.Task.ConfigureAwait(false);
+      }
+
       Dispatched.Add(dispatch);
-      return Task.CompletedTask;
+      Calls.Add("dispatch");
     }
 
     public Task TestAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -384,6 +472,7 @@ public sealed class DownloadDispatcherTests : IDisposable
     public Task CancelAsync(DownloadDispatch dispatch, CancellationToken cancellationToken)
     {
       Cancelled.Add(dispatch);
+      Calls.Add("cancel");
       return Task.CompletedTask;
     }
 

@@ -63,7 +63,7 @@ public sealed class ServarrStalledRecoveryTests : IDisposable
     var tmdb = new Mock<ITmdbClient>();
     tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
     var now = new DateTime(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
-    var recovery = new ServarrStalledRecovery(servarr.Object, tmdb.Object, _store, () => _config, NullLogger<ServarrStalledRecovery>.Instance, () => now);
+    var recovery = new ServarrStalledRecovery(servarr.Object, tmdb.Object, _store, () => _config, NullLogger<ServarrStalledRecovery>.Instance, new TitleOperationLock(), () => now);
 
     await recovery.RecoverAsync(CancellationToken.None); // first sighting starts the stall clock
     now = now.AddMinutes(61);
@@ -79,5 +79,32 @@ public sealed class ServarrStalledRecoveryTests : IDisposable
     servarr.Verify(
       s => s.CommandAsync(It.IsAny<string>(), It.IsAny<string>(), It.Is<JsonObject>(c => c["name"]!.GetValue<string>() == "SeasonSearch"), It.IsAny<CancellationToken>()),
       Times.Never);
+  }
+
+  [Fact]
+  public async Task RecoverAsync_RequestCancelledSinceTheSweepStarted_IsLeftAlone()
+  {
+    var created = await _store.CreateAsync(
+      new RequestRecord { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 1, Episode = 2 },
+      CancellationToken.None);
+    await _store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+    const string Queue = "{ \"records\": [ { \"id\": 2, \"downloadId\": \"B\", \"status\": \"downloading\", \"size\": 100, \"sizeleft\": 90, \"series\": { \"tvdbId\": 81189 }, \"episode\": { \"seasonNumber\": 1, \"episodeNumber\": 2 } } ] }";
+    var servarr = new Mock<IServarrClient>();
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var now = new DateTime(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+    var recovery = new ServarrStalledRecovery(servarr.Object, tmdb.Object, _store, () => _config, NullLogger<ServarrStalledRecovery>.Instance, new TitleOperationLock(), () => now);
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>())).ReturnsAsync(Queue);
+    await recovery.RecoverAsync(CancellationToken.None);
+
+    // Stalled by the next sweep, but the user cancels as that sweep reads the queue.
+    now = now.AddMinutes(61);
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>()))
+      .Callback(() => _store.CancelAsync(created.Id, created.UserId, CancellationToken.None).GetAwaiter().GetResult())
+      .ReturnsAsync(Queue);
+    await recovery.RecoverAsync(CancellationToken.None);
+
+    servarr.Verify(s => s.DeleteQueueItemAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.CommandAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
   }
 }

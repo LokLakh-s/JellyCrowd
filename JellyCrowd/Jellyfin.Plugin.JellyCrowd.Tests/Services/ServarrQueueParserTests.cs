@@ -113,4 +113,13 @@ public class ServarrQueueParserTests
   {
     Assert.Equal(new[] { 1, 2, 3, 5 }, ServarrQueueParser.ParseSeriesDownloadsWithin(MixedQueue, 9, null, null));
   }
+
+  [Fact]
+  public void ParseSeriesDownloadsWithin_AnEpisodeSet_TakesOnlyDownloadsMadeOfThoseEpisodes()
+  {
+    var released = new System.Collections.Generic.HashSet<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> { new(1, 2), new(2, 3) };
+
+    // A (S1E2) qualifies; D carries S2E3 and the kept S2E4, so it stays.
+    Assert.Equal(new[] { 1 }, ServarrQueueParser.ParseSeriesDownloadsWithin(MixedQueue, 9, released));
+  }
 }

@@ -127,4 +127,38 @@ public class ServarrPayloadTests
     Assert.True(ServarrPayload.IsPostAddComplete(new JsonObject { ["addOptions"] = null }));
     Assert.True(ServarrPayload.IsPostAddComplete(new JsonObject()));
   }
+
+  [Fact]
+  public void BuildSeriesAdd_OnlyAWholeSeriesRequestFollowsNewSeasons()
+  {
+    var lookup = new JsonObject { ["title"] = "Show", ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 1 }) };
+
+    Assert.Equal("all", ServarrPayload.BuildSeriesAdd(lookup, 1, 0, "/tv", null)["monitorNewItems"]!.GetValue<string>());
+    Assert.Equal("none", ServarrPayload.BuildSeriesAdd(lookup, 1, 0, "/tv", 1)["monitorNewItems"]!.GetValue<string>());
+  }
+
+  [Fact]
+  public void SetFollowsNewSeasons_ReportsWhetherItChanged()
+  {
+    var series = new JsonObject { ["monitorNewItems"] = "all" };
+
+    Assert.False(ServarrPayload.SetFollowsNewSeasons(series, follow: true));
+    Assert.True(ServarrPayload.SetFollowsNewSeasons(series, follow: false));
+    Assert.Equal("none", series["monitorNewItems"]!.GetValue<string>());
+  }
+
+  [Fact]
+  public void MonitoredSeasons_ListsTheSeasonsThatAreOn()
+  {
+    var series = new JsonObject
+    {
+      ["seasons"] = new JsonArray(
+        new JsonObject { ["seasonNumber"] = 0, ["monitored"] = false },
+        new JsonObject { ["seasonNumber"] = 1, ["monitored"] = true },
+        new JsonObject { ["seasonNumber"] = 2, ["monitored"] = false },
+        new JsonObject { ["seasonNumber"] = 3, ["monitored"] = true })
+    };
+
+    Assert.Equal(new[] { 1, 3 }, ServarrPayload.MonitoredSeasons(series));
+  }
 }

@@ -24,6 +24,7 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<ServarrStalledRecovery> _logger;
   private readonly StallTracker _tracker = new();
+  private readonly TitleOperationLock _titleLock;
   private readonly Func<DateTime> _clock;
 
   /// <summary>
@@ -34,19 +35,21 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
   /// <param name="store">The request store.</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger)
-    : this(servarr, tmdb, store, config, logger, () => DateTime.UtcNow)
+  /// <param name="titleLock">Serializes the backend operations of one title (shared with the download dispatcher).</param>
+  public ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, TitleOperationLock titleLock)
+    : this(servarr, tmdb, store, config, logger, titleLock, () => DateTime.UtcNow)
   {
   }
 
   // Tests drive the clock, so a stall can be observed without waiting for the real threshold.
-  internal ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, Func<DateTime> clock)
+  internal ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, TitleOperationLock titleLock, Func<DateTime> clock)
   {
     _servarr = servarr;
     _tmdb = tmdb;
     _store = store;
     _config = config;
     _logger = logger;
+    _titleLock = titleLock;
     _clock = clock;
   }
 
@@ -108,6 +111,12 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
         continue;
       }
 
+      using var titleLock = await _titleLock.EnterAsync(request.MediaType, request.TmdbId, cancellationToken).ConfigureAwait(false);
+      if (!await IsStillApprovedAsync(request, cancellationToken).ConfigureAwait(false))
+      {
+        continue;
+      }
+
       // Blocklist + remove the stalled grab(s), then re-search for a different release.
       foreach (var queueId in ServarrQueueParser.ParseMovieQueueRecordIds(queueJson, request.TmdbId))
       {
@@ -154,6 +163,12 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
         continue;
       }
 
+      using var titleLock = await _titleLock.EnterAsync(request.MediaType, request.TmdbId, cancellationToken).ConfigureAwait(false);
+      if (!await IsStillApprovedAsync(request, cancellationToken).ConfigureAwait(false))
+      {
+        continue;
+      }
+
       foreach (var queueId in ServarrQueueParser.ParseSeriesQueueRecordIds(queueJson, tvdbId.Value, request.Season, request.Episode))
       {
         await _servarr.DeleteQueueItemAsync(config.SonarrUrl, config.SonarrApiKey, queueId, removeFromClient: true, blocklist: true, cancellationToken).ConfigureAwait(false);
@@ -172,6 +187,10 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
       _logger.LogInformation("Jelly Crowd: recovered stalled download for \"{Title}\" (blocklisted + re-searched).", request.Title);
     }
   }
+
+  // A request cancelled since the sweep started must not be searched (and grabbed) again.
+  private async Task<bool> IsStillApprovedAsync(RequestRecord request, CancellationToken cancellationToken)
+    => (await _store.GetByIdAsync(request.Id, cancellationToken).ConfigureAwait(false))?.Status == RequestStatus.Approved;
 
   // The re-search for a request's scope: its episode alone, its season, or the whole series. Null when the
   // episode is not listed in Sonarr.

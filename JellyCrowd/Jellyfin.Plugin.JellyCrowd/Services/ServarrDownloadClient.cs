@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -265,6 +266,13 @@ public sealed class ServarrDownloadClient : IDownloadClient
     var changed = IsEpisodeScope(dispatch)
       ? ServarrPayload.EnsureSeriesMonitored(series)
       : ServarrPayload.EnsureSeasonsMonitored(series, dispatch.Season);
+
+    // A whole-series request also wants the seasons Sonarr lists later.
+    if (dispatch.Season is null && ServarrPayload.SetFollowsNewSeasons(series, follow: true))
+    {
+      changed = true;
+    }
+
     if (changed)
     {
       await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
@@ -369,15 +377,19 @@ public sealed class ServarrDownloadClient : IDownloadClient
     ArgumentNullException.ThrowIfNull(dispatch);
     var config = _config();
 
-    // A user cancelling a single request: only movies are undone (delete from Radarr stops its
-    // search/download). Deleting a whole Sonarr series for a single-season cancel would be too
-    // destructive, so shows are left in place. Full removal (incl. Sonarr) is PurgeAsync's job.
-    if (!string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal) || !RadarrConfigured(config))
+    // A movie leaves Radarr (which stops its search and download) unless another request still wants it.
+    if (string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal))
     {
-      return Task.CompletedTask;
+      return RadarrConfigured(config) && dispatch.KeepScopes.Count == 0
+        ? RemoveMovieAsync(config, dispatch.TmdbId, cancellationToken)
+        : Task.CompletedTask;
     }
 
-    return RemoveMovieAsync(config, dispatch.TmdbId, cancellationToken);
+    // A show stays in Sonarr, files and all: what nobody else wants just stops being monitored and leaves
+    // the queue, so Sonarr no longer downloads it for a request that is gone.
+    return string.Equals(dispatch.MediaType, "tv", StringComparison.Ordinal) && SonarrConfigured(config)
+      ? ReleaseAsync(config, dispatch, deleteFiles: false, cancellationToken)
+      : Task.CompletedTask;
   }
 
   /// <inheritdoc />
@@ -400,6 +412,13 @@ public sealed class ServarrDownloadClient : IDownloadClient
 
       if (!string.Equals(dispatch.MediaType, "tv", StringComparison.Ordinal) || !SonarrConfigured(config))
       {
+        return true;
+      }
+
+      // Part of the scope is still wanted by another request: withdraw only the rest.
+      if (dispatch.KeepScopes.Any(k => MediaScope.Overlaps(dispatch.Season, dispatch.Episode, k.Season, k.Episode)))
+      {
+        await ReleaseAsync(config, dispatch, deleteFiles: true, cancellationToken).ConfigureAwait(false);
         return true;
       }
 
@@ -454,6 +473,81 @@ public sealed class ServarrDownloadClient : IDownloadClient
 #pragma warning restore CA1031
     {
       return false;
+    }
+  }
+
+  // Withdraws a request's scope from Sonarr without touching what the title's other requests still want (see
+  // SonarrReleasePlan): season flags off where nothing holds them, the episodes they still want monitored
+  // again after Sonarr's cascade, the released episodes unmonitored, their downloads out of the queue, and —
+  // on deletion — their files removed.
+  private async Task ReleaseAsync(PluginConfiguration config, DownloadDispatch dispatch, bool deleteFiles, CancellationToken cancellationToken)
+  {
+    var tvdbId = await ResolveTvdbIdAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+    if (tvdbId is null)
+    {
+      return;
+    }
+
+    var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId.Value, cancellationToken).ConfigureAwait(false);
+    if (series is null || !TryGetId(series, out var seriesId))
+    {
+      return;
+    }
+
+    var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
+    var episodes = string.IsNullOrEmpty(episodesJson) ? Array.Empty<SonarrEpisode>() : ServarrEpisodeParser.ParseEpisodes(episodesJson);
+    var plan = SonarrReleasePlan.Build(dispatch.Season, dispatch.Episode, dispatch.KeepScopes, ServarrPayload.MonitoredSeasons(series), episodes);
+
+    var seriesChanged = false;
+    foreach (var season in plan.SeasonsToTurnOff)
+    {
+      seriesChanged |= ServarrPayload.UnmonitorSeason(series, season);
+    }
+
+    if (plan.StopFollowingNewSeasons)
+    {
+      seriesChanged |= ServarrPayload.SetFollowsNewSeasons(series, follow: false);
+    }
+
+    if (seriesChanged)
+    {
+      await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
+    }
+
+    if (plan.EpisodesToRemonitor.Count > 0)
+    {
+      await _servarr.SetEpisodesMonitoredAsync(config.SonarrUrl, config.SonarrApiKey, plan.EpisodesToRemonitor, monitored: true, cancellationToken).ConfigureAwait(false);
+    }
+
+    if (plan.EpisodesToUnmonitor.Count > 0)
+    {
+      await _servarr.SetEpisodesMonitoredAsync(config.SonarrUrl, config.SonarrApiKey, plan.EpisodesToUnmonitor, monitored: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    if (plan.Released.Count > 0)
+    {
+      try
+      {
+        var queueJson = await _servarr.GetQueueAsync(config.SonarrUrl, config.SonarrApiKey, forSonarr: true, cancellationToken).ConfigureAwait(false);
+        foreach (var queueId in ServarrQueueParser.ParseSeriesDownloadsWithin(queueJson, tvdbId.Value, plan.Released))
+        {
+          await _servarr.DeleteQueueItemAsync(config.SonarrUrl, config.SonarrApiKey, queueId, removeFromClient: true, blocklist: false, cancellationToken).ConfigureAwait(false);
+        }
+      }
+#pragma warning disable CA1031 // Queue cleanup is best-effort; the monitoring above already stops new grabs.
+      catch (Exception)
+#pragma warning restore CA1031
+      {
+        // Ignore — the files (on deletion) are still removed below.
+      }
+    }
+
+    if (deleteFiles)
+    {
+      foreach (var fileId in plan.FilesToDelete)
+      {
+        await _servarr.DeleteEpisodeFileAsync(config.SonarrUrl, config.SonarrApiKey, fileId, cancellationToken).ConfigureAwait(false);
+      }
     }
   }
 

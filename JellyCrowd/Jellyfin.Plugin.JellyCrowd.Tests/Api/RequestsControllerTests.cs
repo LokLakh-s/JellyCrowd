@@ -481,15 +481,47 @@ public class RequestsControllerTests
   }
 
   [Fact]
-  public async Task Cancel_Approved_ReturnsNotFound()
+  public async Task Cancel_OwnApproved_RemovesItFirst_ThenWithdrawsItFromTheBackend()
   {
+    // Users act faster than the backend: once the request is gone from the store, a dispatch or retry that
+    // comes after no longer finds it, and the backend withdrawal runs against what is left.
     var store = new FakeRequestStore();
+    var dispatcher = new FakeDownloadDispatcher { IsStored = id => store.GetByIdAsync(id, CancellationToken.None).Result is not null };
     var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
     await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
 
-    var result = await CreateController(store).Cancel(created.Id, CancellationToken.None);
+    var result = await CreateController(store, dispatcher: dispatcher).Cancel(created.Id, CancellationToken.None);
+
+    Assert.IsType<NoContentResult>(result);
+    var cancelled = Assert.Single(dispatcher.Cancelled);
+    Assert.Equal(created.Id, cancelled.Id);
+    Assert.False(cancelled.StillStored);
+  }
+
+  [Fact]
+  public async Task Cancel_PendingNeverSent_DoesNotTouchTheBackend()
+  {
+    var store = new FakeRequestStore();
+    var dispatcher = new FakeDownloadDispatcher();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+
+    await CreateController(store, dispatcher: dispatcher).Cancel(created.Id, CancellationToken.None);
+
+    Assert.Empty(dispatcher.Cancelled);
+  }
+
+  [Fact]
+  public async Task Cancel_SomeoneElsesRequest_ReturnsNotFound_AndLeavesTheBackendAlone()
+  {
+    var store = new FakeRequestStore();
+    var dispatcher = new FakeDownloadDispatcher();
+    var created = (RequestRecord)((OkObjectResult)(await CreateController(store).Create(ValidDto(), CancellationToken.None)).Result!).Value!;
+    await store.UpdateStatusAsync(created.Id, RequestStatus.Approved, Guid.NewGuid(), CancellationToken.None);
+
+    var result = await CreateController(store, userId: Guid.NewGuid(), dispatcher: dispatcher).Cancel(created.Id, CancellationToken.None);
 
     Assert.IsType<NotFoundResult>(result);
+    Assert.Empty(dispatcher.Cancelled);
   }
 
   [Fact]
@@ -1146,7 +1178,17 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
 
     public Task TestActiveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+    /// <summary>Gets the backend withdrawals asked for, and whether the request was still stored at that moment.</summary>
+    public List<(Guid Id, bool StillStored)> Cancelled { get; } = new();
+
+    /// <summary>Gets or sets a probe telling whether a request is still in the store.</summary>
+    public Func<Guid, bool>? IsStored { get; set; }
+
+    public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken)
+    {
+      Cancelled.Add((request.Id, IsStored?.Invoke(request.Id) ?? false));
+      return Task.CompletedTask;
+    }
 
     public Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
 
@@ -1347,7 +1389,7 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     public Task<bool> CancelAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
       var record = _items.FirstOrDefault(r => r.Id == id);
-      if (record is null || record.UserId != userId || record.Status != RequestStatus.Pending)
+      if (record is null || record.UserId != userId || (record.Status != RequestStatus.Pending && record.Status != RequestStatus.Approved))
       {
         return Task.FromResult(false);
       }

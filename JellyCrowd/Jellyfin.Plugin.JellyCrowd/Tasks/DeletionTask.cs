@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Configuration;
@@ -121,6 +122,11 @@ public sealed class DeletionTask : IScheduledTask
             request.Title);
         }
       }
+      else if (string.Equals(request.MediaType, "tv", StringComparison.Ordinal)
+        && !await DeleteUnsharedEpisodesAsync(request, retentionHours, cancellationToken).ConfigureAwait(false))
+      {
+        continue; // the backend could not be reached: keep it flagged and retry next run.
+      }
 
       await _store.DeleteAsync(request.Id, cancellationToken).ConfigureAwait(false);
       deleted++;
@@ -184,6 +190,43 @@ public sealed class DeletionTask : IScheduledTask
     await _quotaHoldPromoter.PromoteAsync(cancellationToken).ConfigureAwait(false);
 
     progress.Report(100);
+  }
+
+  // A show another request still partly wants (another user's episode inside the deleted season, say): only
+  // what none of them covers leaves the backend and the library, episode by episode. When one of them covers
+  // the whole scope, nothing is deleted. Returns false when the backend purge failed and should be retried.
+  private async Task<bool> DeleteUnsharedEpisodesAsync(Models.RequestRecord request, int retentionHours, CancellationToken cancellationToken)
+  {
+    var others = RequestScope.StillWantedByOthers(await _store.GetAllAsync(cancellationToken).ConfigureAwait(false), request);
+    if (others.Any(o => o.Contains(RequestScope.Of(request))))
+    {
+      return true;
+    }
+
+    var purged = await _downloadDispatcher.PurgeAsync(request, cancellationToken).ConfigureAwait(false);
+    if (!purged && !PurgeGraceElapsed(request, retentionHours))
+    {
+      _logger.LogWarning("Jelly Crowd deletion: backend purge failed for {Title}; leaving it flagged to retry.", request.Title);
+      return false;
+    }
+
+    foreach (var key in _libraryMatcher.ListEpisodeKeys(request.TmdbId, request.Season))
+    {
+      // A whole-series request never covered the specials (season 0).
+      var inScope = request.Season is null ? key.Season > 0 : request.Episode is null || key.Episode == request.Episode;
+      if (!inScope || others.Any(o => o.Contains(new RequestScope(request.MediaType, request.TmdbId, key.Season, key.Episode))))
+      {
+        continue;
+      }
+
+      var itemId = _libraryMatcher.FindEpisodeItemId(request.TmdbId, key.Season, key.Episode);
+      if (!string.IsNullOrEmpty(itemId))
+      {
+        _mediaDeleter.Delete(itemId);
+      }
+    }
+
+    return true;
   }
 
   // The Jellyfin item to delete: a season folder for a per-season request, the episode for a per-episode

@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+using Jellyfin.Plugin.JellyCrowd.Services;
 
 namespace Jellyfin.Plugin.JellyCrowd.Models;
 
@@ -79,4 +82,12 @@ public sealed class DownloadDispatch
   /// Gets or sets the canonical TMDB web URL for the title.
   /// </summary>
   public string TmdbUrl { get; set; } = string.Empty;
+
+  /// <summary>
+  /// Gets or sets what the title's other active requests still cover, set when the request is cancelled or
+  /// its media deleted: the backend withdraws only what none of them wants. Internal to Jelly Crowd, so it
+  /// is left out of the payload sent to webhooks and scripts.
+  /// </summary>
+  [JsonIgnore]
+  public IReadOnlyList<RequestScope> KeepScopes { get; set; } = Array.Empty<RequestScope>();
 }

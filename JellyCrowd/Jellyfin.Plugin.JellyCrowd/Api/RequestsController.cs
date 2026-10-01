@@ -801,16 +801,18 @@ public class RequestsController : ControllerBase
   public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
   {
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
-
-    // Propagate upstream before removing it locally, while we still have the record (only for an
-    // approved request that may have been dispatched to a backend).
     var existing = await _store.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
-    if (existing is not null && existing.UserId == userId && existing.Status == RequestStatus.Approved)
+
+    // Remove it locally first, so a dispatch or retry that comes after no longer finds it, then withdraw it
+    // from the backend in the background: that waits for any backend operation already running for the
+    // title (a dispatch still adding the series), so the user is not kept waiting on it. Only an approved
+    // or already dispatched request can have reached the backend.
+    var cancelled = await _store.CancelAsync(id, userId, cancellationToken).ConfigureAwait(false);
+    if (cancelled && existing is not null && (existing.Status == RequestStatus.Approved || existing.DispatchedAt is not null))
     {
-      await _downloadDispatcher.CancelAsync(existing, cancellationToken).ConfigureAwait(false);
+      _ = _downloadDispatcher.CancelAsync(existing, CancellationToken.None);
     }
 
-    var cancelled = await _store.CancelAsync(id, userId, cancellationToken).ConfigureAwait(false);
     return cancelled ? NoContent() : NotFound();
   }
 

@@ -103,10 +103,30 @@ public static class ServarrQueueParser
   public static IReadOnlyList<int> ParseSeriesDownloadsWithin(string json, int tvdbId, int? season, int? episode)
   {
     ArgumentNullException.ThrowIfNull(json);
+    return DownloadsWhere(json, tvdbId, r => InScope(r, season, episode));
+  }
+
+  /// <summary>
+  /// Finds the downloads of a series (by TVDB id) that carry nothing but the given episodes, as one queue
+  /// record id per download. A download that also carries another episode is left alone.
+  /// </summary>
+  /// <param name="json">The raw Sonarr <c>/queue?includeSeries=true&amp;includeEpisode=true</c> payload.</param>
+  /// <param name="tvdbId">The series TVDB id to match.</param>
+  /// <param name="episodes">The episodes being withdrawn.</param>
+  /// <returns>One queue record id per download made only of those episodes.</returns>
+  public static IReadOnlyList<int> ParseSeriesDownloadsWithin(string json, int tvdbId, IReadOnlySet<EpisodeKey> episodes)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+    ArgumentNullException.ThrowIfNull(episodes);
+    return DownloadsWhere(json, tvdbId, r => r.Season is int s && r.Episode is int e && episodes.Contains(new EpisodeKey(s, e)));
+  }
+
+  private static List<int> DownloadsWhere(string json, int tvdbId, Func<SeriesRecord, bool> withdrawn)
+  {
     var ids = new List<int>();
     foreach (var download in SeriesRecords(json, tvdbId).GroupBy(r => r.DownloadId ?? "#" + r.Id.ToString(CultureInfo.InvariantCulture), StringComparer.Ordinal))
     {
-      if (download.All(r => InScope(r, season, episode)))
+      if (download.All(withdrawn))
       {
         ids.Add(download.First().Id);
       }

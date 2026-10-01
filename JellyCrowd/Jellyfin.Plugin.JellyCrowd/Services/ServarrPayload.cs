@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 
 namespace Jellyfin.Plugin.JellyCrowd.Services;
@@ -54,6 +55,10 @@ public static class ServarrPayload
     body["rootFolderPath"] = rootFolderPath;
     body["monitored"] = true;
     body["seasonFolder"] = true;
+
+    // Only a whole-series request follows the seasons Sonarr lists later; a season or an episode request
+    // must not have the next season monitored (and downloaded) for nobody.
+    body["monitorNewItems"] = season is null ? "all" : "none";
 
     // Set monitoring explicitly on the seasons array (Sonarr honors it across versions): a specific
     // season monitors only that one, otherwise all real seasons (specials = season 0 stay off).
@@ -146,6 +151,53 @@ public static class ServarrPayload
 
     series["monitored"] = true;
     return true;
+  }
+
+  /// <summary>
+  /// Mutates an existing Sonarr series body so Sonarr does — or does not — monitor the seasons it lists
+  /// from now on (<c>monitorNewItems</c>). Returns <c>true</c> if the setting changed.
+  /// </summary>
+  /// <param name="series">The full series resource fetched from Sonarr.</param>
+  /// <param name="follow">Whether new seasons should be monitored.</param>
+  /// <returns><c>true</c> when the setting was changed.</returns>
+  public static bool SetFollowsNewSeasons(JsonObject series, bool follow)
+  {
+    ArgumentNullException.ThrowIfNull(series);
+    var wanted = follow ? "all" : "none";
+    var current = series["monitorNewItems"] is JsonValue v && v.TryGetValue<string>(out var text) ? text : null;
+    if (string.Equals(current, wanted, StringComparison.OrdinalIgnoreCase))
+    {
+      return false;
+    }
+
+    series["monitorNewItems"] = wanted;
+    return true;
+  }
+
+  /// <summary>
+  /// Lists the seasons a Sonarr series currently monitors.
+  /// </summary>
+  /// <param name="series">The full series resource fetched from Sonarr.</param>
+  /// <returns>The monitored season numbers.</returns>
+  public static IReadOnlyList<int> MonitoredSeasons(JsonObject series)
+  {
+    ArgumentNullException.ThrowIfNull(series);
+    var seasons = new List<int>();
+    if (series["seasons"] is JsonArray array)
+    {
+      foreach (var node in array)
+      {
+        if (node is JsonObject seasonObj
+            && seasonObj["seasonNumber"] is JsonValue numberValue
+            && numberValue.TryGetValue<int>(out var number)
+            && seasonObj["monitored"] is JsonValue sv && sv.TryGetValue<bool>(out var monitored) && monitored)
+        {
+          seasons.Add(number);
+        }
+      }
+    }
+
+    return seasons;
   }
 
   /// <summary>

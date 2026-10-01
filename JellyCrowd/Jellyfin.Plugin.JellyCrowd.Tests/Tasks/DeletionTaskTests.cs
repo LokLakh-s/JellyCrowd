@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -195,6 +196,77 @@ public sealed class DeletionTaskTests : IDisposable
     Assert.NotNull(await _store.GetByIdAsync(s2.Id, CancellationToken.None)); // season 2 left untouched
   }
 
+  private async Task<RequestRecord> SeedOwnedAsync(Guid user, int? season, int? episode, bool flagForDeletion)
+  {
+    var created = await _store.CreateAsync(new RequestRecord { UserId = user, TmdbId = 288385, MediaType = "tv", Title = "Paolo", Season = season, Episode = episode }, CancellationToken.None);
+    await _store.MarkAvailableAsync(created.Id, "stored-item", CancellationToken.None);
+    if (flagForDeletion)
+    {
+      await _store.RequestDeletionAsync(created.Id, user, CancellationToken.None);
+    }
+
+    return created;
+  }
+
+  private static StubMatcher SeasonOneInLibrary()
+  {
+    var matcher = new StubMatcher(seasonItemId: "season-item");
+    matcher.Episodes.Add(new(1, 1));
+    matcher.Episodes.Add(new(1, 2));
+    matcher.Episodes.Add(new(1, 3));
+    return matcher;
+  }
+
+  [Fact]
+  public async Task Execute_Season_PartlyOwnedByAnotherUser_DeletesEveryOtherEpisode()
+  {
+    // A deletes season 1 while B owns its episode 2: everything but episode 2 goes, never the season folder.
+    var userA = Guid.NewGuid();
+    var season = await SeedOwnedAsync(userA, 1, null, flagForDeletion: true);
+    var episode = await SeedOwnedAsync(Guid.NewGuid(), 1, 2, flagForDeletion: false);
+    var deleter = new RecordingDeleter();
+    var dispatcher = new RecordingDispatcher();
+    var task = new DeletionTask(_store, deleter, dispatcher, SeasonOneInLibrary(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Equal(new[] { "ep-S1E1", "ep-S1E3" }, deleter.Deleted.OrderBy(d => d, StringComparer.Ordinal));
+    Assert.Equal(new[] { season.Id }, dispatcher.Purged); // the backend withdraws the rest, B's episode excepted
+    Assert.Null(await _store.GetByIdAsync(season.Id, CancellationToken.None));
+    Assert.NotNull(await _store.GetByIdAsync(episode.Id, CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Execute_Episode_InsideAnotherUsersSeason_DeletesNothing()
+  {
+    var episode = await SeedOwnedAsync(Guid.NewGuid(), 1, 2, flagForDeletion: false);
+    await _store.RequestDeletionAsync(episode.Id, (await _store.GetByIdAsync(episode.Id, CancellationToken.None))!.UserId, CancellationToken.None);
+    await SeedOwnedAsync(Guid.NewGuid(), 1, null, flagForDeletion: false);
+    var deleter = new RecordingDeleter();
+    var dispatcher = new RecordingDispatcher();
+    var task = new DeletionTask(_store, deleter, dispatcher, SeasonOneInLibrary(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Empty(deleter.Deleted);
+    Assert.Empty(dispatcher.Purged);
+    Assert.Null(await _store.GetByIdAsync(episode.Id, CancellationToken.None)); // only the ownership goes
+  }
+
+  [Fact]
+  public async Task Execute_PartialDeletion_BackendUnreachable_StaysFlaggedForTheNextRun()
+  {
+    var season = await SeedOwnedAsync(Guid.NewGuid(), 1, null, flagForDeletion: true);
+    await SeedOwnedAsync(Guid.NewGuid(), 1, 2, flagForDeletion: false);
+    var deleter = new RecordingDeleter();
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(purgeSucceeds: false), SeasonOneInLibrary(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Empty(deleter.Deleted);
+    Assert.NotNull(await _store.GetByIdAsync(season.Id, CancellationToken.None));
+  }
+
   [Fact]
   public async Task Execute_SweepsEmptySeries_AndProtectsActiveRequests_WhenEnabled()
   {
@@ -249,7 +321,13 @@ public sealed class DeletionTaskTests : IDisposable
 
     public string? FindItemId(string mediaType, int tmdbId) => _itemId;
 
-    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => null;
+    /// <summary>Gets the episodes in the library (empty unless a test fills it).</summary>
+    public System.Collections.Generic.HashSet<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> Episodes { get; } = new();
+
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode)
+      => season is int s && episode is int e && Episodes.Contains(new Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey(s, e))
+        ? "ep-S" + s.ToString(System.Globalization.CultureInfo.InvariantCulture) + "E" + e.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        : null;
 
     public string? FindSeasonItemId(int seriesTmdbId, int season) => _seasonItemId;
 
@@ -259,7 +337,8 @@ public sealed class DeletionTaskTests : IDisposable
 
     public System.Collections.Generic.IReadOnlyList<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem> ListLibraryMedia() => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.LibraryMediaItem>();
 
-    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season) => System.Array.Empty<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey>();
+    public System.Collections.Generic.IReadOnlyCollection<Jellyfin.Plugin.JellyCrowd.Models.EpisodeKey> ListEpisodeKeys(int seriesTmdbId, int? season)
+      => Episodes.Where(k => season is null || k.Season == season).ToList();
   }
 
   private sealed class RecordingPromoter : IQuotaHoldPromoter

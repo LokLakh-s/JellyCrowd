@@ -125,6 +125,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         return user?.Username ?? "Unknown";
       };
     });
+    serviceCollection.AddSingleton<TitleOperationLock>();
     serviceCollection.AddSingleton<IDownloadDispatcher, DownloadDispatcher>();
     serviceCollection.AddSingleton<IEpisodeAirDateRefresher, EpisodeAirDateRefresher>();
 

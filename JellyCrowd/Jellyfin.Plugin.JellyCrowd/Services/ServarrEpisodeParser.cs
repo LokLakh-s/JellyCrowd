@@ -104,6 +104,37 @@ public static class ServarrEpisodeParser
   }
 
   /// <summary>
+  /// Parses a Sonarr episode list.
+  /// </summary>
+  /// <param name="json">The raw Sonarr episodes JSON array.</param>
+  /// <returns>Every episode with its id, numbers, monitored flag and file id (0 when it has no file).</returns>
+  public static IReadOnlyList<SonarrEpisode> ParseEpisodes(string json)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+    var list = new List<SonarrEpisode>();
+    using var doc = JsonDocument.Parse(json);
+    if (doc.RootElement.ValueKind != JsonValueKind.Array)
+    {
+      return list;
+    }
+
+    foreach (var el in doc.RootElement.EnumerateArray())
+    {
+      if (el.ValueKind == JsonValueKind.Object
+          && TryGetInt(el, "id", out var id)
+          && TryGetInt(el, "seasonNumber", out var season)
+          && TryGetInt(el, "episodeNumber", out var number))
+      {
+        var monitored = el.TryGetProperty("monitored", out var m) && m.ValueKind == JsonValueKind.True;
+        var fileId = TryGetInt(el, "episodeFileId", out var f) && f > 0 ? f : 0;
+        list.Add(new SonarrEpisode(id, season, number, monitored, fileId));
+      }
+    }
+
+    return list;
+  }
+
+  /// <summary>
   /// Finds one episode in a Sonarr episode list: its id and whether it is monitored.
   /// </summary>
   /// <param name="json">The raw Sonarr episodes JSON array.</param>

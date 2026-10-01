@@ -30,6 +30,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   private readonly IActivityLog _activityLog;
   private readonly INotificationService _notificationService;
   private readonly ILogger<DownloadDispatcher> _logger;
+  private readonly TitleOperationLock _titleLock;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="DownloadDispatcher"/> class.
@@ -42,6 +43,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   /// <param name="activityLog">The plugin activity log.</param>
   /// <param name="notificationService">The notification service (used to alert the requester on failure).</param>
   /// <param name="logger">The logger.</param>
+  /// <param name="titleLock">Serializes the backend operations of one title (shared with the stalled-download recovery).</param>
   public DownloadDispatcher(
     IEnumerable<IDownloadClient> clients,
     IRequestStore store,
@@ -50,7 +52,8 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     Func<PluginConfiguration> config,
     IActivityLog activityLog,
     INotificationService notificationService,
-    ILogger<DownloadDispatcher> logger)
+    ILogger<DownloadDispatcher> logger,
+    TitleOperationLock? titleLock = null)
   {
     ArgumentNullException.ThrowIfNull(clients);
     _clients = clients.ToList();
@@ -61,6 +64,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     _activityLog = activityLog;
     _notificationService = notificationService;
     _logger = logger;
+    _titleLock = titleLock ?? new TitleOperationLock();
   }
 
   /// <inheritdoc />
@@ -149,8 +153,12 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
 
     try
     {
+      // After any backend operation already running for the title (a dispatch still adding the series), and
+      // against what the other requests want at that moment.
+      using var titleLock = await _titleLock.EnterAsync(request.MediaType, request.TmdbId, cancellationToken).ConfigureAwait(false);
       var name = _resolveUserName(request.UserId);
       var payload = DownloadPayloadBuilder.Build(request, name);
+      payload.KeepScopes = RequestScope.StillWantedByOthers(await _store.GetAllAsync(cancellationToken).ConfigureAwait(false), request);
       await client.CancelAsync(payload, cancellationToken).ConfigureAwait(false);
       _logger.LogInformation(
         "Requested upstream cancel of request {RequestId} on the {Backend} backend.",
@@ -177,8 +185,10 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
 
     try
     {
+      using var titleLock = await _titleLock.EnterAsync(request.MediaType, request.TmdbId, cancellationToken).ConfigureAwait(false);
       var name = _resolveUserName(request.UserId);
       var payload = DownloadPayloadBuilder.Build(request, name);
+      payload.KeepScopes = RequestScope.StillWantedByOthers(await _store.GetAllAsync(cancellationToken).ConfigureAwait(false), request);
       var ok = await client.PurgeAsync(payload, cancellationToken).ConfigureAwait(false);
       if (ok)
       {
@@ -240,8 +250,17 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
     var nowUtc = DateTime.UtcNow;
     try
     {
-      var name = _resolveUserName(request.UserId);
-      var payload = DownloadPayloadBuilder.Build(request, name);
+      // One backend operation per title at a time, and only for a request still wanted once it is our turn:
+      // one cancelled in the meantime must not be searched (and grabbed) again.
+      using var titleLock = await _titleLock.EnterAsync(request.MediaType, request.TmdbId, cancellationToken).ConfigureAwait(false);
+      var current = await _store.GetByIdAsync(request.Id, cancellationToken).ConfigureAwait(false);
+      if (current is null || current.Status != RequestStatus.Approved)
+      {
+        return false;
+      }
+
+      var name = _resolveUserName(current.UserId);
+      var payload = DownloadPayloadBuilder.Build(current, name);
       await client.RetryAsync(payload, cancellationToken).ConfigureAwait(false);
       await _store.SetDispatchErrorAsync(request.Id, null, nowUtc, cancellationToken).ConfigureAwait(false);
       _logger.LogInformation(
@@ -371,8 +390,17 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   {
     try
     {
-      var name = _resolveUserName(request.UserId);
-      var payload = DownloadPayloadBuilder.Build(request, name);
+      // One backend operation per title at a time, and only for a request still due once it is our turn: one
+      // cancelled in the meantime, or already sent by a concurrent pass, is left alone.
+      using var titleLock = await _titleLock.EnterAsync(request.MediaType, request.TmdbId, cancellationToken).ConfigureAwait(false);
+      var current = await _store.GetByIdAsync(request.Id, cancellationToken).ConfigureAwait(false);
+      if (current is null || !DownloadEligibility.IsDue(current, nowUtc))
+      {
+        return false;
+      }
+
+      var name = _resolveUserName(current.UserId);
+      var payload = DownloadPayloadBuilder.Build(current, name);
       await client.DispatchAsync(payload, cancellationToken).ConfigureAwait(false);
       await _store.MarkDispatchedAsync(request.Id, nowUtc, cancellationToken).ConfigureAwait(false);
       _logger.LogInformation(
