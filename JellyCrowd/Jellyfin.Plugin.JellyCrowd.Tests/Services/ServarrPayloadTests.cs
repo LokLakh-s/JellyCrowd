@@ -104,4 +104,27 @@ public class ServarrPayloadTests
         new JsonObject { ["seasonNumber"] = 2, ["monitored"] = false }
       }
     };
+
+  [Fact]
+  public void EnsureSeriesMonitored_TurnsTheSeriesOn_AndLeavesEverySeasonAsItIs()
+  {
+    var series = new JsonObject
+    {
+      ["monitored"] = false,
+      ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 1, ["monitored"] = false })
+    };
+
+    Assert.True(ServarrPayload.EnsureSeriesMonitored(series));
+    Assert.True(series["monitored"]!.GetValue<bool>());
+    Assert.False(series["seasons"]![0]!["monitored"]!.GetValue<bool>());
+    Assert.False(ServarrPayload.EnsureSeriesMonitored(series)); // already on: nothing to persist
+  }
+
+  [Fact]
+  public void IsPostAddComplete_FalseWhileSonarrStillHoldsTheAddOptions()
+  {
+    Assert.False(ServarrPayload.IsPostAddComplete(new JsonObject { ["addOptions"] = new JsonObject { ["monitor"] = "none" } }));
+    Assert.True(ServarrPayload.IsPostAddComplete(new JsonObject { ["addOptions"] = null }));
+    Assert.True(ServarrPayload.IsPostAddComplete(new JsonObject()));
+  }
 }

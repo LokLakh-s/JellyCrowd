@@ -103,6 +103,37 @@ public static class ServarrEpisodeParser
     return ids;
   }
 
+  /// <summary>
+  /// Finds one episode in a Sonarr episode list: its id and whether it is monitored.
+  /// </summary>
+  /// <param name="json">The raw Sonarr episodes JSON array.</param>
+  /// <param name="season">The season number.</param>
+  /// <param name="episode">The episode number within the season.</param>
+  /// <returns>The episode's id and monitored flag, or <c>null</c> when Sonarr does not list it (yet).</returns>
+  public static (int Id, bool Monitored)? FindEpisode(string json, int season, int episode)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+    using var doc = JsonDocument.Parse(json);
+    if (doc.RootElement.ValueKind != JsonValueKind.Array)
+    {
+      return null;
+    }
+
+    foreach (var el in doc.RootElement.EnumerateArray())
+    {
+      if (el.ValueKind == JsonValueKind.Object
+          && TryGetInt(el, "seasonNumber", out var s) && s == season
+          && TryGetInt(el, "episodeNumber", out var e) && e == episode
+          && TryGetInt(el, "id", out var id))
+      {
+        var monitored = el.TryGetProperty("monitored", out var m) && m.ValueKind == JsonValueKind.True;
+        return (id, monitored);
+      }
+    }
+
+    return null;
+  }
+
   private static bool TryGetInt(JsonElement parent, string property, out int value)
   {
     value = 0;

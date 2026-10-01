@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using Jellyfin.Plugin.JellyCrowd.Models;
 
@@ -64,17 +66,58 @@ public static class ServarrQueueParser
   }
 
   /// <summary>
-  /// Finds the Sonarr queue record ids for a given series (by TVDB id), so active downloads can be
-  /// removed from the download client when the whole series is purged.
+  /// Finds the Sonarr queue record ids of a series (by TVDB id) that touch a scope: the whole series, one
+  /// season, or one episode. Used to drop a stalled grab, which is dead for every episode it carries.
   /// </summary>
-  /// <param name="json">The raw Sonarr <c>/queue?includeSeries=true</c> payload.</param>
+  /// <param name="json">The raw Sonarr <c>/queue?includeSeries=true&amp;includeEpisode=true</c> payload.</param>
   /// <param name="tvdbId">The series TVDB id to match.</param>
-  /// <param name="season">When set, only match queue records for that season's episode.</param>
+  /// <param name="season">When set, only match queue records for that season's episodes.</param>
+  /// <param name="episode">When set (with <paramref name="season"/>), only match that episode's records.</param>
   /// <returns>The matching queue record ids.</returns>
-  public static IReadOnlyList<int> ParseSeriesQueueRecordIds(string json, int tvdbId, int? season = null)
+  public static IReadOnlyList<int> ParseSeriesQueueRecordIds(string json, int tvdbId, int? season = null, int? episode = null)
   {
     ArgumentNullException.ThrowIfNull(json);
     var ids = new List<int>();
+    foreach (var record in SeriesRecords(json, tvdbId))
+    {
+      if (InScope(record, season, episode))
+      {
+        ids.Add(record.Id);
+      }
+    }
+
+    return ids;
+  }
+
+  /// <summary>
+  /// Finds the downloads of a series (by TVDB id) that lie entirely within a scope — the whole series, one
+  /// season, or one episode — as one queue record id per download (removing a record from the client
+  /// removes its whole download). A download that also carries episodes outside the scope, such as a pack
+  /// spanning seasons, is left alone: other requests may be waiting for those episodes.
+  /// </summary>
+  /// <param name="json">The raw Sonarr <c>/queue?includeSeries=true&amp;includeEpisode=true</c> payload.</param>
+  /// <param name="tvdbId">The series TVDB id to match.</param>
+  /// <param name="season">The season of the scope, or <c>null</c> for the whole series.</param>
+  /// <param name="episode">The episode of the scope (with <paramref name="season"/>), or <c>null</c> for the whole season.</param>
+  /// <returns>One queue record id per download within the scope.</returns>
+  public static IReadOnlyList<int> ParseSeriesDownloadsWithin(string json, int tvdbId, int? season, int? episode)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+    var ids = new List<int>();
+    foreach (var download in SeriesRecords(json, tvdbId).GroupBy(r => r.DownloadId ?? "#" + r.Id.ToString(CultureInfo.InvariantCulture), StringComparer.Ordinal))
+    {
+      if (download.All(r => InScope(r, season, episode)))
+      {
+        ids.Add(download.First().Id);
+      }
+    }
+
+    return ids;
+  }
+
+  private static List<SeriesRecord> SeriesRecords(string json, int tvdbId)
+  {
+    var list = new List<SeriesRecord>();
     using var doc = JsonDocument.Parse(json);
     foreach (var record in Records(doc))
     {
@@ -87,21 +130,25 @@ public static class ServarrQueueParser
         continue;
       }
 
-      // When a season is given, only match queue records for that season's episode.
-      if (season is not null
-          && (!record.TryGetProperty("episode", out var episode)
-              || episode.ValueKind != JsonValueKind.Object
-              || !TryGetInt(episode, "seasonNumber", out var s)
-              || s != season.Value))
+      int? season = null;
+      int? number = null;
+      if (record.TryGetProperty("episode", out var episode) && episode.ValueKind == JsonValueKind.Object)
       {
-        continue;
+        season = TryGetInt(episode, "seasonNumber", out var s) ? s : null;
+        number = TryGetInt(episode, "episodeNumber", out var e) ? e : null;
       }
 
-      ids.Add(recordId);
+      var downloadId = GetString(record, "downloadId");
+      list.Add(new SeriesRecord(recordId, string.IsNullOrEmpty(downloadId) ? null : downloadId, season, number));
     }
 
-    return ids;
+    return list;
   }
+
+  // A record with no episode details can't be placed, so it only matches the whole-series scope.
+  private static bool InScope(SeriesRecord record, int? season, int? episode)
+    => season is null
+      || (record.Season == season && (episode is null || record.Episode == episode));
 
   /// <summary>
   /// Parses a Sonarr queue payload into per-episode progress items carrying their series TVDB id.
@@ -239,4 +286,6 @@ public static class ServarrQueueParser
     => parent.TryGetProperty(property, out var el) && el.ValueKind == JsonValueKind.String
       ? el.GetString() ?? string.Empty
       : string.Empty;
+
+  private sealed record SeriesRecord(int Id, string? DownloadId, int? Season, int? Episode);
 }

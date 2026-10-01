@@ -86,4 +86,19 @@ public class ServarrEpisodeParserTests
     Assert.Equal(new[] { 13 }, ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, 1, 2));
     Assert.Empty(ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, 1, 9));
   }
+
+  [Fact]
+  public void FindEpisode_ReturnsItsIdAndMonitoredFlag_OrNullWhenNotListed()
+  {
+    const string json = """
+    [
+      { "id": 12, "seasonNumber": 1, "episodeNumber": 1, "monitored": true },
+      { "id": 13, "seasonNumber": 1, "episodeNumber": 2, "monitored": false }
+    ]
+    """;
+
+    Assert.Equal((12, true), ServarrEpisodeParser.FindEpisode(json, 1, 1));
+    Assert.Equal((13, false), ServarrEpisodeParser.FindEpisode(json, 1, 2));
+    Assert.Null(ServarrEpisodeParser.FindEpisode(json, 2, 1));
+  }
 }

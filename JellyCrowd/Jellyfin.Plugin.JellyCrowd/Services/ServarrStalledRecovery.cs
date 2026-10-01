@@ -24,6 +24,7 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<ServarrStalledRecovery> _logger;
   private readonly StallTracker _tracker = new();
+  private readonly Func<DateTime> _clock;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ServarrStalledRecovery"/> class.
@@ -34,12 +35,19 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
   public ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger)
+    : this(servarr, tmdb, store, config, logger, () => DateTime.UtcNow)
+  {
+  }
+
+  // Tests drive the clock, so a stall can be observed without waiting for the real threshold.
+  internal ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, Func<DateTime> clock)
   {
     _servarr = servarr;
     _tmdb = tmdb;
     _store = store;
     _config = config;
     _logger = logger;
+    _clock = clock;
   }
 
   /// <inheritdoc />
@@ -52,7 +60,7 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
     }
 
     var threshold = TimeSpan.FromMinutes(Math.Max(1, config.StalledRecoveryMinutes));
-    var now = DateTime.UtcNow;
+    var now = _clock();
 
     try
     {
@@ -130,7 +138,10 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
         continue;
       }
 
-      var match = queue.FirstOrDefault(q => q.TvdbId == tvdbId.Value && (request.Season is null || q.Season == request.Season));
+      // The request's own scope only: an episode request must not act on its season's other downloads.
+      var match = queue.FirstOrDefault(q => q.TvdbId == tvdbId.Value
+        && (request.Season is null || q.Season == request.Season)
+        && (request.Season is null || request.Episode is null || q.Episode == request.Episode));
       var key = request.Id.ToString("N", CultureInfo.InvariantCulture);
       if (match is null)
       {
@@ -143,7 +154,7 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
         continue;
       }
 
-      foreach (var queueId in ServarrQueueParser.ParseSeriesQueueRecordIds(queueJson, tvdbId.Value, request.Season))
+      foreach (var queueId in ServarrQueueParser.ParseSeriesQueueRecordIds(queueJson, tvdbId.Value, request.Season, request.Episode))
       {
         await _servarr.DeleteQueueItemAsync(config.SonarrUrl, config.SonarrApiKey, queueId, removeFromClient: true, blocklist: true, cancellationToken).ConfigureAwait(false);
       }
@@ -151,14 +162,34 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId.Value, cancellationToken).ConfigureAwait(false);
       if (series?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
       {
-        var command = request.Season is int season
-          ? new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season }
-          : new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };
-        await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
+        var command = await BuildSearchAsync(config, seriesId, request, cancellationToken).ConfigureAwait(false);
+        if (command is not null)
+        {
+          await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
+        }
       }
 
       _logger.LogInformation("Jelly Crowd: recovered stalled download for \"{Title}\" (blocklisted + re-searched).", request.Title);
     }
+  }
+
+  // The re-search for a request's scope: its episode alone, its season, or the whole series. Null when the
+  // episode is not listed in Sonarr.
+  private async Task<JsonObject?> BuildSearchAsync(PluginConfiguration config, int seriesId, RequestRecord request, CancellationToken cancellationToken)
+  {
+    if (request.Season is not int season)
+    {
+      return new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };
+    }
+
+    if (request.Episode is not int episode)
+    {
+      return new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season };
+    }
+
+    var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
+    var listed = string.IsNullOrEmpty(episodesJson) ? null : ServarrEpisodeParser.FindEpisode(episodesJson, season, episode);
+    return listed is { } found ? new JsonObject { ["name"] = "EpisodeSearch", ["episodeIds"] = new JsonArray(found.Id) } : null;
   }
 
   private static bool RadarrConfigured(PluginConfiguration config)

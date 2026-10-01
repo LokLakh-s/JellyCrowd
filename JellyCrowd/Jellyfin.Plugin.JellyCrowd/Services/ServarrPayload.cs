@@ -129,6 +129,39 @@ public static class ServarrPayload
   }
 
   /// <summary>
+  /// Mutates an existing Sonarr series body so the series itself is monitored, leaving every season flag as
+  /// it is. For a single-episode request: Sonarr only grabs an episode of a monitored series, but turning
+  /// the episode's season on would make it monitor every episode of that season (and each one it lists
+  /// later). Returns <c>true</c> if the flag changed.
+  /// </summary>
+  /// <param name="series">The full series resource fetched from Sonarr.</param>
+  /// <returns><c>true</c> when the series' monitored flag was changed.</returns>
+  public static bool EnsureSeriesMonitored(JsonObject series)
+  {
+    ArgumentNullException.ThrowIfNull(series);
+    if (series["monitored"] is JsonValue rootValue && rootValue.TryGetValue<bool>(out var rootMonitored) && rootMonitored)
+    {
+      return false;
+    }
+
+    series["monitored"] = true;
+    return true;
+  }
+
+  /// <summary>
+  /// Read-only check that Sonarr has finished processing a fresh add. Its post-add step (which applies the
+  /// add's monitoring option — "none" here, unmonitoring everything) clears the series' <c>addOptions</c>
+  /// when it is done, so monitoring applied after that point is no longer overwritten.
+  /// </summary>
+  /// <param name="series">The full series resource fetched from Sonarr.</param>
+  /// <returns><c>true</c> when the series carries no pending add options.</returns>
+  public static bool IsPostAddComplete(JsonObject series)
+  {
+    ArgumentNullException.ThrowIfNull(series);
+    return series["addOptions"] is not JsonObject;
+  }
+
+  /// <summary>
   /// Read-only check that the series and its requested season (or every real season when
   /// <paramref name="season"/> is <c>null</c>) are already monitored. Used to confirm that a monitoring
   /// change actually stuck — a fresh Sonarr add processes monitoring asynchronously and can briefly

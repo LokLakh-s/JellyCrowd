@@ -77,4 +77,40 @@ public class ServarrQueueParserTests
 
     Assert.Empty(ServarrQueueParser.ParseSeriesQueue(json));
   }
+
+  private const string MixedQueue = """
+  { "records": [
+    { "id": 1, "downloadId": "A", "series": { "tvdbId": 9 }, "episode": { "seasonNumber": 1, "episodeNumber": 2 } },
+    { "id": 2, "downloadId": "B", "series": { "tvdbId": 9 }, "episode": { "seasonNumber": 1, "episodeNumber": 5 } },
+    { "id": 3, "downloadId": "C", "series": { "tvdbId": 9 }, "episode": { "seasonNumber": 1, "episodeNumber": 1 } },
+    { "id": 4, "downloadId": "C", "series": { "tvdbId": 9 }, "episode": { "seasonNumber": 2, "episodeNumber": 1 } },
+    { "id": 5, "downloadId": "D", "series": { "tvdbId": 9 }, "episode": { "seasonNumber": 2, "episodeNumber": 3 } },
+    { "id": 6, "downloadId": "D", "series": { "tvdbId": 9 }, "episode": { "seasonNumber": 2, "episodeNumber": 4 } },
+    { "id": 7, "downloadId": "E", "series": { "tvdbId": 8 }, "episode": { "seasonNumber": 1, "episodeNumber": 2 } }
+  ] }
+  """;
+
+  [Fact]
+  public void ParseSeriesQueueRecordIds_NarrowsToTheSeasonOrTheEpisode()
+  {
+    Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, ServarrQueueParser.ParseSeriesQueueRecordIds(MixedQueue, 9));
+    Assert.Equal(new[] { 1, 2, 3 }, ServarrQueueParser.ParseSeriesQueueRecordIds(MixedQueue, 9, 1));
+    Assert.Equal(new[] { 1 }, ServarrQueueParser.ParseSeriesQueueRecordIds(MixedQueue, 9, 1, 2));
+  }
+
+  [Fact]
+  public void ParseSeriesDownloadsWithin_KeepsDownloadsThatAlsoCarryOtherEpisodes()
+  {
+    // Download C spans seasons 1 and 2: purging either season alone must leave it running.
+    Assert.Equal(new[] { 1, 2 }, ServarrQueueParser.ParseSeriesDownloadsWithin(MixedQueue, 9, 1, null));
+    Assert.Equal(new[] { 5 }, ServarrQueueParser.ParseSeriesDownloadsWithin(MixedQueue, 9, 2, null)); // one id for pack D
+    Assert.Equal(new[] { 1 }, ServarrQueueParser.ParseSeriesDownloadsWithin(MixedQueue, 9, 1, 2));
+    Assert.Empty(ServarrQueueParser.ParseSeriesDownloadsWithin(MixedQueue, 9, 2, 3)); // E3 rides with E4 in pack D
+  }
+
+  [Fact]
+  public void ParseSeriesDownloadsWithin_TheWholeSeries_TakesEveryDownloadOnce()
+  {
+    Assert.Equal(new[] { 1, 2, 3, 5 }, ServarrQueueParser.ParseSeriesDownloadsWithin(MixedQueue, 9, null, null));
+  }
 }
