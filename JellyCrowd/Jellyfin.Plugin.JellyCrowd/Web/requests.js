@@ -419,7 +419,13 @@
     row.className = 'jellycrowd-request-row';
     row.dataset.reqIds = group.map(function (r) { return r.Id; }).join(' ');
     row.dataset.reqId = first.Id; // representative, for compatibility
-    if (first.ReleaseDate) { row.dataset.releaseDate = first.ReleaseDate; } // shown on the "Unreleased" badge
+    // Shown on the "Unreleased" badge: the next episode's date, not whichever episode happens to come first.
+    var nextTs = lib.nextEpisodeDate(group, Date.now());
+    if (nextTs !== null) {
+      row.dataset.releaseDate = new Date(nextTs).toISOString();
+    } else if (first.ReleaseDate) {
+      row.dataset.releaseDate = first.ReleaseDate;
+    }
     row._jcRequests = group; // for autosort
 
     function openDetail() {
@@ -460,15 +466,6 @@
     main.appendChild(sub);
 
     // Next episode date: the earliest future release/desired date among not-yet-available episodes.
-    var now = Date.now();
-    var nextTs = null;
-    group.forEach(function (r) {
-      if (statusInt(r) === 3) { return; }
-      var d = r.ReleaseDate ? new Date(r.ReleaseDate) : (r.DesiredAt ? new Date(r.DesiredAt) : null);
-      if (d && !isNaN(d.getTime()) && d.getTime() > now && (nextTs === null || d.getTime() < nextTs)) {
-        nextTs = d.getTime();
-      }
-    });
     if (nextTs !== null) {
       var nextSub = document.createElement('div');
       nextSub.className = 'jellycrowd-request-sub';

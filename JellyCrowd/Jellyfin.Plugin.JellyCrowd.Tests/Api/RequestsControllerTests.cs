@@ -87,6 +87,74 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Create_Episode_SchedulesOnItsOwnAirDate_NotTheDateTheClientSent()
+  {
+    // The client falls back to the series' first air date when the episode list it read had no air date
+    // yet: every episode of a new season was then scheduled on the premiere. TMDB's date wins.
+    var tmdb = new StubTmdbClient();
+    tmdb.EpisodesBySeason[1] = new[]
+    {
+      new Episode { SeasonNumber = 1, EpisodeNumber = 1, AirDate = "2030-01-01" },
+      new Episode { SeasonNumber = 1, EpisodeNumber = 2, AirDate = "2030-01-08" }
+    };
+    var controller = CreateController(new FakeRequestStore(), tmdb: tmdb);
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 7, MediaType = "tv", Title = "Show", Season = 1, Episode = 2, ReleaseDate = "2030-01-01" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal("2030-01-08", record.ReleaseDate);
+    Assert.Equal(new DateTime(2030, 1, 8, 0, 0, 0, DateTimeKind.Utc), record.DesiredAt);
+  }
+
+  [Fact]
+  public async Task Create_Episode_WithNoAirDateYet_KeepsItUnknown()
+  {
+    var tmdb = new StubTmdbClient();
+    tmdb.EpisodesBySeason[1] = new[] { new Episode { SeasonNumber = 1, EpisodeNumber = 3, AirDate = null } };
+    var controller = CreateController(new FakeRequestStore(), tmdb: tmdb);
+    var before = DateTime.UtcNow;
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 7, MediaType = "tv", Title = "Show", Season = 1, Episode = 3, ReleaseDate = "2030-01-01" },
+      CancellationToken.None);
+
+    // Unknown, not the series' date: the air-date refresher fills it in once TMDB publishes it.
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Null(record.ReleaseDate);
+    Assert.InRange(record.DesiredAt!.Value, before.AddSeconds(-5), DateTime.UtcNow.AddSeconds(5));
+  }
+
+  [Fact]
+  public async Task Create_Episode_TmdbDoesNotListIt_KeepsTheDateTheClientSent()
+  {
+    var controller = CreateController(new FakeRequestStore());
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 7, MediaType = "tv", Title = "Show", Season = 1, Episode = 3, ReleaseDate = "2030-01-01" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal("2030-01-01", record.ReleaseDate);
+  }
+
+  [Fact]
+  public async Task CreateForUser_Episode_SchedulesOnItsOwnAirDate()
+  {
+    var tmdb = new StubTmdbClient();
+    tmdb.EpisodesBySeason[2] = new[] { new Episode { SeasonNumber = 2, EpisodeNumber = 4, AirDate = "2030-03-04" } };
+
+    var result = await CreateController(new FakeRequestStore(), tmdb: tmdb).CreateForUser(
+      new AdminCreateRequestDto { UserId = Guid.NewGuid(), TmdbId = 7, MediaType = "tv", Title = "Show", Season = 2, Episode = 4, ReleaseDate = "2030-01-01" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal("2030-03-04", record.ReleaseDate);
+    Assert.Equal(new DateTime(2030, 3, 4, 0, 0, 0, DateTimeKind.Utc), record.DesiredAt);
+  }
+
+  [Fact]
   public async Task Create_FutureRelease_DoesNotConsultQuota()
   {
     // A not-yet-released title can't download yet, so its footprint must NOT be reserved and the
@@ -235,6 +303,18 @@ public class RequestsControllerTests
     Assert.Equal(RequestStatus.Available, created.Status);
     Assert.Equal(2, created.Season);
     Assert.Equal("season-200", created.JellyfinItemId); // resolved via FindSeasonItemId, not the whole series
+  }
+
+  [Fact]
+  public async Task Claim_EmptySeason_Refused()
+  {
+    // Jellyfin keeps a season folder after its files are deleted: that empty shell is not ownable.
+    var matcher = new FakeLibraryMatcher { NoEpisodes = true };
+    var dto = new CreateRequestDto { TmdbId = 200, MediaType = "tv", Title = "Show", Season = 1 };
+
+    var result = await CreateController(new FakeRequestStore(), matcher: matcher).Claim(dto, CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result.Result);
   }
 
   [Fact]
@@ -1135,7 +1215,11 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
 
     public string? FindItemId(string mediaType, int tmdbId) => "item-" + tmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode) => "item-" + seriesTmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>Gets or sets a value indicating whether the library holds no episode (an empty series/season shell).</summary>
+    public bool NoEpisodes { get; set; }
+
+    public string? FindEpisodeItemId(int seriesTmdbId, int? season, int? episode)
+      => NoEpisodes ? null : "item-" + seriesTmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public string? FindSeasonItemId(int seriesTmdbId, int season) => "season-" + seriesTmdbId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
@@ -1368,6 +1452,30 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
 
       record.NotFoundNotifiedAt = whenUtc;
       return Task.FromResult<RequestRecord?>(record);
+    }
+
+    public Task<RequestRecord?> ClearNotFoundNotifiedAsync(Guid id, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.NotFoundNotifiedAt is null)
+      {
+        return Task.FromResult<RequestRecord?>(null);
+      }
+
+      record.NotFoundNotifiedAt = null;
+      return Task.FromResult<RequestRecord?>(record);
+    }
+
+    public Task<RequestRecord?> RescheduleAsync(Guid id, string releaseDate, DateTime desiredAtUtc, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is not null)
+      {
+        record.ReleaseDate = releaseDate;
+        record.DesiredAt = desiredAtUtc;
+      }
+
+      return Task.FromResult(record);
     }
 
     public Task<IReadOnlyList<RequestRecord>> GetDueForDispatchAsync(DateTime nowUtc, CancellationToken cancellationToken)

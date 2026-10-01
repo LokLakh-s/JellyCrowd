@@ -45,12 +45,20 @@ public sealed class LibraryMatcher : ILibraryMatcher
       {
         [MetadataProvider.Tmdb.ToString()] = tmdbId.ToString(CultureInfo.InvariantCulture)
       },
-      Recursive = true,
-      Limit = 1
+      Recursive = true
     };
 
-    var items = _libraryManager.GetItemList(query);
-    return items.Count > 0 ? items[0].Id.ToString("N", CultureInfo.InvariantCulture) : null;
+    // A series only counts once it holds an episode: Jellyfin keeps the series and its season folders after
+    // their files are deleted, and that empty shell is neither available nor something to own.
+    foreach (var item in _libraryManager.GetItemList(query))
+    {
+      if (kind.Value != BaseItemKind.Series || HasEpisode(item))
+      {
+        return item.Id.ToString("N", CultureInfo.InvariantCulture);
+      }
+    }
+
+    return null;
   }
 
   /// <inheritdoc />
@@ -290,6 +298,16 @@ public sealed class LibraryMatcher : ILibraryMatcher
 
     return keys;
   }
+
+  private bool HasEpisode(BaseItem series)
+    => _libraryManager.GetItemList(new InternalItemsQuery
+    {
+      IncludeItemTypes = new[] { BaseItemKind.Episode },
+      AncestorIds = new[] { series.Id },
+      IsVirtualItem = false,
+      Recursive = true,
+      Limit = 1
+    }).Count > 0;
 
   private long SumEpisodeSizes(BaseItem series, int? season = null, int? episode = null)
   {

@@ -53,6 +53,37 @@ public class LibraryMatcherTests
   }
 
   [Fact]
+  public void FindItemId_Tv_ReturnsNull_ForAnEmptySeriesShell()
+  {
+    // Jellyfin keeps the series after its files are deleted: with no episode left, it is not in the library.
+    var manager = new Mock<ILibraryManager>();
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes != null && q.IncludeItemTypes.Contains(BaseItemKind.Series))))
+      .Returns(new List<BaseItem> { new Series { Id = Guid.NewGuid() } });
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes != null && q.IncludeItemTypes.Contains(BaseItemKind.Episode))))
+      .Returns(new List<BaseItem>());
+
+    Assert.Null(new LibraryMatcher(manager.Object).FindItemId("tv", 288385));
+  }
+
+  [Fact]
+  public void FindItemId_Tv_ReturnsTheSeriesHoldingAnEpisode()
+  {
+    var shell = Guid.NewGuid();
+    var real = Guid.NewGuid();
+    var manager = new Mock<ILibraryManager>();
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes != null && q.IncludeItemTypes.Contains(BaseItemKind.Series))))
+      .Returns(new List<BaseItem> { new Series { Id = shell }, new Series { Id = real } });
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q =>
+        q.IncludeItemTypes != null && q.IncludeItemTypes.Contains(BaseItemKind.Episode) && q.IsVirtualItem == false && q.AncestorIds.Contains(real))))
+      .Returns(new List<BaseItem> { new Episode() });
+    manager.Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q =>
+        q.IncludeItemTypes != null && q.IncludeItemTypes.Contains(BaseItemKind.Episode) && q.AncestorIds.Contains(shell))))
+      .Returns(new List<BaseItem>());
+
+    Assert.Equal(real.ToString("N"), new LibraryMatcher(manager.Object).FindItemId("tv", 288385));
+  }
+
+  [Fact]
   public void FindSeasonItemId_ResolvesSeasonByTmdbAndIndex()
   {
     var seasonId = Guid.NewGuid();

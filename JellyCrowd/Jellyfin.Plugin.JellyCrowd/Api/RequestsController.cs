@@ -183,7 +183,8 @@ public class RequestsController : ControllerBase
     // now regardless of quota and re-checked when it becomes due (see the download dispatcher). Only a
     // title that is downloadable now is gated against the quota here.
     var now = DateTime.UtcNow;
-    var desiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, dto.DesiredAt, now);
+    var releaseDate = await ResolveReleaseDateAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, dto.ReleaseDate, cancellationToken).ConfigureAwait(false);
+    var desiredAt = RequestScheduling.ResolveDesiredAt(releaseDate, dto.DesiredAt, now);
     var downloadableNow = desiredAt <= now;
     var episodes = coverage.EpisodesToReserve;
     var withinQuota = !downloadableNow || await _quotaService.CanRequestAsync(userId, dto.MediaType, episodes, cancellationToken).ConfigureAwait(false);
@@ -201,7 +202,7 @@ public class RequestsController : ControllerBase
         MediaType = dto.MediaType,
         Title = dto.Title,
         PosterPath = dto.PosterPath,
-        ReleaseDate = dto.ReleaseDate,
+        ReleaseDate = releaseDate,
         Season = dto.Season,
         Episode = dto.Episode,
         EstimatedEpisodes = episodes,
@@ -330,6 +331,49 @@ public class RequestsController : ControllerBase
     }
   }
 
+  // The release date a request is scheduled on. An episode takes its own air date from TMDB rather than the
+  // one the client sent: while TMDB has not published it, the client falls back to the series' first air
+  // date, which scheduled every episode of a new season on its premiere. An air date TMDB does not know yet
+  // stays unknown, and the air-date refresher fills it in once it is published.
+  private async Task<string?> ResolveReleaseDateAsync(string mediaType, int tmdbId, int? season, int? episode, string? sentReleaseDate, CancellationToken cancellationToken)
+  {
+    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal) || season is not int seasonNumber || episode is not int episodeNumber)
+    {
+      return sentReleaseDate;
+    }
+
+    try
+    {
+      var episodes = await _tmdbClient.GetSeasonEpisodesAsync(tmdbId, seasonNumber, "en-US", cancellationToken).ConfigureAwait(false);
+      var listed = episodes.FirstOrDefault(e => e.EpisodeNumber == episodeNumber);
+      return listed is null ? sentReleaseDate : listed.AirDate;
+    }
+    catch (Exception)
+    {
+      return sentReleaseDate;
+    }
+  }
+
+  // The library item a claim or an assignment takes ownership of: an episode, a season, or the whole
+  // movie/series. A season must hold an episode — Jellyfin keeps the season folder after its files are
+  // deleted, and that empty shell is not something to own (FindItemId applies the same rule to a series).
+  private string? FindOwnableItemId(string mediaType, int tmdbId, int? season, int? episode)
+  {
+    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal) || season is not int seasonNumber)
+    {
+      return _libraryMatcher.FindItemId(mediaType, tmdbId);
+    }
+
+    if (episode is int episodeNumber)
+    {
+      return _libraryMatcher.FindEpisodeItemId(tmdbId, seasonNumber, episodeNumber);
+    }
+
+    return _libraryMatcher.FindEpisodeItemId(tmdbId, seasonNumber, null) is null
+      ? null
+      : _libraryMatcher.FindSeasonItemId(tmdbId, seasonNumber);
+  }
+
   private static bool IsInFlight(RequestRecord request) => request.Status is RequestStatus.Pending or RequestStatus.Approved;
 
   private static bool IsOwned(RequestRecord request) => request.Status == RequestStatus.Available;
@@ -438,11 +482,7 @@ public class RequestsController : ControllerBase
 
     // A claim can be scoped to one season (the "Add to my library" button on a season page): resolve and
     // own that season's item, otherwise the whole movie/series.
-    var itemId = string.Equals(dto.MediaType, "tv", StringComparison.Ordinal) && dto.Season is int season
-      ? (dto.Episode is int episode
-          ? _libraryMatcher.FindEpisodeItemId(dto.TmdbId, season, episode)
-          : _libraryMatcher.FindSeasonItemId(dto.TmdbId, season))
-      : _libraryMatcher.FindItemId(dto.MediaType, dto.TmdbId);
+    var itemId = FindOwnableItemId(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode);
     if (string.IsNullOrEmpty(itemId))
     {
       return BadRequest("This title is not available in the library.");
@@ -993,7 +1033,8 @@ public class RequestsController : ControllerBase
 
     // An approved request that does not fit the user's quota yet waits for space, exactly like their own.
     var now = DateTime.UtcNow;
-    var desiredAt = RequestScheduling.ResolveDesiredAt(dto.ReleaseDate, null, now);
+    var releaseDate = await ResolveReleaseDateAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, dto.ReleaseDate, cancellationToken).ConfigureAwait(false);
+    var desiredAt = RequestScheduling.ResolveDesiredAt(releaseDate, null, now);
     var status = dto.Status ?? RequestStatus.Approved;
     var heldForQuota = status == RequestStatus.Approved
       && desiredAt <= now
@@ -1011,7 +1052,7 @@ public class RequestsController : ControllerBase
         MediaType = dto.MediaType,
         Title = dto.Title,
         PosterPath = dto.PosterPath,
-        ReleaseDate = dto.ReleaseDate,
+        ReleaseDate = releaseDate,
         Season = dto.Season,
         Episode = dto.Episode,
         EstimatedEpisodes = coverage.EpisodesToReserve,
@@ -1068,11 +1109,7 @@ public class RequestsController : ControllerBase
 
     // Resolve the exact library item for the scope (a season, an episode, or the whole movie/series), so
     // ownership points at what actually exists — assigning is only for media that is already present.
-    var itemId = string.Equals(dto.MediaType, "tv", StringComparison.Ordinal) && dto.Season is int season
-      ? (dto.Episode is int episode
-          ? _libraryMatcher.FindEpisodeItemId(dto.TmdbId, season, episode)
-          : _libraryMatcher.FindSeasonItemId(dto.TmdbId, season))
-      : _libraryMatcher.FindItemId(dto.MediaType, dto.TmdbId);
+    var itemId = FindOwnableItemId(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode);
     if (string.IsNullOrEmpty(itemId))
     {
       return BadRequest("This title is not available in the library.");

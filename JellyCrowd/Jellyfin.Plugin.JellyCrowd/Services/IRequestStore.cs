@@ -234,6 +234,26 @@ public interface IRequestStore
   Task<RequestRecord?> MarkNotFoundNotifiedAsync(Guid id, DateTime whenUtc, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Withdraws a "could not be found" stamp, so the request is searched for again and its requester is
+  /// warned again only if its search window runs out. Returns <c>null</c> when the request is gone or was
+  /// not stamped.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if not found or not stamped.</returns>
+  Task<RequestRecord?> ClearNotFoundNotifiedAsync(Guid id, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Moves a request to a new release date: the date shown for it and the time it is due.
+  /// </summary>
+  /// <param name="id">The request identifier.</param>
+  /// <param name="releaseDate">The new release date (<c>yyyy-MM-dd</c>).</param>
+  /// <param name="desiredAtUtc">The new desired fulfillment time (UTC).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated request, or <c>null</c> if it no longer exists.</returns>
+  Task<RequestRecord?> RescheduleAsync(Guid id, string releaseDate, DateTime desiredAtUtc, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Gets approved requests that are due for download dispatch: not yet dispatched and whose desired
   /// time (if any) is at or before the given instant.
   /// </summary>

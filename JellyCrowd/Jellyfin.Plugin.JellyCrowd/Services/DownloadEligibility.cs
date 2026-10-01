@@ -24,4 +24,53 @@ public static class DownloadEligibility
       && request.DispatchedAt is null
       && (request.DesiredAt is null || request.DesiredAt.Value <= nowUtc);
   }
+
+  /// <summary>
+  /// Determines whether a request is still waiting for its release: there is nothing to search for yet.
+  /// </summary>
+  /// <param name="request">The request to evaluate.</param>
+  /// <param name="nowUtc">The current UTC time.</param>
+  /// <returns><c>true</c> when the request's desired time is still ahead.</returns>
+  public static bool IsAwaitingRelease(RequestRecord request, DateTime nowUtc)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    return request.DesiredAt is { } desired && desired > nowUtc;
+  }
+
+  /// <summary>
+  /// Gets the moment the backend could start looking for a request: its dispatch, or its release when that
+  /// came later (an episode whose air date was only learned after it was sent). The "not found" window runs
+  /// from here, not from the request — a title requested weeks before it came out, or held for approval or
+  /// quota, would otherwise be given up on the instant it was sent.
+  /// </summary>
+  /// <param name="request">The request to evaluate.</param>
+  /// <returns>The UTC moment the search started.</returns>
+  public static DateTime SearchStartedAt(RequestRecord request)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    var start = request.DispatchedAt ?? request.RequestedAt;
+    return request.DesiredAt is { } desired && desired > start ? desired : start;
+  }
+
+  /// <summary>
+  /// Determines whether a "not found" stamp should be withdrawn: it was set before the search window ran out
+  /// (by the earlier rule that counted the window from the request, or before the release date moved later)
+  /// and the window is still running, so the request deserves its full search. A stamp whose window has
+  /// elapsed since stays, so the requester is not warned a second time.
+  /// </summary>
+  /// <param name="request">The request to evaluate.</param>
+  /// <param name="nowUtc">The current UTC time.</param>
+  /// <param name="searchWindow">How long a request is searched for before it is reported not found.</param>
+  /// <returns><c>true</c> when the stamp is premature and the search should resume.</returns>
+  public static bool IsNotFoundPremature(RequestRecord request, DateTime nowUtc, TimeSpan searchWindow)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    if (request.NotFoundNotifiedAt is not { } stamped)
+    {
+      return false;
+    }
+
+    var start = SearchStartedAt(request);
+    return stamped - start < searchWindow && nowUtc - start <= searchWindow;
+  }
 }

@@ -39,8 +39,13 @@ internal sealed class StubTmdbClient : ITmdbClient
 
   public Dictionary<int, IReadOnlyList<Episode>> EpisodesBySeason { get; } = new();
 
+  /// <summary>Gets or sets a value indicating whether episode lists fail, as when TMDB is unreachable.</summary>
+  public bool EpisodesUnavailable { get; set; }
+
   public Task<IReadOnlyList<Episode>> GetSeasonEpisodesAsync(int tmdbId, int seasonNumber, string language, CancellationToken cancellationToken)
-    => Task.FromResult(EpisodesBySeason.TryGetValue(seasonNumber, out var episodes) ? episodes : (IReadOnlyList<Episode>)Array.Empty<Episode>());
+    => EpisodesUnavailable
+      ? throw new InvalidOperationException("TMDB is unreachable.")
+      : Task.FromResult(EpisodesBySeason.TryGetValue(seasonNumber, out var episodes) ? episodes : (IReadOnlyList<Episode>)Array.Empty<Episode>());
 
   public Task<CatalogItem?> GetDetailsAsync(string mediaType, int tmdbId, string language, CancellationToken cancellationToken)
     => Task.FromResult(Details);

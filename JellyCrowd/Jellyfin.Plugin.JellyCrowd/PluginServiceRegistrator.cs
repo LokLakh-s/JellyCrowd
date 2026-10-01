@@ -126,6 +126,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       };
     });
     serviceCollection.AddSingleton<IDownloadDispatcher, DownloadDispatcher>();
+    serviceCollection.AddSingleton<IEpisodeAirDateRefresher, EpisodeAirDateRefresher>();
 
     // Inject the web-client shell at request time via our own middleware (no File Transformation dependency).
     serviceCollection.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, WebInjectionStartupFilter>();

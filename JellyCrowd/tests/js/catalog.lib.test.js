@@ -915,3 +915,23 @@ test('every tab of every route is a known view, and each route keeps the client 
     }
   }
 });
+
+test('nextEpisodeDate: earliest future date among episodes not yet available', () => {
+  const now = Date.parse('2026-10-01T12:00:00Z');
+  const group = [
+    { Status: 3, ReleaseDate: '2026-09-25' },          // available: ignored
+    { Status: 1, ReleaseDate: '2026-10-23' },
+    { Status: 'Approved', ReleaseDate: '2026-10-02' },
+    { Status: 1, ReleaseDate: '2026-09-28' }           // already aired: not "next"
+  ];
+  assert.strictEqual(lib.nextEpisodeDate(group, now), Date.parse('2026-10-02'));
+});
+
+test('nextEpisodeDate: falls back to the desired date, null when nothing is ahead', () => {
+  const now = Date.parse('2026-10-01T12:00:00Z');
+  assert.strictEqual(lib.nextEpisodeDate([{ Status: 1, DesiredAt: '2026-10-09T00:00:00Z' }], now), Date.parse('2026-10-09T00:00:00Z'));
+  // Every episode left on a past date (the reported case before the dates were corrected): no next date.
+  assert.strictEqual(lib.nextEpisodeDate([{ Status: 1, ReleaseDate: '2026-09-25' }], now), null);
+  assert.strictEqual(lib.nextEpisodeDate([], now), null);
+  assert.strictEqual(lib.nextEpisodeDate(null, now), null);
+});

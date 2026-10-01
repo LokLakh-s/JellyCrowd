@@ -257,6 +257,23 @@
     return 0; // pending
   }
 
+  // The next air date of a season's per-episode requests: the earliest future release (or desired) date
+  // among its episodes not yet available, as a timestamp, or null when none is ahead. `nowMs` is the
+  // current time. Pure so it can be unit-tested.
+  function nextEpisodeDate(requests, nowMs) {
+    var next = null;
+    (requests || []).forEach(function (r) {
+      var st = String(r.Status).toLowerCase();
+      if (st === '3' || st === 'available') { return; }
+      var d = r.ReleaseDate ? new Date(r.ReleaseDate) : (r.DesiredAt ? new Date(r.DesiredAt) : null);
+      var ts = d ? d.getTime() : NaN;
+      if (!isNaN(ts) && ts > nowMs && (next === null || ts < next)) {
+        next = ts;
+      }
+    });
+    return next;
+  }
+
   // Return [min, max] from two numbers (used to keep dual-slider bounds ordered).
   function orderPair(a, b) {
     var x = Number(a);
@@ -1299,6 +1316,7 @@
     requestStatusLabelKey: requestStatusLabelKey,
     statusRank: statusRank,
     requestSortRank: requestSortRank,
+    nextEpisodeDate: nextEpisodeDate,
     downloadStateKey: downloadStateKey,
     jellyfinDetailsHash: jellyfinDetailsHash,
     deletionCountdown: deletionCountdown,

@@ -17,7 +17,8 @@ public interface ILibraryMatcher
   bool Exists(string mediaType, int tmdbId);
 
   /// <summary>
-  /// Finds the Jellyfin library item id (32-char hex) for a TMDB title, or <c>null</c> if absent.
+  /// Finds the Jellyfin library item id (32-char hex) for a TMDB title, or <c>null</c> if absent. A series
+  /// counts only once it holds an episode: the empty shell left after its files were deleted does not.
   /// </summary>
   /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
   /// <param name="tmdbId">The TMDB identifier.</param>

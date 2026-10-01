@@ -69,4 +69,44 @@ public class RequestSchedulingTests
     Assert.False(RequestScheduling.WasUnreleasedRequest(new Models.RequestRecord { RequestedAt = requestedAt, DesiredAt = null }));
     Assert.False(RequestScheduling.WasUnreleasedRequest(new Models.RequestRecord { RequestedAt = requestedAt, DesiredAt = requestedAt.AddHours(1) }));
   }
+
+  [Fact]
+  public void RealignOnReleaseDate_DefersToANewDateStillAhead()
+  {
+    var now = new DateTime(2026, 9, 25, 12, 0, 0, DateTimeKind.Utc);
+    var request = new Models.RequestRecord { ReleaseDate = "2026-09-25", DesiredAt = new DateTime(2026, 9, 25, 0, 0, 0, DateTimeKind.Utc) };
+
+    Assert.Equal(new DateTime(2026, 10, 9, 0, 0, 0, DateTimeKind.Utc), RequestScheduling.RealignOnReleaseDate(request, "2026-10-09", now));
+  }
+
+  [Fact]
+  public void RealignOnReleaseDate_MakesItDue_WhenTheDateMovedEarlierIntoThePast()
+  {
+    var now = new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+    var request = new Models.RequestRecord { ReleaseDate = "2026-10-09", DesiredAt = new DateTime(2026, 10, 9, 0, 0, 0, DateTimeKind.Utc) };
+
+    Assert.Equal(now, RequestScheduling.RealignOnReleaseDate(request, "2026-10-02", now));
+  }
+
+  [Fact]
+  public void RealignOnReleaseDate_KeepsAnEarlierDesiredTime_WhenTheNewDateHasPassed()
+  {
+    var now = new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
+    var desired = new DateTime(2026, 9, 25, 0, 0, 0, DateTimeKind.Utc);
+    var request = new Models.RequestRecord { ReleaseDate = null, DesiredAt = desired };
+
+    Assert.Equal(desired, RequestScheduling.RealignOnReleaseDate(request, "2026-10-02", now));
+  }
+
+  [Theory]
+  [InlineData("2026-10-09")]
+  [InlineData(null)]
+  [InlineData("TBA")]
+  public void RealignOnReleaseDate_NoChange_WhenTheDateIsTheSameOrUnknown(string? airDate)
+  {
+    var now = new DateTime(2026, 9, 25, 12, 0, 0, DateTimeKind.Utc);
+    var request = new Models.RequestRecord { ReleaseDate = "2026-10-09", DesiredAt = new DateTime(2026, 10, 9, 0, 0, 0, DateTimeKind.Utc) };
+
+    Assert.Null(RequestScheduling.RealignOnReleaseDate(request, airDate, now));
+  }
 }

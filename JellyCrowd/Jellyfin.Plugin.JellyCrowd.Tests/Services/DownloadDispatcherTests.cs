@@ -237,10 +237,8 @@ public sealed class DownloadDispatcherTests : IDisposable
   public async Task RetryStuckAsync_PastTheRetryWindow_WarnsTheRequesterOnce()
   {
     var request = await SeedApprovedAsync();
-    await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
-    // Age the request past the 14-day search window: the media was never found.
-    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
-    stored!.RequestedAt = DateTime.UtcNow.AddDays(-20);
+    // Searched for past the 14-day window since it was sent: the media was never found.
+    await _store.MarkDispatchedAsync(request.Id, DateTime.UtcNow.AddDays(-20), CancellationToken.None);
     await _store.SetDispatchErrorAsync(request.Id, null, DateTime.UtcNow.AddHours(-7), CancellationToken.None);
 
     await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
@@ -250,6 +248,66 @@ public sealed class DownloadDispatcherTests : IDisposable
     Assert.Single(_notifier.Personal, e => e.Kind == PersonalNotifyKind.Decision); // ...but say so, once
     var after = await _store.GetByIdAsync(request.Id, CancellationToken.None);
     Assert.NotNull(after!.NotFoundNotifiedAt);
+  }
+
+  [Fact]
+  public async Task RetryStuckAsync_RequestedLongBeforeItsRelease_IsNotGivenUpOnWhenSent()
+  {
+    // The reported bug: an episode requested five weeks before it aired was sent on its air date and
+    // reported "not found" in the same instant, because the window was counted from the request.
+    var request = await SeedApprovedAsync();
+    var stored = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    stored!.RequestedAt = DateTime.UtcNow.AddDays(-35);
+    stored.DesiredAt = DateTime.UtcNow.AddMinutes(-5);
+    await _store.MarkDispatchedAsync(request.Id, DateTime.UtcNow.AddMinutes(-5), CancellationToken.None);
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.Empty(_notifier.Personal);
+    Assert.Null((await _store.GetByIdAsync(request.Id, CancellationToken.None))!.NotFoundNotifiedAt);
+  }
+
+  [Fact]
+  public async Task RetryStuckAsync_EpisodeNotAiredYet_IsNotSearchedFor()
+  {
+    // Sent before its air date was known; the date learned since is still ahead.
+    var request = await SeedApprovedAsync();
+    await _store.MarkDispatchedAsync(request.Id, DateTime.UtcNow.AddDays(-20), CancellationToken.None);
+    await _store.RescheduleAsync(request.Id, "2099-01-01", DateTime.UtcNow.AddDays(7), CancellationToken.None);
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.Empty(_client.Retried);
+    Assert.Empty(_notifier.Personal);
+  }
+
+  [Fact]
+  public async Task RetryStuckAsync_PrematureNotFound_IsWithdrawnAndSearchedAgain()
+  {
+    // Stamped the instant it was sent (the old rule); its real window has barely started.
+    var request = await SeedApprovedAsync();
+    await _store.MarkDispatchedAsync(request.Id, DateTime.UtcNow.AddHours(-7), CancellationToken.None);
+    await _store.MarkNotFoundNotifiedAsync(request.Id, DateTime.UtcNow.AddHours(-7), CancellationToken.None);
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.Null((await _store.GetByIdAsync(request.Id, CancellationToken.None))!.NotFoundNotifiedAt);
+    Assert.Single(_client.Retried);
+    Assert.Empty(_notifier.Personal);
+  }
+
+  [Fact]
+  public async Task RetryStuckAsync_EarlyNotFoundWhoseWindowHasSinceRunOut_StaysWithoutASecondWarning()
+  {
+    var request = await SeedApprovedAsync();
+    await _store.MarkDispatchedAsync(request.Id, DateTime.UtcNow.AddDays(-20), CancellationToken.None);
+    await _store.MarkNotFoundNotifiedAsync(request.Id, DateTime.UtcNow.AddDays(-13), CancellationToken.None);
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.NotNull((await _store.GetByIdAsync(request.Id, CancellationToken.None))!.NotFoundNotifiedAt);
+    Assert.Empty(_client.Retried);
+    Assert.Empty(_notifier.Personal);
   }
 
   [Fact]

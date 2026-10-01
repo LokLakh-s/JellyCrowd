@@ -44,6 +44,32 @@ public static class RequestScheduling
   }
 
   /// <summary>
+  /// Works out the new desired time of a request whose title now has a different release date: the new
+  /// date while it is still ahead, otherwise now at the latest (a date moved earlier makes it due at once,
+  /// a date already passed leaves an earlier desired time as is).
+  /// </summary>
+  /// <param name="request">The request record.</param>
+  /// <param name="releaseDate">The current release date (<c>yyyy-MM-dd</c>), if known.</param>
+  /// <param name="nowUtc">The current UTC time.</param>
+  /// <returns>The new desired UTC time, or <c>null</c> when the date is unknown or unchanged.</returns>
+  public static DateTime? RealignOnReleaseDate(Models.RequestRecord request, string? releaseDate, DateTime nowUtc)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    var release = ParseReleaseDate(releaseDate);
+    if (release is not { } r || release == ParseReleaseDate(request.ReleaseDate))
+    {
+      return null;
+    }
+
+    if (r > nowUtc)
+    {
+      return r;
+    }
+
+    return request.DesiredAt is { } desired && desired <= nowUtc ? desired : nowUtc;
+  }
+
+  /// <summary>
   /// Parses a TMDB date string (<c>yyyy-MM-dd</c>) as UTC midnight, or returns <c>null</c>.
   /// </summary>
   /// <param name="releaseDate">The date string.</param>

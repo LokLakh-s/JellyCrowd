@@ -551,6 +551,53 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<RequestRecord?> ClearNotFoundNotifiedAsync(Guid id, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null || record.NotFoundNotifiedAt is null)
+      {
+        return null;
+      }
+
+      record.NotFoundNotifiedAt = null;
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
+  public async Task<RequestRecord?> RescheduleAsync(Guid id, string releaseDate, DateTime desiredAtUtc, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null)
+      {
+        return null;
+      }
+
+      record.ReleaseDate = releaseDate;
+      record.DesiredAt = desiredAtUtc;
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<RequestRecord?> RecordProgressAsync(Guid id, int presentEpisodes, DateTime whenUtc, bool restartOwnershipClock, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

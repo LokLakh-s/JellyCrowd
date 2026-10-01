@@ -275,27 +275,40 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
 
     var now = DateTime.UtcNow;
     var all = await _store.GetAllAsync(cancellationToken).ConfigureAwait(false);
-    foreach (var request in all)
+    foreach (var candidate in all)
     {
       cancellationToken.ThrowIfCancellationRequested();
 
       // Only approved requests that already dispatched but haven't materialised. (Not-yet-dispatched
       // ones are handled by DispatchDueAsync; Available/Pending/Denied are out of scope.)
-      if (request.Status != RequestStatus.Approved || request.DispatchedAt is null)
+      if (candidate.Status != RequestStatus.Approved || candidate.DispatchedAt is not { } dispatchedAt)
+      {
+        continue;
+      }
+
+      // A request reported "not found" before its search window ran out goes back to being searched for.
+      var request = candidate;
+      if (DownloadEligibility.IsNotFoundPremature(request, now, RetryStuckMaxAge))
+      {
+        request = await _store.ClearNotFoundNotifiedAsync(request.Id, cancellationToken).ConfigureAwait(false) ?? request;
+      }
+
+      // Not out yet (an episode whose air date was learned after it was sent): nothing to search for.
+      if (DownloadEligibility.IsAwaitingRelease(request, now))
       {
         continue;
       }
 
       // Give up on genuinely-unavailable media after the window — manual retry only past that point.
       // Tell the requester once: until now the request simply sat on "Missing" forever, in silence.
-      if (now - request.RequestedAt > RetryStuckMaxAge)
+      if (now - DownloadEligibility.SearchStartedAt(request) > RetryStuckMaxAge)
       {
         await NotifyNotFoundAsync(request, now, cancellationToken).ConfigureAwait(false);
         continue;
       }
 
       // Back-off: only re-search when the last attempt is older than the interval.
-      var lastAttempt = request.DispatchAttemptedAt ?? request.DispatchedAt.Value;
+      var lastAttempt = request.DispatchAttemptedAt ?? dispatchedAt;
       if (now - lastAttempt < RetryStuckInterval)
       {
         continue;

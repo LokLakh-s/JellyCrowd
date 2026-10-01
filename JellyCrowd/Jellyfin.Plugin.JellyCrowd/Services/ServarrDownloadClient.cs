@@ -258,15 +258,16 @@ public sealed class ServarrDownloadClient : IDownloadClient
     await MonitorEpisodesAndSearchAsync(config, seriesId, dispatch, cancellationToken).ConfigureAwait(false);
   }
 
-  // Monitor the requested season's episodes (Sonarr's inert add and any prior deletion leave them
-  // unmonitored one by one, and setting only the season flag does not reliably cascade back), then trigger
-  // a targeted season search (or a whole-series search when no season was requested).
+  // Monitor the requested episode, or the requested season's episodes (Sonarr's inert add and any prior
+  // deletion leave them unmonitored one by one, and setting only the season flag does not reliably cascade
+  // back), then trigger a targeted season search (or a whole-series search when no season was requested).
+  // Sonarr only grabs a release whose episodes are all monitored, so an episode request grabs its episode alone.
   private async Task MonitorEpisodesAndSearchAsync(PluginConfiguration config, int seriesId, DownloadDispatch dispatch, CancellationToken cancellationToken)
   {
     var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
     if (!string.IsNullOrEmpty(episodesJson))
     {
-      var episodeIds = ServarrEpisodeParser.EpisodeIdsToMonitor(episodesJson, dispatch.Season);
+      var episodeIds = ServarrEpisodeParser.EpisodeIdsToMonitor(episodesJson, dispatch.Season, dispatch.Episode);
       if (episodeIds.Count > 0)
       {
         await _servarr.SetEpisodesMonitoredAsync(config.SonarrUrl, config.SonarrApiKey, episodeIds, monitored: true, cancellationToken).ConfigureAwait(false);

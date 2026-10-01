@@ -78,4 +78,12 @@ public class ServarrEpisodeParserTests
     // A whole-series request monitors every real episode, but never season 0 (specials).
     Assert.Equal(new[] { 12, 13, 21 }, ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, null));
   }
+
+  [Fact]
+  public void EpisodeIdsToMonitor_ForAnEpisode_ReturnsThatEpisodeAlone()
+  {
+    // Re-monitoring the whole season for one episode would bring back the episodes deleted from it.
+    Assert.Equal(new[] { 13 }, ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, 1, 2));
+    Assert.Empty(ServarrEpisodeParser.EpisodeIdsToMonitor(TwoSeasons, 1, 9));
+  }
 }

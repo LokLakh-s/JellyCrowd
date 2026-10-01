@@ -252,6 +252,36 @@ public sealed class JsonRequestStoreTests : IDisposable
   }
 
   [Fact]
+  public async Task ClearNotFoundNotifiedAsync_WithdrawsTheStamp_AndPersistsIt()
+  {
+    var created = await _store.CreateAsync(new RequestRecord { TmdbId = 1, MediaType = "movie", Title = "X" }, CancellationToken.None);
+    await _store.MarkNotFoundNotifiedAsync(created.Id, DateTime.UtcNow, CancellationToken.None);
+
+    Assert.NotNull(await _store.ClearNotFoundNotifiedAsync(created.Id, CancellationToken.None));
+    Assert.Null(await _store.ClearNotFoundNotifiedAsync(created.Id, CancellationToken.None)); // nothing left to clear
+
+    using var reloaded = new JsonRequestStore(_path);
+    Assert.Null((await reloaded.GetByIdAsync(created.Id, CancellationToken.None))!.NotFoundNotifiedAt);
+  }
+
+  [Fact]
+  public async Task RescheduleAsync_MovesTheReleaseAndDesiredDates_AndPersistsThem()
+  {
+    var created = await _store.CreateAsync(
+      new RequestRecord { TmdbId = 7, MediaType = "tv", Title = "S", Season = 1, Episode = 3, ReleaseDate = "2026-09-25" },
+      CancellationToken.None);
+    var desired = new DateTime(2026, 10, 9, 0, 0, 0, DateTimeKind.Utc);
+
+    await _store.RescheduleAsync(created.Id, "2026-10-09", desired, CancellationToken.None);
+
+    using var reloaded = new JsonRequestStore(_path);
+    var stored = await reloaded.GetByIdAsync(created.Id, CancellationToken.None);
+    Assert.Equal("2026-10-09", stored!.ReleaseDate);
+    Assert.Equal(desired, stored.DesiredAt);
+    Assert.Null(await _store.RescheduleAsync(Guid.NewGuid(), "2026-10-09", desired, CancellationToken.None));
+  }
+
+  [Fact]
   public async Task MarkDispatchedAsync_SetsDispatchedAt()
   {
     var created = await _store.CreateAsync(NewRecord(Guid.NewGuid()), CancellationToken.None);

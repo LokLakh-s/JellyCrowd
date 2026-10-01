@@ -16,16 +16,19 @@ public sealed class DownloadDispatchTask : IScheduledTask
 {
   private readonly IDownloadDispatcher _dispatcher;
   private readonly IStalledDownloadRecovery _stalledRecovery;
+  private readonly IEpisodeAirDateRefresher _airDateRefresher;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="DownloadDispatchTask"/> class.
   /// </summary>
   /// <param name="dispatcher">The download dispatcher.</param>
   /// <param name="stalledRecovery">The stalled-download recovery service.</param>
-  public DownloadDispatchTask(IDownloadDispatcher dispatcher, IStalledDownloadRecovery stalledRecovery)
+  /// <param name="airDateRefresher">Keeps per-episode requests on their episodes' current air dates.</param>
+  public DownloadDispatchTask(IDownloadDispatcher dispatcher, IStalledDownloadRecovery stalledRecovery, IEpisodeAirDateRefresher airDateRefresher)
   {
     _dispatcher = dispatcher;
     _stalledRecovery = stalledRecovery;
+    _airDateRefresher = airDateRefresher;
   }
 
   /// <inheritdoc />
@@ -45,6 +48,9 @@ public sealed class DownloadDispatchTask : IScheduledTask
   {
     ArgumentNullException.ThrowIfNull(progress);
     progress.Report(0);
+    // Episodes first: one whose air date TMDB has only now published, or moved, is deferred before it is sent.
+    await _airDateRefresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
+    progress.Report(10);
     await _dispatcher.DispatchDueAsync(cancellationToken).ConfigureAwait(false);
     progress.Report(40);
     // Backstop: re-search approved requests that dispatched but never arrived (indexers down, grab failed).

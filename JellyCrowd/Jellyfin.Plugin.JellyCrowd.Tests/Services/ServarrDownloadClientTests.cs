@@ -275,6 +275,35 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task RetryAsync_Episode_ReMonitorsThatEpisodeOnly()
+  {
+    // The reported bug: an episode deleted on its owner's request (unmonitored by the purge) was monitored
+    // again by the next retry of a sibling episode's request, because the retry re-monitored the season.
+    var series = new JsonObject
+    {
+      ["id"] = 7,
+      ["monitored"] = true,
+      ["seasons"] = new JsonArray(new JsonObject { ["seasonNumber"] = 1, ["monitored"] = true })
+    };
+    var episodes = "[ { \"id\": 11, \"seasonNumber\": 1, \"episodeNumber\": 1 },"
+      + " { \"id\": 12, \"seasonNumber\": 1, \"episodeNumber\": 2 } ]";
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>())).ReturnsAsync(series);
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 7, It.IsAny<CancellationToken>())).ReturnsAsync(episodes);
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(288385, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.RetryAsync(new DownloadDispatch { TmdbId = 288385, MediaType = "tv", Title = "Paolo", Season = 1, Episode = 2 }, CancellationToken.None);
+
+    servarr.Verify(
+      s => s.SetEpisodesMonitoredAsync("http://localhost:8989", "sk",
+        It.Is<System.Collections.Generic.IReadOnlyList<int>>(l => l.SequenceEqual(new[] { 12 })),
+        true, It.IsAny<CancellationToken>()),
+      Times.Once);
+  }
+
+  [Fact]
   public async Task DispatchAsync_Show_AlreadyInSonarr_SeasonAlreadyMonitored_SkipsUpdate()
   {
     var series = new JsonObject
