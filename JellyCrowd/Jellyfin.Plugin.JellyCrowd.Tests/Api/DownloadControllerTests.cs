@@ -105,6 +105,8 @@ public class DownloadControllerTests
 
     public Task UpdateSeriesAsync(string baseUrl, string apiKey, int seriesId, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task UpdateMovieAsync(string baseUrl, string apiKey, int movieId, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task DeleteSeriesAsync(string baseUrl, string apiKey, int seriesId, bool deleteFiles, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task DeleteEpisodeFileAsync(string baseUrl, string apiKey, int episodeFileId, CancellationToken cancellationToken) => Task.CompletedTask;

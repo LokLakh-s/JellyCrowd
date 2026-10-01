@@ -23,6 +23,20 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     : base(applicationPaths, xmlSerializer)
   {
     Instance = this;
+
+    // Former "child groups" become child accounts once, at load. Never let it stop the plugin from loading.
+    try
+    {
+      if (Services.ChildAccountPolicy.MigrateChildGroups(Configuration))
+      {
+        SaveConfiguration();
+      }
+    }
+#pragma warning disable CA1031 // A failed migration leaves the groups as they were; the plugin still loads.
+    catch (Exception)
+#pragma warning restore CA1031
+    {
+    }
   }
 
   /// <inheritdoc />

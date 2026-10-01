@@ -160,7 +160,8 @@
     if (section) {
       var oldBar = section.querySelector('.jcSettingsTabs');
       if (oldBar && oldBar.parentNode) { oldBar.parentNode.removeChild(oldBar); }
-      section.insertBefore(buildSettingsBar(), section.firstChild);
+      var uid = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+      section.insertBefore(lib.buildSettingsBar(document, t, 'notifications', uid, window.jellyCrowdShowView), section.firstChild);
     }
 
     var master = toggle('notif_enabled', p.Enabled !== false, 'prefs_enabled_hint');
@@ -225,34 +226,6 @@
         .catch(function () { setMessage(t('prefs_save_failed'), true); })
         .then(function () { save.disabled = false; });
     });
-  }
-
-  // Settings sub-tab bar (same look/behaviour as on the native preference pages): navigating to a native
-  // screen sets the hash, which closes this overlay and lands there; Notifications is the active tab.
-  function buildSettingsBar() {
-    var uid = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
-    var q = uid ? ('?userId=' + encodeURIComponent(uid)) : '';
-    var bar = document.createElement('div');
-    bar.className = 'jcSettingsTabs';
-
-    [
-      ['profile', t('avm_profile'), '#/userprofile' + q],
-      ['quickconnect', t('avm_quickconnect'), '#/quickconnect' + q],
-      ['display', t('avm_display'), '#/mypreferencesdisplay' + q],
-      ['home', t('avm_home'), '#/mypreferenceshome' + q],
-      ['playback', t('avm_playback'), '#/mypreferencesplayback' + q],
-      ['subtitles', t('avm_subtitles'), '#/mypreferencessubtitles' + q],
-      ['controls', t('avm_controls'), '#/mypreferencescontrols' + q],
-      ['notifications', t('set_notifications'), null]
-    ].forEach(function (tb) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'jcSettingsTab' + (tb[0] === 'notifications' ? ' jcSettingsTab-active' : '');
-      b.textContent = tb[1];
-      if (tb[2]) { b.addEventListener('click', function () { window.location.hash = tb[2]; }); }
-      bar.appendChild(b);
-    });
-    return bar;
   }
 
   function load() {

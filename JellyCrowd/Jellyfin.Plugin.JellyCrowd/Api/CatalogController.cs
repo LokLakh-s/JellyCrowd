@@ -41,7 +41,9 @@ public class CatalogController : ControllerBase
   private readonly IRequestStore _requestStore;
   private readonly IWatchlistStore _watchlistStore;
   private readonly ICurrentUserAccessor _userAccessor;
+  private readonly IContentRestrictionService _restrictions;
   private readonly ILogger<CatalogController> _logger;
+  private ContentRestriction? _restriction;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="CatalogController"/> class.
@@ -52,6 +54,7 @@ public class CatalogController : ControllerBase
   /// <param name="requestStore">The request store, used to resolve the user's followed shows / recommendation seeds.</param>
   /// <param name="watchlistStore">The watchlist store, used as recommendation seeds.</param>
   /// <param name="userAccessor">The current-user accessor.</param>
+  /// <param name="restrictions">Applies the caller's parental controls to what the catalog shows.</param>
   /// <param name="logger">The logger.</param>
   public CatalogController(
     ITmdbClient tmdbClient,
@@ -60,6 +63,7 @@ public class CatalogController : ControllerBase
     IRequestStore requestStore,
     IWatchlistStore watchlistStore,
     ICurrentUserAccessor userAccessor,
+    IContentRestrictionService restrictions,
     ILogger<CatalogController> logger)
   {
     _tmdbClient = tmdbClient;
@@ -68,6 +72,7 @@ public class CatalogController : ControllerBase
     _requestStore = requestStore;
     _watchlistStore = watchlistStore;
     _userAccessor = userAccessor;
+    _restrictions = restrictions;
     _logger = logger;
   }
 
@@ -92,11 +97,11 @@ public class CatalogController : ControllerBase
 
     // Child accounts never get the raw (unfiltered) trending feed: serve an age-filtered movie discovery
     // feed instead, so the default browse stays safe.
-    var child = await ResolveChildAsync().ConfigureAwait(false);
-    if (child.IsChild)
+    var restriction = await ResolveRestrictionAsync().ConfigureAwait(false);
+    if (restriction.ChildMaxAge is int childAge)
     {
       var q = new DiscoverQuery { SortBy = "popularity", Page = 1 };
-      ApplyChildFilter(q, child.MaxAge, region);
+      ApplyChildFilter(q, childAge, region);
       return await ExecuteAsync(() => _tmdbClient.DiscoverAsync("movie", q, lang, cancellationToken)).ConfigureAwait(false);
     }
 
@@ -104,17 +109,25 @@ public class CatalogController : ControllerBase
       () => _tmdbClient.GetTrendingAsync(lang, cancellationToken)).ConfigureAwait(false);
   }
 
-  // Resolves the current user's child-mode policy (anonymous or no config → not a child).
-  private async Task<(bool IsChild, int MaxAge)> ResolveChildAsync()
+  // Resolves the caller's parental restriction (Jellyfin parental control + child group), once per request.
+  private async Task<ContentRestriction> ResolveRestrictionAsync()
   {
-    var config = Plugin.Instance?.Configuration;
-    if (config is null)
+    if (_restriction is null)
     {
-      return (false, 0);
+      var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+      _restriction = _restrictions.For(userId);
     }
 
-    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
-    return RequestPolicy.ChildPolicyFor(config, userId);
+    return _restriction;
+  }
+
+  // Drops the titles above the caller's parental restriction (a no-op for an unrestricted caller).
+  private async Task<IReadOnlyList<CatalogItem>> RestrictAsync(IReadOnlyList<CatalogItem> items, CancellationToken cancellationToken)
+  {
+    var restriction = await ResolveRestrictionAsync().ConfigureAwait(false);
+    return restriction.IsRestricted
+      ? await _restrictions.FilterAsync(restriction, items, cancellationToken).ConfigureAwait(false)
+      : items;
   }
 
   // Applies the child-mode age filter to a movie discovery query (adult is already excluded upstream).
@@ -155,7 +168,7 @@ public class CatalogController : ControllerBase
     }
 
     // Free-text search is disabled for child accounts (they browse the age-filtered catalog only).
-    if ((await ResolveChildAsync().ConfigureAwait(false)).IsChild)
+    if ((await ResolveRestrictionAsync().ConfigureAwait(false)).IsChild)
     {
       return Ok(System.Array.Empty<CatalogItem>());
     }
@@ -216,6 +229,13 @@ public class CatalogController : ControllerBase
     {
       var item = await _tmdbClient.GetDetailsAsync(mediaType, tmdbId, Normalize(language), cancellationToken).ConfigureAwait(false);
       if (item is null)
+      {
+        return NotFound();
+      }
+
+      // A title above the caller's parental restriction does not exist for them, wherever the link came from.
+      var restriction = await ResolveRestrictionAsync().ConfigureAwait(false);
+      if (!await _restrictions.IsAllowedAsync(restriction, mediaType, tmdbId, cancellationToken).ConfigureAwait(false))
       {
         return NotFound();
       }
@@ -359,11 +379,12 @@ public class CatalogController : ControllerBase
       WithPeople = withPeople
     };
 
-    // Child accounts: apply the age filter (movies; TMDB has no reliable TV certification filter).
-    var child = await ResolveChildAsync().ConfigureAwait(false);
-    if (child.IsChild)
+    // Child accounts: narrow movies upstream by certification so pages stay full (TMDB has no reliable TV
+    // certification filter). Every restricted caller's results are then checked title by title.
+    var restriction = await ResolveRestrictionAsync().ConfigureAwait(false);
+    if (restriction.ChildMaxAge is int childAge)
     {
-      ApplyChildFilter(query, child.MaxAge, region ?? watchRegion);
+      ApplyChildFilter(query, childAge, region ?? watchRegion);
       query.Genres = ChildContentPolicy.AllowedGenres(query.Genres);
     }
 
@@ -415,7 +436,7 @@ public class CatalogController : ControllerBase
     try
     {
       var genres = await _tmdbClient.GetGenresAsync(mediaType, Normalize(language), cancellationToken).ConfigureAwait(false);
-      if ((await ResolveChildAsync().ConfigureAwait(false)).IsChild)
+      if ((await ResolveRestrictionAsync().ConfigureAwait(false)).IsChild)
       {
         genres = ChildContentPolicy.VisibleGenres(genres);
       }
@@ -607,6 +628,7 @@ public class CatalogController : ControllerBase
       }
 
       ordered = await ApplyRequestedMarkersAsync(ordered, useRange ? from : null, useRange ? to : null, cancellationToken).ConfigureAwait(false);
+      ordered = await RestrictAsync(ordered, cancellationToken).ConfigureAwait(false);
 
       foreach (var item in ordered)
       {
@@ -673,7 +695,9 @@ public class CatalogController : ControllerBase
         candidates.AddRange(await _tmdbClient.GetRecommendationsAsync(seed.MediaType, seed.TmdbId, lang, cancellationToken).ConfigureAwait(false));
       }
 
-      var recommendations = RecommendationAggregator.Aggregate(candidates, exclude, MaxRecommendations);
+      var recommendations = await RestrictAsync(
+        RecommendationAggregator.Aggregate(candidates, exclude, MaxRecommendations),
+        cancellationToken).ConfigureAwait(false);
       foreach (var item in recommendations)
       {
         item.JellyfinItemId = _libraryMatcher.FindItemId(item.MediaType, item.TmdbId);
@@ -740,7 +764,7 @@ public class CatalogController : ControllerBase
       }
 
       var marked = await ApplyRequestedMarkersAsync(items, null, null, cancellationToken).ConfigureAwait(false);
-      return Ok(marked);
+      return Ok(await RestrictAsync(marked, cancellationToken).ConfigureAwait(false));
     }
     catch (InvalidOperationException ex)
     {
@@ -921,7 +945,9 @@ public class CatalogController : ControllerBase
   {
     try
     {
-      var items = await action().ConfigureAwait(false);
+      var items = await RestrictAsync(
+        await action().ConfigureAwait(false),
+        HttpContext?.RequestAborted ?? CancellationToken.None).ConfigureAwait(false);
       foreach (var item in items)
       {
         item.JellyfinItemId = _libraryMatcher.FindItemId(item.MediaType, item.TmdbId);

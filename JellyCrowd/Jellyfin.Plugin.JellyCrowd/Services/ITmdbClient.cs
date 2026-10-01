@@ -104,6 +104,16 @@ public interface ITmdbClient
   Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Gets a title's age ratings by country: a movie's release certifications (<c>release_dates</c>), a
+  /// show's content ratings (<c>content_ratings</c>). Used to apply parental controls to the catalog.
+  /// </summary>
+  /// <param name="mediaType">The media type (<c>movie</c> or <c>tv</c>).</param>
+  /// <param name="tmdbId">The TMDB identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The non-empty ratings per upper-case ISO 3166-1 country code; empty when TMDB has none.</returns>
+  Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetCertificationsAsync(string mediaType, int tmdbId, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Returns the TMDB person id when the top <c>/search/multi</c> result for the query is a person (a name
   /// search), so the caller can show that person's filmography instead of title matches. Otherwise null.
   /// </summary>

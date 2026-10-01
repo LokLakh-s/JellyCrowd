@@ -62,6 +62,19 @@ internal sealed class StubTmdbClient : ITmdbClient
     public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
     => Task.FromResult<int?>(null);
 
+  /// <summary>Gets the age ratings per title, keyed by <c>"{mediaType}:{tmdbId}"</c>; a missing title has none.</summary>
+  public Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>> Certifications { get; } = new(StringComparer.Ordinal);
+
+  /// <summary>Gets or sets a value indicating whether rating lookups fail, as when TMDB is unreachable.</summary>
+  public bool CertificationsUnavailable { get; set; }
+
+  public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetCertificationsAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+    => CertificationsUnavailable
+      ? throw new System.Net.Http.HttpRequestException("TMDB is unreachable.")
+      : Task.FromResult(Certifications.TryGetValue(mediaType + ":" + tmdbId, out var ratings)
+        ? ratings
+        : (IReadOnlyDictionary<string, IReadOnlyList<string>>)new Dictionary<string, IReadOnlyList<string>>());
+
   public Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken)
     => Task.FromResult<IReadOnlyList<CatalogItem>>(Array.Empty<CatalogItem>());
 

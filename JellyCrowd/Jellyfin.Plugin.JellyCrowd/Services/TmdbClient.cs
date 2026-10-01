@@ -241,6 +241,16 @@ public class TmdbClient : ITmdbClient
   }
 
   /// <inheritdoc />
+  public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetCertificationsAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+  {
+    var isMovie = string.Equals(mediaType, "movie", StringComparison.Ordinal);
+    var id = tmdbId.ToString(CultureInfo.InvariantCulture);
+    var path = isMovie ? $"/movie/{id}/release_dates" : $"/tv/{id}/content_ratings";
+    var json = await GetAsync(path, cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseCertifications(json, isMovie);
+  }
+
+  /// <inheritdoc />
   public async Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken)
   {
     EnsureMediaType(mediaType);

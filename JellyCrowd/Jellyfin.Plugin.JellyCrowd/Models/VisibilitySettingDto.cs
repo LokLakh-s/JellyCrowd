@@ -34,4 +34,17 @@ public class VisibilitySettingDto
   /// group): the client hides free-text search and reviews for them.
   /// </summary>
   public bool IsChild { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the catalog is filtered for the current user by a parental
+  /// restriction (Jellyfin parental control or child group). Their result pages can then come back short,
+  /// even empty, while later pages still hold titles — the client keeps scrolling instead of stopping.
+  /// </summary>
+  public bool IsRestricted { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the current user is a parent of a child account, and so may
+  /// request for them.
+  /// </summary>
+  public bool IsParent { get; set; }
 }

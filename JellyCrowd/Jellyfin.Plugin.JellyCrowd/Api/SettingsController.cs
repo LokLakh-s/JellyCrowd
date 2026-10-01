@@ -27,6 +27,7 @@ public class SettingsController : ControllerBase
   private readonly ICurrentUserAccessor _userAccessor;
   private readonly ILibraryManager _libraryManager;
   private readonly IIntroFileRegistry _introRegistry;
+  private readonly IContentRestrictionService _restrictions;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="SettingsController"/> class.
@@ -35,12 +36,14 @@ public class SettingsController : ControllerBase
   /// <param name="userAccessor">The current-user accessor (to resolve administrator status).</param>
   /// <param name="libraryManager">The library manager.</param>
   /// <param name="introRegistry">Resolves the local-intro pre-roll item ids.</param>
-  public SettingsController(Func<PluginConfiguration> config, ICurrentUserAccessor userAccessor, ILibraryManager libraryManager, IIntroFileRegistry introRegistry)
+  /// <param name="restrictions">Resolves the caller's parental restriction.</param>
+  public SettingsController(Func<PluginConfiguration> config, ICurrentUserAccessor userAccessor, ILibraryManager libraryManager, IIntroFileRegistry introRegistry, IContentRestrictionService restrictions)
   {
     _config = config;
     _userAccessor = userAccessor;
     _libraryManager = libraryManager;
     _introRegistry = introRegistry;
+    _restrictions = restrictions;
   }
 
   /// <summary>
@@ -157,6 +160,7 @@ public class SettingsController : ControllerBase
     var config = _config();
     var visible = Services.RequestPolicy.IsVisibleTo(config, userId, isAdmin);
     var showAnnouncement = Services.RequestPolicy.ShouldSeeAnnouncement(config, userId, isAdmin);
+    var restriction = _restrictions.For(userId);
     return Ok(new VisibilitySettingDto
     {
       Visible = visible,
@@ -164,6 +168,8 @@ public class SettingsController : ControllerBase
       AnnouncementText = showAnnouncement ? (config.AnnouncementText ?? string.Empty) : string.Empty,
       AnnouncementLevel = string.IsNullOrWhiteSpace(config.AnnouncementLevel) ? "green" : config.AnnouncementLevel,
       IsChild = !isAdmin && Services.RequestPolicy.ChildPolicyFor(config, userId).IsChild,
+      IsRestricted = restriction.IsRestricted,
+      IsParent = Services.ChildAccountPolicy.ChildrenOf(config, userId).Count > 0,
     });
   }
 

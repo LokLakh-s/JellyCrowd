@@ -428,6 +428,22 @@
         live.AllowEpisodeRequests = gEpisode.checked;
       } };
 
+      // Languages: each user's preferred version (original / dubbed / original with subtitles) and the
+      // subtitles to add; the per-version Radarr/Sonarr profiles live with the backend, in Download.
+      var langForm = cfgForm(host, cfg, [
+        { type: 'section', label: t('cfgsec_languages') },
+        { key: 'LanguagePreferencesEnabled', label: t('cfg_languagepreferencesenabled'), type: 'check', hint: t('cfg_languagepreferencesenabled_hint') },
+        { key: 'DubbedLanguage', label: t('cfg_dubbedlanguage'), type: 'text', placeholder: 'fr', hint: t('cfg_dubbedlanguage_hint') },
+        { key: 'SubtitleDownloadsEnabled', label: t('cfg_subtitledownloadsenabled'), type: 'check', hint: t('cfg_subtitledownloadsenabled_hint') }
+      ]);
+
+      // Automatic requests: offered by the admin, then opted into by each user from "My requests".
+      var autoForm = cfgForm(host, cfg, [
+        { type: 'section', label: t('cfgsec_auto_requests') },
+        { key: 'AutoNextSeasonEnabled', label: t('cfg_autonextseasonenabled'), type: 'check', hint: t('cfg_autonextseasonenabled_hint') },
+        { key: 'AutoNextSeasonEpisodesLeft', label: t('cfg_autonextseasonepisodesleft'), type: 'num', hint: t('cfg_autonextseasonepisodesleft_hint') }
+      ]);
+
       var genresInput = textInput('jc-c-AutoApproveGenres', (cfg.AutoApproveGenres || []).join(', '), 'Action, Comedy, Documentary…');
       host.appendChild(field(t('adm_auto_approve_genres_optional'), genresInput, t('adm_comma_separated_tmdb_genre_names_when_hint')));
       var genresForm = { apply: function (live) { live.AutoApproveGenres = genresInput.value.split(',').map(function (g) { return g.trim(); }).filter(Boolean); } };
@@ -456,10 +472,11 @@
         { key: 'RemoveEmptySeries', label: t('cfg_removeemptyseries'), type: 'check' },
         { key: 'EmptySeriesMinAgeHours', label: t('cfg_emptyseriesminagehours'), type: 'num' },
         { key: 'MediaExpiryDays', label: t('cfg_mediaexpirydays'), type: 'num', hint: t('cfg_mediaexpirydays_hint') },
+        { key: 'ChildMediaExpiryDays', label: t('cfg_childmediaexpirydays'), type: 'num', hint: t('cfg_childmediaexpirydays_hint') },
         { key: 'PartialAvailabilityGraceHours', label: t('cfg_partialavailabilitygracehours'), type: 'num', hint: t('cfg_partialavailabilitygracehours_hint') }
       ]);
       var adaptForm = { apply: function (live) { live.AdaptiveQuotaEnabled = adaptEnable.checked; } };
-      host.appendChild(cfgSaveButton([reqForm, scopeForm, genresForm, quotaForm, adaptForm, adapt, tail]));
+      host.appendChild(cfgSaveButton([reqForm, scopeForm, langForm, autoForm, genresForm, quotaForm, adaptForm, adapt, tail]));
     });
   }
 
@@ -574,6 +591,42 @@
       var o = document.createElement('option'); o.value = String(saved); o.textContent = useName ? String(saved) : ('(saved id ' + saved + ')'); o.selected = true; select.appendChild(o);
     }
   }
+  // A per-version profile choice: "Common profile" (0) first, then the service's profiles.
+  function profileChoice(saved) {
+    var s = document.createElement('select');
+    s.className = 'jellycrowd-text-input';
+    fillProfileChoice(s, [], saved);
+    return s;
+  }
+  function fillProfileChoice(select, items, saved) {
+    var savedId = parseInt(saved || '0', 10) || 0;
+    select.innerHTML = '';
+    var common = document.createElement('option');
+    common.value = '0';
+    common.textContent = t('adm_profile_common');
+    select.appendChild(common);
+    var found = savedId === 0;
+    (items || []).forEach(function (item) {
+      var opt = document.createElement('option');
+      opt.value = String(item.Id);
+      opt.textContent = item.Name;
+      if (item.Id === savedId) { found = true; }
+      select.appendChild(opt);
+    });
+    if (!found) {
+      var o = document.createElement('option'); o.value = String(savedId); o.textContent = '(saved id ' + savedId + ')'; select.appendChild(o);
+    }
+    select.value = String(savedId);
+  }
+  // The three per-version profiles of one service (RadarrProfileOriginal… / SonarrProfileOriginal…).
+  function versionProfiles(cfg, prefix) {
+    return [
+      { key: prefix + 'ProfileOriginal', label: t('adm_profile_original') },
+      { key: prefix + 'ProfileDubbed', label: t('adm_profile_dubbed') },
+      { key: prefix + 'ProfileSubtitled', label: t('adm_profile_subtitled') }
+    ].map(function (p) { p.select = profileChoice(cfg[p.key]); return p; });
+  }
+
   function connectServarr(service, url, apiKey, resultEl, selects) {
     resultEl.textContent = '…';
     var headers = { 'Content-Type': 'application/json' };
@@ -585,6 +638,7 @@
           fillSelect(selects.root, res.RootFolders, selects.root.value, true);
           fillSelect(selects.profile, res.QualityProfiles, selects.profile.value, false);
           if (selects.lang) { fillSelect(selects.lang, res.LanguageProfiles, selects.lang.value, false); }
+          (selects.versions || []).forEach(function (sel) { fillProfileChoice(sel, res.QualityProfiles, sel.value); });
           resultEl.textContent = '✅ ' + t('adm_connected');
         });
       })
@@ -616,9 +670,11 @@
       servarrWrap.appendChild(field(t('adm_radarr_root_folder'), radarrRoot));
       var radarrProfile = servarrSelect(cfg.RadarrQualityProfileId, false);
       servarrWrap.appendChild(field(t('adm_radarr_quality_profile'), radarrProfile));
+      var radarrVersions = versionProfiles(cfg, 'Radarr');
+      radarrVersions.forEach(function (p, i) { servarrWrap.appendChild(field(p.label, p.select, i === 2 ? t('adm_profile_versions_hint') : undefined)); });
       var radarrRes = resultSpan();
       servarrWrap.appendChild(withResult(adminBtn(t('adm_connect_radarr'), '', function () {
-        connectServarr('radarr', host.querySelector('.jc-c-RadarrUrl').value, host.querySelector('.jc-c-RadarrApiKey').value, radarrRes, { root: radarrRoot, profile: radarrProfile });
+        connectServarr('radarr', host.querySelector('.jc-c-RadarrUrl').value, host.querySelector('.jc-c-RadarrApiKey').value, radarrRes, { root: radarrRoot, profile: radarrProfile, versions: radarrVersions.map(function (p) { return p.select; }) });
       }), radarrRes));
 
       servarrWrap.appendChild(sectionHeading(t('adm_sonarr_shows')));
@@ -632,9 +688,11 @@
       servarrWrap.appendChild(field(t('adm_sonarr_quality_profile'), sonarrProfile));
       var sonarrLang = servarrSelect(cfg.SonarrLanguageProfileId, false);
       servarrWrap.appendChild(field(t('adm_sonarr_language_profile'), sonarrLang));
+      var sonarrVersions = versionProfiles(cfg, 'Sonarr');
+      sonarrVersions.forEach(function (p, i) { servarrWrap.appendChild(field(p.label, p.select, i === 2 ? t('adm_profile_versions_hint') : undefined)); });
       var sonarrRes = resultSpan();
       servarrWrap.appendChild(withResult(adminBtn(t('adm_connect_sonarr'), '', function () {
-        connectServarr('sonarr', host.querySelector('.jc-c-SonarrUrl').value, host.querySelector('.jc-c-SonarrApiKey').value, sonarrRes, { root: sonarrRoot, profile: sonarrProfile, lang: sonarrLang });
+        connectServarr('sonarr', host.querySelector('.jc-c-SonarrUrl').value, host.querySelector('.jc-c-SonarrApiKey').value, sonarrRes, { root: sonarrRoot, profile: sonarrProfile, lang: sonarrLang, versions: sonarrVersions.map(function (p) { return p.select; }) });
       }), sonarrRes));
 
       servarrWrap.appendChild(sectionHeading(t('adm_prowlarr_optional')));
@@ -663,6 +721,7 @@
         live.SonarrRootFolderPath = sonarrRoot.value;
         live.SonarrQualityProfileId = parseInt(sonarrProfile.value || '0', 10);
         live.SonarrLanguageProfileId = parseInt(sonarrLang.value || '0', 10);
+        radarrVersions.concat(sonarrVersions).forEach(function (p) { live[p.key] = parseInt(p.select.value || '0', 10) || 0; });
       } };
       host.appendChild(cfgSaveButton([backend, webhook, radarr, sonarr, prowlarr, stalled, script, servarrSelectsForm]));
 
@@ -1032,9 +1091,7 @@
         canRequest: card.querySelector('.jc-g-can').value,
         autoApprove: card.querySelector('.jc-g-auto').value,
         maxPerPeriod: card.querySelector('.jc-g-cap').value,
-        pluginAccess: card.querySelector('.jc-g-access').value,
-        childMode: card.querySelector('.jc-g-child').checked,
-        childMaxAge: card.querySelector('.jc-g-childage').value
+        pluginAccess: card.querySelector('.jc-g-access').value
       }, GIB));
     });
     return result;
@@ -1132,22 +1189,6 @@
         settings.appendChild(labeledField(t('adm_prop_pluginaccess'), triSelectAccess('jc-g-access', g.PluginAccess)));
         card.appendChild(settings);
 
-        // Child mode: members get an age-filtered catalog (no search, no reviews/announcements).
-        var childRow = document.createElement('div');
-        childRow.className = 'jellycrowd-group-settings';
-        var ageSel = document.createElement('select');
-        ageSel.className = 'jc-g-childage';
-        [['0', t('adm_child_age_all')], ['10', '10+'], ['12', '12+'], ['16', '16+']].forEach(function (o) {
-          var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; ageSel.appendChild(op);
-        });
-        ageSel.value = String(g.ChildMaxAge != null ? g.ChildMaxAge : 0);
-        var childChk = checkbox('jc-g-child', g.ChildMode === true);
-        ageSel.disabled = !childChk.checked;
-        childChk.addEventListener('change', function () { ageSel.disabled = !childChk.checked; });
-        childRow.appendChild(labeledField(t('adm_group_child_mode'), childChk));
-        childRow.appendChild(labeledField(t('adm_group_child_max_age'), ageSel));
-        card.appendChild(childRow);
-
         var memWrap = document.createElement('div');
         memWrap.className = 'jellycrowd-group-members';
         var memTitle = document.createElement('div');
@@ -1237,7 +1278,126 @@
 
       renderList();
       container.appendChild(save);
+      renderChildAccounts(container, users, cfg.ChildAccounts || []);
     }).catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  }
+
+  // ---------- Child accounts (in the Groups tab) ----------
+  // A child browses an age-filtered catalog and keeps a wishlist; their parents request for them, on the
+  // child's own quota. Only the administrator sets them up: the child, their age, their parents.
+  function renderChildAccounts(container, users, saved) {
+    container.appendChild(sectionHeading(t('adm_children_title')));
+    var hint = document.createElement('p');
+    hint.className = 'jellycrowd-disclaimer';
+    hint.textContent = t('adm_children_hint');
+    container.appendChild(hint);
+
+    var children = (saved || []).map(function (c) { return { userId: c.UserId, maxAge: c.MaxAge, parentIds: (c.ParentIds || []).slice() }; });
+    var listHost = document.createElement('div');
+    listHost.className = 'jellycrowd-group-list';
+
+    function collect() {
+      var cards = [];
+      listHost.querySelectorAll('.jc-child-card').forEach(function (card) {
+        var parents = [];
+        card.querySelectorAll('.jc-child-parent:checked').forEach(function (cb) { parents.push(cb.value); });
+        cards.push({ userId: card.querySelector('.jc-child-user').value, maxAge: card.querySelector('.jc-child-age').value, parentIds: parents });
+      });
+      return cards;
+    }
+
+    function buildCard(c) {
+      var card = document.createElement('div');
+      card.className = 'jellycrowd-group-card jc-child-card';
+      var head = document.createElement('div');
+      head.className = 'jellycrowd-group-settings';
+      var who = document.createElement('select');
+      who.className = 'jc-child-user';
+      var pick = document.createElement('option'); pick.value = ''; pick.textContent = t('adm_child_pick'); who.appendChild(pick);
+      users.forEach(function (u) { var o = document.createElement('option'); o.value = u.Id; o.textContent = u.Name; who.appendChild(o); });
+      who.value = c.userId || '';
+      var age = document.createElement('select');
+      age.className = 'jc-child-age';
+      lib.CHILD_AGES.forEach(function (a) { var o = document.createElement('option'); o.value = String(a); o.textContent = a === 0 ? t('adm_child_age_all') : (a + '+'); age.appendChild(o); });
+      age.value = String(c.maxAge || 0);
+      head.appendChild(labeledField(t('adm_child_user'), who));
+      head.appendChild(labeledField(t('adm_child_age'), age));
+      head.appendChild(adminBtn(t('admin_delete'), 'danger', function () {
+        children = collect().filter(function (x) { return x !== null; });
+        var idx = Array.prototype.indexOf.call(listHost.querySelectorAll('.jc-child-card'), card);
+        children.splice(idx, 1);
+        draw();
+      }));
+      card.appendChild(head);
+
+      var parentsWrap = document.createElement('div');
+      parentsWrap.className = 'jellycrowd-group-members';
+      var title = document.createElement('div');
+      title.className = 'jellycrowd-group-subtitle';
+      title.textContent = t('adm_child_parents');
+      parentsWrap.appendChild(title);
+      var list = document.createElement('div');
+      list.className = 'jellycrowd-group-checklist';
+      users.forEach(function (u) {
+        var lbl = document.createElement('label');
+        lbl.className = 'jellycrowd-group-check';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'jc-child-parent';
+        cb.value = u.Id;
+        cb.checked = (c.parentIds || []).indexOf(u.Id) >= 0;
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' ' + u.Name));
+        list.appendChild(lbl);
+      });
+      // A child is never their own parent.
+      function syncSelf() {
+        list.querySelectorAll('.jc-child-parent').forEach(function (cb) {
+          var self = cb.value === who.value;
+          cb.disabled = self;
+          if (self) { cb.checked = false; }
+        });
+      }
+      who.addEventListener('change', syncSelf);
+      syncSelf();
+      parentsWrap.appendChild(list);
+      card.appendChild(parentsWrap);
+      return card;
+    }
+
+    function draw() {
+      listHost.innerHTML = '';
+      if (!children.length) {
+        var empty = document.createElement('p');
+        empty.className = 'jellycrowd-disclaimer';
+        empty.textContent = t('adm_children_empty');
+        listHost.appendChild(empty);
+        return;
+      }
+      children.forEach(function (c) { listHost.appendChild(buildCard(c)); });
+    }
+
+    container.appendChild(adminBtn(t('adm_child_add'), '', function () {
+      children = collect();
+      children.push({ userId: '', maxAge: 0, parentIds: [] });
+      draw();
+    }));
+    container.appendChild(listHost);
+    var save = adminBtn(t('save'), 'ok', function (btn) {
+      btn.disabled = true;
+      var accounts = lib.buildChildAccounts(collect());
+      window.ApiClient.getPluginConfiguration(PLUGIN_GUID).then(function (live) {
+        live.ChildAccounts = accounts;
+        return window.ApiClient.updatePluginConfiguration(PLUGIN_GUID, live);
+      }).then(function () {
+        btn.disabled = false;
+        btn.textContent = t('saved');
+        setTimeout(function () { btn.textContent = t('save'); }, 1500);
+      }).catch(function (e) { btn.disabled = false; setMessage(t(lib.errorKey(e && e.status))); });
+    });
+    save.style.marginTop = '1em';
+    draw();
+    container.appendChild(save);
   }
 
   // ---------- Logs ----------

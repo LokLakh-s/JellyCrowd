@@ -830,6 +830,103 @@
     return !sparse || emptyStreak >= SEASON_FEED_EMPTY_PAGES;
   }
 
+  // Whether a home-screen row is "Continue watching" or "Next up": on 10.11 and 12 alike, they are the
+  // only home rows whose items container monitors video playback (data-monitor="videoplayback,…").
+  function isContinueRow(monitor) {
+    return String(monitor || '').split(',').some(function (m) { return m.trim() === 'videoplayback'; });
+  }
+
+  // Whether a card goes away with a removal: the item itself, and for an episode every card of its show
+  // (the show's own card included), since removing one episode removes the show from both rows.
+  function continueCardMatches(cardId, cardSeriesId, itemId, seriesId) {
+    if (cardId && cardId === itemId) { return true; }
+    return !!seriesId && (cardSeriesId === seriesId || cardId === seriesId);
+  }
+
+  // How long a removal is re-applied in the page. Jellyfin 12's web client keeps its home rows in a query
+  // cache considered fresh for a minute (persisted across reloads), so a row rendered from it can bring a
+  // removed card back until the next fetch — which the server already filters. Twice that is enough.
+  var CW_RECENT_MS = 120000;
+
+  // The removals still worth re-applying in the page: well-formed and younger than CW_RECENT_MS.
+  function recentContinueRemovals(list, now) {
+    return (Array.isArray(list) ? list : []).filter(function (r) {
+      return r && typeof r.id === 'string' && r.id && typeof r.at === 'number' && now - r.at >= 0 && now - r.at < CW_RECENT_MS;
+    });
+  }
+
+  // ---------- viewing preferences ----------
+
+  // The subtitle languages offered on the Viewing page, in this order (ISO 639-1).
+  var SUBTITLE_LANGUAGES = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl', 'ja', 'ko', 'zh', 'ru', 'ar', 'pl', 'sv', 'da', 'no', 'fi', 'tr', 'he', 'hi'];
+  var MAX_SUBTITLE_LANGUAGES = 5;
+
+  // The label key of a preferred version. With a French dub, the familiar VO / VF / VOSTFR wording.
+  function versionLabelKey(version, dub) {
+    var french = String(dub || '').toLowerCase() === 'fr';
+    if (version === 'original') { return 'viewing_version_original'; }
+    if (version === 'dubbed') { return french ? 'viewing_version_dubbed_fr' : 'viewing_version_dubbed'; }
+    if (version === 'subtitled') { return french ? 'viewing_version_subtitled_fr' : 'viewing_version_subtitled'; }
+    return 'viewing_version_none';
+  }
+
+  // Adds a subtitle language, or removes it when already picked; never more than the maximum.
+  function toggleSubtitleLanguage(list, code) {
+    var current = (Array.isArray(list) ? list : []).filter(function (c) { return typeof c === 'string' && c; });
+    var c = String(code || '').trim().toLowerCase();
+    if (!/^[a-z]{2}$/.test(c)) { return current; }
+    if (current.indexOf(c) >= 0) { return current.filter(function (x) { return x !== c; }); }
+    return current.length >= MAX_SUBTITLE_LANGUAGES ? current : current.concat([c]);
+  }
+
+  // The settings sub-tab bar of Jelly Crowd's own settings pages, same look as on the native ones: native
+  // tabs navigate by hash (which closes the overlay), ours switch the overlay to their view.
+  function buildSettingsBar(doc, t, activeId, userId, showView) {
+    var q = userId ? ('?userId=' + encodeURIComponent(userId)) : '';
+    var bar = doc.createElement('div');
+    bar.className = 'jcSettingsTabs';
+    [
+      ['profile', t('avm_profile'), '#/userprofile' + q],
+      ['quickconnect', t('avm_quickconnect'), '#/quickconnect' + q],
+      ['display', t('avm_display'), '#/mypreferencesdisplay' + q],
+      ['home', t('avm_home'), '#/mypreferenceshome' + q],
+      ['playback', t('avm_playback'), '#/mypreferencesplayback' + q],
+      ['subtitles', t('avm_subtitles'), '#/mypreferencessubtitles' + q],
+      ['controls', t('avm_controls'), '#/mypreferencescontrols' + q],
+      ['notifications', t('set_notifications'), null, 'preferences'],
+      ['viewing', t('set_viewing'), null, 'viewing']
+    ].forEach(function (tb) {
+      var b = doc.createElement('button');
+      b.type = 'button';
+      b.className = 'jcSettingsTab' + (tb[0] === activeId ? ' jcSettingsTab-active' : '');
+      b.textContent = tb[1];
+      if (tb[0] !== activeId) {
+        b.addEventListener('click', function () {
+          if (tb[2]) { doc.defaultView.location.hash = tb[2]; } else if (tb[3] && showView) { showView(tb[3]); }
+        });
+      }
+      bar.appendChild(b);
+    });
+    return bar;
+  }
+
+  // The call that turns the automatic next-season request on or off for the current user.
+  function autoSeasonPath(enabled) {
+    return 'JellyCrowd/AutoRequests/Mine?enabled=' + (enabled ? 'true' : 'false');
+  }
+
+  // The hint under the "next season" switch, with the administrator's threshold filled in.
+  function autoSeasonHint(template, episodesLeft) {
+    var n = Math.max(0, Math.round(Number(episodesLeft) || 0));
+    return String(template || '').replace('{n}', String(n));
+  }
+
+  // Whether the server filters the feed's pages after the fact, so a page can come back short or empty
+  // while later ones still match: a season range, or a parental restriction on the current user.
+  function feedIsSparse(filters, restricted) {
+    return !!restricted || seasonRangeActive(filters);
+  }
+
   // A deliberately loose "does this look like an address" check, to catch a typo before a round-trip.
   // The server validates for real before it ever uses the value as an SMTP recipient — this must never
   // be the only gate, and must not reject addresses the server would accept.
@@ -980,12 +1077,49 @@
       g.MaxRequestsPerPeriod = parseInt(f.maxPerPeriod, 10);
     }
     if (f.pluginAccess === 'on') { g.PluginAccess = true; } else if (f.pluginAccess === 'off') { g.PluginAccess = false; }
-    if (f.childMode === true) {
-      g.ChildMode = true;
-      var age = parseInt(f.childMaxAge, 10);
-      g.ChildMaxAge = isNaN(age) ? 0 : age;
-    }
     return g;
+  }
+
+  // Where a request goes: for a child (a parent requesting), for someone else (an administrator), or for
+  // the caller. A child pick wins: an administrator who is also a parent requesting for their child goes
+  // through the child's rules.
+  function requestRoute(payload, actAsUserId, childId) {
+    var body = {};
+    Object.keys(payload || {}).forEach(function (k) { body[k] = payload[k]; });
+    if (childId) { body.ChildId = childId; return { path: 'JellyCrowd/Requests/ForChild', body: body }; }
+    if (actAsUserId) { body.UserId = actAsUserId; return { path: 'JellyCrowd/Requests/ForUser', body: body }; }
+    return { path: 'JellyCrowd/Requests', body: body };
+  }
+
+  // The child's request that already covers a wish (same title, not denied), or null: the wish then shows
+  // where that request stands instead of offering to request it again.
+  function wishRequest(requests, wish) {
+    var w = wish || {};
+    var found = null;
+    (requests || []).forEach(function (r) {
+      if (!found && r && r.TmdbId === w.TmdbId && r.MediaType === w.MediaType && r.Status !== 'Denied') { found = r; }
+    });
+    return found;
+  }
+
+  // The age choices of a child account (0 = all ages).
+  var CHILD_AGES = [0, 10, 12, 16];
+
+  // Builds the child accounts to save from the admin cards: a card without a child is dropped, a child set
+  // up twice keeps its first card, a child is never their own parent, and parents are not repeated.
+  function buildChildAccounts(cards) {
+    var seen = {};
+    var out = [];
+    (cards || []).forEach(function (c) {
+      var id = c && c.userId;
+      if (!id || seen[id]) { return; }
+      seen[id] = true;
+      var age = parseInt(c.maxAge, 10);
+      var parents = [];
+      (c.parentIds || []).forEach(function (p) { if (p && p !== id && parents.indexOf(p) < 0) { parents.push(p); } });
+      out.push({ UserId: id, MaxAge: CHILD_AGES.indexOf(age) >= 0 ? age : 0, ParentIds: parents });
+    });
+    return out;
   }
 
   // Normalise the request-scope flags from the settings payload: which media types are offered, and which
@@ -1275,6 +1409,10 @@
 
   return {
     normalizeRequestScope: normalizeRequestScope,
+    CHILD_AGES: CHILD_AGES,
+    requestRoute: requestRoute,
+    wishRequest: wishRequest,
+    buildChildAccounts: buildChildAccounts,
     filterHistory: filterHistory,
     settingsTabIdForHash: settingsTabIdForHash,
     SETTINGS_TAB_ROUTES: SETTINGS_TAB_ROUTES,
@@ -1293,6 +1431,18 @@
     seasonRangeQuery: seasonRangeQuery,
     formatSeasonBound: formatSeasonBound,
     feedEndsOnEmptyPage: feedEndsOnEmptyPage,
+    feedIsSparse: feedIsSparse,
+    autoSeasonPath: autoSeasonPath,
+    SUBTITLE_LANGUAGES: SUBTITLE_LANGUAGES,
+    MAX_SUBTITLE_LANGUAGES: MAX_SUBTITLE_LANGUAGES,
+    versionLabelKey: versionLabelKey,
+    toggleSubtitleLanguage: toggleSubtitleLanguage,
+    buildSettingsBar: buildSettingsBar,
+    isContinueRow: isContinueRow,
+    CW_RECENT_MS: CW_RECENT_MS,
+    recentContinueRemovals: recentContinueRemovals,
+    continueCardMatches: continueCardMatches,
+    autoSeasonHint: autoSeasonHint,
     historyEntryLabel: historyEntryLabel,
     isEmailish: isEmailish,
     buildSkeletons: buildSkeletons,

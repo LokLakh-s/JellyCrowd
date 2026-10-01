@@ -40,10 +40,15 @@ public class PollPolicyTests
   private static (PluginConfiguration Config, Guid Member) WithGroup(bool childMode = false)
   {
     var member = Guid.NewGuid();
-    var group = new UserGroup { Id = Guid.NewGuid(), Name = "Family", ChildMode = childMode };
+    var group = new UserGroup { Id = Guid.NewGuid(), Name = "Family" };
     group.Members.Add(member);
     var config = new PluginConfiguration();
     config.UserGroups.Add(group);
+    if (childMode)
+    {
+      config.ChildAccounts.Add(new ChildAccount { UserId = member });
+    }
+
     return (config, member);
   }
 

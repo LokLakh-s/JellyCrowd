@@ -29,6 +29,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
   private readonly ITmdbClient _tmdb;
   private readonly Func<PluginConfiguration> _config;
   private readonly Func<CancellationToken, Task> _settleDelay;
+  private readonly IServarrProfileResolver? _profiles;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="ServarrDownloadClient"/> class.
@@ -40,12 +41,14 @@ public sealed class ServarrDownloadClient : IDownloadClient
   /// Delay awaited between monitor-confirm attempts, letting Sonarr's asynchronous post-add processing run.
   /// Defaults to a one-second real delay; tests inject a no-op.
   /// </param>
-  public ServarrDownloadClient(IServarrClient servarr, ITmdbClient tmdb, Func<PluginConfiguration> config, Func<CancellationToken, Task>? settleDelay = null)
+  /// <param name="profiles">Picks each title's quality profile from its requesters' language preferences; <c>null</c> keeps the configured profiles.</param>
+  public ServarrDownloadClient(IServarrClient servarr, ITmdbClient tmdb, Func<PluginConfiguration> config, Func<CancellationToken, Task>? settleDelay = null, IServarrProfileResolver? profiles = null)
   {
     _servarr = servarr;
     _tmdb = tmdb;
     _config = config;
     _settleDelay = settleDelay ?? (ct => Task.Delay(SettleDelay, ct));
+    _profiles = profiles;
   }
 
   /// <inheritdoc />
@@ -129,17 +132,25 @@ public sealed class ServarrDownloadClient : IDownloadClient
         throw new InvalidOperationException("Radarr is not configured (URL, API key, root folder and quality profile are required).");
       }
 
+      var profile = await ResolveProfileAsync("movie", dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
       var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
       if (TryGetId(movie, out var movieId))
       {
-        // Already in Radarr — just (re)search it instead of re-adding (which would 400).
+        // Already in Radarr — just (re)search it instead of re-adding (which would 400). A requester with
+        // another preference may have changed the profile it is due: switch it first, so the search goes
+        // after what everyone asked for.
+        if (SwitchProfile(movie!, profile))
+        {
+          await _servarr.UpdateMovieAsync(config.RadarrUrl, config.RadarrApiKey, movieId, movie!, cancellationToken).ConfigureAwait(false);
+        }
+
         await SearchMovieAsync(config, movieId, cancellationToken).ConfigureAwait(false);
         return;
       }
 
       var lookup = await _servarr.LookupMovieAsync(config.RadarrUrl, config.RadarrApiKey, dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Radarr could not find TMDB movie {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)}.");
-      var body = ServarrPayload.BuildMovieAdd(lookup, config.RadarrQualityProfileId, config.RadarrRootFolderPath);
+      var body = ServarrPayload.BuildMovieAdd(lookup, profile ?? config.RadarrQualityProfileId, config.RadarrRootFolderPath);
       try
       {
         await _servarr.AddMovieAsync(config.RadarrUrl, config.RadarrApiKey, body, cancellationToken).ConfigureAwait(false);
@@ -167,16 +178,23 @@ public sealed class ServarrDownloadClient : IDownloadClient
 
       var tvdbId = await ResolveTvdbIdAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)} (no TVDB or IMDb match).");
+      var profile = await ResolveProfileAsync("tv", dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
       if (series is not null && TryGetId(series, out var seriesId))
       {
+        // One profile per show in Sonarr: a requester of another season with another preference can change it.
+        if (SwitchProfile(series, profile))
+        {
+          await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
+        }
+
         await SearchSeriesAsync(config, series, seriesId, dispatch, cancellationToken).ConfigureAwait(false);
         return;
       }
 
       var lookup = await _servarr.LookupSeriesAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Sonarr could not find TVDB series {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
-      var body = ServarrPayload.BuildSeriesAdd(lookup, config.SonarrQualityProfileId, config.SonarrLanguageProfileId, config.SonarrRootFolderPath, dispatch.Season);
+      var body = ServarrPayload.BuildSeriesAdd(lookup, profile ?? config.SonarrQualityProfileId, config.SonarrLanguageProfileId, config.SonarrRootFolderPath, dispatch.Season);
       try
       {
         await _servarr.AddSeriesAsync(config.SonarrUrl, config.SonarrApiKey, body, cancellationToken).ConfigureAwait(false);
@@ -204,6 +222,40 @@ public sealed class ServarrDownloadClient : IDownloadClient
     {
       throw new InvalidOperationException($"Unsupported media type '{dispatch.MediaType}'.");
     }
+  }
+
+  // The quality profile the title is due from its requesters' language preferences, or null when they have
+  // no say (no resolver, feature off, nobody with a preference, or the lookup failed): a new title then gets
+  // the configured profile and an existing one keeps whatever it has — including a profile set by hand.
+  private async Task<int?> ResolveProfileAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+  {
+    if (_profiles is null)
+    {
+      return null;
+    }
+
+    try
+    {
+      var resolved = await _profiles.ResolveAsync(mediaType, tmdbId, cancellationToken).ConfigureAwait(false);
+      return resolved > 0 ? resolved : null;
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+      return null;
+    }
+  }
+
+  // Sets the profile on a Radarr movie / Sonarr series body; whether it changed (and so must be saved).
+  private static bool SwitchProfile(JsonObject item, int? profile)
+  {
+    if (profile is not int target || target <= 0
+        || (item["qualityProfileId"] is JsonValue current && current.TryGetValue<int>(out var id) && id == target))
+    {
+      return false;
+    }
+
+    item["qualityProfileId"] = target;
+    return true;
   }
 
   // (Re)search a movie already present in Radarr.

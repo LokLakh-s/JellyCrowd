@@ -115,6 +115,10 @@ public sealed class ServarrClient : IServarrClient
     => PutAsync(baseUrl, apiKey, "/series/" + seriesId.ToString(CultureInfo.InvariantCulture), body, cancellationToken);
 
   /// <inheritdoc />
+  public Task UpdateMovieAsync(string baseUrl, string apiKey, int movieId, JsonObject body, CancellationToken cancellationToken)
+    => PutAsync(baseUrl, apiKey, "/movie/" + movieId.ToString(CultureInfo.InvariantCulture), body, cancellationToken);
+
+  /// <inheritdoc />
   public Task<string> GetQueueAsync(string baseUrl, string apiKey, bool forSonarr, CancellationToken cancellationToken)
   {
     var path = forSonarr

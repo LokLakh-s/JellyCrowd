@@ -45,15 +45,15 @@ public class UserGroup
   public Collection<string> LibraryIds { get; set; } = new();
 
   /// <summary>
-  /// Gets or sets a value indicating whether this is a "child" group: its members get an age-filtered
-  /// discovery catalog (adult content always excluded), free-text search disabled, and reviews and
-  /// announcements hidden.
+  /// Gets or sets a value indicating whether this was a "child" group. Legacy: children are now accounts of
+  /// their own (<see cref="ChildAccount"/>); at startup the members of such a group become child accounts
+  /// with the group's age, and the flag is cleared.
   /// </summary>
   public bool ChildMode { get; set; }
 
   /// <summary>
-  /// Gets or sets the maximum age rating for a child group, as an age tier: 0 (all ages), 10, 12 or 16.
-  /// Mapped to the country's TMDB movie certification for filtering. Ignored unless <see cref="ChildMode"/>.
+  /// Gets or sets the age of a legacy child group (0, 10, 12 or 16), carried over to its members' child
+  /// accounts by the migration. Ignored unless <see cref="ChildMode"/>.
   /// </summary>
   public int ChildMaxAge { get; set; }
 }

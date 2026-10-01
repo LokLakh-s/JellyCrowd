@@ -124,6 +124,17 @@ public interface IRequestStore
   Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Removes the ownerships that <paramref name="include"/> selects and that became available before
+  /// <paramref name="cutoffUtc"/> — e.g. children's ownerships, which have an expiry window of their own.
+  /// </summary>
+  /// <param name="cutoffUtc">Ownerships with <see cref="RequestRecord.AvailableAt"/> before this lapse.</param>
+  /// <param name="include">Which ownerships this window applies to.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The ownership records that lapsed.</returns>
+  Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, Func<RequestRecord, bool> include, CancellationToken cancellationToken)
+    => throw new NotSupportedException("This store cannot expire a subset of ownerships.");
+
+  /// <summary>
   /// Cancels (removes) one of the user's own requests, only while it is still pending.
   /// </summary>
   /// <param name="id">The request identifier.</param>

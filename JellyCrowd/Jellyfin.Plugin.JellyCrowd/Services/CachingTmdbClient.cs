@@ -94,6 +94,10 @@ public sealed class CachingTmdbClient : ITmdbClient
     => GetOrAddAsync(Key("tvdb", tmdbId), LongTtl, () => _inner.GetTvdbIdAsync(tmdbId, cancellationToken));
 
   /// <inheritdoc />
+  public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetCertificationsAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+    => GetOrAddAsync(Key("certs", mediaType, tmdbId), LongTtl, () => _inner.GetCertificationsAsync(mediaType, tmdbId, cancellationToken));
+
+  /// <inheritdoc />
   public Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken)
     => GetOrAddAsync(Key("upcoming", mediaType, region, language), ShortTtl, () => _inner.GetUpcomingAsync(mediaType, region, language, cancellationToken));
 

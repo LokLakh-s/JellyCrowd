@@ -1,0 +1,48 @@
+<!--
+  Jelly Crowd "Viewing" settings page: the preferred version (original, dubbed, original with subtitles),
+  the subtitles to add, and what was removed from Continue watching. A settings tab next to Notifications.
+  Fetched as a fragment; assets load via absolute URLs.
+-->
+<div id="jellyCrowdViewing" class="jellycrowd">
+  <header class="jellycrowd-header">
+    <div class="jellycrowd-brand">
+      <img id="jcViewingLogo" class="jellycrowd-logo" alt="" />
+      <h1 id="jcViewingTitle" class="jellycrowd-title"></h1>
+    </div>
+  </header>
+  <section class="jellycrowd-section">
+    <p id="jcViewingMessage" class="jellycrowd-message" hidden aria-live="polite"></p>
+    <form id="jcViewingForm" class="jellycrowd-prefs" novalidate></form>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var get = (window.ApiClient && window.ApiClient.getUrl)
+      ? function (p) { return window.ApiClient.getUrl(p); }
+      : function (p) { return '/' + p; };
+
+    if (!document.getElementById('jellycrowd-css')) {
+      var css = document.createElement('link');
+      css.id = 'jellycrowd-css';
+      css.rel = 'stylesheet';
+      css.href = get('JellyCrowd/Web/jellycrowd.css');
+      document.head.appendChild(css);
+    }
+
+    function start() {
+      var s = document.createElement('script');
+      s.src = get('JellyCrowd/Web/viewing.js');
+      document.head.appendChild(s);
+    }
+
+    if (window.JellyCrowdLib) {
+      start();
+    } else {
+      var lib = document.createElement('script');
+      lib.src = get('JellyCrowd/Web/catalog.lib.js');
+      lib.onload = start;
+      document.head.appendChild(lib);
+    }
+  })();
+</script>

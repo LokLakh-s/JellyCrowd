@@ -27,6 +27,8 @@
     // No navbar button: reached from the avatar menu (where Jellyfin keeps its own preferences) and
     // from the bell panel, which is where someone looks when they want to change notifications.
     { id: 'preferences', file: 'preferences.html', labelKey: 'prefs_title' },
+    // Same: the Viewing settings tab (preferred version, subtitles, items removed from Continue watching).
+    { id: 'viewing', file: 'viewing.html', labelKey: 'set_viewing' },
     // No navbar button either: opened from the header guide (?) icon. The user guide, hosted by the plugin.
     { id: 'guide', file: 'guide.html', labelKey: 'guide_title' }
   ];
@@ -156,6 +158,9 @@
     apiAjax('GET', 'JellyCrowd/Settings/Visibility')
       .then(function (d) {
         isAdmin = !!(d && d.IsAdmin === true);
+        // A child account manages nothing: no dashboard, no requests, no quota bar (their catalog and
+        // wishlist stay). Applied as a body class so it holds on both the 10.11 and the 12 header.
+        if (document.body) { document.body.classList.toggle('jc-child-account', !!(d && d.IsChild === true)); }
         applyDrawerHiding(); // now that admin status is known, an admin keeps the drawer
         if (configMode && d && d.Visible === true) {
           pluginHidden = false;
@@ -2213,6 +2218,9 @@
       '.jcSettingsTabs::-webkit-scrollbar{display:none;}' +
       '.jcSettingsTab{white-space:nowrap;}' +
       '.jcHomeCustomize{display:flex;justify-content:flex-end;padding:.6em 1.2em .2em;}' +
+      'body.jc-child-account [data-jc-view="dashboard"],body.jc-child-account [data-jc-view="requests"],body.jc-child-account [data-jc-nav="dashboard"],body.jc-child-account [data-jc-nav="requests"],body.jc-child-account .jcHeaderQuota{display:none !important;}' +
+      '.jcCwToast{position:fixed;left:50%;bottom:2em;transform:translateX(-50%);z-index:100001;display:flex;gap:1em;align-items:center;max-width:90vw;padding:.7em 1.1em;background:#202020;color:#fff;border-radius:.4em;box-shadow:0 6px 22px rgba(0,0,0,.55);}' +
+      '.jcCwToastUndo{background:none;border:0;color:#00a4dc;font:inherit;font-weight:600;cursor:pointer;text-transform:uppercase;}' +
       '.jcSettingsTab{padding:.5em 1.1em;border:none;border-radius:.4em;cursor:pointer;background:rgba(127,127,127,.16);color:inherit;font:inherit;font-weight:600;display:inline-flex;align-items:center;gap:.3em;}' +
       '.jcSettingsTab:hover{background:rgba(127,127,127,.3);}' +
       '.jcSettingsTab-active{background:#00a4dc;color:#fff;}' +
@@ -2982,7 +2990,8 @@
       { id: 'playback', label: t('avm_playback'), hash: '#/mypreferencesplayback' + q },
       { id: 'subtitles', label: t('avm_subtitles'), hash: '#/mypreferencessubtitles' + q },
       { id: 'controls', label: t('avm_controls'), hash: '#/mypreferencescontrols' + q },
-      { id: 'notifications', label: t('set_notifications'), view: 'preferences' }
+      { id: 'notifications', label: t('set_notifications'), view: 'preferences' },
+      { id: 'viewing', label: t('set_viewing'), view: 'viewing' }
     ].forEach(function (tb) {
       var b = document.createElement('button');
       b.type = 'button';
@@ -3055,6 +3064,158 @@
     if (existing && page.contains(existing)) { return; }
     if (existing && existing.parentNode) { existing.parentNode.removeChild(existing); }
     sections.parentNode.insertBefore(buildHomeCustomizeButton(), sections);
+  }
+
+  // ---------- "Remove from Continue watching" in the card menu (home screen) ----------
+  // The server takes removed items out of Jellyfin's resume and next-up answers for every client; this
+  // only offers the action on the web. A card's menu is the native action sheet, which neither knows nor
+  // tells which card opened it — so a capture-phase listener notes the card whose menu was asked for, and
+  // the sheet that appears right after gets our entry. It carries the native item class, so the sheet
+  // closes itself on click exactly as for its own entries (the unknown command is then dropped by the
+  // client, which swallows it). The rows are recognised by their items container (see isContinueRow).
+  var cwPending = null;       // { id, seriesId, name, at } — the card whose menu was just opened
+  var CW_PENDING_MS = 3000;
+  // Jellyfin 12's web client renders the home rows from a query cache that stays fresh for a minute and
+  // survives a reload, so a card just removed can come back until the next fetch (which the server
+  // filters). Recent removals are kept a little longer than that and re-applied to every render.
+  var CW_RECENT_KEY = 'jcCwRecent';
+  var CW_RECENT_MS = 120000;
+
+  // Mirrors JellyCrowdLib.isContinueRow / continueCardMatches (duplicated: the base page has no lib).
+  function cwIsContinueRow(monitor) {
+    return String(monitor || '').split(',').some(function (m) { return m.trim() === 'videoplayback'; });
+  }
+
+  function cwCardMatches(cardId, cardSeriesId, itemId, seriesId) {
+    if (cardId && cardId === itemId) { return true; }
+    return !!seriesId && (cardSeriesId === seriesId || cardId === seriesId);
+  }
+
+  // Mirrors JellyCrowdLib.recentContinueRemovals (duplicated: the base page has no lib).
+  function cwRecent() {
+    var list = [];
+    try { list = JSON.parse(window.localStorage.getItem(CW_RECENT_KEY) || '[]'); } catch (e) { list = []; }
+    var now = Date.now();
+    return (Array.isArray(list) ? list : []).filter(function (r) {
+      return r && typeof r.id === 'string' && r.id && typeof r.at === 'number' && now - r.at >= 0 && now - r.at < CW_RECENT_MS;
+    });
+  }
+
+  function cwSetRecent(list) {
+    try { window.localStorage.setItem(CW_RECENT_KEY, JSON.stringify(list)); } catch (e) { /* private mode: in-page hiding still works */ }
+  }
+
+  function cwApplyRecent() {
+    if (!isHomeScreen()) { return; }
+    var recent = cwRecent();
+    if (!recent.length) { return; }
+    recent.forEach(function (r) {
+      cwMatchingCards(r.id, r.seriesId).forEach(function (c) { if (c.style.display !== 'none') { c.style.display = 'none'; } });
+    });
+  }
+
+  function cwContinueCard(el) {
+    var card = el && el.closest ? el.closest('.card[data-id]') : null;
+    var row = card ? card.closest('.itemsContainer') : null;
+    return row && cwIsContinueRow(row.getAttribute('data-monitor')) ? card : null;
+  }
+
+  function cwNoteCard(e) {
+    if (!pluginVisible() || !isHomeScreen()) { return; }
+    var t0 = e.target;
+    if (e.type === 'click' && !(t0 && t0.closest && t0.closest('[data-action="menu"]'))) { return; }
+    var card = cwContinueCard(t0);
+    if (!card) { return; }
+    var name = card.querySelector('.cardText');
+    cwPending = {
+      id: card.getAttribute('data-id'),
+      seriesId: card.getAttribute('data-seriesid') || null,
+      name: name ? name.textContent : '',
+      at: Date.now()
+    };
+  }
+
+  // The cards one removal takes away, across both rows.
+  function cwMatchingCards(itemId, seriesId) {
+    var out = [];
+    document.querySelectorAll('.itemsContainer .card[data-id]').forEach(function (card) {
+      var row = card.closest('.itemsContainer');
+      if (!row || !cwIsContinueRow(row.getAttribute('data-monitor'))) { return; }
+      if (cwCardMatches(card.getAttribute('data-id'), card.getAttribute('data-seriesid'), itemId, seriesId)) { out.push(card); }
+    });
+    return out;
+  }
+
+  function cwToast(text, undo) {
+    var old = document.getElementById('jcCwToast');
+    if (old && old.parentNode) { old.parentNode.removeChild(old); }
+    var box = document.createElement('div');
+    box.id = 'jcCwToast';
+    box.className = 'jcCwToast';
+    box.setAttribute('role', 'status');
+    var msg = document.createElement('span');
+    msg.textContent = text;
+    box.appendChild(msg);
+    if (undo) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'jcCwToastUndo';
+      b.textContent = t('cw_undo');
+      b.addEventListener('click', function () { if (box.parentNode) { box.parentNode.removeChild(box); } undo(); });
+      box.appendChild(b);
+    }
+    document.body.appendChild(box);
+    setTimeout(function () { if (box.parentNode) { box.parentNode.removeChild(box); } }, 7000);
+  }
+
+  function cwHide(target) {
+    if (!(window.ApiClient && window.ApiClient.ajax)) { return; }
+    window.ApiClient.ajax({ type: 'POST', url: getUrl('JellyCrowd/ContinueWatching/Hide/' + target.id) })
+      .then(function () {
+        var cards = cwMatchingCards(target.id, target.seriesId);
+        cards.forEach(function (c) { c.style.display = 'none'; });
+        cwSetRecent(cwRecent().filter(function (r) { return r.id !== target.id; })
+          .concat([{ id: target.id, seriesId: target.seriesId, at: Date.now() }]));
+        cwToast(t('cw_hidden').replace('{title}', target.name || ''), function () {
+          window.ApiClient.ajax({ type: 'POST', url: getUrl('JellyCrowd/ContinueWatching/Unhide/' + target.id) })
+            .then(function () {
+              cwSetRecent(cwRecent().filter(function (r) { return r.id !== target.id; }));
+              cards.forEach(function (c) { c.style.display = ''; });
+            })
+            .catch(function () { cwToast(t('cw_failed')); });
+        });
+      })
+      .catch(function () { cwToast(t('cw_failed')); });
+  }
+
+  function maybeInjectContinueWatchingAction() {
+    if (!cwPending) { return; }
+    if (Date.now() - cwPending.at > CW_PENDING_MS) { cwPending = null; return; }
+    var sheet = document.querySelector('.actionSheet');
+    var scroller = sheet ? sheet.querySelector('.actionSheetScroller') : null;
+    if (!scroller || scroller.querySelector('[data-id="jellycrowd-hide-resume"]')) { return; }
+    var native = scroller.querySelector('.actionSheetMenuItem');
+    if (!native) { return; }
+    var target = cwPending;
+    cwPending = null;
+    var item = document.createElement('button');
+    item.type = 'button';
+    item.setAttribute('is', 'emby-button');
+    item.className = native.className;
+    item.setAttribute('data-id', 'jellycrowd-hide-resume');
+    var icon = document.createElement('span');
+    icon.className = 'actionsheetMenuItemIcon listItemIcon listItemIcon-transparent material-icons visibility_off';
+    icon.setAttribute('aria-hidden', 'true');
+    var body = document.createElement('div');
+    body.className = 'listItemBody actionsheetListItemBody';
+    var text = document.createElement('div');
+    text.className = 'listItemBodyText actionSheetItemText';
+    text.textContent = t('cw_hide');
+    body.appendChild(text);
+    item.appendChild(icon);
+    item.appendChild(body);
+    item.addEventListener('click', function () { cwHide(target); });
+    scroller.appendChild(item);
   }
 
   // ---------- sort control on the Jellyfin 12 library lists ----------
@@ -3254,6 +3415,8 @@
       maybeInjectSettingsTabs(); // React reconciles the settings pages — keep our sub-tab bar present
       maybeInjectHomeCustomize(); // and the "Customize home" shortcut on the home screen
       maybeInjectLibrarySort(); // and the sort control on the Jellyfin 12 library lists
+      maybeInjectContinueWatchingAction(); // and "Remove from Continue watching" in a card's menu
+      cwApplyRecent(); // and keep just-removed cards out of a row rendered from 12's query cache
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
       scheduleDetailInject();
     });
@@ -3302,6 +3465,9 @@
     maybeInjectSettingsTabs(0); // initial load may already be a settings page
     maybeInjectHomeCustomize(); // initial load may already be the home screen
     maybeInjectLibrarySort(); // initial load may already be a library list
+    // Note which "Continue watching" / "Next up" card a menu is opened for (its ⋮ button or a long press).
+    document.addEventListener('click', cwNoteCard, true);
+    document.addEventListener('contextmenu', cwNoteCard, true);
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).

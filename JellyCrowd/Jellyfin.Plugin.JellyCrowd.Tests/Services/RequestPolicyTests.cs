@@ -306,26 +306,24 @@ public class RequestPolicyTests
 
   // ---------- Child mode ----------
   [Fact]
-  public void ChildPolicyFor_ReadsChildGroup()
+  public void ChildPolicyFor_ReadsTheChildAccount()
   {
     var config = Config();
-    var group = Group(User);
-    group.ChildMode = true;
-    group.ChildMaxAge = 12;
-    config.UserGroups.Add(group);
+    config.ChildAccounts.Add(new ChildAccount { UserId = User, MaxAge = 12 });
 
     var policy = RequestPolicy.ChildPolicyFor(config, User);
     Assert.True(policy.IsChild);
     Assert.Equal(12, policy.MaxAge);
 
-    Assert.False(RequestPolicy.ChildPolicyFor(config, Guid.NewGuid()).IsChild); // non-member
+    Assert.False(RequestPolicy.ChildPolicyFor(config, Guid.NewGuid()).IsChild); // not a child
   }
 
   [Fact]
-  public void ChildPolicyFor_NonChildGroup_IsNotChild()
+  public void ChildPolicyFor_GroupMember_IsNotAChild()
   {
+    // Children are accounts now: belonging to a group says nothing about it.
     var config = Config();
-    var group = Group(User); // ChildMode defaults false
+    var group = Group(User);
     config.UserGroups.Add(group);
     Assert.False(RequestPolicy.ChildPolicyFor(config, User).IsChild);
   }
@@ -335,9 +333,7 @@ public class RequestPolicyTests
   {
     var config = Config();
     config.AnnouncementText = "Everyone"; // global announcement
-    var group = Group(User);
-    group.ChildMode = true;
-    config.UserGroups.Add(group);
+    config.ChildAccounts.Add(new ChildAccount { UserId = User });
 
     Assert.False(RequestPolicy.ShouldSeeAnnouncement(config, User, isAdmin: false)); // child: hidden
     Assert.True(RequestPolicy.ShouldSeeAnnouncement(config, Guid.NewGuid(), isAdmin: false)); // others: shown

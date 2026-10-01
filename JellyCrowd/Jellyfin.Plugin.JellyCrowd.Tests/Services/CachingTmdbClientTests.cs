@@ -68,6 +68,21 @@ public class CachingTmdbClientTests
     Assert.Equal(2, inner.DiscoverCalls); // one per distinct person; the repeat is a cache hit
   }
 
+  [Fact]
+  public async Task Certifications_CachedPerTitleAndType()
+  {
+    // Parental filtering looks up every title on a page; the same title must not hit TMDB twice, while a
+    // movie and a show sharing a TMDB id are different titles.
+    var inner = new CountingTmdbClient();
+    var client = new CachingTmdbClient(inner, () => DateTime.UtcNow);
+
+    await client.GetCertificationsAsync("movie", 550, CancellationToken.None);
+    await client.GetCertificationsAsync("movie", 550, CancellationToken.None);
+    await client.GetCertificationsAsync("tv", 550, CancellationToken.None);
+
+    Assert.Equal(2, inner.CertificationCalls);
+  }
+
   private sealed class CountingTmdbClient : ITmdbClient
   {
     public int TrendingCalls { get; private set; }
@@ -112,6 +127,14 @@ public class CachingTmdbClientTests
 
     public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
       => Task.FromResult<int?>(null);
+
+    public int CertificationCalls { get; private set; }
+
+    public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetCertificationsAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+    {
+      CertificationCalls++;
+      return Task.FromResult<IReadOnlyDictionary<string, IReadOnlyList<string>>>(new Dictionary<string, IReadOnlyList<string>>());
+    }
 
     public Task<IReadOnlyList<CatalogItem>> GetCollectionAsync(int collectionId, string language, CancellationToken cancellationToken)
       => Task.FromResult<IReadOnlyList<CatalogItem>>(new List<CatalogItem>());

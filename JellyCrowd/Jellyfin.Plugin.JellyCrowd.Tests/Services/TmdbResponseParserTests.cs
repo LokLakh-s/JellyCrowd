@@ -344,6 +344,49 @@ public class TmdbResponseParserTests
   }
 
   [Fact]
+  public void ParseCertifications_Movie_CollectsEachCountrysReleaseCertifications()
+  {
+    // Shape of /movie/{id}/release_dates: one certification per release, often blank for some releases.
+    var json = """
+      { "id": 550, "results": [
+        { "iso_3166_1": "US", "release_dates": [
+          { "certification": "R", "type": 3, "release_date": "1999-10-15T00:00:00.000Z" },
+          { "certification": "", "type": 4 },
+          { "certification": "R", "type": 5 } ] },
+        { "iso_3166_1": "fr", "release_dates": [ { "certification": " 16 ", "type": 3 } ] },
+        { "iso_3166_1": "DE", "release_dates": [ { "certification": "", "type": 3 } ] } ] }
+      """;
+
+    var ratings = TmdbResponseParser.ParseCertifications(json, isMovie: true);
+
+    Assert.Equal(new[] { "R" }, ratings["US"]);  // duplicates collapsed, blanks dropped
+    Assert.Equal(new[] { "16" }, ratings["FR"]); // country upper-cased, rating trimmed
+    Assert.False(ratings.ContainsKey("DE"));     // a country with only blank ratings is omitted
+  }
+
+  [Fact]
+  public void ParseCertifications_Show_ReadsTheRatingOfEachCountry()
+  {
+    // Shape of /tv/{id}/content_ratings: a single rating per country.
+    var json = """
+      { "id": 1396, "results": [
+        { "descriptors": [], "iso_3166_1": "US", "rating": "TV-MA" },
+        { "descriptors": [], "iso_3166_1": "BR", "rating": "" } ] }
+      """;
+
+    var ratings = TmdbResponseParser.ParseCertifications(json, isMovie: false);
+
+    Assert.Equal(new[] { "TV-MA" }, ratings["US"]);
+    Assert.Single(ratings);
+  }
+
+  [Fact]
+  public void ParseCertifications_Empty_WhenNoResults()
+  {
+    Assert.Empty(TmdbResponseParser.ParseCertifications("""{ "id": 1 }""", isMovie: true));
+  }
+
+  [Fact]
   public void ParseTopPersonId_ReturnsId_WhenTopResultIsAPerson()
   {
     var json = """{ "results": [ { "id": 1461, "media_type": "person", "name": "George Clooney" }, { "id": 5, "media_type": "movie" } ] }""";

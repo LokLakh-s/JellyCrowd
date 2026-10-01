@@ -22,6 +22,7 @@ public sealed class RequestReconciler : IRequestReconciler
   private readonly ITmdbClient _tmdbClient;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<RequestReconciler> _logger;
+  private readonly IAvailabilityFollowUp? _followUp;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="RequestReconciler"/> class.
@@ -33,6 +34,7 @@ public sealed class RequestReconciler : IRequestReconciler
   /// <param name="tmdbClient">The TMDB client (lists the aired episodes a season or series must contain).</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
+  /// <param name="followUp">Fetches subtitles and checks the language of what became available; optional.</param>
   public RequestReconciler(
     IRequestStore store,
     ILibraryMatcher libraryMatcher,
@@ -40,7 +42,8 @@ public sealed class RequestReconciler : IRequestReconciler
     IDownloadDispatcher dispatcher,
     ITmdbClient tmdbClient,
     Func<PluginConfiguration> config,
-    ILogger<RequestReconciler> logger)
+    ILogger<RequestReconciler> logger,
+    IAvailabilityFollowUp? followUp = null)
   {
     _store = store;
     _libraryMatcher = libraryMatcher;
@@ -49,6 +52,7 @@ public sealed class RequestReconciler : IRequestReconciler
     _tmdbClient = tmdbClient;
     _config = config;
     _logger = logger;
+    _followUp = followUp;
   }
 
   /// <inheritdoc />
@@ -119,6 +123,9 @@ public sealed class RequestReconciler : IRequestReconciler
     {
       await _notificationService.NotifyAvailableBatchAsync(group.ToList(), cancellationToken).ConfigureAwait(false);
     }
+
+    // Subtitles and the "your version is missing" notice come a little later, once Jellyfin has probed the files.
+    _followUp?.Schedule(justAvailable);
 
     var resolved = justAvailable.Count;
     if (resolved > 0 || reverted > 0 || repointed > 0)

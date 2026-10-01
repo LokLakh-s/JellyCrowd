@@ -352,6 +352,39 @@ public sealed class DeletionTaskTests : IDisposable
     }
   }
 
+  [Fact]
+  public async Task Expiry_ChildrenHaveAWindowOfTheirOwn()
+  {
+    var child = Guid.NewGuid();
+    var adult = Guid.NewGuid();
+    var twentyDaysAgo = DateTime.UtcNow.AddDays(-20);
+    await _store.CreateAsync(new RequestRecord { UserId = child, TmdbId = 1, MediaType = "movie", Title = "Kid film", Status = RequestStatus.Available, AvailableAt = twentyDaysAgo }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = adult, TmdbId = 2, MediaType = "movie", Title = "Grown-up film", Status = RequestStatus.Available, AvailableAt = twentyDaysAgo }, CancellationToken.None);
+    var config = new PluginConfiguration { DeletionRetentionHours = 0, MediaExpiryDays = 90, ChildMediaExpiryDays = 10 };
+    config.ChildAccounts.Add(new ChildAccount { UserId = child });
+    var task = new DeletionTask(_store, new RecordingDeleter(), new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => config, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    var left = await _store.GetAllAsync(CancellationToken.None);
+    Assert.DoesNotContain(left, r => r.UserId == child); // 20 days > the 10-day child window
+    Assert.Contains(left, r => r.UserId == adult);       // 20 days < the 90-day general window
+  }
+
+  [Fact]
+  public async Task Expiry_ChildWindowOfZero_NeverLapses()
+  {
+    var child = Guid.NewGuid();
+    await _store.CreateAsync(new RequestRecord { UserId = child, TmdbId = 1, MediaType = "movie", Title = "Kid film", Status = RequestStatus.Available, AvailableAt = DateTime.UtcNow.AddDays(-400) }, CancellationToken.None);
+    var config = new PluginConfiguration { DeletionRetentionHours = 0, MediaExpiryDays = 90, ChildMediaExpiryDays = 0 };
+    config.ChildAccounts.Add(new ChildAccount { UserId = child });
+    var task = new DeletionTask(_store, new RecordingDeleter(), new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => config, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Single(await _store.GetAllAsync(CancellationToken.None));
+  }
+
   private sealed class RecordingDeleter : IMediaDeleter
   {
     public List<string> Deleted { get; } = new();

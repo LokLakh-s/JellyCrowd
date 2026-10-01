@@ -145,6 +145,20 @@ public sealed class UserNotificationsControllerTests : IDisposable
   }
 
   [Fact]
+  public async Task SetPrefs_KeepsTheFlagsOwnedByOtherScreens()
+  {
+    // The next-season opt-in (My requests) and the hidden history (History) share this record; saving the
+    // notification form, which knows neither, must not reset them.
+    await _prefs.SetAsync(new UserNotificationPrefs { UserId = User, AutoRequestNextSeason = true, HistoryHidden = true }, CancellationToken.None);
+
+    await CreateController().SetPrefs(new UserNotificationPrefs { Email = "u@example.com" }, CancellationToken.None);
+
+    var prefs = await _prefs.GetAsync(User, CancellationToken.None);
+    Assert.True(prefs.AutoRequestNextSeason);
+    Assert.True(prefs.HistoryHidden);
+  }
+
+  [Fact]
   public async Task SetPrefs_BlankEmail_TurnsEmailOff()
   {
     var result = await CreateController().SetPrefs(

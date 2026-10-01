@@ -75,6 +75,20 @@
     });
   }
 
+  function apiPostJson(path, body) {
+    if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+      return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' });
+    }
+    return fetch(pluginUrl(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) {
+      if (!r.ok) {
+        var err = new Error('HTTP ' + r.status);
+        err.status = r.status;
+        throw err;
+      }
+      return r.json();
+    });
+  }
+
   function apiPost(path) {
     if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
       return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path) });
@@ -606,11 +620,160 @@
       .catch(function () { setMessage(t('error_generic')); });
   }
 
+  // The "request the next season automatically" switch, shown only while the administrator offers it.
+  // It saves on change; a failed save puts the switch back and says so.
+  function loadAutoSeason() {
+    var host = document.getElementById('jcAutoSeason');
+    if (!host) { return; }
+    apiGet('JellyCrowd/AutoRequests/Mine')
+      .then(function (s) {
+        host.innerHTML = '';
+        if (!s || !s.Available) { host.hidden = true; return; }
+        var wrap = document.createElement('label');
+        wrap.className = 'jellycrowd-prefs-toggle';
+        var box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = !!s.Enabled;
+        var text = document.createElement('span');
+        text.className = 'jellycrowd-prefs-toggle-text';
+        var title = document.createElement('span');
+        title.textContent = t('auto_season_label');
+        var hint = document.createElement('span');
+        hint.className = 'jellycrowd-field-hint';
+        hint.textContent = lib.autoSeasonHint(t('auto_season_hint'), s.EpisodesLeft);
+        text.appendChild(title);
+        text.appendChild(hint);
+        wrap.appendChild(box);
+        wrap.appendChild(text);
+        host.appendChild(wrap);
+        host.hidden = false;
+        box.addEventListener('change', function () {
+          var wanted = box.checked;
+          box.disabled = true;
+          apiPost(lib.autoSeasonPath(wanted))
+            .catch(function () { box.checked = !wanted; setMessage(t('auto_season_failed')); })
+            .then(function () { box.disabled = false; });
+        });
+      })
+      .catch(function () { host.hidden = true; });
+  }
+
+  // ---------- my children (parents only) ----------
+  // Each child's wishlist — what they hope for — with a way to request it for them, their requests and
+  // their quota. A movie is requested in one click; a show opens its page, set to request for the child,
+  // to pick the seasons.
+  function childRequestError(status, name) {
+    if (status === 409) { return t('already_requested'); }
+    if (status === 403) { return t('child_request_refused').replace('{name}', name); }
+    if (status === 422) { return t('request_too_large'); }
+    return t('error_generic');
+  }
+
+  function renderWish(child, entry) {
+    var row = document.createElement('div');
+    row.className = 'jellycrowd-inline-row';
+    var title = document.createElement('span');
+    title.className = 'jellycrowd-inline-row-title';
+    title.textContent = entry.Title || '';
+    row.appendChild(title);
+    // Already requested for them: show where it stands rather than offering it again.
+    var existing = lib.wishRequest(child.Requests, entry);
+    if (existing) {
+      row.appendChild(lib.buildStatusBadge(document, existing, t));
+      return row;
+    }
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jellycrowd-request';
+    if (entry.MediaType === 'tv') {
+      btn.textContent = t('child_pick_seasons');
+      btn.addEventListener('click', function () {
+        window.jellyCrowdRequestForChild = child.UserId;
+        if (typeof window.jellyCrowdOpenDetail === 'function') {
+          window.jellyCrowdOpenDetail({ TmdbId: entry.TmdbId, MediaType: 'tv', Title: entry.Title, PosterPath: entry.PosterPath });
+        }
+      });
+    } else {
+      btn.textContent = t('child_request_for').replace('{name}', child.Name);
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        btn.textContent = t('requesting');
+        apiPostJson('JellyCrowd/Requests/ForChild', lib.requestRoute({ TmdbId: entry.TmdbId, MediaType: 'movie', Title: entry.Title, PosterPath: entry.PosterPath }, null, child.UserId).body)
+          .then(function () { btn.textContent = t('requested'); refresh(); })
+          .catch(function (e) { btn.textContent = childRequestError(e && e.status, child.Name); });
+      });
+    }
+    row.appendChild(btn);
+    return row;
+  }
+
+  function renderChild(child) {
+    var box = document.createElement('section');
+    box.className = 'jellycrowd-child';
+    var h = document.createElement('h3');
+    h.className = 'jellycrowd-child-name';
+    h.textContent = child.Name;
+    box.appendChild(h);
+    if (child.Quota && !child.Quota.Unlimited) {
+      var q = document.createElement('p');
+      q.className = 'jellycrowd-field-hint';
+      q.textContent = t('child_quota').replace('{used}', lib.formatBytes(child.Quota.UsedBytes || 0)).replace('{total}', lib.formatBytes(child.Quota.QuotaBytes || 0));
+      box.appendChild(q);
+    }
+    var wishTitle = document.createElement('h4');
+    wishTitle.textContent = t('child_wishlist');
+    box.appendChild(wishTitle);
+    var wishes = child.Wishlist || [];
+    if (!wishes.length) {
+      var none = document.createElement('p');
+      none.className = 'jellycrowd-field-hint';
+      none.textContent = t('child_wishlist_empty');
+      box.appendChild(none);
+    }
+    wishes.forEach(function (w) { box.appendChild(renderWish(child, w)); });
+    var reqs = child.Requests || [];
+    if (reqs.length) {
+      var reqTitle = document.createElement('h4');
+      reqTitle.textContent = t('child_requests');
+      box.appendChild(reqTitle);
+      reqs.slice(0, 20).forEach(function (r) {
+        var row = document.createElement('div');
+        row.className = 'jellycrowd-inline-row';
+        var name = document.createElement('span');
+        name.className = 'jellycrowd-inline-row-title';
+        name.textContent = r.Title + (r.Season != null ? ' · S' + r.Season : '') + (r.Episode != null ? 'E' + r.Episode : '');
+        row.appendChild(name);
+        row.appendChild(lib.buildStatusBadge(document, r, t));
+        box.appendChild(row);
+      });
+    }
+    return box;
+  }
+
+  function loadChildren() {
+    var host = document.getElementById('jcChildren');
+    if (!host) { return; }
+    apiGet('JellyCrowd/Children/Mine')
+      .then(function (children) {
+        host.innerHTML = '';
+        if (!children || !children.length) { host.hidden = true; return; }
+        var title = document.createElement('h2');
+        title.className = 'jellycrowd-section-title';
+        title.textContent = t('my_children');
+        host.appendChild(title);
+        children.forEach(function (c) { host.appendChild(renderChild(c)); });
+        host.hidden = false;
+      })
+      .catch(function () { host.hidden = true; });
+  }
+
   function init() {
     loadConfigLang().then(resolveAdmin).then(loadStrings).then(function () {
       document.getElementById('jcReqLogo').src = pluginUrl('JellyCrowd/Web/logo.png');
       document.getElementById('jcReqTitle').textContent = t('my_requests_title');
       document.getElementById('jcReqDisclaimer').textContent = t('requests_latency_disclaimer');
+      loadAutoSeason();
+      loadChildren();
       setMessage(t('loading'));
 
       if (typeof window.jellyCrowdRegisterRefresh === 'function') {

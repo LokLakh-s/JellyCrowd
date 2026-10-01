@@ -138,31 +138,17 @@ public sealed class DeletionTask : IScheduledTask
       _logger.LogInformation("Jelly Crowd deletion task: removed {Count} flagged item(s).", deleted);
     }
 
-    // Lapse ownerships whose expiry window has elapsed (frees quota; never deletes the file).
-    var expiryDays = _configurationProvider().MediaExpiryDays;
-    if (expiryDays > 0)
+    // Lapse ownerships whose expiry window has elapsed (frees quota; never deletes the file). What child
+    // accounts own has a window of its own; with no child account, everything follows the general one.
+    var config = _configurationProvider();
+    if (config.ChildAccounts.Count == 0)
     {
-      var expiryCutoff = DateTime.UtcNow - TimeSpan.FromDays(expiryDays);
-      var lapsed = await _store.ExpireOwnershipsAsync(expiryCutoff, cancellationToken).ConfigureAwait(false);
-      if (lapsed.Count > 0)
-      {
-        _logger.LogInformation("Jelly Crowd expiry: lapsed {Count} ownership(s).", lapsed.Count);
-        var expiredStrings = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
-        foreach (var record in lapsed)
-        {
-          var body = expiredStrings("notif_expired_body")
-            .Replace("{title}", record.Title, StringComparison.Ordinal)
-            .Replace("{days}", expiryDays.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-          await _notificationService.NotifyPersonalAsync(
-            record.UserId,
-            Models.PersonalNotifyKind.QuotaExpiry,
-            record.Title,
-            expiredStrings("notif_expired_subject"),
-            body,
-            record.PosterPath,
-            cancellationToken).ConfigureAwait(false);
-        }
-      }
+      await LapseAsync(config.MediaExpiryDays, null, cancellationToken).ConfigureAwait(false);
+    }
+    else
+    {
+      await LapseAsync(config.MediaExpiryDays, r => !ChildAccountPolicy.IsChild(config, r.UserId), cancellationToken).ConfigureAwait(false);
+      await LapseAsync(config.ChildMediaExpiryDays, r => ChildAccountPolicy.IsChild(config, r.UserId), cancellationToken).ConfigureAwait(false);
     }
 
     // Sweep away empty series (0 episodes) that Jellyfin keeps in the library after their files were
@@ -275,5 +261,41 @@ public sealed class DeletionTask : IScheduledTask
         IntervalTicks = TimeSpan.FromHours(1).Ticks
       }
     };
+  }
+
+  // Lapses the ownerships older than the window (all of them, or those `include` selects) and tells each
+  // owner. A window of 0 never lapses.
+  private async Task LapseAsync(int expiryDays, Func<Models.RequestRecord, bool>? include, CancellationToken cancellationToken)
+  {
+    if (expiryDays <= 0)
+    {
+      return;
+    }
+
+    var expiryCutoff = DateTime.UtcNow - TimeSpan.FromDays(expiryDays);
+    var lapsed = include is null
+      ? await _store.ExpireOwnershipsAsync(expiryCutoff, cancellationToken).ConfigureAwait(false)
+      : await _store.ExpireOwnershipsAsync(expiryCutoff, include, cancellationToken).ConfigureAwait(false);
+    if (lapsed.Count == 0)
+    {
+      return;
+    }
+
+    _logger.LogInformation("Jelly Crowd expiry: lapsed {Count} ownership(s).", lapsed.Count);
+    var expiredStrings = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    foreach (var record in lapsed)
+    {
+      var body = expiredStrings("notif_expired_body")
+        .Replace("{title}", record.Title, StringComparison.Ordinal)
+        .Replace("{days}", expiryDays.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+      await _notificationService.NotifyPersonalAsync(
+        record.UserId,
+        Models.PersonalNotifyKind.QuotaExpiry,
+        record.Title,
+        expiredStrings("notif_expired_subject"),
+        body,
+        record.PosterPath,
+        cancellationToken).ConfigureAwait(false);
+    }
   }
 }

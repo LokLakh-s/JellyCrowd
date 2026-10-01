@@ -157,17 +157,17 @@ public static class RequestPolicy
   }
 
   /// <summary>
-  /// Resolves the child-mode policy for a user from their group: whether they are a "child" account and,
-  /// if so, the maximum age tier for the filtered catalog.
+  /// Resolves the child policy of a user from their child account: whether they are a child and, if so,
+  /// their age for the filtered catalog.
   /// </summary>
   /// <param name="config">The plugin configuration.</param>
   /// <param name="userId">The user id.</param>
-  /// <returns>A tuple of whether the user is a child account and their max age tier.</returns>
+  /// <returns>A tuple of whether the user is a child account and their age.</returns>
   public static (bool IsChild, int MaxAge) ChildPolicyFor(PluginConfiguration config, Guid userId)
   {
     ArgumentNullException.ThrowIfNull(config);
-    var group = GroupOf(config, userId);
-    return group is not null && group.ChildMode ? (true, group.ChildMaxAge) : (false, 0);
+    var child = ChildAccountPolicy.ChildAccountOf(config, userId);
+    return child is not null ? (true, child.MaxAge) : (false, 0);
   }
 
   /// <summary>

@@ -94,6 +94,17 @@ public interface IServarrClient
   Task UpdateSeriesAsync(string baseUrl, string apiKey, int seriesId, JsonObject body, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Updates an existing movie (<c>PUT /api/v3/movie/{id}</c>), e.g. to change its quality profile.
+  /// </summary>
+  /// <param name="baseUrl">The Radarr base URL.</param>
+  /// <param name="apiKey">The Radarr API key.</param>
+  /// <param name="movieId">The Radarr movie id.</param>
+  /// <param name="body">The full movie body to persist.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the movie is updated.</returns>
+  Task UpdateMovieAsync(string baseUrl, string apiKey, int movieId, JsonObject body, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Fetches the current download queue (<c>GET /api/v3/queue</c>), including the linked movie
   /// (Radarr) or series + episode (Sonarr) so records can be matched back to a request.
   /// </summary>

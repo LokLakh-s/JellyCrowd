@@ -55,4 +55,23 @@ public class UserNotificationPrefs
   /// lacks the field, defaults to <c>false</c> and the history stays visible.
   /// </summary>
   public bool HistoryHidden { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the next season of a show the user is watching is requested
+  /// for them automatically near the end of the current one. Opt-in (defaults to <c>false</c>), and only
+  /// effective while the administrator offers the feature (<c>AutoNextSeasonEnabled</c>).
+  /// </summary>
+  public bool AutoRequestNextSeason { get; set; }
+
+  /// <summary>
+  /// Gets or sets the user's preferred version: <c>original</c>, <c>dubbed</c>, <c>subtitled</c> (original
+  /// with subtitles), or empty for no preference. Only effective while the administrator offers it.
+  /// </summary>
+  public string LanguagePreference { get; set; } = string.Empty;
+
+  /// <summary>
+  /// Gets or sets the subtitle languages the user wants added to their requests (ISO 639-1 codes).
+  /// </summary>
+  [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Deserialized from the preferences store.")]
+  public System.Collections.ObjectModel.Collection<string> SubtitleLanguages { get; set; } = new();
 }

@@ -19,7 +19,7 @@ public class SettingsControllerTests
 {
   private static LanguageSettingDto GetLanguage(string? configured)
   {
-    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! }, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>());
+    var controller = new SettingsController(() => new PluginConfiguration { Language = configured! }, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>(), new FakeContentRestrictionService());
     var result = controller.GetLanguage();
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     return Assert.IsType<LanguageSettingDto>(ok.Value);
@@ -43,7 +43,7 @@ public class SettingsControllerTests
 
   private static LanguageSettingDto GetLanguageFor(PluginConfiguration config)
   {
-    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>());
+    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>(), new FakeContentRestrictionService());
     var ok = Assert.IsType<OkObjectResult>(controller.GetLanguage().Result);
     return Assert.IsType<LanguageSettingDto>(ok.Value);
   }
@@ -81,7 +81,7 @@ public class SettingsControllerTests
 
   private static BrandingDto GetBranding(PluginConfiguration config)
   {
-    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>());
+    var controller = new SettingsController(() => config, Mock.Of<ICurrentUserAccessor>(), Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>(), new FakeContentRestrictionService());
     var ok = Assert.IsType<OkObjectResult>(controller.GetBranding().Result);
     return Assert.IsType<BrandingDto>(ok.Value);
   }
@@ -150,17 +150,27 @@ public class SettingsControllerTests
     Assert.Equal(string.Empty, targeted.AnnouncementText);
   }
 
-  private static async Task<VisibilitySettingDto> GetVisibilityFor(PluginConfiguration config, Guid userId, bool isAdmin)
+  private static async Task<VisibilitySettingDto> GetVisibilityFor(PluginConfiguration config, Guid userId, bool isAdmin, IContentRestrictionService? restrictions = null)
   {
     var accessor = new Mock<ICurrentUserAccessor>();
     accessor.Setup(a => a.GetUserIdAsync(It.IsAny<HttpRequest>())).ReturnsAsync(userId);
     accessor.Setup(a => a.IsAdministratorAsync(It.IsAny<HttpRequest>())).ReturnsAsync(isAdmin);
-    var controller = new SettingsController(() => config, accessor.Object, Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>())
+    var controller = new SettingsController(() => config, accessor.Object, Mock.Of<ILibraryManager>(), Mock.Of<IIntroFileRegistry>(), restrictions ?? new FakeContentRestrictionService())
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
     var ok = Assert.IsType<OkObjectResult>((await controller.GetVisibility()).Result);
     return Assert.IsType<VisibilitySettingDto>(ok.Value);
+  }
+
+  [Fact]
+  public async Task GetVisibility_ReportsAParentalRestriction()
+  {
+    // The client keeps scrolling past pages the parental filter emptied, instead of stopping.
+    var restricted = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 12 } };
+
+    Assert.True((await GetVisibilityFor(new PluginConfiguration(), Guid.NewGuid(), isAdmin: false, restricted)).IsRestricted);
+    Assert.False((await GetVisibilityFor(new PluginConfiguration(), Guid.NewGuid(), isAdmin: false)).IsRestricted);
   }
 
   [Fact]
@@ -192,13 +202,24 @@ public class SettingsControllerTests
   public async Task GetVisibility_FlagsChildAccounts()
   {
     var member = Guid.NewGuid();
-    var group = new UserGroup { Id = Guid.NewGuid(), Name = "Kids", ChildMode = true, ChildMaxAge = 12 };
-    group.Members.Add(member);
     var config = new PluginConfiguration();
-    config.UserGroups.Add(group);
+    config.ChildAccounts.Add(new ChildAccount { UserId = member, MaxAge = 12 });
 
     Assert.True((await GetVisibilityFor(config, member, isAdmin: false)).IsChild);
-    Assert.False((await GetVisibilityFor(config, Guid.NewGuid(), isAdmin: false)).IsChild); // non-member
+    Assert.False((await GetVisibilityFor(config, Guid.NewGuid(), isAdmin: false)).IsChild); // not a child
     Assert.False((await GetVisibilityFor(config, member, isAdmin: true)).IsChild);          // admins never child
+  }
+
+  [Fact]
+  public async Task GetVisibility_FlagsParents()
+  {
+    var parent = Guid.NewGuid();
+    var config = new PluginConfiguration();
+    var child = new ChildAccount { UserId = Guid.NewGuid() };
+    child.ParentIds.Add(parent);
+    config.ChildAccounts.Add(child);
+
+    Assert.True((await GetVisibilityFor(config, parent, isAdmin: false)).IsParent);
+    Assert.False((await GetVisibilityFor(config, Guid.NewGuid(), isAdmin: false)).IsParent);
   }
 }

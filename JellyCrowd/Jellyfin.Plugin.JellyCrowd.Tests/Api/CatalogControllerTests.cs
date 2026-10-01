@@ -19,7 +19,7 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Api;
 /// </summary>
 public class CatalogControllerTests
 {
-  private static CatalogController CreateController(ITmdbClient client, IReadOnlyList<RequestRecord>? userRequests = null)
+  private static CatalogController CreateController(ITmdbClient client, IReadOnlyList<RequestRecord>? userRequests = null, IContentRestrictionService? restrictions = null)
   {
     var store = Mock.Of<IRequestStore>(s =>
       s.GetByUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())
@@ -34,7 +34,7 @@ public class CatalogControllerTests
     // tests assert. The Sonarr-authoritative path has its own tests (SeriesStructureProviderTests).
     var config = new Jellyfin.Plugin.JellyCrowd.Configuration.PluginConfiguration();
     var structure = new SeriesStructureProvider(client, Mock.Of<IServarrClient>(), () => config, NullLogger<SeriesStructureProvider>.Instance);
-    return new CatalogController(client, structure, new FakeLibraryMatcher(), store, watchlist, accessor, NullLogger<CatalogController>.Instance);
+    return new CatalogController(client, structure, new FakeLibraryMatcher(), store, watchlist, accessor, restrictions ?? new FakeContentRestrictionService(), NullLogger<CatalogController>.Instance);
   }
 
   private sealed class FakeLibraryMatcher : ILibraryMatcher
@@ -69,6 +69,88 @@ public class CatalogControllerTests
     var ok = Assert.IsType<OkObjectResult>(result.Result);
     var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(ok.Value);
     Assert.Single(payload);
+  }
+
+  [Fact]
+  public async Task GetTrending_RestrictedUser_HidesTitlesAboveTheirLimit()
+  {
+    var items = new List<CatalogItem>
+    {
+      new() { TmdbId = 1, MediaType = "movie", Title = "Family" },
+      new() { TmdbId = 2, MediaType = "movie", Title = "Horror" },
+      new() { TmdbId = 3, MediaType = "tv", Title = "Cartoon" },
+    };
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 } };
+    restrictions.Allowed.Add("movie:1");
+    restrictions.Allowed.Add("tv:3");
+    var controller = CreateController(new FakeTmdbClient { Results = items }, restrictions: restrictions);
+
+    var result = await controller.GetTrending(null, null, CancellationToken.None);
+
+    var payload = Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(new[] { 1, 3 }, payload.Select(i => i.TmdbId));
+  }
+
+  [Fact]
+  public async Task Discover_RestrictedUser_IsFilteredToo()
+  {
+    var items = new List<CatalogItem> { new() { TmdbId = 7, MediaType = "movie", Title = "D" } };
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 12 } };
+    var controller = CreateController(new FakeTmdbClient { Results = items }, restrictions: restrictions);
+
+    var result = await controller.Discover("movie", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, CancellationToken.None);
+
+    Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value));
+  }
+
+  [Fact]
+  public async Task Recommendations_RestrictedUser_AreFiltered()
+  {
+    var tmdb = new FakeTmdbClient
+    {
+      Recommendations = new List<CatalogItem> { new() { TmdbId = 100, MediaType = "movie", Title = "Rec", VoteAverage = 8 } }
+    };
+    var seeds = new List<RequestRecord> { new() { TmdbId = 7, MediaType = "tv", Title = "Seed" } };
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 12 } };
+    var controller = CreateController(tmdb, seeds, restrictions);
+
+    var result = await controller.Recommendations(null, CancellationToken.None);
+
+    Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<CatalogItem>>(Assert.IsType<OkObjectResult>(result.Result).Value));
+  }
+
+  [Fact]
+  public async Task GetDetails_TitleAboveTheUsersLimit_Returns404()
+  {
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 } };
+    var controller = CreateController(new FakeTmdbClient(), restrictions: restrictions);
+
+    var result = await controller.GetDetails("movie", 1, null, CancellationToken.None);
+
+    Assert.IsType<NotFoundResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task GetDetails_TitleWithinTheUsersLimit_ReturnsIt()
+  {
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 } };
+    restrictions.Allowed.Add("movie:1");
+    var controller = CreateController(new FakeTmdbClient(), restrictions: restrictions);
+
+    var result = await controller.GetDetails("movie", 1, null, CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task GetDetails_RestrictedUser_RatingUnavailable_Returns503()
+  {
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 }, Unavailable = true };
+    var controller = CreateController(new FakeTmdbClient(), restrictions: restrictions);
+
+    var result = await controller.GetDetails("movie", 1, null, CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
   }
 
   [Fact]
@@ -472,6 +554,21 @@ public class CatalogControllerTests
       }
 
       return Task.FromResult<int?>(null);
+    }
+
+    // Age ratings per title, keyed by "{mediaType}:{tmdbId}"; a title missing here has none.
+    public Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>> Certifications { get; } = new(StringComparer.Ordinal);
+
+    public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetCertificationsAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+    {
+      if (Throw is not null)
+      {
+        throw Throw;
+      }
+
+      return Task.FromResult(Certifications.TryGetValue(mediaType + ":" + tmdbId, out var ratings)
+        ? ratings
+        : (IReadOnlyDictionary<string, IReadOnlyList<string>>)new Dictionary<string, IReadOnlyList<string>>());
     }
 
     public Task<IReadOnlyList<CatalogItem>> GetUpcomingAsync(string mediaType, string region, string language, CancellationToken cancellationToken)

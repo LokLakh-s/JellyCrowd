@@ -37,6 +37,8 @@ public class PluginConfiguration : BasePluginConfiguration
     AllowSeriesRequests = true;
     AllowSeasonRequests = true;
     AllowEpisodeRequests = true;
+    AutoNextSeasonEnabled = false;
+    AutoNextSeasonEpisodesLeft = 2;
     HiddenFromUsers = false;
     RateLimitPerMinute = 120;
     RateLimitGetPerMinute = 600;
@@ -94,6 +96,7 @@ public class PluginConfiguration : BasePluginConfiguration
     BrandingPresetHideBackdrop = false;
     BrandingPresetButtonTweaks = false;
     MediaExpiryDays = 90;
+    ChildMediaExpiryDays = 90;
     PartialAvailabilityGraceHours = 48;
     EstimatedMovieSizeBytes = 5L * 1024 * 1024 * 1024; // 5 GiB
     EstimatedEpisodeSizeBytes = 1L * 1024 * 1024 * 1024; // 1 GiB
@@ -163,6 +166,9 @@ public class PluginConfiguration : BasePluginConfiguration
     SonarrLanguageProfileId = 1;
     RecoverStalledDownloads = false;
     StalledRecoveryMinutes = 60;
+    LanguagePreferencesEnabled = false;
+    DubbedLanguage = string.Empty;
+    SubtitleDownloadsEnabled = false;
     ScriptPath = string.Empty;
     ScriptArguments = string.Empty;
   }
@@ -253,6 +259,19 @@ public class PluginConfiguration : BasePluginConfiguration
   /// at least one of the three request-granularity options stays on.
   /// </summary>
   public bool AllowEpisodeRequests { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether users may opt in to having the next season of a show requested
+  /// for them automatically when they near the end of the current one. Off by default; each user then opts
+  /// in from their preferences. The request takes the normal path (quota, approval, notifications).
+  /// </summary>
+  public bool AutoNextSeasonEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets how many episodes may remain after the one being played for the next season to be
+  /// requested (e.g. 2: starting episode 8 of a 10-episode season triggers it). Clamped to 0–10.
+  /// </summary>
+  public int AutoNextSeasonEpisodesLeft { get; set; }
 
   /// <summary>
   /// Gets or sets a value indicating whether regular users may trigger a manual "retry search" on their
@@ -637,6 +656,12 @@ public class PluginConfiguration : BasePluginConfiguration
   public int MediaExpiryDays { get; set; }
 
   /// <summary>
+  /// Gets or sets the ownership expiry window in days for what child accounts own — one setting for every
+  /// child, separate from <see cref="MediaExpiryDays"/>. 0 disables expiry for children.
+  /// </summary>
+  public int ChildMediaExpiryDays { get; set; }
+
+  /// <summary>
   /// Gets or sets how long a partly delivered season or whole-series request may go without a new episode
   /// arriving before it is marked available with what it has. It is otherwise marked available only once
   /// every aired episode is in the library — this keeps a never-found episode, or a show numbered
@@ -664,6 +689,12 @@ public class PluginConfiguration : BasePluginConfiguration
   /// </summary>
   [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
   public Collection<UserGroup> UserGroups { get; set; } = new();
+
+  /// <summary>
+  /// Gets or sets the child accounts: who is a child, their parents, and their age.
+  /// </summary>
+  [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
+  public Collection<ChildAccount> ChildAccounts { get; set; } = new();
 
   /// <summary>
   /// Gets or sets the group ids a targeted announcement is shown to. Empty means the announcement is
@@ -963,6 +994,57 @@ public class PluginConfiguration : BasePluginConfiguration
   /// Gets or sets how many minutes a download may be stalled (no progress) before it is recovered.
   /// </summary>
   public int StalledRecoveryMinutes { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether users may pick their preferred version — original, dubbed, or
+  /// original with subtitles — so their requests reach Radarr/Sonarr with the matching quality profile.
+  /// A title whose requesters disagree falls back to the common profile (<see cref="RadarrQualityProfileId"/>
+  /// / <see cref="SonarrQualityProfileId"/>), as does a preference with no profile set.
+  /// </summary>
+  public bool LanguagePreferencesEnabled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the dub and subtitle language of "dubbed" and "original with subtitles" (ISO 639-1, e.g.
+  /// <c>fr</c>). Empty uses the server's preferred metadata language.
+  /// </summary>
+  public string DubbedLanguage { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Radarr quality profile for users who prefer the original version (0 = the common profile).
+  /// </summary>
+  public int RadarrProfileOriginal { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Radarr quality profile for users who prefer the dubbed version (0 = the common profile).
+  /// </summary>
+  public int RadarrProfileDubbed { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Radarr quality profile for users who prefer the original with subtitles (0 = the common profile).
+  /// </summary>
+  public int RadarrProfileSubtitled { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr quality profile for users who prefer the original version (0 = the common profile).
+  /// </summary>
+  public int SonarrProfileOriginal { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr quality profile for users who prefer the dubbed version (0 = the common profile).
+  /// </summary>
+  public int SonarrProfileDubbed { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Sonarr quality profile for users who prefer the original with subtitles (0 = the common profile).
+  /// </summary>
+  public int SonarrProfileSubtitled { get; set; }
+
+  /// <summary>
+  /// Gets or sets a value indicating whether the subtitles a user asks for are fetched automatically when one
+  /// of their requests becomes available, through the subtitle providers installed in Jellyfin (e.g. Open
+  /// Subtitles). Only missing languages are fetched; machine-translated and forced subtitles are skipped.
+  /// </summary>
+  public bool SubtitleDownloadsEnabled { get; set; }
 
   /// <summary>
   /// Gets or sets the executable/script run by the <c>"script"</c> download backend. The request is

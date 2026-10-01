@@ -152,6 +152,60 @@ public static class TmdbResponseParser
     return null;
   }
 
+  /// <summary>
+  /// Extracts a title's age ratings per country. A movie payload (<c>/movie/{id}/release_dates</c>) nests
+  /// one certification per release under each country; a show payload (<c>/tv/{id}/content_ratings</c>)
+  /// has a single <c>rating</c> per country. Blank ratings are dropped, duplicates collapsed.
+  /// </summary>
+  /// <param name="json">The raw TMDB JSON payload.</param>
+  /// <param name="isMovie">Whether the payload is a movie's release dates (otherwise a show's content ratings).</param>
+  /// <returns>The ratings per upper-case country code; countries without any rating are omitted.</returns>
+  public static IReadOnlyDictionary<string, IReadOnlyList<string>> ParseCertifications(string json, bool isMovie)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    var byCountry = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+    using var doc = JsonDocument.Parse(json);
+    if (!doc.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
+    {
+      return byCountry;
+    }
+
+    foreach (var entry in results.EnumerateArray())
+    {
+      var country = GetString(entry, "iso_3166_1");
+      if (string.IsNullOrWhiteSpace(country))
+      {
+        continue;
+      }
+
+      var ratings = new List<string>();
+      if (isMovie)
+      {
+        if (entry.TryGetProperty("release_dates", out var releases) && releases.ValueKind == JsonValueKind.Array)
+        {
+          ratings.AddRange(releases.EnumerateArray().Select(r => GetString(r, "certification")).OfType<string>());
+        }
+      }
+      else if (GetString(entry, "rating") is { } rating)
+      {
+        ratings.Add(rating);
+      }
+
+      var kept = ratings
+        .Select(r => r.Trim())
+        .Where(r => r.Length > 0)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+      if (kept.Count > 0)
+      {
+        byCountry[country.Trim().ToUpperInvariant()] = kept;
+      }
+    }
+
+    return byCountry;
+  }
+
   private static CatalogItem? ParseElement(JsonElement element, string? defaultMediaType)
   {
     var mediaType = GetString(element, "media_type") ?? defaultMediaType;
@@ -181,6 +235,7 @@ public static class TmdbResponseParser
       Directors = GetDirectors(element, isMovie),
       Writers = GetWriters(element),
       OriginalTitle = GetOriginalTitle(element, isMovie),
+      OriginalLanguage = GetString(element, "original_language"),
       Runtime = GetRuntime(element, isMovie),
       ImdbId = GetImdbId(element),
       CollectionId = GetCollectionId(element)

@@ -128,8 +128,8 @@ public class UserNotificationsController : ControllerBase
       return BadRequest("Enter a valid e-mail address, or leave it blank to turn e-mail off.");
     }
 
-    // The history-hidden flag lives on the same record but is owned by the history screen, not this form,
-    // so carry the stored value over rather than resetting it.
+    // The history-hidden and next-season flags live on the same record but are owned by other screens,
+    // not this form, so carry the stored values over rather than resetting them.
     var existing = await _prefs.GetAsync(userId, cancellationToken).ConfigureAwait(false);
     var saved = await _prefs.SetAsync(
       new UserNotificationPrefs
@@ -142,7 +142,10 @@ public class UserNotificationsController : ControllerBase
         NotifyAvailableReleased = dto?.NotifyAvailableReleased ?? false,
         NotifyDecisions = dto?.NotifyDecisions ?? false,
         NotifyQuotaExpiry = dto?.NotifyQuotaExpiry ?? false,
-        HistoryHidden = existing.HistoryHidden
+        HistoryHidden = existing.HistoryHidden,
+        AutoRequestNextSeason = existing.AutoRequestNextSeason,
+        LanguagePreference = existing.LanguagePreference,
+        SubtitleLanguages = existing.SubtitleLanguages
       },
       cancellationToken).ConfigureAwait(false);
     _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " updated their notification preferences", _resolveUserName(userId), CancellationToken.None);

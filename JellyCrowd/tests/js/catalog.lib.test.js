@@ -366,6 +366,106 @@ test('feedEndsOnEmptyPage: a season-filtered feed skips empty pages up to the li
   assert.strictEqual(lib.feedEndsOnEmptyPage(limit, true), true);
 });
 
+test('feedIsSparse: a parental restriction makes any feed sparse', () => {
+  // Restricted users get pages filtered title by title: an empty page is not the end of the catalog.
+  assert.strictEqual(lib.feedIsSparse({ mediaType: 'movie' }, true), true);
+  assert.strictEqual(lib.feedIsSparse({ mediaType: 'movie' }, false), false);
+  assert.strictEqual(lib.feedIsSparse(null, false), false);
+});
+
+test('feedIsSparse: a season range makes a show feed sparse without a restriction', () => {
+  assert.strictEqual(lib.feedIsSparse({ mediaType: 'tv', minSeasons: 3, maxSeasons: lib.SEASONS_RANGE_MAX }, false), true);
+});
+
+test('autoSeasonPath: turns the next-season switch on or off', () => {
+  assert.strictEqual(lib.autoSeasonPath(true), 'JellyCrowd/AutoRequests/Mine?enabled=true');
+  assert.strictEqual(lib.autoSeasonPath(false), 'JellyCrowd/AutoRequests/Mine?enabled=false');
+});
+
+test('autoSeasonHint: fills in the threshold, never below zero', () => {
+  assert.strictEqual(lib.autoSeasonHint('{n} left', 2), '2 left');
+  assert.strictEqual(lib.autoSeasonHint('{n} left', -3), '0 left');
+  assert.strictEqual(lib.autoSeasonHint('{n} left', undefined), '0 left');
+  assert.strictEqual(lib.autoSeasonHint(undefined, 2), '');
+});
+
+test('isContinueRow: only the rows that monitor video playback', () => {
+  assert.strictEqual(lib.isContinueRow('videoplayback,markplayed'), true); // Continue watching (video), Next up
+  assert.strictEqual(lib.isContinueRow('audioplayback,markplayed'), false); // Continue listening
+  assert.strictEqual(lib.isContinueRow('markplayed'), false);
+  assert.strictEqual(lib.isContinueRow(null), false); // recently added rows carry none
+});
+
+test('continueCardMatches: a movie by itself, an episode by its whole show', () => {
+  assert.strictEqual(lib.continueCardMatches('m1', null, 'm1', null), true);
+  assert.strictEqual(lib.continueCardMatches('m2', null, 'm1', null), false);
+  assert.strictEqual(lib.continueCardMatches('e7', 's1', 'e3', 's1'), true); // another episode of the show
+  assert.strictEqual(lib.continueCardMatches('s1', null, 'e3', 's1'), true); // the show's own card
+  assert.strictEqual(lib.continueCardMatches('e9', 's2', 'e3', 's1'), false);
+  assert.strictEqual(lib.continueCardMatches(null, null, 'e3', null), false);
+});
+
+test('recentContinueRemovals: keeps well-formed removals younger than the window', () => {
+  const now = 1_000_000;
+  const list = [
+    { id: 'a', seriesId: null, at: now - 1000 },
+    { id: 'b', seriesId: 's', at: now - lib.CW_RECENT_MS },      // just expired
+    { id: 'c', at: now + 5000 },                                  // from the future (clock skew): ignored
+    { id: '', at: now },
+    null,
+    { id: 'd', at: 'yesterday' },
+  ];
+  assert.deepStrictEqual(lib.recentContinueRemovals(list, now).map((r) => r.id), ['a']);
+  assert.deepStrictEqual(lib.recentContinueRemovals('garbage', now), []);
+});
+
+test('versionLabelKey: VO / VF / VOSTFR wording only with a French dub', () => {
+  assert.strictEqual(lib.versionLabelKey('dubbed', 'fr'), 'viewing_version_dubbed_fr');
+  assert.strictEqual(lib.versionLabelKey('subtitled', 'FR'), 'viewing_version_subtitled_fr');
+  assert.strictEqual(lib.versionLabelKey('dubbed', 'de'), 'viewing_version_dubbed');
+  assert.strictEqual(lib.versionLabelKey('original', 'fr'), 'viewing_version_original');
+  assert.strictEqual(lib.versionLabelKey('', 'fr'), 'viewing_version_none');
+});
+
+test('toggleSubtitleLanguage: adds, removes, caps at the maximum, ignores junk', () => {
+  assert.deepStrictEqual(lib.toggleSubtitleLanguage([], 'FR'), ['fr']);
+  assert.deepStrictEqual(lib.toggleSubtitleLanguage(['fr', 'en'], 'fr'), ['en']);
+  const full = lib.SUBTITLE_LANGUAGES.slice(0, lib.MAX_SUBTITLE_LANGUAGES);
+  assert.deepStrictEqual(lib.toggleSubtitleLanguage(full, 'hi'), full);
+  assert.deepStrictEqual(lib.toggleSubtitleLanguage(['fr'], 'french'), ['fr']);
+  assert.deepStrictEqual(lib.toggleSubtitleLanguage(null, 'en'), ['en']);
+});
+
+test('requestRoute: a child pick goes to ForChild, an act-as to ForUser, else the caller', () => {
+  const payload = { TmdbId: 862, MediaType: 'movie', Title: 'Toy Story' };
+  assert.deepStrictEqual(lib.requestRoute(payload, null, 'kid'), { path: 'JellyCrowd/Requests/ForChild', body: { TmdbId: 862, MediaType: 'movie', Title: 'Toy Story', ChildId: 'kid' } });
+  assert.deepStrictEqual(lib.requestRoute(payload, 'bob', null), { path: 'JellyCrowd/Requests/ForUser', body: { TmdbId: 862, MediaType: 'movie', Title: 'Toy Story', UserId: 'bob' } });
+  assert.deepStrictEqual(lib.requestRoute(payload, 'bob', 'kid').path, 'JellyCrowd/Requests/ForChild'); // a parent-admin requesting for their child
+  assert.deepStrictEqual(lib.requestRoute(payload, null, null), { path: 'JellyCrowd/Requests', body: payload });
+  assert.strictEqual(payload.ChildId, undefined); // the caller's payload is not mutated
+});
+
+test('buildChildAccounts: drops blanks and duplicates, never a child as their own parent, ages snapped', () => {
+  const accounts = lib.buildChildAccounts([
+    { userId: 'kid', maxAge: '12', parentIds: ['mum', 'kid', 'mum', 'dad'] },
+    { userId: '', maxAge: '10', parentIds: ['mum'] },
+    { userId: 'kid', maxAge: '16', parentIds: [] },
+    { userId: 'tot', maxAge: '7', parentIds: null },
+  ]);
+  assert.deepStrictEqual(accounts, [
+    { UserId: 'kid', MaxAge: 12, ParentIds: ['mum', 'dad'] },
+    { UserId: 'tot', MaxAge: 0, ParentIds: [] },
+  ]);
+});
+
+test('wishRequest: a wish already requested for the child shows that request, a denied one does not count', () => {
+  const wish = { TmdbId: 12, MediaType: 'movie' };
+  const pending = { TmdbId: 12, MediaType: 'movie', Status: 'Pending' };
+  assert.strictEqual(lib.wishRequest([{ TmdbId: 12, MediaType: 'movie', Status: 'Denied' }, pending], wish), pending);
+  assert.strictEqual(lib.wishRequest([{ TmdbId: 12, MediaType: 'tv', Status: 'Pending' }], wish), null);
+  assert.strictEqual(lib.wishRequest(null, wish), null);
+});
+
 test('historyEntryLabel: an episode reads Series · SxEy · Episode name', () => {
   assert.strictEqual(
     lib.historyEntryLabel({ SeriesName: 'House of the Dragon', Season: 2, Episode: 5, Title: 'Regent' }),
@@ -465,17 +565,10 @@ test('normalizeRequestScope never lets all three granularities be off', () => {
   assert.strictEqual(s.allowEpisode, true);
 });
 
-test('buildGroupRecord includes child mode only when enabled', () => {
-  const off = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: false, childMaxAge: '12' }, GIB);
-  assert.ok(!('ChildMode' in off));
-  assert.ok(!('ChildMaxAge' in off));
-
-  const on = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: true, childMaxAge: '12' }, GIB);
-  assert.strictEqual(on.ChildMode, true);
-  assert.strictEqual(on.ChildMaxAge, 12);
-
-  const allAges = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: true, childMaxAge: '0' }, GIB);
-  assert.strictEqual(allAges.ChildMaxAge, 0);
+test('buildGroupRecord never carries a child mode: children are accounts of their own now', () => {
+  const g = lib.buildGroupRecord({ id: 'g', name: 'X', members: [], libraryIds: [], childMode: true, childMaxAge: '12' }, GIB);
+  assert.ok(!('ChildMode' in g));
+  assert.ok(!('ChildMaxAge' in g));
 });
 
 const HIST = [

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Api;
+using Jellyfin.Plugin.JellyCrowd.Configuration;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Jellyfin.Plugin.JellyCrowd.Tests.Services;
@@ -20,9 +21,17 @@ public class RequestsControllerTests
 {
   private static readonly Guid User = Guid.NewGuid();
 
-  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false, FakeQuotaService? quota = null, ILibraryMatcher? matcher = null, INotificationService? notifications = null, IRequestCreationGate? gate = null)
+  private static RequestsController CreateController(IRequestStore store, Guid? userId = null, bool canRequest = true, FakeDownloadDispatcher? dispatcher = null, ITmdbClient? tmdb = null, bool isAdmin = false, FakeQuotaService? quota = null, ILibraryMatcher? matcher = null, INotificationService? notifications = null, IRequestCreationGate? gate = null, IContentRestrictionService? restrictions = null, PluginConfiguration? config = null)
   {
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota ?? new FakeQuotaService(canRequest), notifications ?? new FakeNotificationService(), dispatcher ?? new FakeDownloadDispatcher(), new FakeServarrStatusService(), matcher ?? new FakeLibraryMatcher(), tmdb ?? new StubTmdbClient(), new NoOpActivityLog(), gate ?? new RequestCreationGate(), _ => "tester")
+    quota ??= new FakeQuotaService(canRequest);
+    notifications ??= new FakeNotificationService();
+    dispatcher ??= new FakeDownloadDispatcher();
+    matcher ??= new FakeLibraryMatcher();
+    tmdb ??= new StubTmdbClient();
+    gate ??= new RequestCreationGate();
+    restrictions ??= new FakeContentRestrictionService();
+    var creator = new RequestCreationService(store, quota, notifications, dispatcher, matcher, tmdb, gate, restrictions, () => config ?? Plugin.Instance?.Configuration);
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota, notifications, dispatcher, new FakeServarrStatusService(), matcher, tmdb, new NoOpActivityLog(), gate, restrictions, creator, _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -276,6 +285,127 @@ public class RequestsControllerTests
     var created = Assert.IsType<RequestRecord>(ok.Value);
     Assert.Equal(RequestStatus.Available, created.Status);
     Assert.False(string.IsNullOrEmpty(created.JellyfinItemId));
+  }
+
+  [Fact]
+  public async Task Claim_TitleAboveTheUsersParentalLimit_Returns403()
+  {
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 } };
+    var store = new FakeRequestStore();
+
+    var result = await CreateController(store, restrictions: restrictions).Claim(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+    Assert.Empty(await store.GetAllAsync(CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Create_TitleAboveTheUsersParentalLimit_Returns403AndRecordsNothing()
+  {
+    // The catalog hides such titles; a hand-made call must be refused all the same.
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 } };
+    var store = new FakeRequestStore();
+
+    var result = await CreateController(store, restrictions: restrictions).Create(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+    Assert.Empty(await store.GetAllAsync(CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task Create_TitleWithinTheUsersParentalLimit_IsAccepted()
+  {
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 } };
+    restrictions.Allowed.Add("movie:100");
+
+    var result = await CreateController(new FakeRequestStore(), restrictions: restrictions).Create(ValidDto(), CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
+  }
+
+  [Fact]
+  public async Task Create_RestrictedUser_RatingUnavailable_Returns503()
+  {
+    // A restricted user is never let through on a guess.
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10 }, Unavailable = true };
+
+    var result = await CreateController(new FakeRequestStore(), restrictions: restrictions).Create(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+  }
+
+  private static PluginConfiguration FamilyConfig(Guid parent, Guid child, int age = 10)
+  {
+    var config = new PluginConfiguration { RequireApproval = false };
+    var account = new ChildAccount { UserId = child, MaxAge = age };
+    account.ParentIds.Add(parent);
+    config.ChildAccounts.Add(account);
+    return config;
+  }
+
+  [Fact]
+  public async Task Create_ByAChildAccount_IsRefused()
+  {
+    var child = Guid.NewGuid();
+    var store = new FakeRequestStore();
+
+    var result = await CreateController(store, userId: child, config: FamilyConfig(Guid.NewGuid(), child)).Create(ValidDto(), CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+    Assert.Empty(await store.GetAllAsync(CancellationToken.None));
+  }
+
+  [Fact]
+  public async Task ForChild_ByAParent_CreatesTheChildsRequest()
+  {
+    var parent = Guid.NewGuid();
+    var child = Guid.NewGuid();
+    var dto = new ChildRequestDto { ChildId = child, TmdbId = 862, MediaType = "movie", Title = "Toy Story" };
+
+    var result = await CreateController(new FakeRequestStore(), userId: parent, config: FamilyConfig(parent, child)).CreateForChild(dto, CancellationToken.None);
+
+    var created = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal(child, created.UserId); // the child's request, on the child's quota
+  }
+
+  [Fact]
+  public async Task ForChild_ByAnotherUser_IsRefused()
+  {
+    var child = Guid.NewGuid();
+    var dto = new ChildRequestDto { ChildId = child, TmdbId = 862, MediaType = "movie", Title = "Toy Story" };
+
+    var result = await CreateController(new FakeRequestStore(), userId: Guid.NewGuid(), config: FamilyConfig(Guid.NewGuid(), child)).CreateForChild(dto, CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+  }
+
+  [Fact]
+  public async Task ForChild_TitleAboveTheChildsAge_IsRefused()
+  {
+    // The child's quota only ever pays for content suited to the child.
+    var parent = Guid.NewGuid();
+    var child = Guid.NewGuid();
+    var restrictions = new FakeContentRestrictionService { Restriction = new ContentRestriction { MaxScore = 10, ChildMaxAge = 10 } };
+    var dto = new ChildRequestDto { ChildId = child, TmdbId = 550, MediaType = "movie", Title = "Fight Club" };
+
+    var result = await CreateController(new FakeRequestStore(), userId: parent, restrictions: restrictions, config: FamilyConfig(parent, child)).CreateForChild(dto, CancellationToken.None);
+
+    Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+  }
+
+  [Fact]
+  public async Task ForChild_ChildNotAllowedToRequest_ParentStillCan()
+  {
+    // "May request" is about the child acting alone; it does not stop their parents.
+    var parent = Guid.NewGuid();
+    var child = Guid.NewGuid();
+    var config = FamilyConfig(parent, child);
+    config.QuotaOverrides.Add(new UserQuotaOverride { UserId = child, CanRequest = false });
+    var dto = new ChildRequestDto { ChildId = child, TmdbId = 862, MediaType = "movie", Title = "Toy Story" };
+
+    var result = await CreateController(new FakeRequestStore(), userId: parent, config: config).CreateForChild(dto, CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result.Result);
   }
 
   [Fact]

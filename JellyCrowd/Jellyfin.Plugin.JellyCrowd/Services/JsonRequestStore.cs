@@ -250,14 +250,20 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
-  public async Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+  public Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+    => ExpireOwnershipsAsync(cutoffUtc, _ => true, cancellationToken);
+
+  /// <inheritdoc />
+  public async Task<IReadOnlyList<RequestRecord>> ExpireOwnershipsAsync(DateTime cutoffUtc, Func<RequestRecord, bool> include, CancellationToken cancellationToken)
   {
+    ArgumentNullException.ThrowIfNull(include);
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
     try
     {
       var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
       var lapsed = items.Where(r =>
-        r.Status == RequestStatus.Available
+        include(r)
+        && r.Status == RequestStatus.Available
         && r.DeletionRequestedAt is null
         && r.AvailableAt is { } at
         && at < cutoffUtc).ToList();

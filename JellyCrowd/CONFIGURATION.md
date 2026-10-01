@@ -173,6 +173,45 @@ qu'admin, un sélecteur **« Demander au nom de »** apparaît dans la fiche. Ch
 utiliser les boutons habituels (film / saison / épisode) : la demande est créée pour cet utilisateur
 (approuvée, sans quota/limite).
 
+## Langues et sous-titres
+
+Dans **Configurations → Requêtes → Langues et sous-titres** :
+
+- **Permettre à chacun de choisir sa version préférée** (VO, VF, VOSTFR). Chaque version a son **profil
+  Radarr et Sonarr** dans l'onglet **Téléchargement** (« Profil commun » = le profil principal). Si les
+  demandeurs d'un même titre ne sont pas d'accord, le titre prend le **profil commun** : choisissez-le pour
+  qu'il recherche les deux pistes audio. Sans préférence exprimée, le profil d'un titre existant n'est jamais
+  modifié.
+- **Langue du doublage et des sous-titres** : code à deux lettres (`fr`, `de`…) ; vide = langue des
+  métadonnées du serveur.
+- **Ajouter les sous-titres demandés par chacun** : utilise les fournisseurs de sous-titres installés dans
+  Jellyfin (par ex. le plugin Open Subtitles, avec son compte). Sans fournisseur, rien n'est ajouté.
+
+Chaque utilisateur règle sa version et ses sous-titres dans l'onglet **Visionnage** de ses préférences ; cela
+règle aussi sa langue audio et ses sous-titres dans Jellyfin.
+
+## Comptes enfant
+
+Dans **Groupes → Comptes enfant** : choisissez l'utilisateur, son **âge** et ses **parents** (plusieurs
+possibles). L'enfant parcourt un catalogue adapté à son âge et tient une liste d'envies ; ses parents
+demandent pour lui depuis « Mes demandes » ou la fiche d'un titre (« Pour : »). Ses demandes utilisent **son
+quota** (réglé comme celui de n'importe quel utilisateur, onglet Quotas utilisateurs).
+
+La **durée de rétention** de ce que possèdent les enfants se règle à part : **Requêtes → Expiration pour les
+enfants**.
+
+Les anciens groupes « mode enfant » sont convertis automatiquement au démarrage ; il reste à leur désigner des
+parents.
+
+## Demandes automatiques et « Continuer à regarder »
+
+- **Proposer la demande automatique de la saison suivante** (Requêtes → Demandes automatiques) : chaque
+  utilisateur l'active ensuite dans « Mes demandes ». Le seuil fixe combien d'épisodes peuvent rester.
+- **Retirer de « Continuer à regarder »** est toujours disponible : dans le menu ⋮ d'une carte de l'accueil.
+  Le retrait vaut pour tous les clients (web, Android TV…), et l'élément revient dès qu'on le relance.
+- Le **contrôle parental de Jellyfin** (classification maximale de l'utilisateur) s'applique aussi au
+  catalogue et aux demandes Jelly Crowd, sans réglage.
+
 ## Guide utilisateur (et comment le remplacer)
 
 L'icône **?** du bandeau (activée dans *Branding → Icônes de l'en-tête*) ouvre un guide hébergé par le

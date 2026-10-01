@@ -669,3 +669,19 @@ test('backCloseControl: a hidden popup (e.g. the poll during playback) is skippe
     + '<div class="jellycrowd-modal-overlay" style="display:none"><button class="jcPollClose" id="poll"></button></div>');
   assert.strictEqual(lib.backCloseControl(doc).id, 'detail');
 });
+
+test('buildSettingsBar: marks the active tab, switches our views, navigates native tabs by hash', () => {
+  const doc = new JSDOM('<!DOCTYPE html><body></body>', { url: 'http://jf.local/web/index.html#/home' }).window.document;
+  const shown = [];
+  const bar = lib.buildSettingsBar(doc, (k) => k, 'viewing', 'u1', (v) => shown.push(v));
+  const tabs = Array.from(bar.querySelectorAll('.jcSettingsTab'));
+  const byLabel = (l) => tabs.find((b) => b.textContent === l);
+
+  assert.strictEqual(tabs.filter((b) => b.classList.contains('jcSettingsTab-active')).map((b) => b.textContent).join(), 'set_viewing');
+  byLabel('set_notifications').click();
+  assert.deepStrictEqual(shown, ['preferences']);
+  byLabel('set_viewing').click(); // the active tab does nothing
+  assert.deepStrictEqual(shown, ['preferences']);
+  byLabel('avm_playback').click();
+  assert.strictEqual(doc.defaultView.location.hash, '#/mypreferencesplayback?userId=u1');
+});

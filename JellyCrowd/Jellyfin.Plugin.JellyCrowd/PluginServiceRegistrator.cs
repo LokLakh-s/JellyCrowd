@@ -5,7 +5,9 @@ using Jellyfin.Plugin.JellyCrowd.Services;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JellyCrowd;
 
@@ -24,6 +26,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   private const string ActivityLogFileName = "activity.json";
   private const string UserActivityFileName = "user-activity.json";
   private const string PlaybackHistoryFileName = "playback-history.json";
+  private const string AutoRequestsFileName = "auto-requests.json";
+  private const string HiddenResumeFileName = "hidden-resume.json";
   private const string IntrosFileName = "intros.json";
   private const string OutrosFileName = "outros.json";
   private const string OutroSegmentsFileName = "outro-segments.json";
@@ -90,6 +94,50 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IRequestReconciler, RequestReconciler>();
     serviceCollection.AddSingleton<IQuotaHoldPromoter, QuotaHoldPromoter>();
     serviceCollection.AddSingleton<IRequestCreationGate, RequestCreationGate>();
+    serviceCollection.AddSingleton<IContentRestrictionService, ContentRestrictionService>();
+    serviceCollection.AddSingleton<IServarrProfileResolver, ServarrProfileResolver>();
+    serviceCollection.AddSingleton<LanguageCodes>();
+    serviceCollection.AddSingleton<IAvailabilityFollowUp>(sp => new AvailabilityFollowUp(
+      () => Plugin.Instance?.Configuration,
+      sp.GetRequiredService<IUserPrefsStore>(),
+      sp.GetRequiredService<ILibraryMatcher>(),
+      sp.GetRequiredService<ILibraryManager>(),
+      sp.GetRequiredService<MediaBrowser.Controller.Subtitles.ISubtitleManager>(),
+      sp.GetRequiredService<LanguageCodes>(),
+      sp.GetRequiredService<ITmdbClient>(),
+      sp.GetRequiredService<INotificationService>(),
+      sp.GetRequiredService<ILogger<AvailabilityFollowUp>>()));
+    serviceCollection.AddSingleton<IRequestCreationService>(sp => new RequestCreationService(
+      sp.GetRequiredService<IRequestStore>(),
+      sp.GetRequiredService<IQuotaService>(),
+      sp.GetRequiredService<INotificationService>(),
+      sp.GetRequiredService<IDownloadDispatcher>(),
+      sp.GetRequiredService<ILibraryMatcher>(),
+      sp.GetRequiredService<ITmdbClient>(),
+      sp.GetRequiredService<IRequestCreationGate>(),
+      sp.GetRequiredService<IContentRestrictionService>(),
+      () => Plugin.Instance?.Configuration));
+    serviceCollection.AddSingleton<IHiddenResumeStore>(
+      _ => new JsonHiddenResumeStore(Path.Combine(Plugin.Instance!.DataFolderPath, HiddenResumeFileName)));
+
+    // "Remove from Continue watching" is applied to Jellyfin's own resume and next-up answers, so it holds
+    // on every client. The filter is global but steps aside on every other action.
+    serviceCollection.AddSingleton<HiddenResumeFilter>();
+    serviceCollection.Configure<MvcOptions>(options => options.Filters.AddService<HiddenResumeFilter>());
+    serviceCollection.AddSingleton<IAutoRequestLedger>(
+      _ => new JsonAutoRequestLedger(Path.Combine(Plugin.Instance!.DataFolderPath, AutoRequestsFileName)));
+    serviceCollection.AddSingleton<INextSeasonRequester>(sp => new NextSeasonRequester(
+      () => Plugin.Instance?.Configuration,
+      sp.GetRequiredService<IUserPrefsStore>(),
+      sp.GetRequiredService<ISeriesStructureProvider>(),
+      sp.GetRequiredService<ILibraryMatcher>(),
+      sp.GetRequiredService<ITmdbClient>(),
+      sp.GetRequiredService<IRequestCreationService>(),
+      sp.GetRequiredService<IAutoRequestLedger>(),
+      sp.GetRequiredService<INotificationService>(),
+      sp.GetRequiredService<IActivityLog>(),
+      sp.GetRequiredService<Func<Guid, string>>(),
+      sp.GetRequiredService<ILogger<NextSeasonRequester>>()));
 
     // Download backends (request fulfillment). Jelly Crowd only emits requests; the backend searches/downloads.
     serviceCollection.AddSingleton<IServarrClient, ServarrClient>();
@@ -135,6 +183,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddHostedService<LocalIntrosEntryPoint>();
     serviceCollection.AddHostedService<PlaybackActivityEntryPoint>();
     serviceCollection.AddHostedService<PlaybackHistoryEntryPoint>();
+    serviceCollection.AddHostedService<NextSeasonEntryPoint>();
+    serviceCollection.AddHostedService<HiddenResumeEntryPoint>();
     serviceCollection.AddHostedService<ConfigChangeLogger>();
   }
 

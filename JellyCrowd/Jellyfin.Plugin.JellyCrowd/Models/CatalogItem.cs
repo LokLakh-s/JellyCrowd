@@ -86,6 +86,11 @@ public class CatalogItem
   public string? OriginalTitle { get; set; }
 
   /// <summary>
+  /// Gets or sets the original language (ISO 639-1, e.g. <c>en</c>), when TMDB knows it.
+  /// </summary>
+  public string? OriginalLanguage { get; set; }
+
+  /// <summary>
   /// Gets or sets the runtime in minutes (movies, or a representative episode runtime for shows), if known.
   /// </summary>
   public int? Runtime { get; set; }

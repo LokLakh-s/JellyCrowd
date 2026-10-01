@@ -16,6 +16,7 @@
   var cfgLang = 'auto';
   var commentsEnabled = false;   // community comments are an admin opt-in
   var isChild = false;           // current user is a child account (member of a child group)
+  var isRestricted = false;      // the catalog is filtered for this user by a parental restriction
   // Instance scope: which media types are offered, and which TV request granularities are allowed.
   var reqScope = { movies: true, series: true, allowSeries: true, allowSeason: true, allowEpisode: true };
 
@@ -25,6 +26,11 @@
   var adminUsers = [];
   var actAsUserId = null;
   var myUserId = '';
+
+  // Parents request for their children (Requests/ForChild): the modal offers "For: me / <child>".
+  var isParent = false;
+  var myChildren = [];
+  var actForChildId = null;
 
   // Watchlist: the user's followed titles. watchlistKeys is a quick membership set ("type:tmdbId"),
   // watchlistEntries the full list (rendered when the "My list" toggle is on).
@@ -245,7 +251,16 @@
   // age-filtered catalog, no free-text search, and no reviews.
   function loadScope() {
     return apiGet('JellyCrowd/Settings/Visibility')
-      .then(function (d) { isChild = !!(d && d.IsChild); if (isChild) { commentsEnabled = false; } })
+      .then(function (d) {
+        isChild = !!(d && d.IsChild);
+        isRestricted = !!(d && d.IsRestricted);
+        isParent = !!(d && d.IsParent);
+        if (isChild) { commentsEnabled = false; }
+        if (!isParent) { return null; }
+        return apiGet('JellyCrowd/Children/Mine')
+          .then(function (kids) { myChildren = (kids || []).map(function (k) { return { id: k.UserId, name: k.Name }; }); })
+          .catch(function () { myChildren = []; });
+      })
       .catch(function () { /* not authenticated / best-effort */ });
   }
 
@@ -327,15 +342,8 @@
 
   function submitRequest(payload) {
     // A new request pre-charges the quota (provisional estimate) — refresh the header bar so it shows.
-    var p = actAsUserId
-      ? (function () {
-        var forUser = {};
-        Object.keys(payload).forEach(function (k) { forUser[k] = payload[k]; });
-        forUser.UserId = actAsUserId;
-        return apiPost('JellyCrowd/Requests/ForUser', forUser);
-      })()
-      : apiPost('JellyCrowd/Requests', payload);
-    return p.then(function (r) { refreshHeaderQuota(); return r; });
+    var route = lib.requestRoute(payload, actAsUserId, actForChildId);
+    return apiPost(route.path, route.body).then(function (r) { refreshHeaderQuota(); return r; });
   }
 
   function requestItem(item, button, season, dateInput, episode, releaseDate) {
@@ -1063,8 +1071,38 @@
       reqTarget = seasonsSection;
     }
 
-    // Admin-only "request on behalf of" selector. Applies to every request control in this modal.
+    // A parent's "For: me / <child>" selector (preset when opened from a child's wishlist). A request for a
+    // child is the child's: their quota, and only what suits their age.
     actAsUserId = null;
+    actForChildId = null;
+    if (isParent && myChildren.length) {
+      var childRow = document.createElement('div');
+      childRow.className = 'jellycrowd-admin-actas';
+      var childLabel = document.createElement('span');
+      childLabel.textContent = t('request_for');
+      var childSelect = document.createElement('select');
+      var meOption = document.createElement('option');
+      meOption.value = '';
+      meOption.textContent = t('act_as_self');
+      childSelect.appendChild(meOption);
+      myChildren.forEach(function (c) {
+        var opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        childSelect.appendChild(opt);
+      });
+      if (window.jellyCrowdRequestForChild && myChildren.some(function (c) { return c.id === window.jellyCrowdRequestForChild; })) {
+        childSelect.value = window.jellyCrowdRequestForChild;
+        actForChildId = window.jellyCrowdRequestForChild;
+      }
+      window.jellyCrowdRequestForChild = null;
+      childSelect.addEventListener('change', function () { actForChildId = childSelect.value || null; });
+      childRow.appendChild(childLabel);
+      childRow.appendChild(childSelect);
+      reqTarget.appendChild(childRow);
+    }
+
+    // Admin-only "request on behalf of" selector. Applies to every request control in this modal.
     if (isAdmin) {
       var adminRow = document.createElement('div');
       adminRow.className = 'jellycrowd-admin-actas';
@@ -1090,7 +1128,21 @@
     if (isAdmin) { appendAdminMediaInfo(content, item); }
 
     var dateInput = null;
-    if (item.MediaType === 'tv') {
+    if (isChild) {
+      // A child requests nothing: their wishlist (the star) is what their parents look at.
+      var wish = document.createElement('p');
+      wish.className = 'jellycrowd-request-sub';
+      wish.textContent = t('child_wish_hint');
+      reqTarget.appendChild(wish);
+      if (item.Available && item.JellyfinItemId) {
+        var openForChild = document.createElement('button');
+        openForChild.className = 'jellycrowd-request jellycrowd-open-jellyfin';
+        openForChild.type = 'button';
+        openForChild.textContent = t('open_in_jellyfin');
+        openForChild.addEventListener('click', function () { dismiss(); navigateToItem(item.JellyfinItemId); });
+        reqTarget.appendChild(openForChild);
+      }
+    } else if (item.MediaType === 'tv') {
       // A series is always season-driven. If it's already (partly) in the library, still offer a quick
       // Jellyfin link, then list every season so the missing ones can be requested.
       if (item.Available && item.JellyfinItemId) {
@@ -1264,7 +1316,7 @@
         }
 
         // "Request whole saga": for a movie that belongs to a TMDB collection, request every part.
-        if (item.MediaType === 'movie' && details.CollectionId && !item.Available && !quotaExceeded) {
+        if (!isChild && item.MediaType === 'movie' && details.CollectionId && !item.Available && !quotaExceeded) {
           var sagaBtn = document.createElement('button');
           sagaBtn.className = 'jellycrowd-request';
           sagaBtn.type = 'button';
@@ -1474,7 +1526,7 @@
       lib.clearSkeletons(grid);
       if (!items || items.length === 0) {
         emptyPageStreak++;
-        if (!lib.feedEndsOnEmptyPage(emptyPageStreak, lib.seasonRangeActive(filters))) {
+        if (!lib.feedEndsOnEmptyPage(emptyPageStreak, lib.feedIsSparse(filters, isRestricted))) {
           return; // loadNext moves on to the next page while the sentinel is in view
         }
         feedExhausted = true;
@@ -2077,7 +2129,9 @@
 
       apiGet('JellyCrowd/Quota/Me')
         .then(function (q) {
-          quotaExceeded = lib.quotaFull(q);
+          // A parent's own full quota must not block requesting for a child, who has a quota of their own:
+          // the server weighs each request against its owner's quota anyway.
+          quotaExceeded = lib.quotaFull(q) && !(isParent && myChildren.length);
         })
         .catch(function () { /* quota check is best-effort */ })
         .then(loadWatchlist)

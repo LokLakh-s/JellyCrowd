@@ -682,3 +682,78 @@ Suite de l'issue #16 (fiche recouverte par l'en-tête sur téléphone, corrigée
 - ☑ **« Ouvrir dans Jellyfin »** ferme la fiche avant de naviguer : elle restait ouverte par-dessus la page.
 - ☑ **Tests** : `dom.lib.test.js` (`backCloseControl` : popup du dessus par z-index puis ordre, popup
   masquée ignorée, contrôle de fermeture de chaque type).
+
+### M38 — Contrôle parental Jellyfin respecté  ☑ *(livré)*
+
+- ☑ La **politique parentale de Jellyfin** (`MaxParentalRating`, sous-score, `BlockUnratedItems` films/séries)
+  s'applique au catalogue : chaque titre est jugé sur sa classification TMDB (pays de métadonnées du serveur,
+  repli US), **notée par Jellyfin lui-même** (`ILocalizationManager.GetRatingScore`) et comparée avec **la règle
+  de `BaseItem.IsParentalAllowed`** (score < max, sous-score à égalité, non classé selon `BlockUnratedItems`).
+  Même rendu dans le catalogue qu'en bibliothèque.
+- ☑ Cumul avec le compte enfant : **l'âge le plus bas gagne** ; un enfant ne voit jamais un titre non classé.
+- ☑ Filtrage titre par titre de **toutes** les listes (tendances, recherche, découverte, calendrier,
+  recommandations, populaires) ; une fiche hors limite répond **404**.
+- ☑ **Refus côté serveur** des demandes au-delà (403), y compris celles d'un enfant **qui n'en avait aucun
+  avant** ; classification invérifiable → 503, jamais de passe-droit.
+- ☑ Le flux tolère des pages vidées par le filtre (`feedIsSparse`).
+- ☑ **E2E** sur 10.11 et 12.1 : Fight Club (R) refusé et Toy Story (G) accepté pour un utilisateur limité à
+  10, fiche 404, tendances 4 titres sur 20.
+
+### M39 — Saison suivante demandée automatiquement  ☑ *(livré)*
+
+- ☑ Interrupteur admin (`AutoNextSeasonEnabled`, off par défaut) + seuil d'épisodes restants
+  (`AutoNextSeasonEpisodesLeft`, 0–10, défaut 2) ; **opt-in par utilisateur** dans « Mes demandes ».
+- ☑ Au démarrage d'un épisode (`PlaybackStart`), si la saison touche à sa fin et qu'une suivante existe, la
+  demande part **par le circuit normal** (quota, auto-approbation, notifications), comme depuis le catalogue :
+  par épisode si des épisodes restent à diffuser, sinon la saison entière.
+- ☑ **Une fois par utilisateur et par saison** (`auto-requests.json`) : une demande annulée ou refusée ne
+  revient pas. Rien n'est demandé si la saison suivante est déjà (même en partie) en bibliothèque.
+- ☑ La création de requête est extraite du contrôleur dans `RequestCreationService` (partagée par
+  l'utilisateur, l'admin « au nom de », le parent et l'automatique).
+
+### M40 — Retirer de « Continuer à regarder » / « À suivre »  ☑ *(livré)*
+
+- ☑ **Côté serveur, donc sur tous les clients** : un filtre MVC global (`HiddenResumeFilter`) n'agit que sur
+  `UserItems/Resume`, `Users/{id}/Items/Resume` et `Shows/NextUp` (mêmes noms en 10.11 et 12) ; il élargit la
+  limite d'une première page du nombre de retraits pour que la rangée reste pleine, puis retire les éléments.
+- ☑ Un film se retire seul ; un épisode retire **toute la série**. **Non destructif** (position de lecture
+  intacte) et **réapparition automatique** dès qu'on relance le film ou un épisode de la série.
+- ☑ Web : entrée « Retirer de Continuer à regarder » dans le menu ⋮ des cartes des deux rangées (reconnues à
+  `data-monitor="videoplayback…"`), toast avec **Annuler**, liste des retraits dans l'onglet Visionnage.
+- ☑ Jellyfin 12 garde ses rangées dans un cache de requêtes **persistant** (IndexedDB, frais 1 min) : les
+  retraits récents sont réappliqués à chaque rendu pendant 2 min, le temps que le serveur filtre la suite.
+- ☑ **E2E** API et navigateur sur 10.11 et 12.1.
+
+### M41 — Version préférée (VO / VF / VOSTFR) et profils *arr par demandeur  ☑ *(livré)*
+
+- ☑ Admin : `LanguagePreferencesEnabled`, langue du doublage (`DubbedLanguage`, défaut = langue des
+  métadonnées du serveur), **un profil Radarr et un profil Sonarr par version** (onglet Téléchargement).
+- ☑ Le profil d'un titre vient des préférences **de tous ses demandeurs** (toutes saisons d'une série, un
+  profil par série dans Sonarr) : accord → leur profil ; **désaccord → profil commun** (+ nouvelle recherche
+  sur un titre existant). Sans préférence exprimée, **on ne touche jamais au profil** d'un titre existant
+  (un profil réglé à la main survit).
+- ☑ Choisir une version règle aussi la **lecture Jellyfin** de l'utilisateur (langue audio, sous-titres),
+  avec le code de langue que Jellyfin utilise lui-même (`fra` en 12.1).
+- ☑ À la mise à disposition (3 min après, le temps que Jellyfin sonde le fichier) : **message court** si la
+  version préférée manque (« VF seulement, VO introuvable », « VO seulement, VF introuvable », « VO sans
+  sous-titres français ») ; rien si une piste n'a pas de langue. E2E : message reçu à +3 min pile.
+
+### M42 — Sous-titres ajoutés automatiquement  ☑ *(livré)*
+
+- ☑ Admin : `SubtitleDownloadsEnabled`. Utilisateur : jusqu'à 5 langues (onglet Visionnage) ; VOSTFR ajoute
+  la langue du doublage.
+- ☑ À la mise à disposition, les langues **manquantes** sont cherchées via les fournisseurs de sous-titres
+  **installés dans Jellyfin** (`ISubtitleManager`, ex. Open Subtitles) : correspondance exacte d'abord,
+  traductions automatiques/IA et sous-titres forcés exclus.
+- ☐ Pas encore vérifié en conditions réelles : nécessite un fournisseur configuré (compte Open Subtitles).
+
+### M43 — Comptes enfant rattachés à des parents  ☑ *(livré)*
+
+- ☑ Le mode enfant **par groupe** devient un **type de compte** (`ChildAccounts`) : un enfant, son âge, un ou
+  plusieurs parents ; réglé par l'admin seul (onglet Groupes). **Migration au chargement** : les membres d'un
+  ancien groupe enfant deviennent comptes enfant (âge du groupe, parents à désigner) — vérifiée en E2E.
+- ☑ L'enfant **ne demande rien** (ni demande, ni « ajouter à ma bibliothèque ») : catalogue adapté à son âge et
+  **liste d'envies** (l'étoile). Ses parents la voient (« Mes enfants » dans Mes demandes) et **demandent pour
+  lui** (`Requests/ForChild`, sélecteur « Pour : » dans la fiche) : la demande est **celle de l'enfant**, sur
+  **son quota**, et seulement pour un titre adapté à son âge.
+- ☑ **Rétention commune à tous les enfants** (`ChildMediaExpiryDays`), distincte de la générale.

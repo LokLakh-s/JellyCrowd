@@ -1211,6 +1211,44 @@ body.jellycrowd-overlay-open {
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
+.jellycrowd-children {
+  margin: 0 0 1.5em;
+}
+
+.jellycrowd-child {
+  margin: 0.6em 0 1em;
+  padding: 0.6em 0.9em;
+  border-radius: 0.4em;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.jellycrowd-inline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8em;
+  padding: 0.3em 0;
+}
+
+.jellycrowd-inline-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jellycrowd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  margin: 0.2em 0 0.6em;
+}
+
+.jellycrowd-autoseason {
+  margin: 0 0 1em;
+  padding: 0 0.2em;
+}
+
 .jellycrowd-disclaimer {
   margin: 0 0 1em;
   padding: 0.5em 0.8em;

@@ -388,9 +388,7 @@ public sealed class PollsControllerTests : IDisposable
   [Fact]
   public async Task ChildAccounts_NeitherSeeNorAreNotifiedOfPolls()
   {
-    var group = new UserGroup { Id = Guid.NewGuid(), Name = "Kids", ChildMode = true };
-    group.Members.Add(Voter);
-    _config.UserGroups.Add(group);
+    _config.ChildAccounts.Add(new ChildAccount { UserId = Voter });
 
     await CreateAsync(adminId: Guid.NewGuid());
 
