@@ -1635,12 +1635,20 @@
   }
 
   function sentinelVisible() {
-    var rect = document.getElementById('jcSentinel').getBoundingClientRect();
-    return rect.top < (window.innerHeight || document.documentElement.clientHeight) + 400;
+    var sentinel = document.getElementById('jcSentinel');
+    return lib.sentinelInView(
+      sentinel.getClientRects().length,
+      sentinel.getBoundingClientRect().top,
+      window.innerHeight || document.documentElement.clientHeight,
+      400);
   }
 
   function loadNext() {
     if (feedLoading || feedExhausted) {
+      return;
+    }
+    if (!lib.feedHasPage(gridPage + 1)) {
+      feedExhausted = true;
       return;
     }
     feedLoading = true;

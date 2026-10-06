@@ -23,6 +23,12 @@ public class TmdbClient : ITmdbClient
   // talk-show appearances fall off the end rather than burying the notable films and shows.
   private const int PersonFilmographyMax = 80;
 
+  /// <summary>
+  /// The last page TMDB serves on its paged lists (search, discover). It reports more pages than that for
+  /// broad queries, but asking for page 501 is a 400: past it, a list simply ends.
+  /// </summary>
+  public const int MaxResultPage = 500;
+
   private readonly IHttpClientFactory _httpClientFactory;
   private readonly Func<PluginConfiguration> _config;
   private readonly ILogger<TmdbClient> _logger;
@@ -61,6 +67,11 @@ public class TmdbClient : ITmdbClient
     ArgumentException.ThrowIfNullOrWhiteSpace(query);
 
     var resultPage = page > 0 ? page : 1;
+    if (resultPage > MaxResultPage)
+    {
+      return Array.Empty<CatalogItem>();
+    }
+
     var json = await GetAsync(
       $"/search/multi?query={Escape(query)}&language={Escape(language)}&include_adult=false&page={resultPage.ToString(CultureInfo.InvariantCulture)}",
       cancellationToken).ConfigureAwait(false);
@@ -150,6 +161,11 @@ public class TmdbClient : ITmdbClient
     }
 
     var page = query.Page is > 0 ? query.Page.Value : 1;
+    if (page > MaxResultPage)
+    {
+      return Array.Empty<CatalogItem>();
+    }
+
     builder.Append("&page=").Append(page.ToString(CultureInfo.InvariantCulture));
 
     if (!string.IsNullOrWhiteSpace(query.WatchProviders) && !string.IsNullOrWhiteSpace(query.WatchRegion))
@@ -270,6 +286,10 @@ public class TmdbClient : ITmdbClient
     var isMovie = string.Equals(mediaType, "movie", StringComparison.Ordinal);
     var dateField = isMovie ? "primary_release_date" : "first_air_date";
     var resultPage = page > 0 ? page : 1;
+    if (resultPage > MaxResultPage)
+    {
+      return Array.Empty<CatalogItem>();
+    }
 
     // Sort by popularity (not date) so the capped result set spans the whole range with the most
     // notable releases, instead of clustering on the earliest days; the caller re-groups by date.

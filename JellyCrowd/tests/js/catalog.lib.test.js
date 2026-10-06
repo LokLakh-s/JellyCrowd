@@ -366,6 +366,25 @@ test('feedEndsOnEmptyPage: a season-filtered feed skips empty pages up to the li
   assert.strictEqual(lib.feedEndsOnEmptyPage(limit, true), true);
 });
 
+test('feedHasPage: the feed stops at TMDB\'s last page', () => {
+  // TMDB answers page 501 with an error even when it reports a thousand pages.
+  assert.strictEqual(lib.feedHasPage(1), true);
+  assert.strictEqual(lib.feedHasPage(lib.FEED_MAX_PAGE), true);
+  assert.strictEqual(lib.feedHasPage(lib.FEED_MAX_PAGE + 1), false);
+  assert.strictEqual(lib.feedHasPage(0), false);
+});
+
+test('sentinelInView: loads more only when the end marker nears the viewport', () => {
+  assert.strictEqual(lib.sentinelInView(1, 900, 800, 400), true);
+  assert.strictEqual(lib.sentinelInView(1, 1300, 800, 400), false);
+});
+
+test('sentinelInView: a hidden view never loads more', () => {
+  // Hidden by a tab switch or a closed overlay, the marker has no box and a top of 0: before this, every
+  // page was chained until TMDB refused page 501.
+  assert.strictEqual(lib.sentinelInView(0, 0, 800, 400), false);
+});
+
 test('feedIsSparse: a parental restriction makes any feed sparse', () => {
   // Restricted users get pages filtered title by title: an empty page is not the end of the catalog.
   assert.strictEqual(lib.feedIsSparse({ mediaType: 'movie' }, true), true);

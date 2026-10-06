@@ -249,6 +249,37 @@ public sealed class ServarrHttpIntegrationTests : IDisposable
   }
 
   [Fact]
+  public async Task Tmdb_PagedLists_EndAtTmdbsLastPage_WithoutAsking()
+  {
+    // TMDB answers page 501 with a 400 even when it reports 1000 pages: a list just ends there.
+    var client = Tmdb("TMKEY");
+
+    var discover = await client.DiscoverAsync(
+      "movie", new DiscoverQuery { Page = TmdbClient.MaxResultPage + 1 }, "en-US", CancellationToken.None);
+    var search = await client.SearchAsync("dune", "en-US", TmdbClient.MaxResultPage + 1, CancellationToken.None);
+    var releases = await client.GetReleasesAsync(
+      "movie", "2026-01-01", "2026-12-31", "FR", "en-US", null, null, TmdbClient.MaxResultPage + 1, CancellationToken.None);
+
+    Assert.Empty(discover);
+    Assert.Empty(search);
+    Assert.Empty(releases);
+    Assert.Empty(_server.LogEntries);
+  }
+
+  [Fact]
+  public async Task Tmdb_Discover_StillAsksForTheLastPage()
+  {
+    _server
+      .Given(Request.Create().WithPath("/discover/movie").UsingGet().WithParam("page", "500"))
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody("{\"results\":[{\"id\":1,\"title\":\"M\"}]}"));
+
+    var results = await Tmdb("TMKEY").DiscoverAsync(
+      "movie", new DiscoverQuery { Page = TmdbClient.MaxResultPage }, "en-US", CancellationToken.None);
+
+    Assert.Single(results);
+  }
+
+  [Fact]
   public async Task Tmdb_GetTvGenres_AddsHorrorAndThriller_WithTmdbsLocalizedLabels()
   {
     _server

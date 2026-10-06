@@ -830,6 +830,21 @@
     return !sparse || emptyStreak >= SEASON_FEED_EMPTY_PAGES;
   }
 
+  // The last page TMDB serves on search and discover (it reports more for broad queries, but page 501 is
+  // an error): the feed ends there.
+  var FEED_MAX_PAGE = 500;
+
+  function feedHasPage(page) {
+    return page >= 1 && page <= FEED_MAX_PAGE;
+  }
+
+  // Whether the feed's end marker is close enough to the viewport to load the next page. `rectCount` is its
+  // getClientRects() length: 0 while its view is hidden (another tab, or the overlay closed), where
+  // getBoundingClientRect() reports a top of 0 that would read as "in view" and chain every page in turn.
+  function sentinelInView(rectCount, top, viewportHeight, margin) {
+    return rectCount > 0 && top < viewportHeight + margin;
+  }
+
   // Whether a home-screen row is "Continue watching" or "Next up": on 10.11 and 12 alike, they are the
   // only home rows whose items container monitors video playback (data-monitor="videoplayback,…").
   function isContinueRow(monitor) {
@@ -1431,6 +1446,9 @@
     seasonRangeQuery: seasonRangeQuery,
     formatSeasonBound: formatSeasonBound,
     feedEndsOnEmptyPage: feedEndsOnEmptyPage,
+    FEED_MAX_PAGE: FEED_MAX_PAGE,
+    feedHasPage: feedHasPage,
+    sentinelInView: sentinelInView,
     feedIsSparse: feedIsSparse,
     autoSeasonPath: autoSeasonPath,
     SUBTITLE_LANGUAGES: SUBTITLE_LANGUAGES,
