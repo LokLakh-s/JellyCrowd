@@ -888,4 +888,161 @@ public class ServarrDownloadClientTests
 
     Assert.Equal("all", updated!["monitorNewItems"]!.GetValue<string>());
   }
+
+  // ---------- TMDB / TVDB season alignment ----------
+
+  // TMDB's "Monster: The Lizzie Borden Story" (one season from 2026-09-17) is season 4 of TVDB's "Monster (2022)".
+  private const string MonsterEpisodes = """
+    [
+      { "id": 1, "seasonNumber": 1, "episodeNumber": 1, "airDate": "2022-09-21", "monitored": false },
+      { "id": 2, "seasonNumber": 1, "episodeNumber": 2, "airDate": "2022-09-21", "monitored": false },
+      { "id": 3, "seasonNumber": 4, "episodeNumber": 1, "airDate": "2026-09-17", "monitored": false },
+      { "id": 4, "seasonNumber": 4, "episodeNumber": 2, "airDate": "2026-09-17", "monitored": false }
+    ]
+    """;
+
+  private static Mock<ITmdbClient> LizzieBorden()
+  {
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(299939, It.IsAny<CancellationToken>())).ReturnsAsync((int?)null);
+    tmdb.Setup(t => t.GetDetailsAsync("tv", 299939, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new CatalogItem { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story", ReleaseDate = "2026-09-17" });
+    tmdb.Setup(t => t.GetSeasonsAsync(299939, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new[] { new Season { SeasonNumber = 1 } });
+    tmdb.Setup(t => t.GetSeasonEpisodesAsync(299939, 1, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new[]
+      {
+        new Episode { SeasonNumber = 1, EpisodeNumber = 1, AirDate = "2026-09-17" },
+        new Episode { SeasonNumber = 1, EpisodeNumber = 2, AirDate = "2026-09-17" }
+      });
+    return tmdb;
+  }
+
+  private static JsonObject MonsterSeries() => new()
+  {
+    ["id"] = 50,
+    ["title"] = "Monster (2022)",
+    ["tvdbId"] = 389492,
+    ["monitored"] = false,
+    ["firstAired"] = "2022-09-21T00:00:00Z",
+    ["seasons"] = new JsonArray(
+      new JsonObject { ["seasonNumber"] = 1, ["monitored"] = false },
+      new JsonObject { ["seasonNumber"] = 4, ["monitored"] = false })
+  };
+
+  [Fact]
+  public async Task DispatchAsync_ShowWithNoIds_IsFoundThroughSonarrsTmdbLink_ButNotAddedWhenItStartsApart()
+  {
+    // Neither a TVDB nor an IMDb id on TMDB: Sonarr's own link finds "Monster (2022)", which started four years
+    // earlier — TMDB's season 1 is a later season there, so nothing is added.
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.LookupSeriesByTmdbAsync("http://localhost:8989", "sk", 299939, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.LookupSeriesAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    var client = new ServarrDownloadClient(servarr.Object, LizzieBorden().Object, SonarrConfig, NoDelay);
+
+    var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+      client.DispatchAsync(new DownloadDispatch { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story", Season = 1 }, CancellationToken.None));
+
+    Assert.Contains("Monster (2022)", error.Message, StringComparison.Ordinal);
+    Assert.Contains("by hand", error.Message, StringComparison.Ordinal);
+    servarr.Verify(s => s.AddSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_SeriesAlreadyInSonarr_WhereTheSeasonIsAnotherOne_TouchesNothing()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.LookupSeriesByTmdbAsync("http://localhost:8989", "sk", 299939, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 50, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterEpisodes);
+    var client = new ServarrDownloadClient(servarr.Object, LizzieBorden().Object, SonarrConfig, NoDelay);
+
+    var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+      client.DispatchAsync(new DownloadDispatch { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story", Season = 1 }, CancellationToken.None));
+
+    // Before, season 1 of Monster — another story, from 2022 — would have been monitored and searched.
+    Assert.Contains("season 4 of \"Monster (2022)\"", error.Message, StringComparison.Ordinal);
+    servarr.Verify(s => s.UpdateSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.CommandAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_WholeShowRequest_ChecksEverySeasonTmdbLists()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.LookupSeriesByTmdbAsync("http://localhost:8989", "sk", 299939, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 50, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterEpisodes);
+    var client = new ServarrDownloadClient(servarr.Object, LizzieBorden().Object, SonarrConfig, NoDelay);
+
+    // A whole-show request would have monitored all four seasons of Monster.
+    await Assert.ThrowsAsync<InvalidOperationException>(() =>
+      client.DispatchAsync(new DownloadDispatch { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story" }, CancellationToken.None));
+
+    servarr.Verify(s => s.UpdateSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_FreshAdd_WhoseEpisodesTurnOutMisaligned_IsRemovedAgain_BeforeAnySearch()
+  {
+    // The first air dates told nothing (unknown on TMDB), so the series was added; once Sonarr has listed its
+    // episodes, they show TMDB's season 1 is season 4 there: the series added for this request goes.
+    var tmdb = LizzieBorden();
+    tmdb.Setup(t => t.GetDetailsAsync("tv", 299939, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new CatalogItem { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story" });
+    var added = MonsterSeries();
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.LookupSeriesByTmdbAsync("http://localhost:8989", "sk", 299939, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.LookupSeriesAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.SetupSequence(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>()))
+      .ReturnsAsync((JsonObject?)null)
+      .ReturnsAsync(added)
+      .ReturnsAsync(added)
+      .ReturnsAsync(added)
+      .ReturnsAsync(added)
+      .ReturnsAsync(added)
+      .ReturnsAsync(added)
+      .ReturnsAsync(added);
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 50, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterEpisodes);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig, NoDelay);
+
+    await Assert.ThrowsAsync<InvalidOperationException>(() =>
+      client.DispatchAsync(new DownloadDispatch { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story", Season = 1 }, CancellationToken.None));
+
+    servarr.Verify(s => s.DeleteSeriesAsync("http://localhost:8989", "sk", 50, false, It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.CommandAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task PurgeAsync_SeriesWhoseSeasonsAreNotTheRequests_IsLeftAlone()
+  {
+    // Season 4 added to Monster by hand must survive the deletion of the request that could not be sent.
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.LookupSeriesByTmdbAsync("http://localhost:8989", "sk", 299939, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 50, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterEpisodes);
+    var client = new ServarrDownloadClient(servarr.Object, LizzieBorden().Object, SonarrConfig, NoDelay);
+
+    var ok = await client.PurgeAsync(new DownloadDispatch { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story" }, CancellationToken.None);
+    await client.CancelAsync(new DownloadDispatch { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story", Season = 1 }, CancellationToken.None);
+
+    Assert.True(ok);
+    servarr.Verify(s => s.DeleteSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.UpdateSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.SetEpisodesMonitoredAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<System.Collections.Generic.IReadOnlyList<int>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_NoLinkAnywhere_ExplainsWhatToDo()
+  {
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(308014, It.IsAny<CancellationToken>())).ReturnsAsync((int?)null);
+    var client = new ServarrDownloadClient(Mock.Of<IServarrClient>(), tmdb.Object, SonarrConfig, NoDelay);
+
+    var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+      client.DispatchAsync(new DownloadDispatch { TmdbId = 308014, MediaType = "tv", Title = "Berlin and the Lady with an Ermine", Season = 1 }, CancellationToken.None));
+
+    Assert.Contains("Berlin and the Lady with an Ermine", error.Message, StringComparison.Ordinal);
+    Assert.Contains("by hand", error.Message, StringComparison.Ordinal);
+  }
 }

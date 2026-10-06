@@ -173,6 +173,20 @@ public sealed class ServarrHttpIntegrationTests : IDisposable
     Assert.Contains("The Matrix", add.RequestMessage!.Body!, StringComparison.Ordinal);
   }
 
+  [Fact]
+  public async Task LookupSeriesByTmdb_KeepsOnlyTheSeriesLinkedToThatTmdbId()
+  {
+    // Sonarr's search for "tmdb:299939" also returns a series whose TVDB id happens to be 299939.
+    _server
+      .Given(Request.Create().WithPath("/api/v3/series/lookup").UsingGet().WithParam("term", "tmdb:299939"))
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody(
+        "[{\"title\":\"Over Hekken\",\"tvdbId\":299939,\"tmdbId\":72193},{\"title\":\"Monster (2022)\",\"tvdbId\":389492,\"tmdbId\":299939}]"));
+
+    var found = await Client().LookupSeriesByTmdbAsync(_server.Url!, "KEY", 299939, CancellationToken.None);
+
+    Assert.Equal(389492, found!["tvdbId"]!.GetValue<int>());
+  }
+
   // ---------- TMDB ----------
 
   private TmdbClient Tmdb(string apiKey) => new(

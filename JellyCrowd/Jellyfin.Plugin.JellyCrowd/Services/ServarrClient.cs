@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -100,6 +101,20 @@ public sealed class ServarrClient : IServarrClient
     var term = Uri.EscapeDataString("imdb:" + imdbId);
     var json = await GetStringAsync(baseUrl, apiKey, "/series/lookup?term=" + term, cancellationToken).ConfigureAwait(false);
     return ParseObject(json);
+  }
+
+  /// <inheritdoc />
+  public async Task<JsonObject?> LookupSeriesByTmdbAsync(string baseUrl, string apiKey, int tmdbId, CancellationToken cancellationToken)
+  {
+    var term = Uri.EscapeDataString("tmdb:" + tmdbId.ToString(CultureInfo.InvariantCulture));
+    var json = await GetStringAsync(baseUrl, apiKey, "/series/lookup?term=" + term, cancellationToken).ConfigureAwait(false);
+    if (JsonNode.Parse(json) is not JsonArray results)
+    {
+      return null;
+    }
+
+    return results.OfType<JsonObject>().FirstOrDefault(r =>
+      r["tmdbId"] is JsonValue id && id.TryGetValue<int>(out var found) && found == tmdbId);
   }
 
   /// <inheritdoc />

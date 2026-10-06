@@ -134,8 +134,16 @@ Le **menu déroulant « Download backend »** pilote les réglages affichés :
     Jelly Crowd liste les **dossiers racine** et **profils de qualité** (et **profils de langue** pour
     Sonarr v3) à choisir dans les menus déroulants. **Enregistrer**.
   - Les **films** passent par Radarr, les **séries** par Sonarr. Comme Sonarr fonctionne en TVDB,
-    l'identifiant TVDB est résolu automatiquement depuis TMDB. Pour une demande de **saison précise**,
-    seule cette saison est surveillée ; sinon toute la série.
+    l'identifiant TVDB est résolu automatiquement depuis TMDB (à défaut via l'identifiant IMDb, puis via le
+    lien TMDB que connaît Sonarr). Pour une demande de **saison précise**, seule cette saison est surveillée ;
+    sinon toute la série.
+  - **TMDB et TVDB ne découpent pas toujours une série de la même façon** : TMDB fait par exemple de
+    « Monster: The Lizzie Borden Story » une série à part, TVDB la saison 4 de « Monster ». Avant de surveiller
+    quoi que ce soit, Jelly Crowd compare les dates de diffusion des épisodes des deux côtés ; si la saison
+    demandée ne correspond pas à la même saison dans Sonarr, la demande est **bloquée avec un message qui
+    l'explique** (visible par l'admin et au survol de « Bloqué »), au lieu de télécharger une autre saison.
+    Il faut alors l'ajouter à la main dans Sonarr. Une annulation ou une suppression ne touche pas non plus
+    à une série dont les saisons ne sont pas celles de la demande.
   - **Fichier déposé à la main** : si un média demandé est ajouté manuellement (hors Radarr/Sonarr) et
     détecté par Jellyfin, la demande passe **Disponible** et Jelly Crowd demande à Radarr/Sonarr de
     **rescanner** le film/la série depuis le disque (`RescanMovie` / `RescanSeries`), pour qu'ils

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
@@ -17,6 +18,9 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 /// </summary>
 public sealed class ServarrDownloadClient : IDownloadClient
 {
+  // TMDB episode lists are read in one language everywhere, so the season checks share the cached lists.
+  private const string TmdbEpisodeLanguage = "en-US";
+
   // A fresh Sonarr add processes monitoring asynchronously: because we add inert (monitor: none), Sonarr
   // unmonitors everything a moment after the add returns, which would clobber a single up-front monitor
   // call and leave the series unmonitored (nothing searchable). After applying monitoring we therefore
@@ -177,11 +181,18 @@ public sealed class ServarrDownloadClient : IDownloadClient
       }
 
       var tvdbId = await ResolveTvdbIdAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false)
-        ?? throw new InvalidOperationException($"Could not resolve a TVDB id for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)} (no TVDB or IMDb match).");
+        ?? throw new InvalidOperationException(
+          $"No TVDB series found for TMDB show {dispatch.TmdbId.ToString(CultureInfo.InvariantCulture)} (\"{dispatch.Title}\"): neither TMDB nor Sonarr links them (TVDB, IMDb or TMDB id). It may be a season of another series there: add it in Sonarr by hand.");
       var profile = await ResolveProfileAsync("tv", dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false);
       if (series is not null && TryGetId(series, out var seriesId))
       {
+        // TMDB's seasons must be Sonarr's seasons, or the wrong one would be downloaded.
+        if (await MisalignmentAsync(config, dispatch, series, seriesId, cancellationToken).ConfigureAwait(false) is { } misaligned)
+        {
+          throw new InvalidOperationException(misaligned);
+        }
+
         // One profile per show in Sonarr: a requester of another season with another preference can change it.
         if (SwitchProfile(series, profile))
         {
@@ -194,13 +205,23 @@ public sealed class ServarrDownloadClient : IDownloadClient
 
       var lookup = await _servarr.LookupSeriesAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId, cancellationToken).ConfigureAwait(false)
         ?? throw new InvalidOperationException($"Sonarr could not find TVDB series {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
+
+      // Before adding anything: a TVDB series that started long before (or after) the TMDB show is not that
+      // show — TMDB's season 1 is a later season there.
+      if (await StartMismatchAsync(dispatch, lookup, cancellationToken).ConfigureAwait(false) is { } apart)
+      {
+        throw new InvalidOperationException(apart);
+      }
+
       var body = ServarrPayload.BuildSeriesAdd(lookup, profile ?? config.SonarrQualityProfileId, config.SonarrLanguageProfileId, config.SonarrRootFolderPath, dispatch.Season);
+      var addedHere = true;
       try
       {
         await _servarr.AddSeriesAsync(config.SonarrUrl, config.SonarrApiKey, body, cancellationToken).ConfigureAwait(false);
       }
       catch (HttpRequestException)
       {
+        addedHere = false;
         // A concurrent request (e.g. two seasons of the same show grabbed at once) may have added the
         // series first, so this add 400s ("series already added"). That is fine — it is in Sonarr now, and
         // the monitor + search below handles it. Any other add failure is surfaced by the fetch that follows.
@@ -216,7 +237,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
       }
 
       // Fresh add: confirm the monitoring sticks against Sonarr's async post-add unmonitor before searching.
-      await ConfirmMonitorThenSearchSeriesAsync(config, added, addedSeriesId, tvdbId, dispatch, cancellationToken).ConfigureAwait(false);
+      await ConfirmMonitorThenSearchSeriesAsync(config, added, addedSeriesId, tvdbId, dispatch, addedHere, cancellationToken).ConfigureAwait(false);
     }
     else
     {
@@ -279,7 +300,9 @@ public sealed class ServarrDownloadClient : IDownloadClient
   // apply the monitoring, wait, re-check, and re-apply until Sonarr has finished its post-add (it then clears
   // the series' add options) AND our monitoring survived it (bounded), and only then search — so the search
   // actually has monitored episodes.
-  private async Task ConfirmMonitorThenSearchSeriesAsync(PluginConfiguration config, JsonObject series, int seriesId, int tvdbId, DownloadDispatch dispatch, CancellationToken cancellationToken)
+  // Once Sonarr has listed the episodes, their air dates are checked against TMDB's before any search: on a
+  // mismatch, a series added for this request alone is removed again (nothing was searched, nothing grabbed).
+  private async Task ConfirmMonitorThenSearchSeriesAsync(PluginConfiguration config, JsonObject series, int seriesId, int tvdbId, DownloadDispatch dispatch, bool addedHere, CancellationToken cancellationToken)
   {
     var current = series;
     string? episodesJson = null;
@@ -301,6 +324,16 @@ public sealed class ServarrDownloadClient : IDownloadClient
       {
         break; // Sonarr's post-add has run and our monitoring survived it — stable.
       }
+    }
+
+    if (await MisalignmentAsync(config, dispatch, current, seriesId, cancellationToken).ConfigureAwait(false) is { } misaligned)
+    {
+      if (addedHere)
+      {
+        await _servarr.DeleteSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, deleteFiles: false, cancellationToken).ConfigureAwait(false);
+      }
+
+      throw new InvalidOperationException(misaligned);
     }
 
     await SearchScopeAsync(config, seriesId, dispatch, episodesJson, cancellationToken).ConfigureAwait(false);
@@ -392,7 +425,9 @@ public sealed class ServarrDownloadClient : IDownloadClient
 
   // Resolves the TVDB id Sonarr needs from a TMDB show id. Normally TMDB carries it, but some entries
   // (e.g. The Haunting of Hill House) have no TVDB id — for those we fall back to the IMDb id, which
-  // Sonarr can look up, and whose result carries the TVDB id. Returns null when neither path resolves.
+  // Sonarr can look up, and whose result carries the TVDB id; then to Sonarr's own link to the TMDB id
+  // (Monster: The Lizzie Borden Story has neither id). Returns null when no path resolves. A series found
+  // this way is still checked season by season before anything is monitored (see MisalignmentAsync).
   private async Task<int?> ResolveTvdbIdAsync(PluginConfiguration config, int tmdbId, CancellationToken cancellationToken)
   {
     var tvdbId = await _tmdb.GetTvdbIdAsync(tmdbId, cancellationToken).ConfigureAwait(false);
@@ -402,14 +437,108 @@ public sealed class ServarrDownloadClient : IDownloadClient
     }
 
     var details = await _tmdb.GetDetailsAsync("tv", tmdbId, "en-US", cancellationToken).ConfigureAwait(false);
-    if (string.IsNullOrEmpty(details?.ImdbId))
+    if (!string.IsNullOrEmpty(details?.ImdbId))
+    {
+      var byImdb = await _servarr.LookupSeriesByImdbAsync(config.SonarrUrl, config.SonarrApiKey, details.ImdbId, cancellationToken).ConfigureAwait(false);
+      if (TvdbIdOf(byImdb) is int found)
+      {
+        return found;
+      }
+    }
+
+    var byTmdb = await _servarr.LookupSeriesByTmdbAsync(config.SonarrUrl, config.SonarrApiKey, tmdbId, cancellationToken).ConfigureAwait(false);
+    return TvdbIdOf(byTmdb);
+  }
+
+  private static int? TvdbIdOf(JsonObject? lookup)
+    => lookup?["tvdbId"] is JsonValue v && v.TryGetValue<int>(out var resolved) && resolved > 0 ? resolved : null;
+
+  // Why the request's seasons are not this Sonarr series' seasons, or null when they are (or nothing tells):
+  // each TMDB season's air dates against Sonarr's. The whole show checks every season TMDB lists.
+  private async Task<string?> MisalignmentAsync(PluginConfiguration config, DownloadDispatch dispatch, JsonObject series, int seriesId, CancellationToken cancellationToken)
+  {
+    IReadOnlyList<int> seasons;
+    try
+    {
+      seasons = dispatch.Season is int requested
+        ? new[] { requested }
+        : (await _tmdb.GetSeasonsAsync(dispatch.TmdbId, TmdbEpisodeLanguage, cancellationToken).ConfigureAwait(false) ?? Array.Empty<Season>())
+          .Select(s => s.SeasonNumber).Where(n => n > 0).ToList();
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+      return null; // TMDB unreachable: the numbering is trusted, as before.
+    }
+
+    // TMDB's air dates first: with none to compare (seasons not dated yet), Sonarr need not be asked.
+    var tmdbDates = new Dictionary<int, IReadOnlyList<DateTime>>();
+    foreach (var season in seasons)
+    {
+      try
+      {
+        var episodes = await _tmdb.GetSeasonEpisodesAsync(dispatch.TmdbId, season, TmdbEpisodeLanguage, cancellationToken).ConfigureAwait(false);
+        var dates = (episodes ?? Array.Empty<Episode>()).Select(e => SeasonAlignment.ParseDay(e.AirDate)).OfType<DateTime>().ToList();
+        if (dates.Count > 0)
+        {
+          tmdbDates[season] = dates;
+        }
+      }
+      catch (Exception ex) when (ex is not OperationCanceledException)
+      {
+        // This season stays unchecked.
+      }
+    }
+
+    if (tmdbDates.Count == 0)
     {
       return null;
     }
 
-    var byImdb = await _servarr.LookupSeriesByImdbAsync(config.SonarrUrl, config.SonarrApiKey, details.ImdbId, cancellationToken).ConfigureAwait(false);
-    return byImdb?["tvdbId"] is JsonValue v && v.TryGetValue<int>(out var resolved) && resolved > 0 ? resolved : null;
+    var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
+    var sonarrDates = SeasonAlignment.ParseSonarrAirDates(episodesJson);
+    foreach (var (season, dates) in tmdbDates)
+    {
+      var (verdict, elsewhere) = SeasonAlignment.Check(season, dates, sonarrDates);
+      if (verdict == SeasonAlignment.Verdict.Mismatch)
+      {
+        var name = SeriesTitle(series);
+        var number = season.ToString(CultureInfo.InvariantCulture);
+        return elsewhere is int other
+          ? $"TMDB season {number} of \"{dispatch.Title}\" is season {other.ToString(CultureInfo.InvariantCulture)} of \"{name}\" on TVDB, which Sonarr follows. Jelly Crowd does not map seasons between them: add that season in Sonarr by hand."
+          : $"TMDB season {number} of \"{dispatch.Title}\" is not season {number} of \"{name}\" on TVDB, which Sonarr follows (other air dates). Jelly Crowd does not map seasons between them: add it in Sonarr by hand.";
+      }
+    }
+
+    return null;
   }
+
+  // Why a TVDB series about to be added is not the TMDB show (it started more than a month apart), or null.
+  private async Task<string?> StartMismatchAsync(DownloadDispatch dispatch, JsonObject lookup, CancellationToken cancellationToken)
+  {
+    string? tmdbStart;
+    try
+    {
+      tmdbStart = (await _tmdb.GetDetailsAsync("tv", dispatch.TmdbId, TmdbEpisodeLanguage, cancellationToken).ConfigureAwait(false))?.ReleaseDate;
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+      return null;
+    }
+
+    var tvdbStart = lookup["firstAired"] is JsonValue first && first.TryGetValue<string>(out var text) ? text : null;
+    if (SeasonAlignment.StartTogether(tmdbStart, tvdbStart))
+    {
+      return null;
+    }
+
+    return $"\"{dispatch.Title}\" on TMDB (first aired {Day(tmdbStart)}) does not start with \"{SeriesTitle(lookup)}\" on TVDB, which Sonarr follows (first aired {Day(tvdbStart)}): it is likely a season of it there. Jelly Crowd does not map seasons between them: add it in Sonarr by hand.";
+  }
+
+  private static string SeriesTitle(JsonObject series)
+    => series["title"] is JsonValue title && title.TryGetValue<string>(out var text) ? text : "?";
+
+  private static string Day(string? date)
+    => SeasonAlignment.ParseDay(date)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "?";
 
   private static bool TryGetId(JsonObject? obj, out int id)
   {
@@ -486,6 +615,12 @@ public sealed class ServarrDownloadClient : IDownloadClient
         return true; // not in Sonarr → nothing to purge.
       }
 
+      // Seasons that are not TMDB's own there were never sent for this request: nothing of it to purge.
+      if (await MisalignmentAsync(config, dispatch, series, seriesId, cancellationToken).ConfigureAwait(false) is not null)
+      {
+        return true;
+      }
+
       // Remove the active downloads of the purged scope from the client (best-effort).
       await RemoveSeriesQueueAsync(config, tvdbId.Value, dispatch.Season, dispatch.Episode, cancellationToken).ConfigureAwait(false);
 
@@ -542,6 +677,12 @@ public sealed class ServarrDownloadClient : IDownloadClient
 
     var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId.Value, cancellationToken).ConfigureAwait(false);
     if (series is null || !TryGetId(series, out var seriesId))
+    {
+      return;
+    }
+
+    // Seasons that are not TMDB's own there (another show's, a season added by hand) were never this request's.
+    if (await MisalignmentAsync(config, dispatch, series, seriesId, cancellationToken).ConfigureAwait(false) is not null)
     {
       return;
     }

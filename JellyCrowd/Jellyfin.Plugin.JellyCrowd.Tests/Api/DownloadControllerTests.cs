@@ -99,6 +99,9 @@ public class DownloadControllerTests
     public Task<JsonObject?> LookupSeriesByImdbAsync(string baseUrl, string apiKey, string imdbId, CancellationToken cancellationToken)
       => Task.FromResult<JsonObject?>(null);
 
+    public Task<JsonObject?> LookupSeriesByTmdbAsync(string baseUrl, string apiKey, int tmdbId, CancellationToken cancellationToken)
+      => Task.FromResult<JsonObject?>(null);
+
     public Task AddMovieAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task AddSeriesAsync(string baseUrl, string apiKey, JsonObject body, CancellationToken cancellationToken) => Task.CompletedTask;

@@ -63,6 +63,18 @@ public interface IServarrClient
   Task<JsonObject?> LookupSeriesByImdbAsync(string baseUrl, string apiKey, string imdbId, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Looks up a series by TMDB id (<c>GET /api/v3/series/lookup?term=tmdb:{id}</c>): Sonarr's metadata can
+  /// link a TVDB series to a TMDB show that names neither a TVDB nor an IMDb id. Only a result carrying that
+  /// very TMDB id counts (the search also returns series whose other ids merely contain the number).
+  /// </summary>
+  /// <param name="baseUrl">The Sonarr base URL.</param>
+  /// <param name="apiKey">The Sonarr API key.</param>
+  /// <param name="tmdbId">The TMDB show id.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The lookup object, or <c>null</c> when not found.</returns>
+  Task<JsonObject?> LookupSeriesByTmdbAsync(string baseUrl, string apiKey, int tmdbId, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Adds a movie (<c>POST /api/v3/movie</c>).
   /// </summary>
   /// <param name="baseUrl">The Radarr base URL.</param>
