@@ -26,6 +26,29 @@ public static class DownloadEligibility
   }
 
   /// <summary>
+  /// Determines whether a request whose dispatch failed is due another try. A failure is retried on every
+  /// pass for its first hour (a backend restarting, a network blip), then hourly for a day, then every
+  /// six hours: a title the backend cannot take (no TVDB match, say) no longer fails every few minutes.
+  /// </summary>
+  /// <param name="request">The request to evaluate.</param>
+  /// <param name="nowUtc">The current UTC time.</param>
+  /// <returns><c>true</c> when the request has not failed, or its back-off has elapsed.</returns>
+  public static bool IsDispatchRetryDue(RequestRecord request, DateTime nowUtc)
+  {
+    ArgumentNullException.ThrowIfNull(request);
+    if (string.IsNullOrEmpty(request.DispatchError) || request.DispatchAttemptedAt is not { } lastAttempt)
+    {
+      return true;
+    }
+
+    var failingFor = nowUtc - (request.DispatchFailingSince ?? lastAttempt);
+    var wait = failingFor < TimeSpan.FromHours(1) ? TimeSpan.Zero
+      : failingFor < TimeSpan.FromDays(1) ? TimeSpan.FromHours(1)
+      : TimeSpan.FromHours(6);
+    return nowUtc - lastAttempt >= wait;
+  }
+
+  /// <summary>
   /// Determines whether a request is still waiting for its release: there is nothing to search for yet.
   /// </summary>
   /// <param name="request">The request to evaluate.</param>

@@ -105,4 +105,43 @@ public class DownloadEligibilityTests
   {
     Assert.False(DownloadEligibility.IsNotFoundPremature(new RequestRecord { DispatchedAt = Now }, Now, TimeSpan.FromDays(14)));
   }
+
+  [Fact]
+  public void IsDispatchRetryDue_True_WhenNeverFailed()
+  {
+    Assert.True(DownloadEligibility.IsDispatchRetryDue(new RequestRecord(), Now));
+  }
+
+  [Fact]
+  public void IsDispatchRetryDue_FirstHour_RetriesOnEveryPass()
+  {
+    // A backend restarting or a network blip: back as soon as possible.
+    var request = Failing(since: Now.AddMinutes(-30), lastAttempt: Now.AddMinutes(-6));
+    Assert.True(DownloadEligibility.IsDispatchRetryDue(request, Now));
+  }
+
+  [Fact]
+  public void IsDispatchRetryDue_FirstDay_RetriesHourly()
+  {
+    Assert.False(DownloadEligibility.IsDispatchRetryDue(Failing(Now.AddHours(-3), Now.AddMinutes(-20)), Now));
+    Assert.True(DownloadEligibility.IsDispatchRetryDue(Failing(Now.AddHours(-3), Now.AddHours(-1)), Now));
+  }
+
+  [Fact]
+  public void IsDispatchRetryDue_AfterADay_RetriesEverySixHours()
+  {
+    // A title the backend cannot take no longer fails every few minutes, forever.
+    Assert.False(DownloadEligibility.IsDispatchRetryDue(Failing(Now.AddDays(-3), Now.AddHours(-5)), Now));
+    Assert.True(DownloadEligibility.IsDispatchRetryDue(Failing(Now.AddDays(-3), Now.AddHours(-6)), Now));
+  }
+
+  [Fact]
+  public void IsDispatchRetryDue_FailureFromBeforeTheField_CountsFromItsLastAttempt()
+  {
+    var request = new RequestRecord { DispatchError = "boom", DispatchAttemptedAt = Now.AddMinutes(-6) };
+    Assert.True(DownloadEligibility.IsDispatchRetryDue(request, Now));
+  }
+
+  private static RequestRecord Failing(DateTime since, DateTime lastAttempt)
+    => new() { DispatchError = "boom", DispatchFailingSince = since, DispatchAttemptedAt = lastAttempt };
 }

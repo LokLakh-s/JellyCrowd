@@ -216,6 +216,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.AvailableAt = DateTime.UtcNow;
       record.HeldForQuota = false; // fulfilled — no longer a quota hold
       record.DispatchError = null; // the title is here now — any earlier dispatch failure is moot
+      record.DispatchFailingSince = null;
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }
@@ -477,6 +478,7 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
       record.DispatchedAt = whenUtc;
       record.DispatchAttemptedAt = whenUtc;
       record.DispatchError = null; // success clears any previous failure
+      record.DispatchFailingSince = null;
       await SaveAsync(cancellationToken).ConfigureAwait(false);
       return record;
     }
@@ -499,6 +501,10 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
         return null;
       }
 
+      // A failure that was already there before this field existed counts from its last attempt.
+      record.DispatchFailingSince = error is null
+        ? null
+        : record.DispatchFailingSince ?? (record.DispatchError is null ? whenUtc : record.DispatchAttemptedAt ?? whenUtc);
       record.DispatchError = error;
       record.DispatchAttemptedAt = whenUtc;
       await SaveAsync(cancellationToken).ConfigureAwait(false);

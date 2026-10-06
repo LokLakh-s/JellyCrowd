@@ -142,6 +142,13 @@ public class RequestRecord
   public DateTime? DispatchAttemptedAt { get; set; }
 
   /// <summary>
+  /// Gets or sets the UTC time the dispatch started failing, while it keeps failing. It spaces out the
+  /// retries of a request that cannot be sent (see <see cref="Services.DownloadEligibility.IsDispatchRetryDue"/>);
+  /// cleared once the request is sent or arrives.
+  /// </summary>
+  public DateTime? DispatchFailingSince { get; set; }
+
+  /// <summary>
   /// Gets or sets the moment the requester was told the media could not be found, so they are told once
   /// and not on every sweep. Null while the search is still within its retry window.
   /// </summary>

@@ -130,6 +130,66 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   [Fact]
+  public async Task DispatchAsync_Failure_StampsWhenTheFailuresStarted_AndSuccessClearsIt()
+  {
+    _client.Throw = true;
+    var request = await SeedApprovedAsync();
+    await CreateDispatcher().DispatchAsync(request, CancellationToken.None);
+    var first = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+    await CreateDispatcher().DispatchAsync(first!, CancellationToken.None);
+    var second = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+
+    Assert.NotNull(first!.DispatchFailingSince);
+    Assert.Equal(first.DispatchFailingSince, second!.DispatchFailingSince);
+
+    _client.Throw = false;
+    await CreateDispatcher().DispatchAsync(second, CancellationToken.None);
+    Assert.Null((await _store.GetByIdAsync(request.Id, CancellationToken.None))!.DispatchFailingSince);
+  }
+
+  [Fact]
+  public async Task DispatchAsync_SameFailureAgain_IsLoggedOnce()
+  {
+    // The activity log is capped: one stuck request retried every few minutes used to fill it.
+    _client.Throw = true;
+    var activity = new RecordingActivityLog();
+    var dispatcher = new DownloadDispatcher(new IDownloadClient[] { _client }, _store, new StubQuotaService(true), _ => "tester", () => _config, activity, _notifier, NullLogger<DownloadDispatcher>.Instance);
+    var request = await SeedApprovedAsync();
+
+    for (var i = 0; i < 3; i++)
+    {
+      var current = await _store.GetByIdAsync(request.Id, CancellationToken.None);
+      await dispatcher.DispatchAsync(current!, CancellationToken.None);
+    }
+
+    Assert.Single(activity.Messages, m => m.StartsWith("Dispatch failed", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  public async Task DispatchDueAsync_SkipsAFailureStillInItsBackOff()
+  {
+    var request = await SeedApprovedAsync();
+    await _store.SetDispatchErrorAsync(request.Id, "Could not resolve a TVDB id", DateTime.UtcNow.AddDays(-2), CancellationToken.None);
+    await _store.SetDispatchErrorAsync(request.Id, "Could not resolve a TVDB id", DateTime.UtcNow.AddMinutes(-6), CancellationToken.None);
+
+    await CreateDispatcher().DispatchDueAsync(CancellationToken.None);
+
+    Assert.Empty(_client.Dispatched);
+  }
+
+  [Fact]
+  public async Task DispatchDueAsync_RetriesAFailureOnceItsBackOffElapsed()
+  {
+    var request = await SeedApprovedAsync();
+    await _store.SetDispatchErrorAsync(request.Id, "Sonarr unreachable", DateTime.UtcNow.AddDays(-2), CancellationToken.None);
+    await _store.SetDispatchErrorAsync(request.Id, "Sonarr unreachable", DateTime.UtcNow.AddHours(-7), CancellationToken.None);
+
+    await CreateDispatcher().DispatchDueAsync(CancellationToken.None);
+
+    Assert.Single(_client.Dispatched);
+  }
+
+  [Fact]
   public async Task DispatchDueAsync_DispatchesEveryDueRequest()
   {
     await SeedApprovedAsync();
@@ -421,6 +481,27 @@ public sealed class DownloadDispatcherTests : IDisposable
     _config.DownloadBackend = "none";
 
     await Assert.ThrowsAsync<InvalidOperationException>(() => CreateDispatcher().TestActiveAsync(CancellationToken.None));
+  }
+
+  private sealed class RecordingActivityLog : IActivityLog
+  {
+    public List<string> Messages { get; } = new();
+
+    public Task LogAsync(string level, string category, string message, CancellationToken cancellationToken)
+      => LogAsync(level, category, message, null, cancellationToken);
+
+    public Task LogAsync(string level, string category, string message, string? user, CancellationToken cancellationToken)
+    {
+      lock (Messages)
+      {
+        Messages.Add(message);
+      }
+
+      return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ActivityEntry>> QueryAsync(string? term, string? category, string? level, string? user, int limit, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyList<ActivityEntry>>(new List<ActivityEntry>());
   }
 
   private sealed class FakeDownloadClient : IDownloadClient
