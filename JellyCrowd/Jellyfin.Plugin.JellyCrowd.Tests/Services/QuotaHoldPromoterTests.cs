@@ -277,7 +277,7 @@ public sealed class QuotaHoldPromoterTests : IDisposable
 
     public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task<bool> PurgeAsync(RequestRecord request, bool libraryDeletesFiles, CancellationToken cancellationToken) => Task.FromResult(true);
 
     public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

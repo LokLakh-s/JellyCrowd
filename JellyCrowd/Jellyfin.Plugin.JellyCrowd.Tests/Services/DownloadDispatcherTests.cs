@@ -446,7 +446,7 @@ public sealed class DownloadDispatcherTests : IDisposable
     var dispatcher = CreateDispatcher();
 
     await dispatcher.CancelAsync(request, CancellationToken.None);
-    await dispatcher.PurgeAsync(request, CancellationToken.None);
+    await dispatcher.PurgeAsync(request, libraryDeletesFiles: false, CancellationToken.None);
 
     var expected = new[] { new RequestScope("tv", 1396, 1, 2), new RequestScope("tv", 1396, 1, 3) };
     Assert.Equal(expected.OrderBy(k => k.Episode), _client.Cancelled.Single().KeepScopes.OrderBy(k => k.Episode));
@@ -458,10 +458,11 @@ public sealed class DownloadDispatcherTests : IDisposable
   {
     var request = await SeedApprovedAsync();
 
-    await CreateDispatcher().PurgeAsync(request, CancellationToken.None);
+    await CreateDispatcher().PurgeAsync(request, libraryDeletesFiles: true, CancellationToken.None);
 
     Assert.Single(_client.Purged);
     Assert.Equal(603, _client.Purged[0].TmdbId);
+    Assert.True(_client.Purged[0].KeepFiles);
   }
 
   [Fact]

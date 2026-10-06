@@ -628,6 +628,39 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task PurgeAsync_Movie_DeletesItsFiles_UnlessJellyfinDoes()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetMovieByTmdbAsync("http://localhost:7878", "rk", 603, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["id"] = 5 });
+    var client = new ServarrDownloadClient(servarr.Object, Mock.Of<ITmdbClient>(), RadarrConfig);
+
+    await client.PurgeAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix" }, CancellationToken.None);
+    await client.PurgeAsync(new DownloadDispatch { TmdbId = 603, MediaType = "movie", Title = "The Matrix", KeepFiles = true }, CancellationToken.None);
+
+    // Jellyfin deletes the folder right after: Radarr deleting it at the same moment failed half-way.
+    servarr.Verify(s => s.DeleteMovieAsync("http://localhost:7878", "rk", 5, true, It.IsAny<CancellationToken>()), Times.Once);
+    servarr.Verify(s => s.DeleteMovieAsync("http://localhost:7878", "rk", 5, false, It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task PurgeAsync_WholeShow_LeavesTheFilesToJellyfin_WhenItDeletesThem()
+  {
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>()))
+      .ReturnsAsync("{ \"records\": [] }");
+    servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new JsonObject { ["id"] = 7 });
+    var tmdb = new Mock<ITmdbClient>();
+    tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
+
+    await client.PurgeAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", KeepFiles = true }, CancellationToken.None);
+
+    servarr.Verify(s => s.DeleteSeriesAsync("http://localhost:8989", "sk", 7, false, It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
   public async Task PurgeAsync_Season_UnmonitorsSeasonAndDeletesItsFiles_NotWholeSeries()
   {
     var series = new JsonObject

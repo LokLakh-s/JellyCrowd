@@ -90,4 +90,12 @@ public sealed class DownloadDispatch
   /// </summary>
   [JsonIgnore]
   public IReadOnlyList<RequestScope> KeepScopes { get; set; } = Array.Empty<RequestScope>();
+
+  /// <summary>
+  /// Gets or sets a value indicating whether a purge leaves the files to Jellyfin, which deletes them right
+  /// after: the backend then only drops the title. Both deleting the same folder at once made Radarr fail
+  /// half-way through its own deletion. Internal to Jelly Crowd, like <see cref="KeepScopes"/>.
+  /// </summary>
+  [JsonIgnore]
+  public bool KeepFiles { get; set; }
 }

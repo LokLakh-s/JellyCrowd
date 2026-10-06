@@ -55,6 +55,37 @@ public sealed class DeletionTaskTests : IDisposable
   }
 
   [Fact]
+  public async Task Execute_ItemInTheLibrary_LeavesItsFilesToJellyfin()
+  {
+    // Radarr deleting the folder while Jellyfin deleted it too made Radarr's own deletion fail half-way.
+    await SeedFlaggedAsync("item-abc");
+    var deleter = new RecordingDeleter();
+    var dispatcher = new RecordingDispatcher();
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Equal(new[] { true }, dispatcher.LibraryDeletes);
+    Assert.Contains("item-abc", deleter.Deleted);
+  }
+
+  [Fact]
+  public async Task Execute_ItemGoneFromTheLibrary_LetsTheBackendDeleteTheFiles()
+  {
+    // Nothing in Jellyfin would delete them: the backend must, or they stay on disk.
+    await SeedFlaggedAsync("item-abc");
+    var deleter = new RecordingDeleter();
+    deleter.Missing.Add("item-abc");
+    var dispatcher = new RecordingDispatcher();
+    var task = new DeletionTask(_store, deleter, dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { DeletionRetentionHours = 0 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Equal(new[] { false }, dispatcher.LibraryDeletes);
+    Assert.Empty(deleter.Deleted);
+  }
+
+  [Fact]
   public async Task Execute_StaleStoredItemId_DeletesTheLiveItem()
   {
     // A library rescan / metadata refresh regenerates item ids, so the id recorded when the media landed
@@ -389,6 +420,11 @@ public sealed class DeletionTaskTests : IDisposable
   {
     public List<string> Deleted { get; } = new();
 
+    /// <summary>Gets the ids the library no longer has.</summary>
+    public HashSet<string> Missing { get; } = new();
+
+    public bool Exists(string jellyfinItemId) => !Missing.Contains(jellyfinItemId);
+
     public bool Delete(string jellyfinItemId)
     {
       Deleted.Add(jellyfinItemId);
@@ -421,6 +457,9 @@ public sealed class DeletionTaskTests : IDisposable
 
     public List<Guid> Purged { get; } = new();
 
+    /// <summary>Gets, per purge, whether Jellyfin was to delete the files itself.</summary>
+    public List<bool> LibraryDeletes { get; } = new();
+
     public Task<bool> DispatchAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(false);
 
     public Task DispatchDueAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -429,9 +468,10 @@ public sealed class DeletionTaskTests : IDisposable
 
     public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
+    public Task<bool> PurgeAsync(RequestRecord request, bool libraryDeletesFiles, CancellationToken cancellationToken)
     {
       Purged.Add(request.Id);
+      LibraryDeletes.Add(libraryDeletesFiles);
       return Task.FromResult(_purgeSucceeds);
     }
 

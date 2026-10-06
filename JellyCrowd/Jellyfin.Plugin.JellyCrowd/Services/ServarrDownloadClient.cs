@@ -433,7 +433,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
     if (string.Equals(dispatch.MediaType, "movie", StringComparison.Ordinal))
     {
       return RadarrConfigured(config) && dispatch.KeepScopes.Count == 0
-        ? RemoveMovieAsync(config, dispatch.TmdbId, cancellationToken)
+        ? RemoveMovieAsync(config, dispatch.TmdbId, deleteFiles: true, cancellationToken)
         : Task.CompletedTask;
     }
 
@@ -456,7 +456,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
       {
         if (RadarrConfigured(config))
         {
-          await RemoveMovieAsync(config, dispatch.TmdbId, cancellationToken).ConfigureAwait(false);
+          await RemoveMovieAsync(config, dispatch.TmdbId, deleteFiles: !dispatch.KeepFiles, cancellationToken).ConfigureAwait(false);
         }
 
         return true; // removed, or Radarr not configured (nothing this backend put there).
@@ -516,8 +516,8 @@ public sealed class ServarrDownloadClient : IDownloadClient
         return true;
       }
 
-      // Whole-show request: remove the entire series (with its files).
-      await _servarr.DeleteSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, deleteFiles: true, cancellationToken).ConfigureAwait(false);
+      // Whole-show request: remove the entire series (with its files, unless Jellyfin deletes them).
+      await _servarr.DeleteSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, deleteFiles: !dispatch.KeepFiles, cancellationToken).ConfigureAwait(false);
       return true;
     }
 #pragma warning disable CA1031 // A purge failure (e.g. backend down) is reported so the caller can retry.
@@ -603,7 +603,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
     }
   }
 
-  private async Task RemoveMovieAsync(PluginConfiguration config, int tmdbId, CancellationToken cancellationToken)
+  private async Task RemoveMovieAsync(PluginConfiguration config, int tmdbId, bool deleteFiles, CancellationToken cancellationToken)
   {
     // First remove any active download from the download client — deleting the Radarr movie alone
     // leaves the grab running (e.g. the torrent/RDT job keeps going). Best-effort; never blocks the delete.
@@ -625,7 +625,7 @@ public sealed class ServarrDownloadClient : IDownloadClient
     var movie = await _servarr.GetMovieByTmdbAsync(config.RadarrUrl, config.RadarrApiKey, tmdbId, cancellationToken).ConfigureAwait(false);
     if (movie?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var movieId) && movieId > 0)
     {
-      await _servarr.DeleteMovieAsync(config.RadarrUrl, config.RadarrApiKey, movieId, deleteFiles: true, cancellationToken).ConfigureAwait(false);
+      await _servarr.DeleteMovieAsync(config.RadarrUrl, config.RadarrApiKey, movieId, deleteFiles, cancellationToken).ConfigureAwait(false);
     }
   }
 

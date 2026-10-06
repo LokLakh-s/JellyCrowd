@@ -49,10 +49,12 @@ public interface IDownloadDispatcher
   /// starts clean. Never throws.
   /// </summary>
   /// <param name="request">The request whose media is being purged.</param>
+  /// <param name="libraryDeletesFiles">Whether Jellyfin deletes the files itself right after: the backend then
+  /// only drops the title, instead of deleting the same folder at the same moment.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
   /// <returns><c>true</c> when the backend confirms the title is gone (or there's nothing/no backend to
   /// purge); <c>false</c> when the purge failed so the deletion can be retried later.</returns>
-  Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken);
+  Task<bool> PurgeAsync(RequestRecord request, bool libraryDeletesFiles, CancellationToken cancellationToken);
 
   /// <summary>
   /// Re-triggers a release search for an approved-but-blocked request (one that dispatched but never

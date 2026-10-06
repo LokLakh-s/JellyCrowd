@@ -24,9 +24,13 @@ public sealed class MediaDeleter : IMediaDeleter
   }
 
   /// <inheritdoc />
+  public bool Exists(string jellyfinItemId)
+    => TryParseId(jellyfinItemId, out var id) && _libraryManager.GetItemById(id) is not null;
+
+  /// <inheritdoc />
   public bool Delete(string jellyfinItemId)
   {
-    if (!Guid.TryParseExact(jellyfinItemId, "N", out var id) && !Guid.TryParse(jellyfinItemId, out id))
+    if (!TryParseId(jellyfinItemId, out var id))
     {
       return false;
     }
@@ -42,4 +46,7 @@ public sealed class MediaDeleter : IMediaDeleter
     _logger.LogInformation("Jelly Crowd deleted library item {Id} ({Name}).", id, item.Name);
     return true;
   }
+
+  private static bool TryParseId(string jellyfinItemId, out Guid id)
+    => Guid.TryParseExact(jellyfinItemId, "N", out id) || Guid.TryParse(jellyfinItemId, out id);
 }

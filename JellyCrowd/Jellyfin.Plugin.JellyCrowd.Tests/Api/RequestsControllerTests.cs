@@ -1320,7 +1320,7 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
       return Task.CompletedTask;
     }
 
-    public Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task<bool> PurgeAsync(RequestRecord request, bool libraryDeletesFiles, CancellationToken cancellationToken) => Task.FromResult(true);
 
     public Task RetryStuckAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

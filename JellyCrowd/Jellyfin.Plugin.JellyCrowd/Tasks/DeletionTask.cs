@@ -94,10 +94,16 @@ public sealed class DeletionTask : IScheduledTask
       var sharedWithOthers = await _store.AnyActiveReferenceAsync(request.Id, request.TmdbId, request.MediaType, request.Season, request.Episode, cancellationToken).ConfigureAwait(false);
       if (!sharedWithOthers)
       {
+        // Delete the right Jellyfin item: a season request removes the whole Season folder, an episode
+        // request just that episode, a movie/whole-series request the stored item.
+        var itemId = ResolveDeletionItemId(request);
+        var libraryDeletes = !string.IsNullOrEmpty(itemId) && _mediaDeleter.Exists(itemId);
+
         // Purge from the download backend (Radarr movie / whole Sonarr series + active downloads) so a
         // future re-request starts clean. If the backend can't be reached, the purge reports failure:
         // keep the request flagged and retry next run (N18 integrity), unless we've waited past the grace.
-        var purged = await _downloadDispatcher.PurgeAsync(request, cancellationToken).ConfigureAwait(false);
+        // When Jellyfin deletes the files below, the backend leaves them: one deleter per folder.
+        var purged = await _downloadDispatcher.PurgeAsync(request, libraryDeletes, cancellationToken).ConfigureAwait(false);
         if (!purged && !PurgeGraceElapsed(request, retentionHours))
         {
           _logger.LogWarning(
@@ -106,19 +112,17 @@ public sealed class DeletionTask : IScheduledTask
           continue;
         }
 
-        // Delete the right Jellyfin item: a season request removes the whole Season folder, an episode
-        // request just that episode, a movie/whole-series request the stored item.
-        var itemId = ResolveDeletionItemId(request);
-        if (!string.IsNullOrEmpty(itemId))
+        if (libraryDeletes)
         {
-          _mediaDeleter.Delete(itemId);
+          _mediaDeleter.Delete(itemId!);
         }
         else
         {
           // Resolution failed (e.g. the title isn't matched in the library): the request is still cleared
-          // below, but the files stay on disk — surface it so a stale item doesn't linger silently.
+          // below, the backend was asked to delete the files, but nothing deleted them in Jellyfin — surface
+          // it so a stale item doesn't linger silently.
           _logger.LogWarning(
-            "Jelly Crowd deletion: could not resolve the library item for {Title}; its files may remain — verify it still exists in the library.",
+            "Jelly Crowd deletion: could not resolve the library item for {Title}; only the download backend deleted its files — verify nothing of it remains in the library.",
             request.Title);
         }
       }
@@ -189,7 +193,7 @@ public sealed class DeletionTask : IScheduledTask
       return true;
     }
 
-    var purged = await _downloadDispatcher.PurgeAsync(request, cancellationToken).ConfigureAwait(false);
+    var purged = await _downloadDispatcher.PurgeAsync(request, libraryDeletesFiles: false, cancellationToken).ConfigureAwait(false);
     if (!purged && !PurgeGraceElapsed(request, retentionHours))
     {
       _logger.LogWarning("Jelly Crowd deletion: backend purge failed for {Title}; leaving it flagged to retry.", request.Title);

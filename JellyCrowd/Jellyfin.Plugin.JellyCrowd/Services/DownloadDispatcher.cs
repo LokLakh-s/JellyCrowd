@@ -180,7 +180,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
   }
 
   /// <inheritdoc />
-  public async Task<bool> PurgeAsync(RequestRecord request, CancellationToken cancellationToken)
+  public async Task<bool> PurgeAsync(RequestRecord request, bool libraryDeletesFiles, CancellationToken cancellationToken)
   {
     ArgumentNullException.ThrowIfNull(request);
     var client = ActiveClient(_config());
@@ -195,6 +195,7 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       var name = _resolveUserName(request.UserId);
       var payload = DownloadPayloadBuilder.Build(request, name);
       payload.KeepScopes = RequestScope.StillWantedByOthers(await _store.GetAllAsync(cancellationToken).ConfigureAwait(false), request);
+      payload.KeepFiles = libraryDeletesFiles;
       var ok = await client.PurgeAsync(payload, cancellationToken).ConfigureAwait(false);
       if (ok)
       {
