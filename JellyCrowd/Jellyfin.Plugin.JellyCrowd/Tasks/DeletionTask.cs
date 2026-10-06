@@ -286,9 +286,10 @@ public sealed class DeletionTask : IScheduledTask
     }
 
     _logger.LogInformation("Jelly Crowd expiry: lapsed {Count} ownership(s).", lapsed.Count);
-    var expiredStrings = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var language = Plugin.Instance?.Configuration?.Language;
     foreach (var record in lapsed)
     {
+      var expiredStrings = ServerStrings.ForMember(language, record.UserId);
       var body = expiredStrings("notif_expired_body")
         .Replace("{title}", record.Title, StringComparison.Ordinal)
         .Replace("{days}", expiryDays.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);

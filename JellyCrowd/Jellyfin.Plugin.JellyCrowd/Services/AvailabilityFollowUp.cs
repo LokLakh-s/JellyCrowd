@@ -250,7 +250,7 @@ public sealed class AvailabilityFollowUp : IAvailabilityFollowUp
 
   private void Announce(PluginConfiguration config, RequestRecord request, LanguageNotice notice, string dub)
   {
-    var strings = ServerStrings.For(config.Language);
+    var strings = ServerStrings.ForMember(config.Language, request.UserId);
     var language = LanguageName(strings, dub);
     // A dedicated label when the catalog has one ("VF" for a French dub in French), else "<language> dub".
     var dubKey = "lang_dub_" + dub;

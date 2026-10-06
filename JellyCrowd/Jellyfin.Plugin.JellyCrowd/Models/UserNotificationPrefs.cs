@@ -74,4 +74,10 @@ public class UserNotificationPrefs
   /// </summary>
   [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Deserialized from the preferences store.")]
   public System.Collections.ObjectModel.Collection<string> SubtitleLanguages { get; set; } = new();
+
+  /// <summary>
+  /// Gets or sets the language the member's Jelly Crowd pages are shown in (two-letter code), as their
+  /// browser last reported it. Under the "auto" language setting, their notifications are worded in it.
+  /// </summary>
+  public string? DisplayLanguage { get; set; }
 }

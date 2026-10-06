@@ -111,4 +111,16 @@ public class NotificationMessagesTests
 
     Assert.Contains("(episodes " + expectedRange + ").", body, StringComparison.Ordinal);
   }
+
+  [Fact]
+  public void Build_Failure_SuggestsARetryOnlyToWhoCanRetry()
+  {
+    // Members cannot retry unless the administrator allows it: telling them they could was misleading.
+    var (_, member) = NotificationMessages.Build(Movie(), NotificationEvent.Failed, Fr, canRetry: false);
+    var (_, staff) = NotificationMessages.Build(Movie(), NotificationEvent.Failed, Fr, canRetry: true);
+
+    Assert.DoesNotContain("relancer", member, StringComparison.Ordinal);
+    Assert.Contains("retentée automatiquement", member, StringComparison.Ordinal);
+    Assert.Contains("relancer", staff, StringComparison.Ordinal);
+  }
 }

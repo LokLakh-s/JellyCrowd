@@ -375,7 +375,7 @@ public class PollsController : ControllerBase
   // Drops the poll in the bell of everyone it is addressed to, except its author (who just wrote it).
   private async Task NotifyAudienceAsync(Poll poll, Guid authorId, CancellationToken cancellationToken)
   {
-    var t = ServerStrings.For(_config().Language);
+    var language = _config().Language;
     foreach (var (userId, _) in Audience(poll))
     {
       if (userId == authorId)
@@ -383,6 +383,7 @@ public class PollsController : ControllerBase
         continue;
       }
 
+      var t = ServerStrings.ForMember(language, userId);
       await _notifications.AddAsync(
         new UserNotification
         {

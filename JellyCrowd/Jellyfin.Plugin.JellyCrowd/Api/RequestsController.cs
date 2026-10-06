@@ -820,7 +820,7 @@ public class RequestsController : ControllerBase
       },
       cancellationToken).ConfigureAwait(false);
 
-    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var t = ServerStrings.ForMember(Plugin.Instance?.Configuration?.Language, dto.UserId);
     var title = NotificationMessages.TitleOf(created, t);
     _ = _notificationService.NotifyPersonalAsync(
       dto.UserId,

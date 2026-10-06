@@ -176,7 +176,7 @@ public sealed class PlaybackActivityEntryPoint : IHostedService, IDisposable
 
   private Task NotifyAsync(Guid userId, AdaptiveEvent change)
   {
-    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var t = ServerStrings.ForMember(Plugin.Instance?.Configuration?.Language, userId);
     var key = change switch
     {
       AdaptiveEvent.Promoted => "notif_adaptive_promoted",

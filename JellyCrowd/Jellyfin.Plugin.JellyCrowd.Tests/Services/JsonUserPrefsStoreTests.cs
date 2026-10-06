@@ -49,4 +49,18 @@ public sealed class JsonUserPrefsStoreTests : IDisposable
     Assert.Equal("b@example", prefs.Email);
     Assert.Null(prefs.NtfyTopic);
   }
+
+  [Fact]
+  public async Task DisplayLanguage_IsRememberedOnSave_AndAfterARestart()
+  {
+    var user = Guid.NewGuid();
+    await _store.SetAsync(new UserNotificationPrefs { UserId = user, DisplayLanguage = "fr" }, CancellationToken.None);
+    Assert.Equal("fr", MemberLanguages.Get(user));
+
+    MemberLanguages.Remember(user, null);
+    using var reopened = new JsonUserPrefsStore(_path);
+    await reopened.GetAsync(Guid.Empty, CancellationToken.None);
+
+    Assert.Equal("fr", MemberLanguages.Get(user));
+  }
 }

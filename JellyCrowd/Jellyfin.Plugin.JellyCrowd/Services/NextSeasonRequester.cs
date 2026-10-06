@@ -167,7 +167,7 @@ public sealed class NextSeasonRequester : INextSeasonRequester
   // and records it in the activity log.
   private void Announce(Guid userId, string seriesName, string? poster, int season, int next)
   {
-    var strings = ServerStrings.For(_config()?.Language);
+    var strings = ServerStrings.ForMember(_config()?.Language, userId);
     var body = strings("notif_auto_season_body")
       .Replace("{title}", seriesName, StringComparison.Ordinal)
       .Replace("{season}", next.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)

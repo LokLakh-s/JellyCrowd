@@ -54,8 +54,59 @@ public static class ServerStrings
   }
 
   /// <summary>
-  /// Resolves a configured language to a catalog name. There is no user context when a notification is
-  /// built, so <c>auto</c> — which means "follow each user" on the pages — can only mean English here.
+  /// Builds the lookup for a message to one member: the configured language when the administrator forced
+  /// one, otherwise the language their pages are shown in (see <see cref="MemberLanguages"/>), else the
+  /// server's.
+  /// </summary>
+  /// <param name="configured">The configured language (<c>auto</c> or a code).</param>
+  /// <param name="userId">The recipient.</param>
+  /// <returns>A key-to-text function.</returns>
+  public static Func<string, string> ForMember(string? configured, Guid userId)
+    => For(Resolve(configured, MemberLanguages.Get(userId), MemberLanguages.ServerLanguage));
+
+  /// <summary>
+  /// Builds the lookup for what the administrators read (Discord, the ops mailbox, report alerts): the
+  /// configured language when forced, otherwise the server's.
+  /// </summary>
+  /// <param name="configured">The configured language (<c>auto</c> or a code).</param>
+  /// <returns>A key-to-text function.</returns>
+  public static Func<string, string> ForStaff(string? configured)
+    => For(Resolve(configured, null, MemberLanguages.ServerLanguage));
+
+  /// <summary>
+  /// Picks the language of a message: a forced configuration wins; under <c>auto</c>, the member's language
+  /// when there is a catalog for it, then the server's, then English.
+  /// </summary>
+  /// <param name="configured">The configured language (<c>auto</c>, blank, or a code).</param>
+  /// <param name="memberLanguage">The recipient's language, if known.</param>
+  /// <param name="serverLanguage">The Jellyfin server's display language, if known.</param>
+  /// <returns>A two-letter catalog name.</returns>
+  public static string Resolve(string? configured, string? memberLanguage, string? serverLanguage)
+  {
+    if (!string.IsNullOrWhiteSpace(configured) && !string.Equals(configured.Trim(), "auto", StringComparison.OrdinalIgnoreCase))
+    {
+      return Normalize(configured);
+    }
+
+    if (HasCatalog(memberLanguage))
+    {
+      return Normalize(memberLanguage);
+    }
+
+    return HasCatalog(serverLanguage) ? Normalize(serverLanguage) : FallbackLanguage;
+  }
+
+  /// <summary>
+  /// Determines whether a language has a translation catalog.
+  /// </summary>
+  /// <param name="language">A code or locale (e.g. <c>fr</c>, <c>fr-FR</c>).</param>
+  /// <returns><c>true</c> when the plugin ships a catalog for it.</returns>
+  public static bool HasCatalog(string? language)
+    => !string.IsNullOrWhiteSpace(language) && Load(Normalize(language)).Count > 0;
+
+  /// <summary>
+  /// Resolves a configured language to a catalog name; anything that is not a language code (<c>auto</c>,
+  /// blank) gives English. Use <see cref="ForMember"/> or <see cref="ForStaff"/> to honour <c>auto</c>.
   /// </summary>
   /// <param name="language">The configured language.</param>
   /// <returns>A two-letter catalog name.</returns>

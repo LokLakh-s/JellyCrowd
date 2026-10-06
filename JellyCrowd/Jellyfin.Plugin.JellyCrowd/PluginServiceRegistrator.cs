@@ -186,6 +186,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddHostedService<NextSeasonEntryPoint>();
     serviceCollection.AddHostedService<HiddenResumeEntryPoint>();
     serviceCollection.AddHostedService<ConfigChangeLogger>();
+    serviceCollection.AddHostedService<MemberLanguageEntryPoint>();
   }
 
   // Skip Outro's IMediaSegmentProvider lives in an ISOLATED companion assembly, shipped TWICE: one half

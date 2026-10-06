@@ -53,6 +53,7 @@ public sealed class JsonUserPrefsStore : IUserPrefsStore, IDisposable
       items.RemoveAll(p => p.UserId == prefs.UserId);
       items.Add(prefs);
       await SaveAsync(cancellationToken).ConfigureAwait(false);
+      MemberLanguages.Remember(prefs.UserId, prefs.DisplayLanguage);
       return prefs;
     }
     finally
@@ -76,6 +77,11 @@ public sealed class JsonUserPrefsStore : IUserPrefsStore, IDisposable
     }
 
     _cache = await VersionedJsonFile.ReadAsync<UserNotificationPrefs>(_filePath, SchemaVersion, migrate: null, SerializerOptions, cancellationToken).ConfigureAwait(false);
+    foreach (var prefs in _cache)
+    {
+      MemberLanguages.Remember(prefs.UserId, prefs.DisplayLanguage);
+    }
+
     return _cache;
   }
 

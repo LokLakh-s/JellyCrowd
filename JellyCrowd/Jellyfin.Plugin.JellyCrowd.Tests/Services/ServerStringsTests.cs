@@ -113,4 +113,61 @@ public class ServerStringsTests
       }
     }
   }
+
+  [Fact]
+  public void Resolve_AForcedLanguage_Wins()
+  {
+    Assert.Equal("fr", ServerStrings.Resolve("fr", "en", "en-US"));
+  }
+
+  [Theory]
+  [InlineData("auto")]
+  [InlineData(null)]
+  [InlineData("")]
+  public void Resolve_Auto_FollowsTheMember(string? configured)
+  {
+    // Until now "auto" meant English in every notification, whatever the members read.
+    Assert.Equal("fr", ServerStrings.Resolve(configured, "fr", "en-US"));
+  }
+
+  [Fact]
+  public void Resolve_Auto_UnknownMember_FollowsTheServer()
+  {
+    Assert.Equal("fr", ServerStrings.Resolve("auto", null, "fr-FR"));
+  }
+
+  [Fact]
+  public void Resolve_Auto_LanguagesWithoutACatalog_FallBackToEnglish()
+  {
+    Assert.Equal("en", ServerStrings.Resolve("auto", "de", "it-IT"));
+  }
+
+  [Fact]
+  public void HasCatalog_OnlyForShippedLanguages()
+  {
+    Assert.True(ServerStrings.HasCatalog("fr-FR"));
+    Assert.True(ServerStrings.HasCatalog("en"));
+    Assert.False(ServerStrings.HasCatalog("de"));
+    Assert.False(ServerStrings.HasCatalog(null));
+  }
+
+  [Fact]
+  public void ForMember_UsesTheLanguageTheMemberReported()
+  {
+    var member = Guid.NewGuid();
+    MemberLanguages.Remember(member, "fr");
+
+    Assert.Equal("Disponible", ServerStrings.ForMember("auto", member)("notif_status_available"));
+    Assert.Equal("Available", ServerStrings.ForMember("en", member)("notif_status_available"));
+  }
+
+  [Fact]
+  public void MemberLanguages_ABlankLanguage_IsForgotten()
+  {
+    var member = Guid.NewGuid();
+    MemberLanguages.Remember(member, "fr");
+    MemberLanguages.Remember(member, null);
+
+    Assert.Null(MemberLanguages.Get(member));
+  }
 }

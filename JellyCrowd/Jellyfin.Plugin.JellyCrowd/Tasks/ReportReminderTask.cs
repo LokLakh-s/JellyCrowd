@@ -70,7 +70,7 @@ public sealed class ReportReminderTask : IScheduledTask
       return;
     }
 
-    var t = ServerStrings.For(config.Language);
+    var t = ServerStrings.ForStaff(config.Language);
     await _notificationService.NotifyAdminsAsync(t("notif_report_reminder_subject"), ReportDigest.ReminderBody(reminder, t), cancellationToken).ConfigureAwait(false);
 
     // Stamp only after the fan-out: a delivery that throws (it should not — the service swallows) must

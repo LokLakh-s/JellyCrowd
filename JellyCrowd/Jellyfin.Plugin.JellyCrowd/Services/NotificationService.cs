@@ -89,8 +89,10 @@ public sealed class NotificationService : INotificationService
       return;
     }
 
-    var (subject, body) = NotificationMessages.Build(request, notificationEvent, ServerStrings.For(config.Language));
-    await FanOutAsync(config, request, notificationEvent, subject, body, cancellationToken).ConfigureAwait(false);
+    // The requester reads it in their language; the administrators' channels in the server's.
+    var member = NotificationMessages.Build(request, notificationEvent, ServerStrings.ForMember(config.Language, request.UserId), config.AllowUserRetrySearch);
+    var staff = NotificationMessages.Build(request, notificationEvent, ServerStrings.ForStaff(config.Language), canRetry: true);
+    await FanOutAsync(config, request, notificationEvent, member, staff, cancellationToken).ConfigureAwait(false);
   }
 
   /// <inheritdoc />
@@ -117,22 +119,24 @@ public sealed class NotificationService : INotificationService
       return;
     }
 
-    var (subject, body) = NotificationMessages.BuildAvailableBatch(requests[0], episodes, ServerStrings.For(config.Language));
-    await FanOutAsync(config, requests[0], NotificationEvent.Available, subject, body, cancellationToken).ConfigureAwait(false);
+    var member = NotificationMessages.BuildAvailableBatch(requests[0], episodes, ServerStrings.ForMember(config.Language, requests[0].UserId));
+    var staff = NotificationMessages.BuildAvailableBatch(requests[0], episodes, ServerStrings.ForStaff(config.Language));
+    await FanOutAsync(config, requests[0], NotificationEvent.Available, member, staff, cancellationToken).ConfigureAwait(false);
   }
 
-  // Fans a fully-built (subject, body) out to every configured channel: activity log, the requester's
-  // in-app bell + personal channels, the Discord embed, the ops mailbox and the text notifiers.
-  private async Task FanOutAsync(PluginConfiguration config, RequestRecord request, NotificationEvent notificationEvent, string subject, string body, CancellationToken cancellationToken)
+  // Fans fully-built messages out to every configured channel: the requester's in-app bell + personal
+  // channels get the version in their language; the activity log, the Discord embed, the ops mailbox and
+  // the text notifiers, read by the administrators, get the staff version.
+  private async Task FanOutAsync(PluginConfiguration config, RequestRecord request, NotificationEvent notificationEvent, (string Subject, string Body) member, (string Subject, string Body) staff, CancellationToken cancellationToken)
   {
-    // One lookup for the whole fan-out: every channel says the same thing in the same language.
-    var t = ServerStrings.For(config.Language);
+    var t = ServerStrings.ForStaff(config.Language);
+    var (subject, body) = staff;
     var details = await TryGetDetailsAsync(request, cancellationToken).ConfigureAwait(false);
     var username = ResolveUserName(request.UserId);
 
     _ = _activityLog.LogAsync("info", "request", subject + " — " + username, username, CancellationToken.None);
 
-    await NotifyUserAsync(request, notificationEvent, subject, body, details, username, t, cancellationToken).ConfigureAwait(false);
+    await NotifyUserAsync(request, notificationEvent, member.Subject, member.Body, details, username, ServerStrings.ForMember(config.Language, request.UserId), cancellationToken).ConfigureAwait(false);
 
     if (DiscordEnabledFor(config, notificationEvent))
     {
@@ -195,7 +199,7 @@ public sealed class NotificationService : INotificationService
       return;
     }
 
-    var t = ServerStrings.For(config.Language);
+    var t = ServerStrings.ForStaff(config.Language);
 
     // The bell first: it is the only channel that works with nothing configured, so an administrator who
     // set up no webhook still learns a report came in.
@@ -282,7 +286,7 @@ public sealed class NotificationService : INotificationService
   public async Task SendTestAsync(string channel, CancellationToken cancellationToken)
   {
     var config = Plugin.Instance?.Configuration ?? throw new InvalidOperationException("Plugin is not initialized.");
-    var t = ServerStrings.For(config.Language);
+    var t = ServerStrings.ForStaff(config.Language);
     var subject = t("notif_test_subject");
     var body = t("notif_test_body");
 
@@ -329,7 +333,7 @@ public sealed class NotificationService : INotificationService
       throw new InvalidOperationException("Personal notifications are turned off.");
     }
 
-    var t = ServerStrings.For(config.Language);
+    var t = ServerStrings.ForMember(config.Language, userId);
     var subject = t("notif_test_subject");
     var body = t("notif_test_personal");
 
@@ -437,7 +441,7 @@ public sealed class NotificationService : INotificationService
     }
 
     var config = Plugin.Instance?.Configuration;
-    var notice = EmailTemplate.BuildNotice(subject, body, title, posterPath, ServerStrings.For(config?.Language));
+    var notice = EmailTemplate.BuildNotice(subject, body, title, posterPath, ServerStrings.ForMember(config?.Language, userId));
     await DeliverPersonalAsync(userId, kind, subject, body, notice, cancellationToken).ConfigureAwait(false);
   }
 

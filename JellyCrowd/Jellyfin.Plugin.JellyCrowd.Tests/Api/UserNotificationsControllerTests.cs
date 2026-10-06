@@ -159,6 +159,38 @@ public sealed class UserNotificationsControllerTests : IDisposable
   }
 
   [Fact]
+  public async Task SetLanguage_RecordsTheMembersLanguage()
+  {
+    var result = await CreateController().SetLanguage(new DisplayLanguageDto { Language = "fr-FR" }, CancellationToken.None);
+
+    Assert.IsType<NoContentResult>(result);
+    Assert.Equal("fr", (await _prefs.GetAsync(User, CancellationToken.None)).DisplayLanguage);
+    Assert.Equal("fr", MemberLanguages.Get(User));
+  }
+
+  [Theory]
+  [InlineData(null)]
+  [InlineData("")]
+  [InlineData("de")]
+  public async Task SetLanguage_WithoutATranslation_IsRefused(string? language)
+  {
+    var result = await CreateController().SetLanguage(new DisplayLanguageDto { Language = language }, CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result);
+    Assert.Null((await _prefs.GetAsync(User, CancellationToken.None)).DisplayLanguage);
+  }
+
+  [Fact]
+  public async Task SetPrefs_KeepsTheReportedLanguage()
+  {
+    await _prefs.SetAsync(new UserNotificationPrefs { UserId = User, DisplayLanguage = "fr" }, CancellationToken.None);
+
+    await CreateController().SetPrefs(new UserNotificationPrefs { Email = "u@example.com" }, CancellationToken.None);
+
+    Assert.Equal("fr", (await _prefs.GetAsync(User, CancellationToken.None)).DisplayLanguage);
+  }
+
+  [Fact]
   public async Task SetPrefs_BlankEmail_TurnsEmailOff()
   {
     var result = await CreateController().SetPrefs(

@@ -103,8 +103,28 @@
     if (cfgLang !== 'auto' && SUPPORTED.indexOf(cfgLang) >= 0) {
       return cfgLang;
     }
+    return browserLang();
+  }
+
+  // The language this member's pages follow under "auto": their browser's, when there is a catalog for it.
+  function browserLang() {
     var code = (navigator.language || 'en').slice(0, 2).toLowerCase();
     return SUPPORTED.indexOf(code) >= 0 ? code : 'en';
+  }
+
+  // Tells the server which language this member reads, once per browser session, so their notifications
+  // are worded in it rather than in the server's.
+  function reportLanguage() {
+    var key = 'jcReportedLanguage';
+    var code = browserLang();
+    try {
+      if (window.sessionStorage.getItem(key) === code) { return; }
+    } catch (e) { /* storage blocked: report anyway */ }
+    var done = function () {
+      try { window.sessionStorage.setItem(key, code); } catch (e) { /* storage blocked */ }
+    };
+    // A 204 has no JSON to parse, so the client may reject a success too: either way it is settled.
+    apiAjax('POST', 'JellyCrowd/Notifications/Mine/Language', { Language: code }).then(done, done);
   }
 
   function t(key) {
@@ -174,6 +194,7 @@
         tryInsert();           // ensure elements are present now that visibility/admin is known
         refreshAnnouncement(); // re-render the banner to show the admin edit affordance (once, no loop)
         refreshPolls();        // and fetch the polls, which are per-user like the announcement
+        reportLanguage();      // the user is known now: their notifications can follow their language
       })
       .catch(function () {
         if (attempt < 5) {

@@ -21,6 +21,18 @@ public static class NotificationMessages
   /// <param name="t">The translation lookup (see <see cref="ServerStrings.For"/>).</param>
   /// <returns>A subject/body pair.</returns>
   public static (string Subject, string Body) Build(RequestRecord request, NotificationEvent notificationEvent, Func<string, string> t)
+    => Build(request, notificationEvent, t, canRetry: true);
+
+  /// <summary>
+  /// Builds the notification subject and body for a request event, for a reader who may or may not be able
+  /// to retry a failed search themselves (members only can when the administrator allows it).
+  /// </summary>
+  /// <param name="request">The request the notification is about.</param>
+  /// <param name="notificationEvent">The lifecycle event.</param>
+  /// <param name="t">The translation lookup (see <see cref="ServerStrings.For"/>).</param>
+  /// <param name="canRetry">Whether the reader can retry the search, which a failure notice then suggests.</param>
+  /// <returns>A subject/body pair.</returns>
+  public static (string Subject, string Body) Build(RequestRecord request, NotificationEvent notificationEvent, Func<string, string> t, bool canRetry)
   {
     ArgumentNullException.ThrowIfNull(request);
     ArgumentNullException.ThrowIfNull(t);
@@ -43,7 +55,8 @@ public static class NotificationMessages
       return (Fill(t("notif_generic_subject"), title, kind), title);
     }
 
-    return (Fill(t(prefix + "_subject"), title, kind), Fill(t(prefix + "_body"), title, kind));
+    var bodyKey = notificationEvent == NotificationEvent.Failed && !canRetry ? "notif_failed_body_noretry" : prefix + "_body";
+    return (Fill(t(prefix + "_subject"), title, kind), Fill(t(bodyKey), title, kind));
   }
 
   /// <summary>

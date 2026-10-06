@@ -512,7 +512,7 @@ public sealed class RequestCreationService : IRequestCreationService
   // understand why it is not progressing.
   private void NotifyHeldForQuota(RequestRecord created)
   {
-    var heldStrings = ServerStrings.For(_config()?.Language);
+    var heldStrings = ServerStrings.ForMember(_config()?.Language, created.UserId);
     _ = _notificationService.NotifyPersonalAsync(
       created.UserId,
       PersonalNotifyKind.QuotaExpiry,

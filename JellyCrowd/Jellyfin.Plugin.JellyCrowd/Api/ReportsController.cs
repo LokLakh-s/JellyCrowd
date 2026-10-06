@@ -120,7 +120,7 @@ public class ReportsController : ControllerBase
 
     // Tell the administrators now: until this existed, a report only reached them if they happened to
     // open the moderation screen (and the user guide promised otherwise).
-    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var t = ServerStrings.ForStaff(Plugin.Instance?.Configuration?.Language);
     _ = _notifications.NotifyAdminsAsync(
       t("notif_report_new_subject"),
       ReportDigest.NewReportBody(created, t),
@@ -167,7 +167,7 @@ public class ReportsController : ControllerBase
     await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", updated.UserName, cancellationToken).ConfigureAwait(false);
 
     // Tell the reporter their ticket was handled (in-app bell always; personal channels are un-gated here).
-    var t = ServerStrings.For(Plugin.Instance?.Configuration?.Language);
+    var t = ServerStrings.ForMember(Plugin.Instance?.Configuration?.Language, updated.UserId);
     var body = (string.IsNullOrWhiteSpace(updated.AdminResponse)
         ? t("notif_report_resolved_body")
         : t("notif_report_resolved_body_note").Replace("{note}", updated.AdminResponse, StringComparison.Ordinal))

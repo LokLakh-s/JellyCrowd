@@ -119,8 +119,8 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
             held.UserId,
             PersonalNotifyKind.QuotaExpiry,
             held.Title,
-            Strings("notif_quota_held_subject"),
-            Strings("notif_quota_held_available_body").Replace("{title}", held.Title, StringComparison.Ordinal),
+            Strings(held.UserId, "notif_quota_held_subject"),
+            Strings(held.UserId, "notif_quota_held_available_body").Replace("{title}", held.Title, StringComparison.Ordinal),
             held.PosterPath,
             CancellationToken.None);
         }
@@ -383,15 +383,15 @@ public sealed class DownloadDispatcher : IDownloadDispatcher
       request.UserId,
       PersonalNotifyKind.Decision,
       request.Title,
-      Strings("notif_notfound_subject"),
-      Strings("notif_notfound_body").Replace("{title}", request.Title, StringComparison.Ordinal),
+      Strings(request.UserId, "notif_notfound_subject"),
+      Strings(request.UserId, "notif_notfound_body").Replace("{title}", request.Title, StringComparison.Ordinal),
       request.PosterPath,
       CancellationToken.None);
   }
 
-  // Notification wording follows the configured language, like every other channel. The catalog is
-  // parsed once and cached, so resolving per message costs nothing.
-  private static string Strings(string key) => ServerStrings.For(Plugin.Instance?.Configuration?.Language)(key);
+  // Notification wording follows the recipient's language (or the one the administrator forced). The
+  // catalog is parsed once and cached, so resolving per message costs nothing.
+  private static string Strings(Guid userId, string key) => ServerStrings.ForMember(Plugin.Instance?.Configuration?.Language, userId)(key);
 
   private async Task<bool> DispatchOneAsync(RequestRecord request, IDownloadClient client, DateTime nowUtc, CancellationToken cancellationToken)
   {

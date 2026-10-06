@@ -15,7 +15,7 @@ Jelly Crowd**, une page à onglets : **Demandes**, **Quotas utilisateurs**, **R�
 
 | Réglage | Rôle |
 |---|---|
-| **Langue** | `Auto` suit la langue de chaque utilisateur (navigateur/Jellyfin) ; `English`/`Français` force la langue des pages et notifications. |
+| **Langue** | `Auto` : chaque membre voit les pages et reçoit ses notifications dans la langue de son navigateur (retenue à sa visite suivante) ; ce que lisent les administrateurs (Discord, e-mail, alertes de signalement) suit la langue d'affichage du serveur Jellyfin. `English`/`Français` force la langue des pages et de toutes les notifications. |
 | **Clé API TMDB** | Clé v3 TMDB. Obligatoire pour le catalogue (sinon erreur « TMDB non configuré »). |
 | **Quota par défaut (Gio)** | Quota disque appliqué à tout utilisateur sans override. `0` = illimité. |
 | **Exiger l'approbation admin** | Si coché, les requêtes restent en attente jusqu'à validation. Sinon elles passent directement en `Approuvée`. |

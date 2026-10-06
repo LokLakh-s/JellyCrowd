@@ -145,11 +145,42 @@ public class UserNotificationsController : ControllerBase
         HistoryHidden = existing.HistoryHidden,
         AutoRequestNextSeason = existing.AutoRequestNextSeason,
         LanguagePreference = existing.LanguagePreference,
-        SubtitleLanguages = existing.SubtitleLanguages
+        SubtitleLanguages = existing.SubtitleLanguages,
+        DisplayLanguage = existing.DisplayLanguage
       },
       cancellationToken).ConfigureAwait(false);
     _ = _activityLog.LogAsync("info", "user", _resolveUserName(userId) + " updated their notification preferences", _resolveUserName(userId), CancellationToken.None);
     return Ok(saved);
+  }
+
+  /// <summary>
+  /// Records the language the caller's pages are shown in, so their notifications can be worded in it.
+  /// </summary>
+  /// <param name="dto">The language their browser reports.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <response code="204">The language is recorded.</response>
+  /// <response code="400">No language, or one the plugin has no translation for.</response>
+  /// <returns>No content.</returns>
+  [HttpPost("Mine/Language")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<ActionResult> SetLanguage([FromBody] DisplayLanguageDto dto, CancellationToken cancellationToken)
+  {
+    if (!ServerStrings.HasCatalog(dto?.Language))
+    {
+      return BadRequest("Unknown or unsupported language.");
+    }
+
+    var language = ServerStrings.Normalize(dto!.Language);
+    var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
+    var existing = await _prefs.GetAsync(userId, cancellationToken).ConfigureAwait(false);
+    if (!string.Equals(existing.DisplayLanguage, language, StringComparison.Ordinal))
+    {
+      existing.DisplayLanguage = language;
+      await _prefs.SetAsync(existing, cancellationToken).ConfigureAwait(false);
+    }
+
+    return NoContent();
   }
 
   /// <summary>
