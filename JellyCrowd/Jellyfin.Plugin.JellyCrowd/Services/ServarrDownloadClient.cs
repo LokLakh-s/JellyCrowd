@@ -236,6 +236,13 @@ public sealed class ServarrDownloadClient : IDownloadClient
         throw new InvalidOperationException($"Sonarr did not accept the series for TVDB {tvdbId.ToString(CultureInfo.InvariantCulture)}.");
       }
 
+      // Added by someone else meanwhile: it is not ours to change unless its seasons are the request's — checked
+      // before monitoring anything, as for a series already there.
+      if (!addedHere && await MisalignmentAsync(config, dispatch, added, addedSeriesId, cancellationToken).ConfigureAwait(false) is { } theirs)
+      {
+        throw new InvalidOperationException(theirs);
+      }
+
       // Fresh add: confirm the monitoring sticks against Sonarr's async post-add unmonitor before searching.
       await ConfirmMonitorThenSearchSeriesAsync(config, added, addedSeriesId, tvdbId, dispatch, addedHere, cancellationToken).ConfigureAwait(false);
     }

@@ -1014,6 +1014,33 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
+  public async Task DispatchAsync_SeriesAddedByAnotherMeanwhile_IsCheckedBeforeAnyMonitoring()
+  {
+    // The add answers "already added": someone else's series, whose monitoring must not be touched when its
+    // seasons are not the request's — nor removed.
+    var tmdb = LizzieBorden();
+    tmdb.Setup(t => t.GetDetailsAsync("tv", 299939, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new CatalogItem { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story" });
+    var servarr = new Mock<IServarrClient>();
+    servarr.Setup(s => s.LookupSeriesByTmdbAsync("http://localhost:8989", "sk", 299939, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.LookupSeriesAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterSeries());
+    servarr.SetupSequence(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 389492, It.IsAny<CancellationToken>()))
+      .ReturnsAsync((JsonObject?)null)
+      .ReturnsAsync(MonsterSeries());
+    servarr.Setup(s => s.AddSeriesAsync("http://localhost:8989", "sk", It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()))
+      .ThrowsAsync(new HttpRequestException("400 series already added"));
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 50, It.IsAny<CancellationToken>())).ReturnsAsync(MonsterEpisodes);
+    var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig, NoDelay);
+
+    await Assert.ThrowsAsync<InvalidOperationException>(() =>
+      client.DispatchAsync(new DownloadDispatch { TmdbId = 299939, MediaType = "tv", Title = "Monster: The Lizzie Borden Story", Season = 1 }, CancellationToken.None));
+
+    servarr.Verify(s => s.UpdateSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.SetEpisodesMonitoredAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<System.Collections.Generic.IReadOnlyList<int>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    servarr.Verify(s => s.DeleteSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
   public async Task PurgeAsync_SeriesWhoseSeasonsAreNotTheRequests_IsLeftAlone()
   {
     // Season 4 added to Monster by hand must survive the deletion of the request that could not be sent.
