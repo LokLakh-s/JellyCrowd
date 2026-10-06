@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -178,7 +179,7 @@ public sealed class RequestCreationService : IRequestCreationService
     // title that is downloadable now is gated against the quota here.
     var now = DateTime.UtcNow;
     var releaseDate = await ResolveReleaseDateAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, dto.ReleaseDate, cancellationToken).ConfigureAwait(false);
-    var desiredAt = RequestScheduling.ResolveDesiredAt(releaseDate, dto.DesiredAt, now);
+    var (desiredAt, awaitingReleaseDate) = await ScheduleAsync(dto.MediaType, dto.TmdbId, releaseDate, dto.DesiredAt, now, cancellationToken).ConfigureAwait(false);
     var downloadableNow = desiredAt <= now;
     var episodes = coverage.EpisodesToReserve;
     var withinQuota = !downloadableNow || await _quotaService.CanRequestAsync(userId, dto.MediaType, episodes, cancellationToken).ConfigureAwait(false);
@@ -201,6 +202,7 @@ public sealed class RequestCreationService : IRequestCreationService
         Episode = dto.Episode,
         EstimatedEpisodes = episodes,
         DesiredAt = desiredAt,
+        AwaitingReleaseDate = awaitingReleaseDate,
         Status = status,
         HeldForQuota = heldForQuota
       },
@@ -271,7 +273,7 @@ public sealed class RequestCreationService : IRequestCreationService
     // An approved request that does not fit the user's quota yet waits for space, exactly like their own.
     var now = DateTime.UtcNow;
     var releaseDate = await ResolveReleaseDateAsync(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode, dto.ReleaseDate, cancellationToken).ConfigureAwait(false);
-    var desiredAt = RequestScheduling.ResolveDesiredAt(releaseDate, null, now);
+    var (desiredAt, awaitingReleaseDate) = await ScheduleAsync(dto.MediaType, dto.TmdbId, releaseDate, null, now, cancellationToken).ConfigureAwait(false);
     var status = dto.Status ?? RequestStatus.Approved;
     var heldForQuota = status == RequestStatus.Approved
       && desiredAt <= now
@@ -294,6 +296,7 @@ public sealed class RequestCreationService : IRequestCreationService
         Episode = dto.Episode,
         EstimatedEpisodes = coverage.EpisodesToReserve,
         DesiredAt = desiredAt,
+        AwaitingReleaseDate = awaitingReleaseDate,
         Status = status,
         HeldForQuota = heldForQuota
       },
@@ -475,6 +478,33 @@ public sealed class RequestCreationService : IRequestCreationService
     catch (Exception)
     {
       return null;
+    }
+  }
+
+  // When a request is due, and whether its title has no release date yet. A movie is scheduled on its home
+  // release (digital or physical, see MovieAvailability), not on its cinema date: Radarr takes nothing before
+  // it. Without TMDB, or for a show, the release date decides as before.
+  private async Task<(DateTime DesiredAt, bool AwaitingReleaseDate)> ScheduleAsync(string mediaType, int tmdbId, string? releaseDate, DateTime? requestedDesiredAt, DateTime now, CancellationToken cancellationToken)
+  {
+    var desiredAt = RequestScheduling.ResolveDesiredAt(releaseDate, requestedDesiredAt, now);
+    if (!string.Equals(mediaType, "movie", StringComparison.Ordinal))
+    {
+      return (desiredAt, false);
+    }
+
+    try
+    {
+      var release = await _tmdbClient.GetMovieReleaseAsync(tmdbId, cancellationToken).ConfigureAwait(false);
+      if (MovieAvailability.HomeRelease(release) is { } home)
+      {
+        desiredAt = RequestScheduling.ResolveDesiredAt(home.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), requestedDesiredAt, now);
+      }
+
+      return (desiredAt, MovieAvailability.IsUnannounced(release));
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+      return (desiredAt, false);
     }
   }
 

@@ -280,6 +280,19 @@ public sealed class ServarrHttpIntegrationTests : IDisposable
   }
 
   [Fact]
+  public async Task Tmdb_GetMovieRelease_AsksForTheMovieWithItsReleaseDates()
+  {
+    _server
+      .Given(Request.Create().WithPath("/movie/1165369").UsingGet().WithParam("append_to_response", "release_dates"))
+      .RespondWith(Response.Create().WithStatusCode(200).WithBody(
+        "{\"status\":\"Released\",\"release_dates\":{\"results\":[{\"iso_3166_1\":\"FR\",\"release_dates\":[{\"type\":4,\"release_date\":\"2026-10-29T00:00:00.000Z\"}]}]}}"));
+
+    var release = await Tmdb("TMKEY").GetMovieReleaseAsync(1165369, CancellationToken.None);
+
+    Assert.Equal(new DateTime(2026, 10, 29, 0, 0, 0, DateTimeKind.Utc), release.Digital);
+  }
+
+  [Fact]
   public async Task Tmdb_GetTvGenres_AddsHorrorAndThriller_WithTmdbsLocalizedLabels()
   {
     _server

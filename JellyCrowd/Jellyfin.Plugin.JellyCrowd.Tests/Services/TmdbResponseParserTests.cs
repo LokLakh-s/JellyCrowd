@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Jellyfin.Plugin.JellyCrowd.Services;
 using Xunit;
@@ -432,5 +433,52 @@ public class TmdbResponseParserTests
   {
     var json = """{ "cast": [ { "id": 1, "media_type": "movie", "title": "A", "popularity": 3 }, { "id": 2, "media_type": "movie", "title": "B", "popularity": 2 }, { "id": 3, "media_type": "movie", "title": "C", "popularity": 1 } ] }""";
     Assert.Equal(2, TmdbResponseParser.ParseCombinedCredits(json, 2).Count);
+  }
+
+  [Fact]
+  public void ParseMovieRelease_KeepsTheEarliestOfEachKind_AcrossCountries()
+  {
+    const string Json = """
+      {
+        "status": "Released",
+        "release_dates": { "results": [
+          { "iso_3166_1": "FR", "release_dates": [
+            { "type": 3, "release_date": "2026-06-26T00:00:00.000Z" },
+            { "type": 4, "release_date": "2026-11-02T00:00:00.000Z" } ] },
+          { "iso_3166_1": "BE", "release_dates": [
+            { "type": 3, "release_date": "2026-07-01T00:00:00.000Z" },
+            { "type": 4, "release_date": "2026-10-29T00:00:00.000Z" },
+            { "type": 5, "release_date": "2026-11-04T00:00:00.000Z" },
+            { "type": 1, "release_date": "2026-05-20T00:00:00.000Z" } ] }
+        ] }
+      }
+      """;
+
+    var release = TmdbResponseParser.ParseMovieRelease(Json);
+
+    Assert.Equal("Released", release.Status);
+    Assert.Equal(new DateTime(2026, 6, 26, 0, 0, 0, DateTimeKind.Utc), release.Theatrical); // a premiere (type 1) is not a release
+    Assert.Equal(new DateTime(2026, 10, 29, 0, 0, 0, DateTimeKind.Utc), release.Digital);
+    Assert.Equal(new DateTime(2026, 11, 4, 0, 0, 0, DateTimeKind.Utc), release.Physical);
+  }
+
+  [Fact]
+  public void ParseMovieRelease_ATvPremiere_CountsAsDigital()
+  {
+    // As in Radarr's own metadata (checked on a TV movie whose only release is a TV one).
+    const string Json = """{ "status": "Released", "release_dates": { "results": [ { "iso_3166_1": "US", "release_dates": [ { "type": 6, "release_date": "2021-01-16T00:00:00.000Z" } ] } ] } }""";
+
+    Assert.Equal(new DateTime(2021, 1, 16, 0, 0, 0, DateTimeKind.Utc), TmdbResponseParser.ParseMovieRelease(Json).Digital);
+  }
+
+  [Fact]
+  public void ParseMovieRelease_WithoutDates_HasOnlyTheStatus()
+  {
+    var release = TmdbResponseParser.ParseMovieRelease("""{ "status": "Post Production" }""");
+
+    Assert.Equal("Post Production", release.Status);
+    Assert.Null(release.Theatrical);
+    Assert.Null(release.Digital);
+    Assert.Null(release.Physical);
   }
 }

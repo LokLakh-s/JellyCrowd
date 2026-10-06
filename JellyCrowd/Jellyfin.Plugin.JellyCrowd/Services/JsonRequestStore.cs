@@ -489,6 +489,30 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task<RequestRecord?> ScheduleReleaseAsync(Guid id, DateTime? desiredAtUtc, bool awaitingReleaseDate, CancellationToken cancellationToken)
+  {
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      var record = items.FirstOrDefault(r => r.Id == id);
+      if (record is null)
+      {
+        return null;
+      }
+
+      record.DesiredAt = desiredAtUtc ?? record.DesiredAt;
+      record.AwaitingReleaseDate = awaitingReleaseDate;
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+      return record;
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<RequestRecord?> SetDispatchErrorAsync(Guid id, string? error, DateTime whenUtc, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

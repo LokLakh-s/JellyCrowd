@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using Jellyfin.Plugin.JellyCrowd.Models;
@@ -129,6 +130,67 @@ public static class TmdbResponseParser
 
     using var doc = JsonDocument.Parse(json);
     return ParseElement(doc.RootElement, mediaType);
+  }
+
+  /// <summary>
+  /// Extracts when a movie comes out from a <c>/movie/{id}?append_to_response=release_dates</c> payload: the
+  /// earliest release of each kind across all countries (a TV premiere counted as digital, as Radarr does),
+  /// and the movie's status.
+  /// </summary>
+  /// <param name="json">The raw movie JSON payload.</param>
+  /// <returns>The movie's release dates.</returns>
+  public static MovieRelease ParseMovieRelease(string json)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    using var doc = JsonDocument.Parse(json);
+    var root = doc.RootElement;
+    var release = new MovieRelease
+    {
+      Status = root.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String ? status.GetString() : null
+    };
+
+    if (!root.TryGetProperty("release_dates", out var dates)
+        || !dates.TryGetProperty("results", out var countries)
+        || countries.ValueKind != JsonValueKind.Array)
+    {
+      return release;
+    }
+
+    foreach (var country in countries.EnumerateArray())
+    {
+      if (!country.TryGetProperty("release_dates", out var entries) || entries.ValueKind != JsonValueKind.Array)
+      {
+        continue;
+      }
+
+      foreach (var entry in entries.EnumerateArray())
+      {
+        if (!entry.TryGetProperty("type", out var typeElement) || !typeElement.TryGetInt32(out var type)
+            || !entry.TryGetProperty("release_date", out var dateElement) || dateElement.ValueKind != JsonValueKind.String
+            || !DateTime.TryParse(dateElement.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
+        {
+          continue;
+        }
+
+        // The day is what counts: TMDB stamps releases at midnight UTC anyway.
+        var day = DateTime.SpecifyKind(parsed.Date, DateTimeKind.Utc);
+        switch (type)
+        {
+          case 2 or 3:
+            release.Theatrical = Earliest(release.Theatrical, day);
+            break;
+          case 4 or 6:
+            release.Digital = Earliest(release.Digital, day);
+            break;
+          case 5:
+            release.Physical = Earliest(release.Physical, day);
+            break;
+        }
+      }
+    }
+
+    return release;
   }
 
   /// <summary>
@@ -636,4 +698,7 @@ public static class TmdbResponseParser
 
     return 0d;
   }
+
+  private static DateTime Earliest(DateTime? current, DateTime candidate)
+    => current is { } known && known <= candidate ? known : candidate;
 }

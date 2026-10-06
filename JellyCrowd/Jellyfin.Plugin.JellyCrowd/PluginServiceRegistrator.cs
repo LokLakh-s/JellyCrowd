@@ -176,6 +176,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<TitleOperationLock>();
     serviceCollection.AddSingleton<IDownloadDispatcher, DownloadDispatcher>();
     serviceCollection.AddSingleton<IEpisodeAirDateRefresher, EpisodeAirDateRefresher>();
+    serviceCollection.AddSingleton<IMovieReleaseRefresher, MovieReleaseRefresher>();
 
     // Inject the web-client shell at request time via our own middleware (no File Transformation dependency).
     serviceCollection.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, WebInjectionStartupFilter>();

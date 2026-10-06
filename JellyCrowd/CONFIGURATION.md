@@ -161,6 +161,13 @@ date de sortie** (TMDB) : le dispatch vers le backend n'a lieu qu'à partir de c
 **« Mes demandes »** l'indique par un badge **« Planifié pour le … »**. (Pour les séries déjà en cours,
 Sonarr gère ensuite l'arrivée des nouveaux épisodes.)
 
+Pour un **film**, la date retenue est sa **sortie vidéo**, pas sa sortie en salle : la plus tôt de ses sorties
+numérique et physique (TMDB, tous pays ; une diffusion TV compte comme numérique), à défaut 90 jours après la
+sortie en salle — la règle même de Radarr pour la disponibilité « sorti » avec laquelle Jelly Crowd ajoute les
+films. Avant cette date, Radarr ne prendrait aucune version : la recherche n'est pas relancée et le film n'est
+pas déclaré introuvable. Les dates sont relues à chaque passage de la tâche d'envoi (cache TMDB de 12 h) ; un
+film annoncé sans aucune date attend qu'il en ait une.
+
 ## Onglet Demandes (file admin)
 
 Liste toutes les requêtes (triées : en attente, approuvées, disponibles, refusées). Par ligne :

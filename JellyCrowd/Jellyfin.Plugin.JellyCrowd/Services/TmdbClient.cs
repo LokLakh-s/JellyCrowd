@@ -249,6 +249,14 @@ public class TmdbClient : ITmdbClient
   }
 
   /// <inheritdoc />
+  public async Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)
+  {
+    var id = tmdbId.ToString(CultureInfo.InvariantCulture);
+    var json = await GetAsync($"/movie/{id}?append_to_response=release_dates", cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseMovieRelease(json);
+  }
+
+  /// <inheritdoc />
   public async Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
   {
     var id = tmdbId.ToString(CultureInfo.InvariantCulture);

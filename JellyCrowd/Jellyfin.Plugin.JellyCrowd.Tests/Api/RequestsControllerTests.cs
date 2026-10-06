@@ -96,6 +96,46 @@ public class RequestsControllerTests
   }
 
   [Fact]
+  public async Task Create_MovieInCinemas_IsScheduledOnItsHomeRelease()
+  {
+    // Radarr takes nothing before the digital or physical release: sending it at the cinema date only led to
+    // two weeks of empty searches and a "not found" notice.
+    var tmdb = new StubTmdbClient();
+    tmdb.MovieReleases[1] = new MovieRelease
+    {
+      Status = "Released",
+      Theatrical = new DateTime(2026, 6, 26, 0, 0, 0, DateTimeKind.Utc),
+      Digital = new DateTime(2030, 10, 29, 0, 0, 0, DateTimeKind.Utc),
+      Physical = new DateTime(2030, 11, 4, 0, 0, 0, DateTimeKind.Utc)
+    };
+    var controller = CreateController(new FakeRequestStore(), tmdb: tmdb);
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 1, MediaType = "movie", Title = "De Gaulle", ReleaseDate = "2026-06-26" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.Equal("2026-06-26", record.ReleaseDate);
+    Assert.Equal(new DateTime(2030, 10, 29, 0, 0, 0, DateTimeKind.Utc), record.DesiredAt);
+    Assert.False(record.AwaitingReleaseDate);
+  }
+
+  [Fact]
+  public async Task Create_MovieWithNoReleaseDateYet_WaitsForOne()
+  {
+    var tmdb = new StubTmdbClient();
+    tmdb.MovieReleases[1] = new MovieRelease { Status = "Post Production" };
+    var controller = CreateController(new FakeRequestStore(), tmdb: tmdb);
+
+    var result = await controller.Create(
+      new CreateRequestDto { TmdbId = 1, MediaType = "movie", Title = "The Two-Body Problem" },
+      CancellationToken.None);
+
+    var record = Assert.IsType<RequestRecord>(Assert.IsType<OkObjectResult>(result.Result).Value);
+    Assert.True(record.AwaitingReleaseDate);
+  }
+
+  [Fact]
   public async Task Create_Episode_SchedulesOnItsOwnAirDate_NotTheDateTheClientSent()
   {
     // The client falls back to the series' first air date when the episode list it read had no air date
@@ -1585,6 +1625,18 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
       if (record is not null)
       {
         record.DispatchedAt = whenUtc;
+      }
+
+      return Task.FromResult(record);
+    }
+
+    public Task<RequestRecord?> ScheduleReleaseAsync(Guid id, DateTime? desiredAtUtc, bool awaitingReleaseDate, CancellationToken cancellationToken)
+    {
+      var record = _items.FirstOrDefault(r => r.Id == id);
+      if (record is not null)
+      {
+        record.DesiredAt = desiredAtUtc ?? record.DesiredAt;
+        record.AwaitingReleaseDate = awaitingReleaseDate;
       }
 
       return Task.FromResult(record);

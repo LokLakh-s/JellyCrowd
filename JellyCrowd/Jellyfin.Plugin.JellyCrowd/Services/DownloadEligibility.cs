@@ -53,11 +53,11 @@ public static class DownloadEligibility
   /// </summary>
   /// <param name="request">The request to evaluate.</param>
   /// <param name="nowUtc">The current UTC time.</param>
-  /// <returns><c>true</c> when the request's desired time is still ahead.</returns>
+  /// <returns><c>true</c> when the request's desired time is still ahead, or its title has no release date yet.</returns>
   public static bool IsAwaitingRelease(RequestRecord request, DateTime nowUtc)
   {
     ArgumentNullException.ThrowIfNull(request);
-    return request.DesiredAt is { } desired && desired > nowUtc;
+    return request.AwaitingReleaseDate || (request.DesiredAt is { } desired && desired > nowUtc);
   }
 
   /// <summary>

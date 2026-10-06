@@ -142,6 +142,12 @@ public class RequestRecord
   public DateTime? DispatchAttemptedAt { get; set; }
 
   /// <summary>
+  /// Gets or sets a value indicating whether the title is not out and has no release date yet (a movie
+  /// announced or in production): it is not searched for, nor reported not found, until it gets one.
+  /// </summary>
+  public bool AwaitingReleaseDate { get; set; }
+
+  /// <summary>
   /// Gets or sets the UTC time the dispatch started failing, while it keeps failing. It spaces out the
   /// retries of a request that cannot be sent (see <see cref="Services.DownloadEligibility.IsDispatchRetryDue"/>);
   /// cleared once the request is sent or arrives.

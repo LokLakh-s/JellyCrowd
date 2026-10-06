@@ -372,6 +372,20 @@ public sealed class DownloadDispatcherTests : IDisposable
   }
 
   [Fact]
+  public async Task RetryStuckAsync_MovieWithNoReleaseDateYet_IsNeitherSearchedNorReportedNotFound()
+  {
+    var request = await SeedApprovedAsync();
+    await _store.MarkDispatchedAsync(request.Id, DateTime.UtcNow.AddDays(-30), CancellationToken.None);
+    await _store.ScheduleReleaseAsync(request.Id, null, awaitingReleaseDate: true, CancellationToken.None);
+
+    await CreateDispatcher().RetryStuckAsync(CancellationToken.None);
+
+    Assert.Empty(_client.Retried);
+    Assert.Null((await _store.GetByIdAsync(request.Id, CancellationToken.None))!.NotFoundNotifiedAt);
+    Assert.Empty(_notifier.Personal);
+  }
+
+  [Fact]
   public async Task RetryStuckAsync_SkipsNotYetDispatched()
   {
     await SeedApprovedAsync(); // approved but DispatchedAt == null → DispatchDueAsync handles it, not the retry backstop

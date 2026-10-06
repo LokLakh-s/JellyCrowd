@@ -17,6 +17,7 @@ public sealed class DownloadDispatchTask : IScheduledTask
   private readonly IDownloadDispatcher _dispatcher;
   private readonly IStalledDownloadRecovery _stalledRecovery;
   private readonly IEpisodeAirDateRefresher _airDateRefresher;
+  private readonly IMovieReleaseRefresher _movieReleaseRefresher;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="DownloadDispatchTask"/> class.
@@ -24,11 +25,13 @@ public sealed class DownloadDispatchTask : IScheduledTask
   /// <param name="dispatcher">The download dispatcher.</param>
   /// <param name="stalledRecovery">The stalled-download recovery service.</param>
   /// <param name="airDateRefresher">Keeps per-episode requests on their episodes' current air dates.</param>
-  public DownloadDispatchTask(IDownloadDispatcher dispatcher, IStalledDownloadRecovery stalledRecovery, IEpisodeAirDateRefresher airDateRefresher)
+  /// <param name="movieReleaseRefresher">Keeps movie requests on their home release.</param>
+  public DownloadDispatchTask(IDownloadDispatcher dispatcher, IStalledDownloadRecovery stalledRecovery, IEpisodeAirDateRefresher airDateRefresher, IMovieReleaseRefresher movieReleaseRefresher)
   {
     _dispatcher = dispatcher;
     _stalledRecovery = stalledRecovery;
     _airDateRefresher = airDateRefresher;
+    _movieReleaseRefresher = movieReleaseRefresher;
   }
 
   /// <inheritdoc />
@@ -50,6 +53,8 @@ public sealed class DownloadDispatchTask : IScheduledTask
     progress.Report(0);
     // Episodes first: one whose air date TMDB has only now published, or moved, is deferred before it is sent.
     await _airDateRefresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
+    // Movies likewise: one still in cinemas waits for its digital or physical release.
+    await _movieReleaseRefresher.RefreshAsync(cancellationToken).ConfigureAwait(false);
     progress.Report(10);
     await _dispatcher.DispatchDueAsync(cancellationToken).ConfigureAwait(false);
     progress.Report(40);

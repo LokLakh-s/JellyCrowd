@@ -14,6 +14,18 @@ namespace Jellyfin.Plugin.JellyCrowd.Tests.Services;
 public class CachingTmdbClientTests
 {
   [Fact]
+  public async Task GetMovieRelease_IsCached()
+  {
+    var inner = new CountingTmdbClient();
+    var client = new CachingTmdbClient(inner);
+
+    await client.GetMovieReleaseAsync(1165369, CancellationToken.None);
+    await client.GetMovieReleaseAsync(1165369, CancellationToken.None);
+
+    Assert.Equal(1, inner.ReleaseCalls);
+  }
+
+  [Fact]
   public async Task GetTrending_CachesWithinTtl_RefetchesAfterExpiry()
   {
     var inner = new CountingTmdbClient();
@@ -127,6 +139,14 @@ public class CachingTmdbClientTests
 
     public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
       => Task.FromResult<int?>(null);
+
+    public int ReleaseCalls { get; private set; }
+
+    public Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)
+    {
+      ReleaseCalls++;
+      return Task.FromResult(new MovieRelease { Status = "Released" });
+    }
 
     public int CertificationCalls { get; private set; }
 

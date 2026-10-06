@@ -546,6 +546,9 @@ public class CatalogControllerTests
       return Task.FromResult<IReadOnlyList<WatchProvider>>(new List<WatchProvider>());
     }
 
+    public Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)
+      => Task.FromResult(new MovieRelease());
+
     public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
     {
       if (Throw is not null)

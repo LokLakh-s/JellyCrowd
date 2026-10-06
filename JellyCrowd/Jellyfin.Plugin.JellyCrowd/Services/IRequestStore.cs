@@ -235,6 +235,17 @@ public interface IRequestStore
   Task<RequestRecord?> SetDispatchErrorAsync(Guid id, string? error, DateTime whenUtc, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Moves a movie request onto its home release: a new desired time (when given), and whether the movie
+  /// still has no release date at all.
+  /// </summary>
+  /// <param name="id">The request id.</param>
+  /// <param name="desiredAtUtc">The new desired UTC time, or <c>null</c> to keep the current one.</param>
+  /// <param name="awaitingReleaseDate">Whether the movie has no release date yet.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The updated record, or <c>null</c> when not found.</returns>
+  Task<RequestRecord?> ScheduleReleaseAsync(Guid id, DateTime? desiredAtUtc, bool awaitingReleaseDate, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Stamps the moment the requester was told the media could not be found, so the warning is sent once.
   /// Returns <c>null</c> when the request is gone or was already stamped.
   /// </summary>
