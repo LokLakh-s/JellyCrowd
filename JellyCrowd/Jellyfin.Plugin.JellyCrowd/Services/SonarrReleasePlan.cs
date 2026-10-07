@@ -28,15 +28,16 @@ public sealed class SonarrReleasePlan
   }
 
   /// <summary>
-  /// Gets the seasons whose monitored flag goes off: those the withdrawn season or series request turned on
-  /// and no remaining season or series request holds. An episode request never touches a season flag.
+  /// Gets the seasons whose monitored flag goes off: those in the withdrawn request's scope that no remaining
+  /// season or series request holds. An episode's season goes off too: a season left monitored for nobody
+  /// keeps fetching its new episodes, which then belong to no one.
   /// </summary>
   public IReadOnlyList<int> SeasonsToTurnOff { get; }
 
   /// <summary>
   /// Gets the episodes to monitor again right after <see cref="SeasonsToTurnOff"/> is applied: turning a
   /// season off makes Sonarr unmonitor all of its episodes, including those other requests still want.
-  /// Only the ones that were monitored before are restored — a pending request is not started early.
+  /// Only those, and only if they were monitored before — a pending request is not started early.
   /// </summary>
   public IReadOnlyList<int> EpisodesToRemonitor { get; }
 
@@ -83,13 +84,11 @@ public sealed class SonarrReleasePlan
     var released = episodes.Where(e => InScope(e) && !Kept(e)).ToList();
     var releasedKeys = released.Select(e => new EpisodeKey(e.Season, e.Number)).ToHashSet();
 
-    var seasonsToTurnOff = episode is not null
-      ? new List<int>()
-      : seasonsOn.Where(s => s > 0 && (season is null || s == season) && !SeasonHeld(s)).OrderBy(s => s).ToList();
+    var seasonsToTurnOff = seasonsOn.Where(s => s > 0 && (season is null || s == season) && !SeasonHeld(s)).OrderBy(s => s).ToList();
     var turnedOff = seasonsToTurnOff.ToHashSet();
 
     var remonitor = episodes
-      .Where(e => turnedOff.Contains(e.Season) && e.Monitored && !releasedKeys.Contains(new EpisodeKey(e.Season, e.Number)))
+      .Where(e => turnedOff.Contains(e.Season) && e.Monitored && Kept(e))
       .Select(e => e.Id)
       .ToList();
     var unmonitor = released.Where(e => e.Monitored && !turnedOff.Contains(e.Season)).Select(e => e.Id).ToList();

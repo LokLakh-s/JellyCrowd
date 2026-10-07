@@ -416,6 +416,88 @@ public sealed class DeletionTaskTests : IDisposable
     Assert.Single(await _store.GetAllAsync(CancellationToken.None));
   }
 
+  [Fact]
+  public async Task Expiry_OfAShow_StopsSonarrFollowingIt_ButNotAMovie()
+  {
+    // An expired season left monitored keeps fetching episodes nobody owns. A movie is not cancelled: that
+    // would remove it from Radarr with its files, and an expired ownership never deletes a file.
+    var longAgo = DateTime.UtcNow.AddDays(-100);
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 1, MediaType = "tv", Title = "Show", Season = 2, Status = RequestStatus.Available, AvailableAt = longAgo }, CancellationToken.None);
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 2, MediaType = "movie", Title = "Film", Status = RequestStatus.Available, AvailableAt = longAgo }, CancellationToken.None);
+    var dispatcher = new RecordingDispatcher();
+    var task = new DeletionTask(_store, new RecordingDeleter(), dispatcher, new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { MediaExpiryDays = 90 }, NullLogger<DeletionTask>.Instance);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    var cancelled = Assert.Single(dispatcher.Cancelled);
+    Assert.Equal(("tv", 2), (cancelled.MediaType, cancelled.Season));
+    Assert.Empty(dispatcher.Purged);
+  }
+
+  [Fact]
+  public async Task Execute_WhileALibraryScanRuns_DeletesNothing_ButStillLapsesOwnerships()
+  {
+    // A scan that listed the folder before it went puts the item back as an empty shell.
+    await SeedFlaggedAsync("item-abc");
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 9, MediaType = "movie", Title = "Old", Status = RequestStatus.Available, AvailableAt = DateTime.UtcNow.AddDays(-100) }, CancellationToken.None);
+    var deleter = new RecordingDeleter { ScanRunning = true };
+    var orphans = new RecordingOrphanCleaner();
+    var sweeper = new RecordingCleaner();
+    var task = new DeletionTask(_store, deleter, new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), sweeper, () => new PluginConfiguration { DeletionRetentionHours = 0, MediaExpiryDays = 90, RemoveEmptySeries = true }, NullLogger<DeletionTask>.Instance, orphans);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Empty(deleter.Deleted);
+    Assert.Equal(0, orphans.Calls);
+    Assert.Equal(0, sweeper.Calls);
+    var left = await _store.GetAllAsync(CancellationToken.None);
+    Assert.Contains(left, r => r.JellyfinItemId == "item-abc"); // still flagged, for the next run
+    Assert.DoesNotContain(left, r => r.TmdbId == 9);            // lapsed all the same
+  }
+
+  [Fact]
+  public async Task Execute_CleansOrphans_AfterLapsingOwnerships()
+  {
+    var orphans = new RecordingOrphanCleaner();
+    await _store.CreateAsync(new RequestRecord { UserId = Guid.NewGuid(), TmdbId = 9, MediaType = "movie", Title = "Old", Status = RequestStatus.Available, AvailableAt = DateTime.UtcNow.AddDays(-100) }, CancellationToken.None);
+    var storeWhenCleaned = -1;
+    orphans.OnClean = () => storeWhenCleaned = _store.GetAllAsync(CancellationToken.None).GetAwaiter().GetResult().Count;
+    var task = new DeletionTask(_store, new RecordingDeleter(), new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), new RecordingPromoter(), new RecordingCleaner(), () => new PluginConfiguration { MediaExpiryDays = 90 }, NullLogger<DeletionTask>.Instance, orphans);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Equal(1, orphans.Calls);
+    Assert.Equal(0, storeWhenCleaned); // the lapsed ownership is already gone: its media's orphan clock starts
+  }
+
+  [Fact]
+  public async Task Execute_OrphanCleanupFailing_DoesNotStopTheRestOfTheTask()
+  {
+    var orphans = new RecordingOrphanCleaner { OnClean = () => throw new InvalidOperationException("Cannot deserialize unknown type.") };
+    var promoter = new RecordingPromoter();
+    var sweeper = new RecordingCleaner();
+    var task = new DeletionTask(_store, new RecordingDeleter(), new RecordingDispatcher(), new StubMatcher(), new RecordingNotificationService(), promoter, sweeper, () => new PluginConfiguration { RemoveEmptySeries = true }, NullLogger<DeletionTask>.Instance, orphans);
+
+    await task.ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+    Assert.Equal(1, sweeper.Calls);
+    Assert.Equal(1, promoter.Calls);
+  }
+
+  private sealed class RecordingOrphanCleaner : IOrphanMediaCleaner
+  {
+    public int Calls { get; private set; }
+
+    public Action? OnClean { get; set; }
+
+    public Task<int> CleanAsync(CancellationToken cancellationToken)
+    {
+      Calls++;
+      OnClean?.Invoke();
+      return Task.FromResult(0);
+    }
+  }
+
   private sealed class RecordingDeleter : IMediaDeleter
   {
     public List<string> Deleted { get; } = new();
@@ -424,6 +506,10 @@ public sealed class DeletionTaskTests : IDisposable
     public HashSet<string> Missing { get; } = new();
 
     public bool Exists(string jellyfinItemId) => !Missing.Contains(jellyfinItemId);
+
+    public bool ScanRunning { get; set; }
+
+    public IReadOnlySet<Guid> ItemsIn(IReadOnlyCollection<string> libraryIds) => new HashSet<Guid>();
 
     public bool Delete(string jellyfinItemId)
     {
@@ -466,7 +552,14 @@ public sealed class DeletionTaskTests : IDisposable
 
     public Task TestActiveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken) => Task.CompletedTask;
+    /// <summary>Gets the requests withdrawn from the backend (files kept).</summary>
+    public List<RequestRecord> Cancelled { get; } = new();
+
+    public Task CancelAsync(RequestRecord request, CancellationToken cancellationToken)
+    {
+      Cancelled.Add(request);
+      return Task.CompletedTask;
+    }
 
     public Task<bool> PurgeAsync(RequestRecord request, bool libraryDeletesFiles, CancellationToken cancellationToken)
     {

@@ -1034,26 +1034,26 @@ public sealed class ServarrDownloadClient : IDownloadClient
       return;
     }
 
+    // One episode: released like the rest (its season stops being monitored when nothing else holds it, so
+    // Sonarr does not keep fetching that season for nobody), with its file and its download.
+    if (scope.Episode is not null)
+    {
+      await ReleaseScopeAsync(config, tvdbId, series, seriesId, scope, deleteFiles: true, cancellationToken).ConfigureAwait(false);
+      return;
+    }
+
     // Remove the active downloads of the purged scope from the client (best-effort).
     await RemoveSeriesQueueAsync(config, tvdbId, scope.Season, scope.Episode, cancellationToken).ConfigureAwait(false);
 
     if (scope.Season is int season)
     {
-      // Targeted purge: a single season (or one episode) — unmonitor it so Sonarr won't re-grab, then
-      // delete just that season's/episode's files from Sonarr + disk. The whole series is left in place.
+      // Targeted purge: a single season — unmonitor it so Sonarr won't re-grab, then delete just that
+      // season's files from Sonarr + disk. The whole series is left in place.
       var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
-      var (episodeIds, fileIds) = ServarrEpisodeParser.Select(episodesJson, season, scope.Episode);
-
-      if (scope.Episode is null)
+      var (_, fileIds) = ServarrEpisodeParser.Select(episodesJson, season, null);
+      if (ServarrPayload.UnmonitorSeason(series, season))
       {
-        if (ServarrPayload.UnmonitorSeason(series, season))
-        {
-          await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
-        }
-      }
-      else if (episodeIds.Count > 0)
-      {
-        await _servarr.SetEpisodesMonitoredAsync(config.SonarrUrl, config.SonarrApiKey, episodeIds, monitored: false, cancellationToken).ConfigureAwait(false);
+        await _servarr.UpdateSeriesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, series, cancellationToken).ConfigureAwait(false);
       }
 
       foreach (var fileId in fileIds)

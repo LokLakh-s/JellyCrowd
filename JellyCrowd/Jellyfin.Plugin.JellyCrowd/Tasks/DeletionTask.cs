@@ -27,6 +27,7 @@ public sealed class DeletionTask : IScheduledTask
   private readonly INotificationService _notificationService;
   private readonly IQuotaHoldPromoter _quotaHoldPromoter;
   private readonly IEmptyLibraryCleaner _emptyLibraryCleaner;
+  private readonly IOrphanMediaCleaner? _orphanCleaner;
   private readonly Func<PluginConfiguration> _configurationProvider;
   private readonly ILogger<DeletionTask> _logger;
 
@@ -42,7 +43,8 @@ public sealed class DeletionTask : IScheduledTask
   /// <param name="emptyLibraryCleaner">Removes empty series (ghosts) left after deletion.</param>
   /// <param name="configurationProvider">Provides the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, ILibraryMatcher libraryMatcher, INotificationService notificationService, IQuotaHoldPromoter quotaHoldPromoter, IEmptyLibraryCleaner emptyLibraryCleaner, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger)
+  /// <param name="orphanCleaner">Deletes the media nobody owns any more, when the admin turned it on.</param>
+  public DeletionTask(IRequestStore store, IMediaDeleter mediaDeleter, IDownloadDispatcher downloadDispatcher, ILibraryMatcher libraryMatcher, INotificationService notificationService, IQuotaHoldPromoter quotaHoldPromoter, IEmptyLibraryCleaner emptyLibraryCleaner, Func<PluginConfiguration> configurationProvider, ILogger<DeletionTask> logger, IOrphanMediaCleaner? orphanCleaner = null)
   {
     _store = store;
     _mediaDeleter = mediaDeleter;
@@ -51,6 +53,7 @@ public sealed class DeletionTask : IScheduledTask
     _notificationService = notificationService;
     _quotaHoldPromoter = quotaHoldPromoter;
     _emptyLibraryCleaner = emptyLibraryCleaner;
+    _orphanCleaner = orphanCleaner;
     _configurationProvider = configurationProvider;
     _logger = logger;
   }
@@ -78,8 +81,16 @@ public sealed class DeletionTask : IScheduledTask
       retentionHours = 0;
     }
 
+    // A library scan that listed a folder before it is deleted puts the item back, as an empty shell: delete
+    // nothing while one runs (the next run, 15 minutes later, does it). Ownerships still lapse.
+    var scanning = _mediaDeleter.ScanRunning;
+    if (scanning)
+    {
+      _logger.LogInformation("Jelly Crowd deletion: a library scan is running; deletions wait for the next run.");
+    }
+
     var cutoff = DateTime.UtcNow - TimeSpan.FromHours(retentionHours);
-    var due = await _store.GetDueForDeletionAsync(cutoff, cancellationToken).ConfigureAwait(false);
+    var due = scanning ? (IReadOnlyList<Models.RequestRecord>)Array.Empty<Models.RequestRecord>() : await _store.GetDueForDeletionAsync(cutoff, cancellationToken).ConfigureAwait(false);
     var deleted = 0;
 
     for (var i = 0; i < due.Count; i++)
@@ -155,9 +166,33 @@ public sealed class DeletionTask : IScheduledTask
       await LapseAsync(config.ChildMediaExpiryDays, r => ChildAccountPolicy.IsChild(config, r.UserId), cancellationToken).ConfigureAwait(false);
     }
 
+    // What nobody owns any more (an ownership that just lapsed included) goes once the retention has passed,
+    // when the admin turned it on.
+    if (!scanning && _orphanCleaner is not null)
+    {
+      try
+      {
+        var orphans = await _orphanCleaner.CleanAsync(cancellationToken).ConfigureAwait(false);
+        if (orphans > 0)
+        {
+          _logger.LogInformation("Jelly Crowd orphan cleanup: deleted {Count} media owned by nobody.", orphans);
+        }
+      }
+      catch (OperationCanceledException)
+      {
+        throw;
+      }
+#pragma warning disable CA1031 // The cleanup failing must not stop the rest of the task (the sweep, the quota holds).
+      catch (Exception ex)
+#pragma warning restore CA1031
+      {
+        _logger.LogError(ex, "Jelly Crowd orphan cleanup failed; it is tried again at the next run.");
+      }
+    }
+
     // Sweep away empty series (0 episodes) that Jellyfin keeps in the library after their files were
     // deleted. Skip any title an active request still wants, and any series too new to be a settled ghost.
-    if (_configurationProvider().RemoveEmptySeries)
+    if (!scanning && _configurationProvider().RemoveEmptySeries)
     {
       var wanted = new HashSet<int>();
       foreach (var record in await _store.GetAllAsync(cancellationToken).ConfigureAwait(false))
@@ -289,6 +324,13 @@ public sealed class DeletionTask : IScheduledTask
     var language = Plugin.Instance?.Configuration?.Language;
     foreach (var record in lapsed)
     {
+      // Sonarr stops following what nobody wants any more (the files stay). Not a movie: cancelling one removes
+      // it from Radarr with its files, and an expired movie keeps its file.
+      if (string.Equals(record.MediaType, "tv", StringComparison.Ordinal))
+      {
+        await _downloadDispatcher.CancelAsync(record, cancellationToken).ConfigureAwait(false);
+      }
+
       var expiredStrings = ServerStrings.ForMember(language, record.UserId);
       var body = expiredStrings("notif_expired_body")
         .Replace("{title}", record.Title, StringComparison.Ordinal)

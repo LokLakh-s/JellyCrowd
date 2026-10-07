@@ -20,6 +20,7 @@ public sealed class OwnershipService : IOwnershipService
   private readonly INotificationService _notificationService;
   private readonly IActivityLog _activityLog;
   private readonly ITmdbClient _tmdb;
+  private readonly IDownloadDispatcher _downloadDispatcher;
   private readonly ILogger<OwnershipService> _logger;
   private readonly Func<Guid, string> _resolveUserName;
 
@@ -32,6 +33,7 @@ public sealed class OwnershipService : IOwnershipService
   /// <param name="notificationService">Tells members what they were given.</param>
   /// <param name="activityLog">The activity log.</param>
   /// <param name="tmdb">The TMDB client (the poster of a media nobody requested).</param>
+  /// <param name="downloadDispatcher">Stops Sonarr following what nobody wants any more.</param>
   /// <param name="logger">The logger.</param>
   /// <param name="resolveUserName">Resolves a member's name.</param>
   public OwnershipService(
@@ -41,6 +43,7 @@ public sealed class OwnershipService : IOwnershipService
     INotificationService notificationService,
     IActivityLog activityLog,
     ITmdbClient tmdb,
+    IDownloadDispatcher downloadDispatcher,
     ILogger<OwnershipService> logger,
     Func<Guid, string> resolveUserName)
   {
@@ -50,6 +53,7 @@ public sealed class OwnershipService : IOwnershipService
     _notificationService = notificationService;
     _activityLog = activityLog;
     _tmdb = tmdb;
+    _downloadDispatcher = downloadDispatcher;
     _logger = logger;
     _resolveUserName = resolveUserName;
   }
@@ -227,6 +231,7 @@ public sealed class OwnershipService : IOwnershipService
     ArgumentNullException.ThrowIfNull(userIds);
     ArgumentNullException.ThrowIfNull(media);
     var result = new OwnershipChangeResult();
+    var takenAway = new List<RequestRecord>();
     IReadOnlyList<LibraryMediaItem>? library = null;
     foreach (var userId in userIds.Where(u => u != Guid.Empty).Distinct())
     {
@@ -258,10 +263,19 @@ public sealed class OwnershipService : IOwnershipService
           {
             await _store.DeleteAsync(record.Id, cancellationToken).ConfigureAwait(false);
           }
+
+          takenAway.Add(record);
         }
 
         result.Removed++;
       }
+    }
+
+    // Sonarr stops following what nobody wants any more (the files stay; the orphan cleanup, when on, deletes
+    // them later). Not a movie: cancelling one removes it from Radarr with its files.
+    foreach (var record in takenAway.Where(r => string.Equals(r.MediaType, "tv", StringComparison.Ordinal)))
+    {
+      await _downloadDispatcher.CancelAsync(record, cancellationToken).ConfigureAwait(false);
     }
 
     Log("took", adminName, userIds, media, result.Removed);

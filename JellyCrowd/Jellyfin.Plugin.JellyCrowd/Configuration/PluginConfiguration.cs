@@ -320,6 +320,22 @@ public class PluginConfiguration : BasePluginConfiguration
   public int EmptySeriesMinAgeHours { get; set; }
 
   /// <summary>
+  /// Gets or sets a value indicating whether the deletion task also deletes the media owned by nobody (no
+  /// available request, nothing requested) in <see cref="OrphanCleanupLibraryIds"/>, once it has stayed so
+  /// for <see cref="DeletionRetentionHours"/>: from the library and from Radarr/Sonarr. Destructive, so off
+  /// by default.
+  /// </summary>
+  public bool DeleteOrphanMedia { get; set; }
+
+  /// <summary>
+  /// Gets or sets the libraries (Jellyfin library ids) <see cref="DeleteOrphanMedia"/> cleans. None by default:
+  /// the admin picks them, so a library JellyCrowd does not feed (documentaries added by hand, audiobooks) is
+  /// never touched by mistake.
+  /// </summary>
+  [SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Must be settable so System.Text.Json can replace it when deserializing the posted plugin configuration (a get-only collection is silently skipped on deserialize, which dropped the saved value).")]
+  public Collection<string> OrphanCleanupLibraryIds { get; set; } = new();
+
+  /// <summary>
   /// Gets or sets the auto-approval size threshold (in bytes): when &gt; 0, requests whose estimated
   /// size is at or below this value are auto-approved even if admin approval is otherwise required.
   /// 0 disables the rule.

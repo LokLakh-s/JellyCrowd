@@ -774,3 +774,20 @@ Suite de l'issue #16 (fiche recouverte par l'en-tête sur téléphone, corrigée
   `Maintenance/Media` restent. Un média donné sans affiche connue la prend sur TMDB.
 - ☑ Corrigé au passage : Échap dans une confirmation du panneau admin fermait tout le panneau.
 
+### M45 — Médias sans propriétaire : nettoyage et Sonarr  ☑ *(livré)*
+
+- ☑ Option admin **« Supprimer les médias sans propriétaire »** (`DeleteOrphanMedia`, **désactivée par défaut**,
+  destructive) limitée aux **bibliothèques cochées** (`OrphanCleanupLibraryIds`, aucune par défaut). Un film ou
+  une saison que plus personne ne possède ni ne demande est supprimé de la bibliothèque **et** purgé de
+  Radarr/Sonarr après la rétention avant suppression (`DeletionRetentionHours`), comptée depuis le moment où il
+  est devenu orphelin (horloge en mémoire : un redémarrage ne fait que repousser). `OrphanMediaCleaner`, appelé
+  par la tâche de suppression après les expirations ; une erreur de sa part ne bloque pas le reste de la tâche.
+- ☑ **Sonarr ne suit plus ce que personne ne veut** : une expiration et un retrait par l'admin libèrent la
+  saison (fichiers gardés) ; retirer un épisode éteint aussi sa saison si plus rien ne la tient
+  (`SonarrReleasePlan`). Avant, ces saisons restaient surveillées et Sonarr téléchargeait pour personne.
+- ☑ Les suppressions **attendent la fin d'un scan** de la bibliothèque : un scan lancé au même moment
+  recréait la série supprimée (coquille vide).
+- ☑ Prod 07/10 : 18 saisons surveillées sans demande ni fichier remises à « non surveillées » dans Sonarr.
+- ☐ 71 séries de la prod suivent les nouvelles saisons (`monitorNewItems: all`) sans demande de série entière :
+  décision en attente.
+

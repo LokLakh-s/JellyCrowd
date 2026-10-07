@@ -91,3 +91,33 @@ test('ownershipResultMessage lists only what happened', () => {
   assert.strictEqual(lib.ownershipResultMessage({ Given: 0, Failed: 2 }, t), 'not in the library: 2');
   assert.strictEqual(lib.ownershipResultMessage({}, t), 'Nothing changed.');
 });
+
+test('orphanCleanupLibraries offers the libraries that hold movies or shows, by name', () => {
+  const folders = [
+    { Name: 'Series', ItemId: 's', CollectionType: 'tvshows' },
+    { Name: 'Books', ItemId: 'b', CollectionType: 'books' },
+    { Name: 'Documentaires', ItemId: 'd' },
+    { Name: 'Movies', ItemId: 'm', CollectionType: 'movies' },
+    { Name: 'Music', ItemId: 'u', CollectionType: 'music' },
+    { Name: 'Broken' }
+  ];
+  assert.deepStrictEqual(lib.orphanCleanupLibraries(folders).map(f => f.Name), ['Documentaires', 'Movies', 'Series']);
+  assert.deepStrictEqual(lib.orphanCleanupLibraries(null), []);
+});
+
+test('idListHas matches Jellyfin ids with or without dashes, in any case', () => {
+  const list = ['0A1B2C3D4E5F60718293A4B5C6D7E8F9'];
+  assert.strictEqual(lib.idListHas(list, '0a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9'), true);
+  assert.strictEqual(lib.idListHas(list, 'ffffffffffffffffffffffffffffffff'), false);
+  assert.strictEqual(lib.idListHas(null, 'x'), false);
+  assert.strictEqual(lib.idListHas(list, ''), false);
+});
+
+test('ownershipFilesNote says the files stay, unless the orphan cleanup covers some library', () => {
+  const t2 = key => ({ ownership_files_kept: 'kept', ownership_files_cleaned: 'gone after {hours} h', ownership_files_cleaned_now: 'gone at the next run' }[key]);
+  assert.strictEqual(lib.ownershipFilesNote(null, t2), 'kept');
+  assert.strictEqual(lib.ownershipFilesNote({ DeleteOrphanMedia: true, OrphanCleanupLibraryIds: [] }, t2), 'kept');
+  assert.strictEqual(lib.ownershipFilesNote({ DeleteOrphanMedia: false, OrphanCleanupLibraryIds: ['a'] }, t2), 'kept');
+  assert.strictEqual(lib.ownershipFilesNote({ DeleteOrphanMedia: true, OrphanCleanupLibraryIds: ['a'], DeletionRetentionHours: 1 }, t2), 'gone after 1 h');
+  assert.strictEqual(lib.ownershipFilesNote({ DeleteOrphanMedia: true, OrphanCleanupLibraryIds: ['a'], DeletionRetentionHours: 0 }, t2), 'gone at the next run');
+});

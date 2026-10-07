@@ -31,7 +31,7 @@ public class RequestsControllerTests
     gate ??= new RequestCreationGate();
     restrictions ??= new FakeContentRestrictionService();
     var creator = new RequestCreationService(store, quota, notifications, dispatcher, matcher, tmdb, gate, restrictions, () => config ?? Plugin.Instance?.Configuration);
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota, notifications, dispatcher, new FakeServarrStatusService(), matcher, tmdb, new NoOpActivityLog(), gate, restrictions, creator, new OwnershipService(store, matcher, gate, notifications, new NoOpActivityLog(), tmdb, Microsoft.Extensions.Logging.Abstractions.NullLogger<OwnershipService>.Instance, _ => "tester"), _ => "tester")
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota, notifications, dispatcher, new FakeServarrStatusService(), matcher, tmdb, new NoOpActivityLog(), gate, restrictions, creator, new OwnershipService(store, matcher, gate, notifications, new NoOpActivityLog(), tmdb, dispatcher, Microsoft.Extensions.Logging.Abstractions.NullLogger<OwnershipService>.Instance, _ => "tester"), _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };

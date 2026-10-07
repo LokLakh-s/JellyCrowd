@@ -389,8 +389,47 @@
         { key: 'ChildMediaExpiryDays', label: t('cfg_childmediaexpirydays'), type: 'num', hint: t('cfg_childmediaexpirydays_hint') },
         { key: 'PartialAvailabilityGraceHours', label: t('cfg_partialavailabilitygracehours'), type: 'num', hint: t('cfg_partialavailabilitygracehours_hint') }
       ]);
+      // Orphan cleanup: destructive, so off by default, and limited to the libraries the admin ticks (none at first).
+      var orphanEnable = checkbox('jc-c-DeleteOrphanMedia', cfg.DeleteOrphanMedia === true);
+      host.appendChild(field(t('cfg_deleteorphanmedia'), orphanEnable, t('cfg_deleteorphanmedia_hint')));
+      var orphanWrap = document.createElement('div');
+      orphanWrap.className = 'jellycrowd-orphan-libraries';
+      var orphanTitle = document.createElement('div');
+      orphanTitle.className = 'jellycrowd-field-label';
+      orphanTitle.textContent = t('cfg_orphanlibraries');
+      orphanWrap.appendChild(orphanTitle);
+      var orphanList = document.createElement('div');
+      orphanWrap.appendChild(orphanList);
+      var orphanNone = document.createElement('div');
+      orphanNone.className = 'jellycrowd-field-hint';
+      orphanNone.textContent = t('cfg_orphanlibraries_none');
+      orphanWrap.appendChild(orphanNone);
+      host.appendChild(orphanWrap);
+      var orphanBoxes = null; // null until the libraries are listed: saving then keeps the stored choice
+      function syncOrphans() {
+        orphanWrap.style.display = orphanEnable.checked ? '' : 'none';
+        orphanNone.hidden = !!orphanBoxes && orphanBoxes.some(function (b) { return b.checked; });
+      }
+      orphanEnable.addEventListener('change', syncOrphans);
+      apiGet('Library/VirtualFolders').then(function (folders) {
+        orphanBoxes = lib.orphanCleanupLibraries(folders).map(function (f) {
+          var box = checkbox('jc-c-orphan-library', lib.idListHas(cfg.OrphanCleanupLibraryIds, f.ItemId));
+          box.value = f.ItemId;
+          box.addEventListener('change', syncOrphans);
+          orphanList.appendChild(field(f.Name, box));
+          return box;
+        });
+        syncOrphans();
+      }).catch(function () { syncOrphans(); });
+      syncOrphans();
+      var orphanForm = { apply: function (live) {
+        live.DeleteOrphanMedia = orphanEnable.checked;
+        if (orphanBoxes) {
+          live.OrphanCleanupLibraryIds = orphanBoxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+        }
+      } };
       var adaptForm = { apply: function (live) { live.AdaptiveQuotaEnabled = adaptEnable.checked; } };
-      host.appendChild(cfgSaveButton([reqForm, scopeForm, langForm, autoForm, genresForm, quotaForm, adaptForm, adapt, tail]));
+      host.appendChild(cfgSaveButton([reqForm, scopeForm, langForm, autoForm, genresForm, quotaForm, adaptForm, adapt, tail, orphanForm]));
     });
   }
 
@@ -2396,7 +2435,7 @@
   // picks users, then gives (the user is told it was added to their library) or takes away (silent: their
   // quota is freed, the files stay). An owner's × takes one media from one user.
   function renderOwnership(container) {
-    var state = { items: [], users: [], query: '', mode: 'all', selected: {}, userIds: {}, note: '', busy: false };
+    var state = { items: [], users: [], query: '', mode: 'all', selected: {}, userIds: {}, note: '', busy: false, filesNote: t('ownership_files_kept') };
     container.innerHTML = '';
     setMessage(t('loading'));
 
@@ -2662,7 +2701,7 @@
       var who = lib.ownershipUsersLabel(ids.map(userName), t);
       confirmAction({
         title: t(giving ? 'ownership_give_title' : 'ownership_take_title').replace('{media}', subject).replace('{users}', who),
-        message: t(giving ? 'ownership_give_message' : 'ownership_take_message'),
+        message: giving ? t('ownership_give_message') : t('ownership_take_message') + ' ' + state.filesNote,
         confirmLabel: t(giving ? 'ownership_give' : 'ownership_take'),
         danger: !giving
       }).then(function (ok) {
@@ -2704,7 +2743,16 @@
     var usersPromise = (window.ApiClient && typeof window.ApiClient.getUsers === 'function')
       ? window.ApiClient.getUsers().catch(function () { return []; })
       : Promise.resolve([]);
-    usersPromise
+    // Whether the orphan cleanup deletes what nobody owns any more: said in the subtitle and when taking away.
+    var configPromise = (window.ApiClient && typeof window.ApiClient.getPluginConfiguration === 'function')
+      ? window.ApiClient.getPluginConfiguration(PLUGIN_GUID).catch(function () { return null; })
+      : Promise.resolve(null);
+    configPromise
+      .then(function (cfg) {
+        state.filesNote = lib.ownershipFilesNote(cfg, t);
+        sub.textContent = t('ownership_subtitle') + ' ' + state.filesNote;
+        return usersPromise;
+      })
       .then(function (all) {
         state.users = (all || [])
           .filter(function (u) { return !(u.Policy && u.Policy.IsDisabled); })

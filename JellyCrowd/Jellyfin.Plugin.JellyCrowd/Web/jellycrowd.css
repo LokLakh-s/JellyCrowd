@@ -648,6 +648,13 @@ body.jellycrowd-overlay-open {
   font-size: 0.85em;
 }
 
+/* Orphan cleanup (admin › Configurations › Requests): the libraries it covers, under its switch. */
+.jellycrowd-orphan-libraries {
+  margin: 0.2em 0 0.8em 1.2em;
+  padding-left: 0.8em;
+  border-left: 2px solid rgba(127, 127, 127, 0.35);
+}
+
 /* Ownership (admin › Users › Ownership): the library's media, ticked for a bulk give / take away. */
 .jellycrowd-own-tools {
   display: flex;

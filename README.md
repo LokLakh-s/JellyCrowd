@@ -82,6 +82,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 📢 **Announcements** — post a header banner to everyone or to specific groups.
 - 📊 **Polls** — ask a question instead of stating one: a poll takes over the screen once per session until it is answered, with single or multiple choice, an optional deadline, results you can share with the voters, and an admin view of who answered what.
 - ⏳ **Media expiry** — reclaim space by expiring unwatched media after a configurable window.
+- 🧹 **Orphan cleanup** *(off by default)* — delete, from the library and Radarr/Sonarr, the media nobody owns or requests any more, in the libraries you pick.
 - 🔀 **Notification channels** — route events to Discord, email, Telegram, ntfy, Gotify, Pushover, Slack or a webhook, per event.
 - 🔗 **Webhook backend** — prefer your own automation? POST each approved request to a webhook.
 - 📜 **Script backend** — or run a local script per request, with the details on stdin and as environment variables.
@@ -141,7 +142,8 @@ Paste your TMDB API key in **Dashboard → Plugins → Jelly Crowd**, then manag
 - **Logs** — the plugin activity log.
 - **Configurations**
   - **General** — default quota; approval mode (manual / auto, with size & genre rules); request rate
-    limits; media-expiry window; adaptive quota; UI language; reviews on/off; stats capture on/off.
+    limits; media-expiry window; adaptive quota; UI language; reviews on/off; stats capture on/off;
+    the cleanup of media nobody owns (off by default, per library).
   - **Requests** — approval, rate limits, and the **request scope** (offer movies and/or TV; which granularities users may request).
   - **Notifications** — enable & configure each channel and pick which events go where; send test messages.
   - **Download** — fulfilment backend (none / Radarr+Sonarr / webhook / script), plus stalled-download recovery.

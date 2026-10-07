@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using Jellyfin.Data.Enums;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
@@ -24,6 +27,9 @@ public sealed class MediaDeleter : IMediaDeleter
   }
 
   /// <inheritdoc />
+  public bool ScanRunning => _libraryManager.IsScanRunning;
+
+  /// <inheritdoc />
   public bool Exists(string jellyfinItemId)
     => TryParseId(jellyfinItemId, out var id) && _libraryManager.GetItemById(id) is not null;
 
@@ -45,6 +51,47 @@ public sealed class MediaDeleter : IMediaDeleter
     _libraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = true, DeleteFromExternalProvider = false });
     _logger.LogInformation("Jelly Crowd deleted library item {Id} ({Name}).", id, item.Name);
     return true;
+  }
+
+  /// <inheritdoc />
+  public IReadOnlySet<Guid> ItemsIn(IReadOnlyCollection<string> libraryIds)
+  {
+    ArgumentNullException.ThrowIfNull(libraryIds);
+    var items = new HashSet<Guid>();
+    foreach (var libraryId in libraryIds)
+    {
+      if (!TryParseId(libraryId, out var id))
+      {
+        continue;
+      }
+
+      try
+      {
+        if (_libraryManager.GetItemById(id) is null)
+        {
+          continue; // a library removed since it was picked
+        }
+
+        // GetItemList resolves a library's id to its folders on disk (a plain id query would only match direct children).
+        foreach (var item in _libraryManager.GetItemList(new InternalItemsQuery
+        {
+          ParentId = id,
+          Recursive = true,
+          IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Series, BaseItemKind.Season }
+        }))
+        {
+          items.Add(item.Id);
+        }
+      }
+#pragma warning disable CA1031 // An id Jellyfin cannot read (it throws on some) only leaves that library out of the cleanup.
+      catch (Exception ex)
+#pragma warning restore CA1031
+      {
+        _logger.LogWarning(ex, "Jelly Crowd: could not list library {Id}; it is left out of the orphan cleanup.", id);
+      }
+    }
+
+    return items;
   }
 
   private static bool TryParseId(string jellyfinItemId, out Guid id)

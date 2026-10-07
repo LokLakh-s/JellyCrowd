@@ -72,7 +72,8 @@ The **My library** area shows `used / quota`. Click it to open your library:
 - A **Delete** button at each level (whole series, one season, one episode): deletion frees your quota
   and removes the media (after a short retention delay).
 - **Expiry**: media you don't re-watch eventually expires (freeing quota); **Keep (renew)** resets the timer.
-  Expiry only drops your ownership — **the file stays** in the shared library.
+  Expiry only drops your ownership — **the file stays** in the shared library, unless the admin turned on the
+  cleanup of media nobody owns (then it goes once nobody else owns it either).
 - If your library has grown **past** your quota, **Keep (renew)** is greyed out until you free space: your
   oldest media then expires on its own until you're back under the limit. Being exactly *at* your quota is
   not over it — renewing still works there.

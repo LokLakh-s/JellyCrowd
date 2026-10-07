@@ -98,6 +98,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IQuotaHoldPromoter, QuotaHoldPromoter>();
     serviceCollection.AddSingleton<IRequestCreationGate, RequestCreationGate>();
     serviceCollection.AddSingleton<IOwnershipService, OwnershipService>();
+    serviceCollection.AddSingleton<IOrphanMediaCleaner, OrphanMediaCleaner>();
     serviceCollection.AddSingleton<IContentRestrictionService, ContentRestrictionService>();
     serviceCollection.AddSingleton<IServarrProfileResolver, ServarrProfileResolver>();
     serviceCollection.AddSingleton<LanguageCodes>();
@@ -173,7 +174,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       var userManager = sp.GetRequiredService<IUserManager>();
       return userId =>
       {
-        var user = userManager.GetUserById(userId);
+        // Jellyfin throws on an empty id; a media nobody owns (the orphan cleanup's) has no user at all.
+        var user = userId == Guid.Empty ? null : userManager.GetUserById(userId);
         return user?.Username ?? "Unknown";
       };
     });

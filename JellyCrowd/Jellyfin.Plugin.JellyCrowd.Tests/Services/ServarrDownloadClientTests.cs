@@ -693,8 +693,8 @@ public class ServarrDownloadClientTests
   public async Task PurgeAsync_Episode_DeletesOnlyThatEpisodeFile_AndUnmonitorsEpisode()
   {
     var series = new JsonObject { ["id"] = 7, ["seasons"] = new JsonArray() };
-    var episodes = "[ { \"id\": 11, \"seasonNumber\": 1, \"episodeNumber\": 1, \"episodeFileId\": 101 },"
-      + " { \"id\": 12, \"seasonNumber\": 1, \"episodeNumber\": 2, \"episodeFileId\": 102 } ]";
+    var episodes = "[ { \"id\": 11, \"seasonNumber\": 1, \"episodeNumber\": 1, \"monitored\": true, \"episodeFileId\": 101 },"
+      + " { \"id\": 12, \"seasonNumber\": 1, \"episodeNumber\": 2, \"monitored\": true, \"episodeFileId\": 102 } ]";
     var servarr = new Mock<IServarrClient>();
     servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>())).ReturnsAsync("{ \"records\": [] }");
     servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>())).ReturnsAsync(series);
@@ -725,7 +725,9 @@ public class ServarrDownloadClientTests
     var servarr = new Mock<IServarrClient>();
     servarr.Setup(s => s.GetQueueAsync("http://localhost:8989", "sk", true, It.IsAny<CancellationToken>())).ReturnsAsync(queue);
     servarr.Setup(s => s.GetSeriesByTvdbAsync("http://localhost:8989", "sk", 81189, It.IsAny<CancellationToken>())).ReturnsAsync(series);
-    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 7, It.IsAny<CancellationToken>())).ReturnsAsync("[]");
+    servarr.Setup(s => s.GetEpisodesAsync("http://localhost:8989", "sk", 7, It.IsAny<CancellationToken>())).ReturnsAsync(
+      "[ { \"id\": 12, \"seasonNumber\": 1, \"episodeNumber\": 2 }, { \"id\": 13, \"seasonNumber\": 1, \"episodeNumber\": 3 },"
+      + " { \"id\": 15, \"seasonNumber\": 1, \"episodeNumber\": 5 } ]");
     var tmdb = new Mock<ITmdbClient>();
     tmdb.Setup(t => t.GetTvdbIdAsync(1396, It.IsAny<CancellationToken>())).ReturnsAsync(81189);
     var client = new ServarrDownloadClient(servarr.Object, tmdb.Object, SonarrConfig);
@@ -780,17 +782,22 @@ public class ServarrDownloadClientTests
   }
 
   [Fact]
-  public async Task CancelAsync_Episode_StopsMonitoringIt_AndDropsItsDownload_ButKeepsTheFiles()
+  public async Task CancelAsync_Episode_NobodyElseInTheSeason_TurnsTheSeasonOff_AndDropsItsDownload_ButKeepsTheFiles()
   {
     var queue = "{ \"records\": ["
       + " { \"id\": 1, \"downloadId\": \"A\", \"series\": { \"tvdbId\": 81189 }, \"episode\": { \"seasonNumber\": 1, \"episodeNumber\": 2 } },"
       + " { \"id\": 2, \"downloadId\": \"B\", \"series\": { \"tvdbId\": 81189 }, \"episode\": { \"seasonNumber\": 1, \"episodeNumber\": 3 } } ] }";
     var (servarr, client) = SonarrWithSeasonOne(queue);
+    JsonObject? updated = null;
+    servarr.Setup(s => s.UpdateSeriesAsync("http://localhost:8989", "sk", 7, It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()))
+      .Callback<string, string, int, JsonObject, CancellationToken>((_, _, _, body, _) => updated = (JsonObject)body.DeepClone())
+      .Returns(Task.CompletedTask);
 
     await client.CancelAsync(new DownloadDispatch { TmdbId = 1396, MediaType = "tv", Title = "BB", Season = 1, Episode = 2 }, CancellationToken.None);
 
-    servarr.Verify(s => s.SetEpisodesMonitoredAsync("http://localhost:8989", "sk", It.Is<System.Collections.Generic.IReadOnlyList<int>>(l => l.SequenceEqual(new[] { 12 })), false, It.IsAny<CancellationToken>()), Times.Once);
-    servarr.Verify(s => s.UpdateSeriesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<JsonObject>(), It.IsAny<CancellationToken>()), Times.Never);
+    // Season 1 was monitored for nobody else: it goes off (Sonarr's cascade unmonitors its episodes).
+    Assert.False(updated!["seasons"]![0]!["monitored"]!.GetValue<bool>());
+    servarr.Verify(s => s.SetEpisodesMonitoredAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<System.Collections.Generic.IReadOnlyList<int>>(), true, It.IsAny<CancellationToken>()), Times.Never);
     servarr.Verify(s => s.DeleteQueueItemAsync("http://localhost:8989", "sk", 1, true, false, It.IsAny<CancellationToken>()), Times.Once);
     servarr.Verify(s => s.DeleteQueueItemAsync(It.IsAny<string>(), It.IsAny<string>(), 2, It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
     servarr.Verify(s => s.DeleteEpisodeFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);

@@ -26,15 +26,47 @@ public class SonarrReleasePlanTests
   private static RequestScope Keep(int? season, int? episode) => new("tv", 1, season, episode);
 
   [Fact]
-  public void Episode_NobodyElse_ReleasesIt_AndNeverTouchesTheSeasonFlag()
+  public void Episode_NobodyElse_ReleasesIt_AndTurnsItsSeasonOff()
   {
+    // A season left monitored for nobody would keep fetching episodes nobody owns. The cascade unmonitors
+    // the whole season, so nothing is unmonitored or monitored again episode by episode.
     var plan = SonarrReleasePlan.Build(1, 1, Array.Empty<RequestScope>(), new[] { 1, 2 }, Episodes);
 
-    Assert.Empty(plan.SeasonsToTurnOff);
-    Assert.Equal(new[] { 11 }, plan.EpisodesToUnmonitor);
+    Assert.Equal(new[] { 1 }, plan.SeasonsToTurnOff);
+    Assert.Empty(plan.EpisodesToUnmonitor);
+    Assert.Empty(plan.EpisodesToRemonitor);
     Assert.Equal(new[] { 101 }, plan.FilesToDelete);
     Assert.Equal(new[] { new EpisodeKey(1, 1) }, plan.Released);
     Assert.False(plan.StopFollowingNewSeasons);
+  }
+
+  [Fact]
+  public void Episode_WithAnotherEpisodeOfTheSeasonWanted_TurnsTheSeasonOff_AndRestoresOnlyThatEpisode()
+  {
+    // E2 is someone else's: monitored again after the cascade. E3, monitored for nobody, stays off.
+    var plan = SonarrReleasePlan.Build(1, 1, new[] { Keep(1, 2) }, new[] { 1, 2 }, Episodes);
+
+    Assert.Equal(new[] { 1 }, plan.SeasonsToTurnOff);
+    Assert.Equal(new[] { 12 }, plan.EpisodesToRemonitor);
+    Assert.Equal(new[] { 101 }, plan.FilesToDelete);
+  }
+
+  [Fact]
+  public void Episode_InASeasonSomeoneHolds_LeavesTheSeasonOn()
+  {
+    var plan = SonarrReleasePlan.Build(2, 1, new[] { Keep(1, null) }, new[] { 1, 2 }, Episodes);
+
+    Assert.Equal(new[] { 2 }, plan.SeasonsToTurnOff);
+    Assert.DoesNotContain(1, plan.SeasonsToTurnOff);
+  }
+
+  [Fact]
+  public void Episode_OfASeasonNotMonitored_TurnsNothingOff_AndUnmonitorsIt()
+  {
+    var plan = SonarrReleasePlan.Build(1, 1, Array.Empty<RequestScope>(), new[] { 2 }, Episodes);
+
+    Assert.Empty(plan.SeasonsToTurnOff);
+    Assert.Equal(new[] { 11 }, plan.EpisodesToUnmonitor);
   }
 
   [Fact]
@@ -42,6 +74,7 @@ public class SonarrReleasePlanTests
   {
     var plan = SonarrReleasePlan.Build(1, 1, new[] { Keep(1, null) }, new[] { 1 }, Episodes);
 
+    Assert.Empty(plan.SeasonsToTurnOff);
     Assert.Empty(plan.Released);
     Assert.Empty(plan.EpisodesToUnmonitor);
     Assert.Empty(plan.FilesToDelete);

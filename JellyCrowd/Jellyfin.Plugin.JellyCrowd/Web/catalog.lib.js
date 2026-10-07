@@ -1422,6 +1422,32 @@
     return null;
   }
 
+  // ---------- Orphan cleanup (admin › Configurations › Requests) ----------
+
+  // The libraries the orphan cleanup can be limited to: those that hold movies or shows (mixed ones too), by name.
+  function orphanCleanupLibraries(folders) {
+    return (folders || [])
+      .filter(function (f) { return f && f.ItemId && (!f.CollectionType || f.CollectionType === 'movies' || f.CollectionType === 'tvshows' || f.CollectionType === 'mixed'); })
+      .sort(function (a, b) { return String(a.Name).localeCompare(String(b.Name)); });
+  }
+
+  // Whether a list of Jellyfin ids holds this one, whatever the spelling (with or without dashes, any case).
+  function idListHas(list, id) {
+    var norm = function (v) { return String(v || '').replace(/-/g, '').toLowerCase(); };
+    var wanted = norm(id);
+    return !!wanted && (list || []).some(function (v) { return norm(v) === wanted; });
+  }
+
+  // What happens to the files of a media nobody owns any more, as the ownership screen says it.
+  function ownershipFilesNote(cfg, translate) {
+    var cleans = !!(cfg && cfg.DeleteOrphanMedia && cfg.OrphanCleanupLibraryIds && cfg.OrphanCleanupLibraryIds.length);
+    if (!cleans) { return translate('ownership_files_kept'); }
+    var hours = Math.max(0, Number(cfg.DeletionRetentionHours) || 0);
+    return hours === 0
+      ? translate('ownership_files_cleaned_now')
+      : String(translate('ownership_files_cleaned')).replace('{hours}', String(hours));
+  }
+
   // ---------- Ownership (admin › Users › Ownership) ----------
   // The screen lists the library's media (movies, and shows season by season) with their owners; the admin
   // ticks media, picks users, and gives or takes. The decisions behind it live here, so they can be tested.
@@ -1597,6 +1623,9 @@
     librarySortSettings: librarySortSettings,
     activeLibrarySortId: activeLibrarySortId,
     librarySortOption: librarySortOption,
+    orphanCleanupLibraries: orphanCleanupLibraries,
+    idListHas: idListHas,
+    ownershipFilesNote: ownershipFilesNote,
     foldText: foldText,
     ownershipKey: ownershipKey,
     ownershipCounts: ownershipCounts,

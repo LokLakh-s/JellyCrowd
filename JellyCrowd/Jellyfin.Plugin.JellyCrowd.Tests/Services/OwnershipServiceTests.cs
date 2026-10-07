@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyCrowd.Models;
 using Jellyfin.Plugin.JellyCrowd.Services;
+using Jellyfin.Plugin.JellyCrowd.Tests.TestDoubles;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -25,12 +26,13 @@ public sealed class OwnershipServiceTests : IDisposable
   private readonly RecordingNotificationService _notifications = new();
   private readonly RecordingActivityLog _activity = new();
   private readonly StubTmdbClient _tmdb = new();
+  private readonly RecordingDownloadDispatcher _dispatcher = new();
   private readonly OwnershipService _service;
 
   public OwnershipServiceTests()
   {
     _store = new JsonRequestStore(_path);
-    _service = new OwnershipService(_store, _library, new RequestCreationGate(), _notifications, _activity, _tmdb, NullLogger<OwnershipService>.Instance, id => id == Alice ? "alice" : id == Bob ? "bob" : "other");
+    _service = new OwnershipService(_store, _library, new RequestCreationGate(), _notifications, _activity, _tmdb, _dispatcher, NullLogger<OwnershipService>.Instance, id => id == Alice ? "alice" : id == Bob ? "bob" : "other");
   }
 
   public void Dispose()
@@ -186,6 +188,7 @@ public sealed class OwnershipServiceTests : IDisposable
     Assert.Equal(1, result.Removed);
     Assert.Equal(Bob, Assert.Single(await _store.GetAllAsync(CancellationToken.None)).UserId);
     Assert.Empty(_notifications.Personal);
+    Assert.Empty(_dispatcher.Cancelled); // a movie: cancelling would remove it from Radarr with its files
     Assert.Equal("admin took Dune from alice", Assert.Single(_activity.Messages));
   }
 
@@ -216,6 +219,9 @@ public sealed class OwnershipServiceTests : IDisposable
 
     Assert.Equal(1, result.Removed);
     Assert.Equal(2, Assert.Single(await _store.GetAllAsync(CancellationToken.None)).Season);
+
+    // Sonarr is told, for each ownership taken, after the store no longer holds it.
+    Assert.Equal(new int?[] { 1, 1 }, _dispatcher.Cancelled.Select(r => r.Season));
   }
 
   [Fact]
