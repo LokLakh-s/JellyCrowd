@@ -263,6 +263,11 @@ test('buildBrandingCss applies accent, background, and presets', () => {
   assert.ok(css.includes('.listItemImage'));
 });
 
+test('buildBrandingCss recolours the plain buttons only: delete, approve and secondary ones keep their colour', () => {
+  const css = lib.buildBrandingCss({ Enabled: true, AccentColor: '#ff0000' });
+  assert.ok(css.includes('.jellycrowd-request:not(.jellycrowd-request-danger):not(.jellycrowd-request-ok):not(.jellycrowd-request-secondary){background:#ff0000;}'));
+});
+
 test('buildBrandingCss appends free custom CSS last so it wins', () => {
   const css = lib.buildBrandingCss({ Enabled: true, AccentColor: '#fff', CustomCss: '.mine{color:hotpink;}' });
   assert.ok(css.trimEnd().endsWith('.mine{color:hotpink;}'));

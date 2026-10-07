@@ -515,8 +515,10 @@ body.jellycrowd-overlay-open {
 .jellycrowd-status-held { background: #64748b; color: #fff; }
 .jellycrowd-dl { background: #00a4dc; color: #fff; }
 
-.jellycrowd-request-danger { background: #c62828; }
-.jellycrowd-request-ok { background: #2e7d32; }
+/* Doubled so they win over the plain .jellycrowd-request rule, declared further down (it painted every
+   admin "danger" and "ok" button in the accent blue). */
+.jellycrowd-request.jellycrowd-request-danger { background: #c62828; }
+.jellycrowd-request.jellycrowd-request-ok { background: #2e7d32; }
 
 /* Admin overlay: Logs. */
 .jellycrowd-log-row {
@@ -780,11 +782,6 @@ body.jellycrowd-overlay-open {
 }
 
 .jellycrowd-own-bar-actions .jellycrowd-request { margin-top: 0; }
-
-/* Give and take away must not look alike (the plain .jellycrowd-request rule, declared later, would
-   otherwise paint both in the accent blue). */
-.jellycrowd-own-bar-actions .jellycrowd-request-ok { background: #2e7d32; }
-.jellycrowd-own-bar-actions .jellycrowd-request-danger { background: #c62828; }
 
 .jellycrowd-own-note {
   flex-basis: 100%;

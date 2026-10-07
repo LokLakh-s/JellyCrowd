@@ -286,6 +286,20 @@
   // loaded twice. The overlay needs it, and so does anything the shell draws on the BASE page (the poll
   // modal): every VIEW used to be what pulled the stylesheet in, and whatever opened first without it
   // rendered unstyled.
+  // Whether Jellyfin's theme gives the page dark text (its light theme).
+  function pageHasDarkText() {
+    var m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(getComputedStyle(document.documentElement).color || '');
+    return !!m && (0.299 * m[1] + 0.587 * m[2] + 0.114 * m[3]) < 128;
+  }
+
+  // Jelly Crowd's surfaces are dark whatever the Jellyfin theme, but they inherit the page's text colour: in the
+  // light theme that is dark, and everything on them was unreadable. On a page with dark text they carry the dark
+  // theme's light text instead (an inline colour, so it holds before jellycrowd.css has loaded); in the dark theme
+  // they keep inheriting, exactly as before.
+  function surfaceTextColor() {
+    return pageHasDarkText() ? 'rgba(255,255,255,.8)' : '';
+  }
+
   function ensureStylesheet() {
     if (document.getElementById('jellycrowd-css')) { return; }
     var css = document.createElement('link');
@@ -377,6 +391,7 @@
     }
 
     overlay.style.display = 'flex';
+    overlay.style.color = surfaceTextColor();
     // Lock the page behind the overlay so it doesn't scroll under it (phantom scroll on mobile, where
     // the native header also hides on scroll). Restored in hideOverlay().
     document.body.classList.add('jellycrowd-overlay-open');
@@ -595,6 +610,25 @@
 
   var quotaBox = null; // the current header quota element, so it can be refreshed in place (M28)
 
+  // The quota sits in Jellyfin's header, which follows the theme: white on the dark bar, the header's own dark
+  // text and darker tints on the light one.
+  function paintQuota() {
+    var els = quotaBox && quotaBox._jc;
+    if (!els) { return; }
+    var lightBar = pageHasDarkText();
+    els.label.style.color = lightBar ? '' : '#fff';
+    els.track.style.background = lightBar ? 'rgba(0,0,0,.15)' : 'rgba(255,255,255,.2)';
+    els.reserved.style.background = lightBar ? 'rgba(0,0,0,.3)' : 'rgba(255,255,255,.3)';
+  }
+
+  // Jellyfin loads its theme's stylesheet after we have drawn, and swaps it when the user picks another: each
+  // stylesheet that loads repaints what depends on the theme (load events do not bubble, hence the capture).
+  document.addEventListener('load', function (e) {
+    if (!e.target || e.target.tagName !== 'LINK') { return; }
+    paintQuota();
+    if (overlay && overlay.style.display !== 'none') { overlay.style.color = surfaceTextColor(); }
+  }, true);
+
   // Re-fetch the quota and update the bar in place (no rebuild) — called after any create/cancel/claim/
   // delete and on view changes so usage reflects without a force-refresh.
   function refreshQuota() {
@@ -604,6 +638,7 @@
     window.ApiClient.ajax({ type: 'GET', url: getUrl('JellyCrowd/Quota/Me'), dataType: 'json' })
       .then(function (q) {
         if (!q) { return; }
+        paintQuota();
         els.tier.style.display = 'none';
         box.title = t('my_media_title');
         if (q.Unlimited || q.QuotaBytes <= 0) {
@@ -1526,6 +1561,7 @@
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
       if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+      panel.style.color = surfaceTextColor();
       positionPanel();
       openBellPanel(panel);
     });
@@ -2179,6 +2215,7 @@
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
       if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+      panel.style.color = surfaceTextColor();
       renderAnnouncementPanel(panel);
       positionPanel();
       panel.style.display = '';

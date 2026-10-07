@@ -534,7 +534,7 @@
       rules.push(
         '.button-submit,.raised.button-submit,button.button-submit{background:' + a + ' !important;}'
         + '.mainDrawer .navMenuOption-selected,.emby-tab-button-active{color:' + a + ' !important;}'
-        + '.jellycrowd-request:not(.jellycrowd-request-danger):not(.jellycrowd-request-secondary){background:' + a + ';}');
+        + '.jellycrowd-request:not(.jellycrowd-request-danger):not(.jellycrowd-request-ok):not(.jellycrowd-request-secondary){background:' + a + ';}');
     }
 
     if (b.BackgroundUrl || b.BackgroundColor) {
