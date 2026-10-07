@@ -1422,6 +1422,82 @@
     return null;
   }
 
+  // ---------- Ownership (admin › Users › Ownership) ----------
+  // The screen lists the library's media (movies, and shows season by season) with their owners; the admin
+  // ticks media, picks users, and gives or takes. The decisions behind it live here, so they can be tested.
+
+  // Lower-case, accents dropped: "Amélie" is found by "amelie".
+  function foldText(text) {
+    return String(text == null ? '' : text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
+  // Identifies a media of the list (a movie, a season, or a show listed as one entry) across reloads.
+  function ownershipKey(item) {
+    return item.MediaType + ':' + item.TmdbId + ':' + (item.Season == null ? '' : item.Season);
+  }
+
+  function ownershipCounts(items) {
+    var owned = (items || []).filter(function (it) { return it.Owners && it.Owners.length; }).length;
+    return { all: (items || []).length, owned: owned, orphans: (items || []).length - owned };
+  }
+
+  // `mode`: 'all', 'owned' (at least one owner) or 'orphans' (none). The query matches the title or an
+  // owner's name, so typing a name lists what that user owns.
+  function filterOwnership(items, query, mode) {
+    var q = foldText(query).trim();
+    return (items || []).filter(function (it) {
+      var count = it.Owners ? it.Owners.length : 0;
+      if (mode === 'owned' && !count) { return false; }
+      if (mode === 'orphans' && count) { return false; }
+      if (!q) { return true; }
+      if (foldText(it.Title).indexOf(q) >= 0) { return true; }
+      return (it.Owners || []).some(function (o) { return foldText(o.Name).indexOf(q) >= 0; });
+    });
+  }
+
+  // How an owner holds a season, when it is not simply that season: through the whole show, or a few episodes.
+  function ownershipHolding(owner, translate) {
+    if (owner.WholeShow) { return translate('ownership_whole_show'); }
+    if (owner.Episodes && owner.Episodes.length) {
+      return String(translate('ownership_episodes')).replace('{list}', owner.Episodes.join(', '));
+    }
+    return '';
+  }
+
+  // The body of a Give/Remove call: the users, and the media as the server needs them to create ownerships.
+  function ownershipChangeBody(items, userIds) {
+    return {
+      UserIds: (userIds || []).slice(),
+      Media: (items || []).map(function (it) {
+        return { MediaType: it.MediaType, TmdbId: it.TmdbId, Title: it.Title, PosterPath: it.PosterPath || null, Season: it.Season == null ? null : it.Season };
+      })
+    };
+  }
+
+  // "“Dune” (season 2)" for one media, "3 media" for several.
+  function ownershipSubject(items, translate) {
+    if (items.length !== 1) { return String(translate('ownership_n_media')).replace('{n}', String(items.length)); }
+    var it = items[0];
+    var title = String(translate('ownership_one_media')).replace('{title}', it.Title || '');
+    return it.Season == null ? title : title + ' (' + String(translate('season_number')).replace('{n}', String(it.Season)) + ')';
+  }
+
+  // Up to three names, then "5 users".
+  function ownershipUsersLabel(names, translate) {
+    return names.length <= 3 ? names.join(', ') : String(translate('ownership_n_users')).replace('{n}', String(names.length));
+  }
+
+  // One line saying what a Give/Remove did; only the counts that are not zero.
+  function ownershipResultMessage(result, translate) {
+    var parts = [];
+    [['Given', 'ownership_result_given'], ['AlreadyOwned', 'ownership_result_already'], ['Removed', 'ownership_result_removed'],
+     ['NotOwned', 'ownership_result_not_owned'], ['Failed', 'ownership_result_failed']].forEach(function (pair) {
+      var n = result ? Number(result[pair[0]]) || 0 : 0;
+      if (n > 0) { parts.push(String(translate(pair[1])).replace('{n}', String(n))); }
+    });
+    return parts.length ? parts.join(' · ') : translate('ownership_result_nothing');
+  }
+
   return {
     normalizeRequestScope: normalizeRequestScope,
     CHILD_AGES: CHILD_AGES,
@@ -1520,6 +1596,15 @@
     librarySortTarget: librarySortTarget,
     librarySortSettings: librarySortSettings,
     activeLibrarySortId: activeLibrarySortId,
-    librarySortOption: librarySortOption
+    librarySortOption: librarySortOption,
+    foldText: foldText,
+    ownershipKey: ownershipKey,
+    ownershipCounts: ownershipCounts,
+    filterOwnership: filterOwnership,
+    ownershipHolding: ownershipHolding,
+    ownershipChangeBody: ownershipChangeBody,
+    ownershipSubject: ownershipSubject,
+    ownershipUsersLabel: ownershipUsersLabel,
+    ownershipResultMessage: ownershipResultMessage
   };
 });

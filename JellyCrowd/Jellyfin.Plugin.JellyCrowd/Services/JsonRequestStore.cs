@@ -429,6 +429,31 @@ public sealed class JsonRequestStore : IRequestStore, IDisposable
   }
 
   /// <inheritdoc />
+  public async Task ReplaceAsync(Guid id, IReadOnlyCollection<RequestRecord> replacements, CancellationToken cancellationToken)
+  {
+    ArgumentNullException.ThrowIfNull(replacements);
+
+    await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+    try
+    {
+      var items = await LoadAsync(cancellationToken).ConfigureAwait(false);
+      items.RemoveAll(r => r.Id == id);
+      foreach (var record in replacements)
+      {
+        record.Id = record.Id == Guid.Empty ? Guid.NewGuid() : record.Id;
+        items.Add(record);
+      }
+
+      Trim(items);
+      await SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+    finally
+    {
+      _mutex.Release();
+    }
+  }
+
+  /// <inheritdoc />
   public async Task<RequestRecord?> AdminUpdateAsync(Guid id, RequestStatus status, int? season, int? episode, DateTime? desiredAt, CancellationToken cancellationToken)
   {
     await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

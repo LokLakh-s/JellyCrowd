@@ -757,3 +757,20 @@ Suite de l'issue #16 (fiche recouverte par l'en-tête sur téléphone, corrigée
   lui** (`Requests/ForChild`, sélecteur « Pour : » dans la fiche) : la demande est **celle de l'enfant**, sur
   **son quota**, et seulement pour un titre adapté à son âge.
 - ☑ **Rétention commune à tous les enfants** (`ChildMediaExpiryDays`), distincte de la générale.
+
+### M44 — Appartenance : donner et retirer en lot  ☑ *(livré)*
+
+- ☑ Les sous-onglets « Appartenance » et « Attribuer un média » (admin › Utilisateurs) **fusionnent** : un seul
+  écran liste **toute la bibliothèque** (films, séries saison par saison) avec ses propriétaires — série
+  entière, quelques épisodes, suppression demandée. Recherche par titre **ou** utilisateur (sans accents),
+  filtre Tous / Possédés / Sans propriétaire.
+- ☑ On coche des médias (ou « Sélectionner les N affichés »), on choisit des utilisateurs dans la barre
+  d'action, puis **Donner** (l'utilisateur est prévenu, comme l'ancien « Attribuer ») ou **Retirer**
+  (**silencieux** : quota libéré, fichiers conservés). Le × d'un propriétaire retire ce média à lui seul.
+- ☑ Retirer une saison à qui possède la **série entière** lui laisse les autres saisons de la bibliothèque, aux
+  mêmes dates (expiration inchangée, pas compté comme nouvelles demandes : `IRequestStore.ReplaceAsync`).
+- ☑ API admin `JellyCrowd/Ownership` (GET, POST `Give`, POST `Remove`) sur `OwnershipService` ;
+  `Requests/AssignOwner` passe par le même service (comportement inchangé), `Requests/Ownerships` et
+  `Maintenance/Media` restent. Un média donné sans affiche connue la prend sur TMDB.
+- ☑ Corrigé au passage : Échap dans une confirmation du panneau admin fermait tout le panneau.
+

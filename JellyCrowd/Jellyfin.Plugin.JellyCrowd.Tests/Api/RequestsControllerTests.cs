@@ -31,7 +31,7 @@ public class RequestsControllerTests
     gate ??= new RequestCreationGate();
     restrictions ??= new FakeContentRestrictionService();
     var creator = new RequestCreationService(store, quota, notifications, dispatcher, matcher, tmdb, gate, restrictions, () => config ?? Plugin.Instance?.Configuration);
-    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota, notifications, dispatcher, new FakeServarrStatusService(), matcher, tmdb, new NoOpActivityLog(), gate, restrictions, creator, _ => "tester")
+    var controller = new RequestsController(store, new FakeUserAccessor(userId ?? User, isAdmin), quota, notifications, dispatcher, new FakeServarrStatusService(), matcher, tmdb, new NoOpActivityLog(), gate, restrictions, creator, new OwnershipService(store, matcher, gate, notifications, new NoOpActivityLog(), tmdb, Microsoft.Extensions.Logging.Abstractions.NullLogger<OwnershipService>.Instance, _ => "tester"), _ => "tester")
     {
       ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
     };
@@ -1616,6 +1616,18 @@ public Task<IReadOnlyDictionary<Guid, QuotaInfo>> GetUsageAsync(IReadOnlyList<Gu
     public Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
       _items.RemoveAll(r => r.Id == id);
+      return Task.CompletedTask;
+    }
+
+    public Task ReplaceAsync(Guid id, IReadOnlyCollection<RequestRecord> replacements, CancellationToken cancellationToken)
+    {
+      _items.RemoveAll(r => r.Id == id);
+      foreach (var record in replacements)
+      {
+        record.Id = record.Id == Guid.Empty ? Guid.NewGuid() : record.Id;
+        _items.Add(record);
+      }
+
       return Task.CompletedTask;
     }
 

@@ -52,6 +52,17 @@
       .then(function (r) { if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } });
   }
 
+  function apiPostJsonResult(path, body) {
+    if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+      return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path), data: JSON.stringify(body), contentType: 'application/json', dataType: 'json' });
+    }
+    return fetch(pluginUrl(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) {
+        if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+        return r.json();
+      });
+  }
+
   function apiPostResult(path) {
     if (window.ApiClient && typeof window.ApiClient.ajax === 'function') {
       return window.ApiClient.ajax({ type: 'POST', url: pluginUrl(path), dataType: 'json', contentType: 'application/json' });
@@ -112,14 +123,15 @@
       }
 
       function onKey(e) {
-        if (e.key === 'Escape') { e.preventDefault(); close(false); return; }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); return; }
         if (e.key === 'Tab') { lib.handleTrapKeydown(e, d.root); }
       }
 
       d.cancel.addEventListener('click', function () { close(false); });
       d.confirm.addEventListener('click', function () { close(true); });
       d.root.addEventListener('click', function (e) { if (e.target === d.root) { close(false); } });
-      // Capture phase: the overlay's own Escape handler would otherwise close the whole panel behind us.
+      // Capture phase, and the event stops here: the overlay's own Escape handler, on the same document,
+      // would otherwise close the whole panel behind us.
       document.addEventListener('keydown', onKey, true);
 
       document.body.appendChild(d.root);
@@ -177,111 +189,13 @@
     ]);
   }
 
-  // Merged tab: per-user overrides (quota + access) and media ownership.
+  // Merged tab: per-user overrides (quota + access), groups, and who owns which media.
   function renderUsers(container) {
     subTabs(container, [
       { id: 'peruser', labelKey: 'tab_per_user', render: renderQuotas },
       { id: 'groups', labelKey: 'tab_groups', render: renderGroups },
-      { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership },
-      { id: 'assign', labelKey: 'tab_assign_media', render: renderAssignMedia }
+      { id: 'ownership', labelKey: 'nav_ownership', render: renderOwnership }
     ]);
-  }
-
-  // Assign ownership of a title already in the library to a user (e.g. a manual download nobody requested).
-  function renderAssignMedia(container) {
-    setMessage(t('loading'));
-    var usersPromise = (window.ApiClient && window.ApiClient.getUsers) ? window.ApiClient.getUsers() : Promise.resolve([]);
-    Promise.all([usersPromise, apiGet('JellyCrowd/Maintenance/Media?orphansOnly=false')])
-      .then(function (res) {
-        var users = res[0] || [];
-        var media = res[1] || [];
-        container.innerHTML = '';
-
-        var sub = document.createElement('p');
-        sub.className = 'jellycrowd-disclaimer';
-        sub.textContent = t('assign_media_subtitle');
-        container.appendChild(sub);
-
-        var filter = document.createElement('input');
-        filter.type = 'search';
-        filter.className = 'jellycrowd-search-input';
-        filter.placeholder = t('assign_media_filter');
-        container.appendChild(filter);
-
-        var list = document.createElement('div');
-        list.className = 'jellycrowd-list';
-        container.appendChild(list);
-
-        function label(it) {
-          return (it.MediaType === 'tv' ? '📺 ' : '🎬 ') + it.Title
-            + (it.Season != null ? ' — ' + t('season_number').replace('{n}', it.Season) : '');
-        }
-
-        function row(it) {
-          var r = document.createElement('div');
-          r.className = 'jellycrowd-assign-row';
-
-          var name = document.createElement('span');
-          name.className = 'jellycrowd-assign-title';
-          name.textContent = label(it);
-          r.appendChild(name);
-
-          var owners = document.createElement('span');
-          owners.className = 'jellycrowd-status jellycrowd-owners';
-          owners.textContent = t('assign_owned_by').replace('{n}', it.OwnerCount || 0);
-          r.appendChild(owners);
-
-          var select = document.createElement('select');
-          select.className = 'jellycrowd-assign-select';
-          var ph = document.createElement('option');
-          ph.value = '';
-          ph.textContent = t('assign_choose_user');
-          select.appendChild(ph);
-          users.forEach(function (u) {
-            var o = document.createElement('option');
-            o.value = u.Id;
-            o.textContent = u.Name;
-            select.appendChild(o);
-          });
-          r.appendChild(select);
-
-          var btn = adminBtn(t('assign_button'), '', function (b) {
-            var uid = select.value;
-            if (!uid) { return; }
-            b.disabled = true;
-            apiPostJson('JellyCrowd/Requests/AssignOwner', {
-              UserId: uid,
-              TmdbId: it.TmdbId,
-              MediaType: it.MediaType,
-              Title: it.Title,
-              Season: it.Season
-            })
-              .then(function () {
-                setMessage(t('assign_done').replace('{user}', select.options[select.selectedIndex].textContent));
-                it.OwnerCount = (it.OwnerCount || 0) + 1;
-                owners.textContent = t('assign_owned_by').replace('{n}', it.OwnerCount);
-                select.value = '';
-                b.disabled = false;
-              })
-              .catch(function () { setMessage(t('assign_failed')); b.disabled = false; });
-          });
-          r.appendChild(btn);
-          return r;
-        }
-
-        function paint() {
-          var q = (filter.value || '').trim().toLowerCase();
-          var shown = media.filter(function (it) { return !q || (it.Title || '').toLowerCase().indexOf(q) >= 0; });
-          list.innerHTML = '';
-          if (!shown.length) { setMessage(q ? t('no_results') : t('assign_media_empty')); return; }
-          setMessage('');
-          shown.forEach(function (it) { list.appendChild(row(it)); });
-        }
-
-        filter.addEventListener('input', paint);
-        paint();
-      })
-      .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
   // ---------- Configurations (the plugin settings, moved here from the Dashboard config page) ----------
@@ -2468,88 +2382,346 @@
     return row;
   }
 
-  // ---------- Ownership ----------
-  function renderOwnership(container) {
-    setMessage(t('loading'));
-    apiGet('JellyCrowd/Requests/Ownerships')
-      .then(function (items) {
-        container.innerHTML = '';
-        items = items || [];
-        var sub = document.createElement('p');
-        sub.className = 'jellycrowd-disclaimer';
-        sub.textContent = t('ownership_subtitle');
-        container.appendChild(sub);
-
-        var filter = document.createElement('input');
-        filter.type = 'search';
-        filter.className = 'jellycrowd-search-input';
-        filter.placeholder = t('ownership_filter_placeholder');
-        container.appendChild(filter);
-
-        var list = document.createElement('div');
-        list.className = 'jellycrowd-list';
-        container.appendChild(list);
-
-        function paint() {
-          var q = (filter.value || '').trim().toLowerCase();
-          var shown = items.filter(function (it) {
-            if (!q) { return true; }
-            if ((it.Title || '').toLowerCase().indexOf(q) >= 0) { return true; }
-            return (it.Owners || []).some(function (o) { return (o.Name || '').toLowerCase().indexOf(q) >= 0; });
-          });
-          list.innerHTML = '';
-          if (!shown.length) { setMessage(q ? t('no_results') : t('ownership_empty')); return; }
-          setMessage('');
-          shown.forEach(function (it) { list.appendChild(ownershipRow(it)); });
-        }
-        filter.addEventListener('input', paint);
-        paint();
-      })
-      .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
+  // The primary image of a library item, sized for a list thumbnail.
+  function libraryImage(itemId) {
+    if (!itemId) { return null; }
+    if (window.ApiClient && typeof window.ApiClient.getScaledImageUrl === 'function') {
+      return window.ApiClient.getScaledImageUrl(itemId, { type: 'Primary', maxHeight: 138, quality: 90 });
+    }
+    return pluginUrl('Items/' + itemId + '/Images/Primary?maxHeight=138&quality=90');
   }
 
-  function ownershipRow(item) {
-    var row = document.createElement('div');
-    row.className = 'jellycrowd-own-row';
-    if (item.PosterPath) {
+  // ---------- Ownership ----------
+  // The library's media (movies, and shows season by season) with their owners. The admin ticks media,
+  // picks users, then gives (the user is told it was added to their library) or takes away (silent: their
+  // quota is freed, the files stay). An owner's × takes one media from one user.
+  function renderOwnership(container) {
+    var state = { items: [], users: [], query: '', mode: 'all', selected: {}, userIds: {}, note: '', busy: false };
+    container.innerHTML = '';
+    setMessage(t('loading'));
+
+    var sub = document.createElement('p');
+    sub.className = 'jellycrowd-disclaimer';
+    sub.textContent = t('ownership_subtitle');
+
+    var tools = document.createElement('div');
+    tools.className = 'jellycrowd-own-tools';
+    var filter = document.createElement('input');
+    filter.type = 'search';
+    filter.className = 'jellycrowd-search-input';
+    filter.placeholder = t('ownership_filter_placeholder');
+    filter.setAttribute('aria-label', t('ownership_filter_placeholder'));
+    tools.appendChild(filter);
+    var modes = document.createElement('div');
+    modes.className = 'jellycrowd-chips';
+    var modeButtons = [['all', 'ownership_show_all'], ['owned', 'ownership_show_owned'], ['orphans', 'ownership_show_orphans']].map(function (m) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'jellycrowd-chip';
+      b.addEventListener('click', function () { state.mode = m[0]; paintModes(); paintList(); });
+      modes.appendChild(b);
+      return { mode: m[0], key: m[1], el: b };
+    });
+    tools.appendChild(modes);
+
+    var selectAll = document.createElement('label');
+    selectAll.className = 'jellycrowd-own-selectall';
+    var selectAllBox = document.createElement('input');
+    selectAllBox.type = 'checkbox';
+    var selectAllText = document.createElement('span');
+    selectAll.appendChild(selectAllBox);
+    selectAll.appendChild(selectAllText);
+
+    var list = document.createElement('div');
+    list.className = 'jellycrowd-list';
+
+    // The action bar sticks to the bottom of the view while media are ticked, and then shows the outcome.
+    var bar = document.createElement('div');
+    bar.className = 'jellycrowd-own-bar';
+    bar.setAttribute('role', 'region');
+    bar.setAttribute('aria-label', t('nav_ownership'));
+    var count = document.createElement('span');
+    count.className = 'jellycrowd-own-bar-count';
+    var users = document.createElement('div');
+    users.className = 'jellycrowd-own-bar-users';
+    var actions = document.createElement('div');
+    actions.className = 'jellycrowd-own-bar-actions';
+    var give = adminBtn(t('ownership_give'), 'ok', function () { changeSelection('Give'); });
+    var take = adminBtn(t('ownership_take'), 'danger', function () { changeSelection('Remove'); });
+    var clear = actionButton(t('ownership_clear'), function () { state.selected = {}; paintList(); paintBar(); }, true);
+    actions.appendChild(give);
+    actions.appendChild(take);
+    actions.appendChild(clear);
+    var note = document.createElement('p');
+    note.className = 'jellycrowd-own-note';
+    note.setAttribute('aria-live', 'polite');
+    bar.appendChild(count);
+    bar.appendChild(users);
+    bar.appendChild(actions);
+    bar.appendChild(note);
+
+    function selectedItems() {
+      return Object.keys(state.selected).map(function (k) { return state.selected[k]; });
+    }
+
+    function pickedUserIds() {
+      return state.users.filter(function (u) { return state.userIds[u.Id]; }).map(function (u) { return u.Id; });
+    }
+
+    function userName(id) {
+      for (var i = 0; i < state.users.length; i++) { if (state.users[i].Id === id) { return state.users[i].Name; } }
+      return usersById[id] || id;
+    }
+
+    function paintModes() {
+      var counts = lib.ownershipCounts(state.items);
+      modeButtons.forEach(function (m) {
+        m.el.textContent = t(m.key).replace('{n}', counts[m.mode]);
+        m.el.classList.toggle('jellycrowd-chip-active', state.mode === m.mode);
+        m.el.setAttribute('aria-pressed', state.mode === m.mode ? 'true' : 'false');
+      });
+    }
+
+    function shownItems() {
+      return lib.filterOwnership(state.items, state.query, state.mode);
+    }
+
+    function paintSelectAll(shown) {
+      var picked = shown.filter(function (it) { return state.selected[lib.ownershipKey(it)]; }).length;
+      selectAll.hidden = !shown.length;
+      selectAllText.textContent = t('ownership_select_shown').replace('{n}', shown.length);
+      selectAllBox.checked = shown.length > 0 && picked === shown.length;
+      selectAllBox.indeterminate = picked > 0 && picked < shown.length;
+    }
+
+    function paintList() {
+      var shown = shownItems();
+      list.innerHTML = '';
+      paintSelectAll(shown);
+      if (!shown.length) { setMessage(state.query || state.mode !== 'all' ? t('no_results') : t('ownership_empty')); return; }
+      setMessage('');
+      shown.forEach(function (it) { list.appendChild(ownershipRow(it)); });
+    }
+
+    function paintBar() {
+      var picked = selectedItems().length;
+      var ids = pickedUserIds();
+      bar.hidden = picked === 0 && !state.note;
+      count.hidden = users.hidden = actions.hidden = picked === 0;
+      count.textContent = t('ownership_selected').replace('{n}', picked);
+      [].forEach.call(users.querySelectorAll('[data-user]'), function (chip) {
+        var on = !!state.userIds[chip.getAttribute('data-user')];
+        chip.classList.toggle('jellycrowd-chip-active', on);
+        chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      give.disabled = take.disabled = state.busy || ids.length === 0;
+      clear.disabled = state.busy;
+      give.title = take.title = ids.length ? '' : t('ownership_pick_users');
+      note.textContent = picked && !ids.length ? t('ownership_pick_users') : state.note;
+      note.hidden = !note.textContent;
+    }
+
+    function paintUsers() {
+      users.innerHTML = '';
+      var label = document.createElement('span');
+      label.className = 'jellycrowd-own-bar-label';
+      label.textContent = t('ownership_users');
+      users.appendChild(label);
+      state.users.forEach(function (u) {
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'jellycrowd-chip';
+        chip.setAttribute('data-user', u.Id);
+        chip.textContent = u.Name;
+        chip.addEventListener('click', function () {
+          if (state.userIds[u.Id]) { delete state.userIds[u.Id]; } else { state.userIds[u.Id] = true; }
+          state.note = '';
+          paintBar();
+        });
+        users.appendChild(chip);
+      });
+    }
+
+    function toggle(it, on) {
+      var key = lib.ownershipKey(it);
+      if (on) { state.selected[key] = it; } else { delete state.selected[key]; }
+      state.note = '';
+    }
+
+    function ownershipRow(it) {
+      var key = lib.ownershipKey(it);
+      var row = document.createElement('div');
+      row.className = 'jellycrowd-own-row jellycrowd-own-pickable';
+      row.classList.toggle('jellycrowd-own-picked', !!state.selected[key]);
+
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'jellycrowd-own-check';
+      box.checked = !!state.selected[key];
+      box.setAttribute('aria-label', lib.ownershipSubject([it], t));
+      box.addEventListener('change', function () {
+        toggle(it, box.checked);
+        row.classList.toggle('jellycrowd-own-picked', box.checked);
+        paintSelectAll(shownItems());
+        paintBar();
+      });
+      row.appendChild(box);
+      // A click anywhere on the row ticks it, except on what has its own action (the link, the × buttons).
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('a, button, input')) { return; }
+        box.click();
+      });
+
+      row.appendChild(ownershipPoster(it));
+
+      var body = document.createElement('div');
+      body.className = 'jellycrowd-own-body';
+      var head = document.createElement('div');
+      head.className = 'jellycrowd-own-head';
+      var title = tmdbLink(it);
+      title.classList.add('jellycrowd-own-title');
+      head.appendChild(title);
+      if (it.Season != null) {
+        var scope = document.createElement('span');
+        scope.className = 'jellycrowd-own-scope';
+        scope.textContent = 'S' + it.Season;
+        head.appendChild(scope);
+      }
+      var size = document.createElement('span');
+      size.className = 'jellycrowd-own-size';
+      size.textContent = fmtBytes(it.SizeBytes);
+      head.appendChild(size);
+      body.appendChild(head);
+
+      var owners = document.createElement('div');
+      owners.className = 'jellycrowd-own-owners';
+      if (!it.Owners || !it.Owners.length) {
+        var none = document.createElement('span');
+        none.className = 'jellycrowd-own-none';
+        none.textContent = t('ownership_no_owner');
+        owners.appendChild(none);
+      }
+      (it.Owners || []).forEach(function (o) {
+        var chip = document.createElement('span');
+        chip.className = 'jellycrowd-own-owner' + (o.Leaving ? ' jellycrowd-own-owner-leaving' : '');
+        var name = document.createElement('span');
+        name.textContent = o.Name;
+        chip.appendChild(name);
+        var holding = lib.ownershipHolding(o, t);
+        if (holding) {
+          var how = document.createElement('span');
+          how.className = 'jellycrowd-own-holding';
+          how.textContent = '· ' + holding;
+          chip.appendChild(how);
+        }
+        var tip = [];
+        if (o.SinceUtc) { tip.push(t('ownership_since') + ' ' + new Date(o.SinceUtc).toLocaleDateString()); }
+        if (o.Leaving) { tip.push(t('ownership_leaving')); }
+        if (tip.length) { chip.title = tip.join(' — '); }
+        var remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'jellycrowd-own-remove';
+        remove.textContent = '×';
+        var label = t('ownership_take_one').replace('{media}', lib.ownershipSubject([it], t)).replace('{user}', o.Name);
+        remove.setAttribute('aria-label', label);
+        remove.title = label;
+        remove.addEventListener('click', function () { change('Remove', [it], [o.UserId]); });
+        chip.appendChild(remove);
+        owners.appendChild(chip);
+      });
+      body.appendChild(owners);
+      row.appendChild(body);
+      return row;
+    }
+
+    // The TMDB poster a request remembered; otherwise the library item's own image (a media nobody requested).
+    function ownershipPoster(it) {
+      var empty = document.createElement('div');
+      empty.className = 'jellycrowd-own-poster jellycrowd-own-poster-empty';
+      var src = it.PosterPath ? POSTER_BASE + it.PosterPath : libraryImage(it.JellyfinItemId);
+      if (!src) { return empty; }
       var img = document.createElement('img');
       img.className = 'jellycrowd-own-poster';
       img.loading = 'lazy';
       img.alt = '';
-      img.src = POSTER_BASE + item.PosterPath;
-      row.appendChild(img);
+      img.addEventListener('error', function () { if (img.parentNode) { img.parentNode.replaceChild(empty, img); } });
+      img.src = src;
+      return img;
     }
-    var body = document.createElement('div');
-    body.className = 'jellycrowd-own-body';
-    var head = document.createElement('div');
-    head.className = 'jellycrowd-own-head';
-    var title = tmdbLink(item);
-    title.classList.add('jellycrowd-own-title');
-    head.appendChild(title);
-    if (item.Season != null) {
-      var scope = document.createElement('span');
-      scope.className = 'jellycrowd-own-scope';
-      scope.textContent = 'S' + item.Season + (item.Episode != null ? 'E' + item.Episode : '');
-      head.appendChild(scope);
-    }
-    var count = document.createElement('span');
-    count.className = 'jellycrowd-own-count';
-    count.textContent = (item.Owners ? item.Owners.length : 0) + ' ' + t('ownership_owners');
-    head.appendChild(count);
-    body.appendChild(head);
 
-    var owners = document.createElement('div');
-    owners.className = 'jellycrowd-own-owners';
-    (item.Owners || []).forEach(function (o) {
-      var chip = document.createElement('span');
-      chip.className = 'jellycrowd-own-owner';
-      chip.textContent = o.Name;
-      if (o.SinceUtc) { chip.title = t('ownership_since') + ' ' + new Date(o.SinceUtc).toLocaleDateString(); }
-      owners.appendChild(chip);
+    function changeSelection(op) {
+      var ids = pickedUserIds();
+      var items = selectedItems();
+      if (!ids.length || !items.length) { return; }
+      change(op, items, ids);
+    }
+
+    function change(op, items, ids) {
+      var giving = op === 'Give';
+      var subject = lib.ownershipSubject(items, t);
+      var who = lib.ownershipUsersLabel(ids.map(userName), t);
+      confirmAction({
+        title: t(giving ? 'ownership_give_title' : 'ownership_take_title').replace('{media}', subject).replace('{users}', who),
+        message: t(giving ? 'ownership_give_message' : 'ownership_take_message'),
+        confirmLabel: t(giving ? 'ownership_give' : 'ownership_take'),
+        danger: !giving
+      }).then(function (ok) {
+        if (!ok) { return; }
+        state.busy = true;
+        paintBar();
+        apiPostJsonResult('JellyCrowd/Ownership/' + op, lib.ownershipChangeBody(items, ids))
+          .then(function (result) {
+            state.selected = {};
+            state.userIds = {};
+            state.note = lib.ownershipResultMessage(result, t);
+            return load().catch(function () { /* the change went through; the list just stays as it was */ });
+          })
+          .catch(function () { state.note = t('ownership_change_failed'); })
+          .then(function () { state.busy = false; paintBar(); });
+      });
+    }
+
+    function load() {
+      return apiGet('JellyCrowd/Ownership').then(function (items) {
+        state.items = items || [];
+        // A ticked media that is gone from the library is no longer ticked.
+        var still = {};
+        state.items.forEach(function (it) { var k = lib.ownershipKey(it); if (state.selected[k]) { still[k] = it; } });
+        state.selected = still;
+        paintModes();
+        paintList();
+        paintBar();
+      });
+    }
+
+    selectAllBox.addEventListener('change', function () {
+      shownItems().forEach(function (it) { toggle(it, selectAllBox.checked); });
+      paintList();
+      paintBar();
     });
-    body.appendChild(owners);
-    row.appendChild(body);
-    return row;
+    filter.addEventListener('input', function () { state.query = filter.value; paintList(); });
+
+    var usersPromise = (window.ApiClient && typeof window.ApiClient.getUsers === 'function')
+      ? window.ApiClient.getUsers().catch(function () { return []; })
+      : Promise.resolve([]);
+    usersPromise
+      .then(function (all) {
+        state.users = (all || [])
+          .filter(function (u) { return !(u.Policy && u.Policy.IsDisabled); })
+          .map(function (u) { return { Id: u.Id, Name: u.Name }; })
+          .sort(function (a, b) { return String(a.Name).localeCompare(String(b.Name)); });
+        return load();
+      })
+      .then(function () {
+        container.appendChild(sub);
+        container.appendChild(tools);
+        container.appendChild(selectAll);
+        container.appendChild(list);
+        container.appendChild(bar);
+        paintUsers();
+        paintBar();
+      })
+      .catch(function (e) { setMessage(t(lib.errorKey(e && e.status))); });
   }
 
   // ---------- Polls ----------

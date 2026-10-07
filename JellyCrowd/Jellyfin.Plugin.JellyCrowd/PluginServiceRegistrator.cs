@@ -97,6 +97,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddSingleton<IRequestReconciler, RequestReconciler>();
     serviceCollection.AddSingleton<IQuotaHoldPromoter, QuotaHoldPromoter>();
     serviceCollection.AddSingleton<IRequestCreationGate, RequestCreationGate>();
+    serviceCollection.AddSingleton<IOwnershipService, OwnershipService>();
     serviceCollection.AddSingleton<IContentRestrictionService, ContentRestrictionService>();
     serviceCollection.AddSingleton<IServarrProfileResolver, ServarrProfileResolver>();
     serviceCollection.AddSingleton<LanguageCodes>();

@@ -35,6 +35,7 @@ public class RequestsController : ControllerBase
   private readonly IRequestCreationGate _creationGate;
   private readonly IContentRestrictionService _restrictions;
   private readonly IRequestCreationService _creator;
+  private readonly IOwnershipService _ownership;
   private readonly Func<Guid, string> _resolveUserName;
 
   /// <summary>
@@ -52,6 +53,7 @@ public class RequestsController : ControllerBase
   /// <param name="creationGate">Serializes request creation per user, so duplicate checks cannot race.</param>
   /// <param name="restrictions">Refuses titles above the user's parental restriction.</param>
   /// <param name="creator">Creates requests (the user's own, and on a user's behalf).</param>
+  /// <param name="ownership">Gives library media to members (assignments).</param>
   /// <param name="resolveUserName">Resolves a user id to a display name for log messages.</param>
   public RequestsController(
     IRequestStore store,
@@ -66,6 +68,7 @@ public class RequestsController : ControllerBase
     IRequestCreationGate creationGate,
     IContentRestrictionService restrictions,
     IRequestCreationService creator,
+    IOwnershipService ownership,
     Func<Guid, string> resolveUserName)
   {
     _store = store;
@@ -80,6 +83,7 @@ public class RequestsController : ControllerBase
     _creationGate = creationGate;
     _restrictions = restrictions;
     _creator = creator;
+    _ownership = ownership;
     _resolveUserName = resolveUserName;
   }
 
@@ -111,25 +115,9 @@ public class RequestsController : ControllerBase
     return ToActionResult(await _creator.CreateAsync(userId, dto, cancellationToken).ConfigureAwait(false));
   }
 
-  // The library item a claim or an assignment takes ownership of: an episode, a season, or the whole
-  // movie/series. A season must hold an episode — Jellyfin keeps the season folder after its files are
-  // deleted, and that empty shell is not something to own (FindItemId applies the same rule to a series).
+  // The library item a claim takes ownership of (see OwnershipService.FindOwnableItemId).
   private string? FindOwnableItemId(string mediaType, int tmdbId, int? season, int? episode)
-  {
-    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal) || season is not int seasonNumber)
-    {
-      return _libraryMatcher.FindItemId(mediaType, tmdbId);
-    }
-
-    if (episode is int episodeNumber)
-    {
-      return _libraryMatcher.FindEpisodeItemId(tmdbId, seasonNumber, episodeNumber);
-    }
-
-    return _libraryMatcher.FindEpisodeItemId(tmdbId, seasonNumber, null) is null
-      ? null
-      : _libraryMatcher.FindSeasonItemId(tmdbId, seasonNumber);
-  }
+    => OwnershipService.FindOwnableItemId(_libraryMatcher, mediaType, tmdbId, season, episode);
 
   // Whether a title already on disk still fits in what is left of the user's quota: their committed
   // footprint (owned titles at their real size plus what in-flight requests reserve) plus this title's
@@ -781,59 +769,31 @@ public class RequestsController : ControllerBase
       return BadRequest("A target user is required.");
     }
 
-    // Resolve the exact library item for the scope (a season, an episode, or the whole movie/series), so
-    // ownership points at what actually exists — assigning is only for media that is already present.
-    var itemId = FindOwnableItemId(dto.MediaType, dto.TmdbId, dto.Season, dto.Episode);
-    if (string.IsNullOrEmpty(itemId))
-    {
-      return BadRequest("This title is not available in the library.");
-    }
-
-    // Already owned by this user (this scope, or a broader one covering it) → renew rather than duplicate.
-    using var creation = await _creationGate.EnterAsync(dto.UserId, cancellationToken).ConfigureAwait(false);
-    var theirs = await _store.GetByUserAsync(dto.UserId, cancellationToken).ConfigureAwait(false);
-    var owned = theirs.FirstOrDefault(r =>
-      r.TmdbId == dto.TmdbId
-      && string.Equals(r.MediaType, dto.MediaType, StringComparison.Ordinal)
-      && r.Status == RequestStatus.Available
-      && MediaScope.Overlaps(dto.Season, dto.Episode, r.Season, r.Episode));
-    if (owned is not null)
-    {
-      var renewed = await _store.RenewAvailableAsync(owned.Id, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
-      return Ok(renewed);
-    }
-
-    var created = await _store.CreateAsync(
-      new RequestRecord
+    var grant = await _ownership.GiveOneAsync(
+      dto.UserId,
+      new OwnershipMediaRef
       {
-        UserId = dto.UserId,
-        TmdbId = dto.TmdbId,
         MediaType = dto.MediaType,
+        TmdbId = dto.TmdbId,
         Title = dto.Title,
         PosterPath = dto.PosterPath,
         ReleaseDate = dto.ReleaseDate,
         Season = dto.Season,
-        Episode = dto.Episode,
-        Status = RequestStatus.Available,
-        JellyfinItemId = itemId,
-        AvailableAt = DateTime.UtcNow
+        Episode = dto.Episode
       },
       cancellationToken).ConfigureAwait(false);
+    if (grant is null)
+    {
+      return BadRequest("This title is not available in the library.");
+    }
 
-    var t = ServerStrings.ForMember(Plugin.Instance?.Configuration?.Language, dto.UserId);
-    var title = NotificationMessages.TitleOf(created, t);
-    _ = _notificationService.NotifyPersonalAsync(
-      dto.UserId,
-      PersonalNotifyKind.None,
-      created.Title,
-      t("notif_assigned_subject"),
-      t("notif_assigned_body").Replace("{title}", title, StringComparison.Ordinal),
-      created.PosterPath,
-      CancellationToken.None);
+    if (grant.Created)
+    {
+      var admin = _resolveUserName(await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false));
+      _ = _activityLog.LogAsync("info", "user", admin + " assigned " + grant.Record.Title + " to " + _resolveUserName(dto.UserId), admin, CancellationToken.None);
+    }
 
-    var admin = _resolveUserName(await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false));
-    _ = _activityLog.LogAsync("info", "user", admin + " assigned " + created.Title + " to " + _resolveUserName(dto.UserId), admin, CancellationToken.None);
-    return Ok(created);
+    return Ok(grant.Record);
   }
 
   private static bool IsValidMediaType(string mediaType)

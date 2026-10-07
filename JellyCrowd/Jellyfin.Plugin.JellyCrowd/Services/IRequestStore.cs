@@ -203,6 +203,17 @@ public interface IRequestStore
   Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Replaces a request with others in one save, e.g. an ownership of a whole show with one per season.
+  /// The replacements keep the timestamps they carry, <see cref="RequestRecord.RequestedAt"/> included: they
+  /// are the same request, cut up, and must not count as new ones against the member's request limit.
+  /// </summary>
+  /// <param name="id">The request to replace.</param>
+  /// <param name="replacements">What replaces it (given an id when they have none).</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>A task that completes when the request has been replaced.</returns>
+  Task ReplaceAsync(Guid id, IReadOnlyCollection<RequestRecord> replacements, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Admin edit of a request's status, season/episode and desired date.
   /// </summary>
   /// <param name="id">The request identifier.</param>

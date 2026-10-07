@@ -88,7 +88,7 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 - 🗂️ **Manual-import aware** — drop a file in by hand and Jelly Crowd marks the request available and asks Radarr/Sonarr to import it.
 - ♻️ **Stalled-download recovery** — detects stuck downloads and re-searches automatically.
 - 👥 **Shared ownership** — when several users request the same title they all own it, and it's removed only once nobody does.
-- 🏷️ **Manual ownership** — assign an existing library title's ownership to a user, so it counts toward their quota.
+- 🏷️ **Manual ownership** — give or take away library media for one or several users at once, so it counts (or stops counting) toward their quota.
 - 🧑‍💼 **Request on behalf** — create a request for another user, straight from a title.
 - 🛡️ **Review moderation** — hide, show or delete any community review.
 - 🔒 **Access control** — hide the plugin while you set it up (*config mode*), with per-user enable / block overrides.
@@ -135,8 +135,9 @@ Paste your TMDB API key in **Dashboard → Plugins → Jelly Crowd**, then manag
   sent back to the reporter), and hide / show / delete community reviews. New reports alert every admin and
   the configured channels, with an automatic recap of the ones left open.
 - **Users** — per-user quota & policy overrides (with **bulk edit**), **user groups** (shared settings,
-  Jellyfin library access, targeted announcements and a **child mode** with an age-filtered catalog), who
-  owns which media, and **assign** an existing title's ownership to a user.
+  Jellyfin library access, targeted announcements and a **child mode** with an age-filtered catalog), and
+  **ownership**: the whole library with its owners, to **give** media to users (they are told) or **take it
+  away** (silently, the files stay) — several media and users at once.
 - **Logs** — the plugin activity log.
 - **Configurations**
   - **General** — default quota; approval mode (manual / auto, with size & genre rules); request rate

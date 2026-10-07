@@ -648,6 +648,148 @@ body.jellycrowd-overlay-open {
   font-size: 0.85em;
 }
 
+/* Ownership (admin › Users › Ownership): the library's media, ticked for a bulk give / take away. */
+.jellycrowd-own-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0.4em 0 0.7em;
+}
+
+.jellycrowd-own-tools .jellycrowd-search-input {
+  flex: 1 1 16em;
+  margin: 0;
+}
+
+.jellycrowd-own-tools .jellycrowd-chips { margin: 0; }
+
+.jellycrowd-own-selectall {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0 0 0.6em 0.8em;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.jellycrowd-own-selectall input,
+.jellycrowd-own-check {
+  width: 1.15em;
+  height: 1.15em;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: #00a4dc;
+  cursor: pointer;
+}
+
+.jellycrowd-own-pickable { align-items: center; cursor: pointer; }
+
+.jellycrowd-own-row.jellycrowd-own-picked { box-shadow: inset 0 0 0 2px #00a4dc; }
+
+.jellycrowd-own-poster-empty { background: rgba(127, 127, 127, 0.2); }
+
+.jellycrowd-own-size {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.jellycrowd-own-none {
+  opacity: 0.6;
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+.jellycrowd-own-owners .jellycrowd-own-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding-right: 0.2em;
+}
+
+.jellycrowd-own-holding { opacity: 0.75; }
+
+.jellycrowd-own-owner.jellycrowd-own-owner-leaving { border-style: dashed; }
+
+.jellycrowd-own-remove {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 1.15em;
+  line-height: 1;
+  min-width: 1.4em;
+  min-height: 1.4em;
+  padding: 0;
+  border-radius: 50%;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+.jellycrowd-own-remove:hover,
+.jellycrowd-own-remove:focus-visible {
+  opacity: 1;
+  background: rgba(255, 107, 107, 0.25);
+}
+
+/* Sticks to the bottom of the view while media are ticked, then shows the outcome of the change. */
+.jellycrowd-own-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em 0.9em;
+  margin-top: 0.8em;
+  padding: 0.7em 0.9em;
+  border-radius: 0.5em;
+  background: var(--theme-body-background, #101013);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 164, 220, 0.7);
+}
+
+.jellycrowd-own-bar-count { font-weight: 600; }
+
+.jellycrowd-own-bar-users {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em;
+  flex: 1 1 18em;
+}
+
+.jellycrowd-own-bar-label {
+  opacity: 0.7;
+  font-size: 0.85em;
+  margin-right: 0.2em;
+}
+
+.jellycrowd-own-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+.jellycrowd-own-bar-actions .jellycrowd-request { margin-top: 0; }
+
+/* Give and take away must not look alike (the plain .jellycrowd-request rule, declared later, would
+   otherwise paint both in the accent blue). */
+.jellycrowd-own-bar-actions .jellycrowd-request-ok { background: #2e7d32; }
+.jellycrowd-own-bar-actions .jellycrowd-request-danger { background: #c62828; }
+
+.jellycrowd-own-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+
+.jellycrowd-own-bar[hidden],
+.jellycrowd-own-bar [hidden],
+.jellycrowd-own-selectall[hidden] { display: none; }
+
 .jellycrowd-comment-form {
   display: flex;
   flex-direction: column;
@@ -2233,34 +2375,6 @@ body.jellycrowd-overlay-open {
 .jellycrowd-history-del:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-/* Assign media (admin → Users → Assign media) */
-.jellycrowd-assign-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-  padding: 0.5em 0;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
-  flex-wrap: wrap;
-}
-
-.jellycrowd-assign-title {
-  flex: 1;
-  min-width: 12em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.jellycrowd-assign-select {
-  padding: 0.35em 0.5em;
-  border-radius: 0.25em;
-  border: 1px solid rgba(127, 127, 127, 0.45);
-  background: rgba(0, 0, 0, 0.25);
-  color: inherit;
-  font: inherit;
-  max-width: 14em;
 }
 
 /* Bulk-edit bar (admin → Users → Per user) */
