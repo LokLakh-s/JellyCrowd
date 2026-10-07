@@ -42,6 +42,21 @@ public static class ServarrPayload
   /// <param name="season">The requested season number, or <c>null</c> for the whole series.</param>
   /// <returns>The body to POST to <c>/api/v3/series</c>.</returns>
   public static JsonObject BuildSeriesAdd(JsonObject lookup, int qualityProfileId, int languageProfileId, string rootFolderPath, int? season)
+    => BuildSeriesAdd(lookup, qualityProfileId, languageProfileId, rootFolderPath, season, inert: false);
+
+  /// <summary>
+  /// Builds a Sonarr "add series" body that monitors nothing: the series is added only so its episodes can be
+  /// compared with TMDB's before anything of it is monitored (see <c>SeasonAlignment</c>).
+  /// </summary>
+  /// <param name="lookup">The Sonarr series lookup object.</param>
+  /// <param name="qualityProfileId">The quality profile id to apply.</param>
+  /// <param name="languageProfileId">The language profile id (Sonarr v3); ignored when &lt;= 0.</param>
+  /// <param name="rootFolderPath">The root folder path.</param>
+  /// <returns>The body to POST to <c>/api/v3/series</c>.</returns>
+  public static JsonObject BuildInertSeriesAdd(JsonObject lookup, int qualityProfileId, int languageProfileId, string rootFolderPath)
+    => BuildSeriesAdd(lookup, qualityProfileId, languageProfileId, rootFolderPath, null, inert: true);
+
+  private static JsonObject BuildSeriesAdd(JsonObject lookup, int qualityProfileId, int languageProfileId, string rootFolderPath, int? season, bool inert)
   {
     ArgumentNullException.ThrowIfNull(lookup);
 
@@ -58,7 +73,7 @@ public static class ServarrPayload
 
     // Only a whole-series request follows the seasons Sonarr lists later; a season or an episode request
     // must not have the next season monitored (and downloaded) for nobody.
-    body["monitorNewItems"] = season is null ? "all" : "none";
+    body["monitorNewItems"] = season is null && !inert ? "all" : "none";
 
     // Set monitoring explicitly on the seasons array (Sonarr honors it across versions): a specific
     // season monitors only that one, otherwise all real seasons (specials = season 0 stay off).
@@ -70,7 +85,7 @@ public static class ServarrPayload
             && seasonObj["seasonNumber"] is JsonValue numberValue
             && numberValue.TryGetValue<int>(out var number))
         {
-          seasonObj["monitored"] = number > 0 && (season is null || number == season.Value);
+          seasonObj["monitored"] = !inert && number > 0 && (season is null || number == season.Value);
         }
       }
     }

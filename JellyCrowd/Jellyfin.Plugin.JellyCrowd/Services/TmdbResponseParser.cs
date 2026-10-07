@@ -133,6 +133,48 @@ public static class TmdbResponseParser
   }
 
   /// <summary>
+  /// Extracts what ties a show to others from a <c>/tv/{id}?append_to_response=external_ids</c> payload: its
+  /// names, its creators and the TVDB id TMDB links it to.
+  /// </summary>
+  /// <param name="json">The raw show JSON payload.</param>
+  /// <returns>The show's links.</returns>
+  public static ShowLinks ParseShowLinks(string json)
+  {
+    ArgumentNullException.ThrowIfNull(json);
+
+    using var doc = JsonDocument.Parse(json);
+    var root = doc.RootElement;
+    var creators = new List<int>();
+    if (root.TryGetProperty("created_by", out var createdBy) && createdBy.ValueKind == JsonValueKind.Array)
+    {
+      foreach (var creator in createdBy.EnumerateArray())
+      {
+        if (creator.TryGetProperty("id", out var id) && id.TryGetInt32(out var creatorId))
+        {
+          creators.Add(creatorId);
+        }
+      }
+    }
+
+    int? tvdbId = null;
+    if (root.TryGetProperty("external_ids", out var external)
+        && external.TryGetProperty("tvdb_id", out var tvdb) && tvdb.ValueKind == JsonValueKind.Number
+        && tvdb.TryGetInt32(out var tvdbValue) && tvdbValue > 0)
+    {
+      tvdbId = tvdbValue;
+    }
+
+    return new ShowLinks
+    {
+      TmdbId = root.TryGetProperty("id", out var showId) && showId.TryGetInt32(out var parsedId) ? parsedId : 0,
+      Name = GetString(root, "name") ?? string.Empty,
+      OriginalName = GetString(root, "original_name"),
+      CreatorIds = creators,
+      TvdbId = tvdbId
+    };
+  }
+
+  /// <summary>
   /// Extracts when a movie comes out from a <c>/movie/{id}?append_to_response=release_dates</c> payload: the
   /// earliest release of each kind across all countries (a TV premiere counted as digital, as Radarr does),
   /// and the movie's status.

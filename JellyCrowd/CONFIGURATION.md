@@ -138,12 +138,18 @@ Le **menu déroulant « Download backend »** pilote les réglages affichés :
     lien TMDB que connaît Sonarr). Pour une demande de **saison précise**, seule cette saison est surveillée ;
     sinon toute la série.
   - **TMDB et TVDB ne découpent pas toujours une série de la même façon** : TMDB fait par exemple de
-    « Monster: The Lizzie Borden Story » une série à part, TVDB la saison 4 de « Monster ». Avant de surveiller
-    quoi que ce soit, Jelly Crowd compare les dates de diffusion des épisodes des deux côtés ; si la saison
-    demandée ne correspond pas à la même saison dans Sonarr, la demande est **bloquée avec un message qui
-    l'explique** (visible par l'admin et au survol de « Bloqué »), au lieu de télécharger une autre saison.
-    Il faut alors l'ajouter à la main dans Sonarr. Une annulation ou une suppression ne touche pas non plus
-    à une série dont les saisons ne sont pas celles de la demande.
+    « Monster: The Lizzie Borden Story » une série à part, TVDB la saison 4 de « Monster (2022) » ; de même
+    « Berlin et la Dame à l'hermine » est la saison 2 de « Berlin (2023) ». Jelly Crowd retrouve la série Sonarr
+    (lien TVDB ou IMDb de TMDB, lien TMDB connu de Sonarr, ou série de la même « famille » sur TMDB : même début
+    de titre et un créateur en commun), puis **compare les dates de diffusion des épisodes** : la saison est
+    associée seulement si les épisodes sortent les mêmes jours sous les mêmes numéros. Une série candidate absente
+    de Sonarr y est ajoutée sans rien surveiller, le temps de la comparaison, et retirée si elle ne correspond
+    pas. La correspondance est conservée (`series-mappings.json`) et revérifiée à chaque envoi ; la demande garde
+    la numérotation de TMDB, Sonarr reçoit la sienne (une demande de « série entière » = la ou les saisons
+    associées, jamais toute la série). Mise à disposition, quota, suppression et catalogue suivent la saison
+    associée ; un exemplaire déposé à la main sous la fiche TMDB de la série reste prioritaire. Si aucune série
+    ne correspond, la demande est **bloquée avec un message qui l'explique** (visible par l'admin et au survol
+    de « Bloqué »).
   - **Fichier déposé à la main** : si un média demandé est ajouté manuellement (hors Radarr/Sonarr) et
     détecté par Jellyfin, la demande passe **Disponible** et Jelly Crowd demande à Radarr/Sonarr de
     **rescanner** le film/la série depuis le disque (`RescanMovie` / `RescanSeries`), pour qu'ils

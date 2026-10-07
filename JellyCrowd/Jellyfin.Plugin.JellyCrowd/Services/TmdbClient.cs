@@ -249,6 +249,22 @@ public class TmdbClient : ITmdbClient
   }
 
   /// <inheritdoc />
+  public async Task<ShowLinks> GetShowLinksAsync(int tmdbId, CancellationToken cancellationToken)
+  {
+    var id = tmdbId.ToString(CultureInfo.InvariantCulture);
+    var json = await GetAsync($"/tv/{id}?language=en-US&append_to_response=external_ids", cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseShowLinks(json);
+  }
+
+  /// <inheritdoc />
+  public async Task<IReadOnlyList<CatalogItem>> SearchShowsAsync(string query, CancellationToken cancellationToken)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(query);
+    var json = await GetAsync($"/search/tv?query={Escape(query)}&language=en-US&include_adult=false&page=1", cancellationToken).ConfigureAwait(false);
+    return TmdbResponseParser.ParseResults(json, "tv");
+  }
+
+  /// <inheritdoc />
   public async Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)
   {
     var id = tmdbId.ToString(CultureInfo.InvariantCulture);

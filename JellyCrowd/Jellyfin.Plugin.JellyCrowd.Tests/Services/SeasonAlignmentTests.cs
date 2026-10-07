@@ -100,4 +100,91 @@ public class SeasonAlignmentTests
     Assert.Equal(new[] { Day(2026, 9, 17) }, dates[4]);
     Assert.Empty(SeasonAlignment.ParseSonarrAirDates(null));
   }
+
+  private static IReadOnlyList<AiredEpisode> Drop(DateTime day, int count) => Enumerable.Range(1, count).Select(n => new AiredEpisode(n, day)).ToList();
+
+  private static IReadOnlyList<AiredEpisode> WeeklyEpisodes(DateTime first, int count) => Enumerable.Range(1, count).Select(n => new AiredEpisode(n, first.AddDays(7 * (n - 1)))).ToList();
+
+  [Fact]
+  public void MapSeasons_BerlinsSpinOff_IsSeasonTwoOfBerlin()
+  {
+    // TMDB: "Berlin and the Lady with an Ermine", one season of 8 episodes released at once on 2026-05-15.
+    // TVDB: season 2 of "Berlin (2023)".
+    var tmdb = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = Drop(Day(2026, 5, 15), 8) };
+    var sonarr = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = Drop(Day(2023, 12, 29), 8), [2] = Drop(Day(2026, 5, 15), 8) };
+
+    var map = SeasonAlignment.MapSeasons(tmdb, sonarr);
+
+    Assert.Equal(new Dictionary<int, int> { [1] = 2 }, map);
+  }
+
+  [Fact]
+  public void MapSeasons_SameNumbering_MapsEachSeasonToItself()
+  {
+    var tmdb = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = WeeklyEpisodes(Day(2024, 1, 1), 6), [2] = WeeklyEpisodes(Day(2025, 1, 1), 6) };
+    var sonarr = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = WeeklyEpisodes(Day(2024, 1, 1), 6), [2] = WeeklyEpisodes(Day(2025, 1, 1), 6) };
+
+    Assert.Equal(new Dictionary<int, int> { [1] = 1, [2] = 2 }, SeasonAlignment.MapSeasons(tmdb, sonarr));
+  }
+
+  [Fact]
+  public void MapSeasons_EpisodesUnderOtherNumbers_AreNotMapped()
+  {
+    // Same days, but Sonarr's episode 3 airs on TMDB's episode 4 day: numbers cannot be kept as they are.
+    var tmdb = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = WeeklyEpisodes(Day(2026, 9, 17), 4) };
+    var shifted = WeeklyEpisodes(Day(2026, 9, 17), 4).Select(e => e with { Number = e.Number + 1 }).ToList();
+    var sonarr = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [4] = shifted };
+
+    Assert.Null(SeasonAlignment.MapSeasons(tmdb, sonarr));
+  }
+
+  [Fact]
+  public void MapSeasons_TwoCandidateSeasons_AreNotGuessedBetween()
+  {
+    var tmdb = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = Drop(Day(2026, 5, 15), 4) };
+    var sonarr = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [2] = Drop(Day(2026, 5, 15), 4), [3] = Drop(Day(2026, 5, 15), 4) };
+
+    Assert.Null(SeasonAlignment.MapSeasons(tmdb, sonarr));
+  }
+
+  [Fact]
+  public void MapSeasons_UndatedSeason_CannotBeMapped()
+  {
+    var tmdb = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = Array.Empty<AiredEpisode>() };
+    var sonarr = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [2] = Drop(Day(2026, 5, 15), 4) };
+
+    Assert.Null(SeasonAlignment.MapSeasons(tmdb, sonarr));
+  }
+
+  [Fact]
+  public void Holds_FalseOnceTheSonarrSeasonAirsOnOtherDays()
+  {
+    var tmdb = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = Drop(Day(2026, 5, 15), 8) };
+    var sonarr = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [2] = Drop(Day(2026, 5, 15), 8), [3] = Drop(Day(2027, 5, 15), 8) };
+
+    Assert.True(SeasonAlignment.Holds(new[] { (1, 2) }, tmdb, sonarr));
+    Assert.False(SeasonAlignment.Holds(new[] { (1, 3) }, tmdb, sonarr));
+  }
+
+  [Theory]
+  [InlineData("2023-12-29T00:00:00Z", "2026-05-15T00:00:00Z", true)]
+  [InlineData("2023-12-29T00:00:00Z", null, true)]           // still running
+  [InlineData("2027-01-01T00:00:00Z", null, false)]          // started after the episodes aired
+  [InlineData("2009-01-01T00:00:00Z", "2015-03-20T00:00:00Z", false)] // ended long before
+  [InlineData(null, null, false)]
+  public void WithinRun_OnlyASeriesWhoseRunCoversTheEpisodes(string? first, string? last, bool expected)
+  {
+    var tmdb = new Dictionary<int, IReadOnlyList<AiredEpisode>> { [1] = Drop(Day(2026, 5, 15), 8) };
+    Assert.Equal(expected, SeasonAlignment.WithinRun(tmdb, first, last));
+  }
+
+  [Fact]
+  public void ParseSonarrEpisodes_KeepsNumbersAndDays()
+  {
+    const string Json = """[ { "seasonNumber": 2, "episodeNumber": 3, "airDate": "2026-05-15" }, { "seasonNumber": 2, "episodeNumber": 4 } ]""";
+
+    var parsed = SeasonAlignment.ParseSonarrEpisodes(Json);
+
+    Assert.Equal(new[] { new AiredEpisode(3, Day(2026, 5, 15)) }, parsed[2]);
+  }
 }

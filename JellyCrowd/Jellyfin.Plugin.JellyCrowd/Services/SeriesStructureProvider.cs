@@ -21,6 +21,7 @@ public sealed class SeriesStructureProvider : ISeriesStructureProvider
   private readonly ITmdbClient _tmdb;
   private readonly IServarrClient _servarr;
   private readonly Func<PluginConfiguration> _config;
+  private readonly ISeriesMappingStore? _mappings;
   private readonly ILogger<SeriesStructureProvider> _logger;
 
   /// <summary>
@@ -30,16 +31,19 @@ public sealed class SeriesStructureProvider : ISeriesStructureProvider
   /// <param name="servarr">The Sonarr/Radarr client.</param>
   /// <param name="config">The plugin configuration accessor.</param>
   /// <param name="logger">The logger.</param>
+  /// <param name="mappings">Where Sonarr files the TMDB shows TMDB splits otherwise, if any.</param>
   public SeriesStructureProvider(
     ITmdbClient tmdb,
     IServarrClient servarr,
     Func<PluginConfiguration> config,
-    ILogger<SeriesStructureProvider> logger)
+    ILogger<SeriesStructureProvider> logger,
+    ISeriesMappingStore? mappings = null)
   {
     _tmdb = tmdb;
     _servarr = servarr;
     _config = config;
     _logger = logger;
+    _mappings = mappings;
   }
 
   /// <inheritdoc />
@@ -47,7 +51,9 @@ public sealed class SeriesStructureProvider : ISeriesStructureProvider
   {
     var tmdbSeasons = await _tmdb.GetSeasonsAsync(tmdbId, language, cancellationToken).ConfigureAwait(false);
     var config = _config();
-    if (!SonarrUsable(config))
+
+    // A show Sonarr files under another series is requested in TMDB's numbering, which the mapping translates.
+    if (!SonarrUsable(config) || _mappings?.Get(tmdbId) is not null)
     {
       return Offerable(tmdbSeasons);
     }
@@ -90,7 +96,7 @@ public sealed class SeriesStructureProvider : ISeriesStructureProvider
   public async Task<IReadOnlyList<Episode>> GetEpisodesAsync(int tmdbId, int season, string language, CancellationToken cancellationToken)
   {
     var config = _config();
-    if (!SonarrUsable(config))
+    if (!SonarrUsable(config) || _mappings?.Get(tmdbId) is not null)
     {
       return await _tmdb.GetSeasonEpisodesAsync(tmdbId, season, language, cancellationToken).ConfigureAwait(false);
     }

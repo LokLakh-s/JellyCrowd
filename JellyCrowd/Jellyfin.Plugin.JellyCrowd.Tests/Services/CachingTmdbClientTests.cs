@@ -140,6 +140,12 @@ public class CachingTmdbClientTests
     public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
       => Task.FromResult<int?>(null);
 
+    public Task<ShowLinks> GetShowLinksAsync(int tmdbId, CancellationToken cancellationToken)
+      => Task.FromResult(new ShowLinks { TmdbId = tmdbId });
+
+    public Task<IReadOnlyList<CatalogItem>> SearchShowsAsync(string query, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyList<CatalogItem>>(Array.Empty<CatalogItem>());
+
     public int ReleaseCalls { get; private set; }
 
     public Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)

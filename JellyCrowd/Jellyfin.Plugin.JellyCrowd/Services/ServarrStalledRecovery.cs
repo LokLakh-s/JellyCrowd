@@ -22,6 +22,7 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
   private readonly ITmdbClient _tmdb;
   private readonly IRequestStore _store;
   private readonly Func<PluginConfiguration> _config;
+  private readonly ISeriesMappingStore? _mappings;
   private readonly ILogger<ServarrStalledRecovery> _logger;
   private readonly StallTracker _tracker = new();
   private readonly TitleOperationLock _titleLock;
@@ -36,14 +37,16 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
   /// <param name="titleLock">Serializes the backend operations of one title (shared with the download dispatcher).</param>
-  public ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, TitleOperationLock titleLock)
-    : this(servarr, tmdb, store, config, logger, titleLock, () => DateTime.UtcNow)
+  /// <param name="mappings">Where Sonarr files the TMDB shows TMDB splits otherwise, if any.</param>
+  public ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, TitleOperationLock titleLock, ISeriesMappingStore? mappings = null)
+    : this(servarr, tmdb, store, config, logger, titleLock, () => DateTime.UtcNow, mappings)
   {
   }
 
   // Tests drive the clock, so a stall can be observed without waiting for the real threshold.
-  internal ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, TitleOperationLock titleLock, Func<DateTime> clock)
+  internal ServarrStalledRecovery(IServarrClient servarr, ITmdbClient tmdb, IRequestStore store, Func<PluginConfiguration> config, ILogger<ServarrStalledRecovery> logger, TitleOperationLock titleLock, Func<DateTime> clock, ISeriesMappingStore? mappings = null)
   {
+    _mappings = mappings;
     _servarr = servarr;
     _tmdb = tmdb;
     _store = store;
@@ -141,16 +144,19 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
 
     foreach (var request in approved.Where(r => string.Equals(r.MediaType, "tv", StringComparison.Ordinal)))
     {
-      var tvdbId = await _tmdb.GetTvdbIdAsync(request.TmdbId, cancellationToken).ConfigureAwait(false);
-      if (tvdbId is null)
+      // A show Sonarr files under another series is looked for there, in Sonarr's season numbering.
+      var mapping = _mappings?.Get(request.TmdbId);
+      var tvdbId = mapping?.TvdbId ?? await _tmdb.GetTvdbIdAsync(request.TmdbId, cancellationToken).ConfigureAwait(false);
+      var season = mapping is null ? request.Season : mapping.ToSonarrScope(request.Season);
+      if (tvdbId is null || (mapping is not null && season is null))
       {
         continue;
       }
 
       // The request's own scope only: an episode request must not act on its season's other downloads.
       var match = queue.FirstOrDefault(q => q.TvdbId == tvdbId.Value
-        && (request.Season is null || q.Season == request.Season)
-        && (request.Season is null || request.Episode is null || q.Episode == request.Episode));
+        && (season is null || q.Season == season)
+        && (season is null || request.Episode is null || q.Episode == request.Episode));
       var key = request.Id.ToString("N", CultureInfo.InvariantCulture);
       if (match is null)
       {
@@ -169,7 +175,7 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
         continue;
       }
 
-      foreach (var queueId in ServarrQueueParser.ParseSeriesQueueRecordIds(queueJson, tvdbId.Value, request.Season, request.Episode))
+      foreach (var queueId in ServarrQueueParser.ParseSeriesQueueRecordIds(queueJson, tvdbId.Value, season, request.Episode))
       {
         await _servarr.DeleteQueueItemAsync(config.SonarrUrl, config.SonarrApiKey, queueId, removeFromClient: true, blocklist: true, cancellationToken).ConfigureAwait(false);
       }
@@ -177,7 +183,7 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
       var series = await _servarr.GetSeriesByTvdbAsync(config.SonarrUrl, config.SonarrApiKey, tvdbId.Value, cancellationToken).ConfigureAwait(false);
       if (series?["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var seriesId) && seriesId > 0)
       {
-        var command = await BuildSearchAsync(config, seriesId, request, cancellationToken).ConfigureAwait(false);
+        var command = await BuildSearchAsync(config, seriesId, season, request.Episode, cancellationToken).ConfigureAwait(false);
         if (command is not null)
         {
           await _servarr.CommandAsync(config.SonarrUrl, config.SonarrApiKey, command, cancellationToken).ConfigureAwait(false);
@@ -194,14 +200,14 @@ public sealed class ServarrStalledRecovery : IStalledDownloadRecovery
 
   // The re-search for a request's scope: its episode alone, its season, or the whole series. Null when the
   // episode is not listed in Sonarr.
-  private async Task<JsonObject?> BuildSearchAsync(PluginConfiguration config, int seriesId, RequestRecord request, CancellationToken cancellationToken)
+  private async Task<JsonObject?> BuildSearchAsync(PluginConfiguration config, int seriesId, int? sonarrSeason, int? requestedEpisode, CancellationToken cancellationToken)
   {
-    if (request.Season is not int season)
+    if (sonarrSeason is not int season)
     {
       return new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId };
     }
 
-    if (request.Episode is not int episode)
+    if (requestedEpisode is not int episode)
     {
       return new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season };
     }

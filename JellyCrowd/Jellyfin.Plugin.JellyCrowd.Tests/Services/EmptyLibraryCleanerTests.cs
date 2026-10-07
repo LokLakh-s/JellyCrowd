@@ -101,4 +101,31 @@ public class EmptyLibraryCleanerTests
     Assert.Equal(1, removed); // the second one still got removed
     manager.Verify(m => m.DeleteItem(It.Is<BaseItem>(b => b.Id == ok), It.IsAny<DeleteOptions>()), Times.Once);
   }
+
+  [Fact]
+  public void KeepsAnEmptySeries_AnotherWantedShowIsMappedOnto()
+  {
+    // "Berlin (2023)" holds nothing yet, but TMDB's "Berlin and the Lady with an Ermine" (wanted) is its season 2.
+    var id = Guid.NewGuid();
+    var berlin = Series(id, DateTime.UtcNow.AddDays(-3), tmdbId: 146176);
+    berlin.SetProviderId(MetadataProvider.Tvdb, "413033");
+    var manager = ManagerWith(new List<BaseItem> { berlin }, new Dictionary<Guid, bool> { [id] = false });
+    var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "jc-" + Guid.NewGuid() + ".json");
+    using var mappings = new JsonSeriesMappingStore(path);
+    var mapping = new Jellyfin.Plugin.JellyCrowd.Models.SeriesMapping { TmdbId = 308014, TvdbId = 413033 };
+    mapping.Seasons.Add(new Jellyfin.Plugin.JellyCrowd.Models.SeasonLink { TmdbSeason = 1, SonarrSeason = 2 });
+    mappings.SetAsync(mapping, System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+
+    try
+    {
+      var cleaner = new EmptyLibraryCleaner(manager.Object, NullLogger<EmptyLibraryCleaner>.Instance, mappings);
+
+      Assert.Equal(0, cleaner.RemoveEmptySeries(24, new HashSet<int> { 308014 }));
+      Assert.Equal(1, cleaner.RemoveEmptySeries(24, new HashSet<int>()));
+    }
+    finally
+    {
+      System.IO.File.Delete(path);
+    }
+  }
 }

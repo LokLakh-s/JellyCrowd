@@ -125,6 +125,151 @@ public static class SeasonAlignment
   }
 
   /// <summary>
+  /// Reads a Sonarr episode list per season: each dated episode's number and air day.
+  /// </summary>
+  /// <param name="episodesJson">The raw <c>/episode?seriesId=…</c> JSON array.</param>
+  /// <returns>The dated episodes by season number.</returns>
+  public static IReadOnlyDictionary<int, IReadOnlyList<AiredEpisode>> ParseSonarrEpisodes(string? episodesJson)
+  {
+    var seasons = new Dictionary<int, List<AiredEpisode>>();
+    if (!string.IsNullOrWhiteSpace(episodesJson))
+    {
+      using var doc = JsonDocument.Parse(episodesJson);
+      if (doc.RootElement.ValueKind == JsonValueKind.Array)
+      {
+        foreach (var episode in doc.RootElement.EnumerateArray())
+        {
+          if (episode.ValueKind == JsonValueKind.Object
+              && episode.TryGetProperty("seasonNumber", out var seasonElement) && seasonElement.TryGetInt32(out var season)
+              && episode.TryGetProperty("episodeNumber", out var numberElement) && numberElement.TryGetInt32(out var number)
+              && episode.TryGetProperty("airDate", out var dateElement) && dateElement.ValueKind == JsonValueKind.String
+              && ParseDay(dateElement.GetString()) is { } day)
+          {
+            if (!seasons.TryGetValue(season, out var list))
+            {
+              list = new List<AiredEpisode>();
+              seasons[season] = list;
+            }
+
+            list.Add(new AiredEpisode(number, day));
+          }
+        }
+      }
+    }
+
+    return seasons.ToDictionary(s => s.Key, s => (IReadOnlyList<AiredEpisode>)s.Value);
+  }
+
+  /// <summary>
+  /// Finds which Sonarr season holds each TMDB season: the one of the same number when its episodes air on the
+  /// same days, else the only other one that does. Every TMDB season must have air dates and be found, no two
+  /// in the same Sonarr season, and each TMDB episode Sonarr lists must air the same day under the same
+  /// number — the mapping keeps episode numbers as they are.
+  /// </summary>
+  /// <param name="tmdbSeasons">TMDB's dated episodes, by season.</param>
+  /// <param name="sonarrSeasons">Sonarr's dated episodes, by season.</param>
+  /// <returns>The Sonarr season for each TMDB season, or <c>null</c> when they cannot be matched safely.</returns>
+  public static IReadOnlyDictionary<int, int>? MapSeasons(
+    IReadOnlyDictionary<int, IReadOnlyList<AiredEpisode>> tmdbSeasons,
+    IReadOnlyDictionary<int, IReadOnlyList<AiredEpisode>> sonarrSeasons)
+  {
+    ArgumentNullException.ThrowIfNull(tmdbSeasons);
+    ArgumentNullException.ThrowIfNull(sonarrSeasons);
+    var map = new Dictionary<int, int>();
+    foreach (var (season, episodes) in tmdbSeasons)
+    {
+      if (episodes.Count == 0)
+      {
+        return null;
+      }
+
+      var days = episodes.Select(e => e.Day).ToList();
+      int target;
+      if (sonarrSeasons.TryGetValue(season, out var same) && Overlap(days, same.Select(e => e.Day).ToList()))
+      {
+        target = season;
+      }
+      else
+      {
+        var others = sonarrSeasons
+          .Where(s => s.Key > 0 && s.Key != season && Overlap(days, s.Value.Select(e => e.Day).ToList()))
+          .Select(s => s.Key)
+          .ToList();
+        if (others.Count != 1)
+        {
+          return null;
+        }
+
+        target = others[0];
+      }
+
+      if (!EpisodesAgree(episodes, sonarrSeasons[target]))
+      {
+        return null;
+      }
+
+      map[season] = target;
+    }
+
+    return map.Count > 0 && map.Values.Distinct().Count() == map.Count ? map : null;
+  }
+
+  /// <summary>
+  /// Determines whether a mapping still holds: each TMDB season it covers airs on the same days as its Sonarr
+  /// season (a season TMDB has not dated yet proves nothing).
+  /// </summary>
+  /// <param name="mapping">The TMDB season → Sonarr season pairs to check.</param>
+  /// <param name="tmdbSeasons">TMDB's dated episodes, by season.</param>
+  /// <param name="sonarrSeasons">Sonarr's dated episodes, by season.</param>
+  /// <returns><c>false</c> when a covered season now airs on other days.</returns>
+  public static bool Holds(
+    IEnumerable<(int TmdbSeason, int SonarrSeason)> mapping,
+    IReadOnlyDictionary<int, IReadOnlyList<AiredEpisode>> tmdbSeasons,
+    IReadOnlyDictionary<int, IReadOnlyList<AiredEpisode>> sonarrSeasons)
+  {
+    ArgumentNullException.ThrowIfNull(mapping);
+    ArgumentNullException.ThrowIfNull(tmdbSeasons);
+    ArgumentNullException.ThrowIfNull(sonarrSeasons);
+    foreach (var (tmdbSeason, sonarrSeason) in mapping)
+    {
+      if (!tmdbSeasons.TryGetValue(tmdbSeason, out var episodes) || episodes.Count == 0)
+      {
+        continue;
+      }
+
+      if (!sonarrSeasons.TryGetValue(sonarrSeason, out var listed)
+          || !Overlap(episodes.Select(e => e.Day).ToList(), listed.Select(e => e.Day).ToList()))
+      {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// <summary>
+  /// Determines whether a TVDB series not in Sonarr yet could hold the requested episodes: they air within its
+  /// run (first to last air date, give or take <see cref="StartTolerance"/>). A cheap test made before adding it
+  /// to Sonarr just to compare its episodes.
+  /// </summary>
+  /// <param name="tmdbSeasons">TMDB's dated episodes, by season.</param>
+  /// <param name="tvdbFirstAired">The series' first air date, as Sonarr reports it.</param>
+  /// <param name="tvdbLastAired">The series' last air date, if any.</param>
+  /// <returns><c>true</c> when the episodes fall within its run.</returns>
+  public static bool WithinRun(IReadOnlyDictionary<int, IReadOnlyList<AiredEpisode>> tmdbSeasons, string? tvdbFirstAired, string? tvdbLastAired)
+  {
+    ArgumentNullException.ThrowIfNull(tmdbSeasons);
+    var days = tmdbSeasons.Values.SelectMany(e => e).Select(e => e.Day).ToList();
+    if (days.Count == 0 || ParseDay(tvdbFirstAired) is not { } first)
+    {
+      return false;
+    }
+
+    var last = ParseDay(tvdbLastAired) ?? DateTime.MaxValue.Date;
+    return days.Min() >= first - StartTolerance && (last == DateTime.MaxValue.Date || days.Max() <= last + StartTolerance);
+  }
+
+  /// <summary>
   /// Parses a date (<c>yyyy-MM-dd</c>, or a full timestamp) to its UTC day.
   /// </summary>
   /// <param name="value">The date text.</param>
@@ -138,6 +283,21 @@ public static class SeasonAlignment
     }
 
     return DateTime.SpecifyKind(parsed.Date, DateTimeKind.Utc);
+  }
+
+  // Each TMDB episode Sonarr lists under the same number airs the same day (a day apart is the same airing).
+  private static bool EpisodesAgree(IReadOnlyList<AiredEpisode> tmdb, IReadOnlyList<AiredEpisode> sonarr)
+  {
+    foreach (var episode in tmdb)
+    {
+      var listed = sonarr.FirstOrDefault(e => e.Number == episode.Number);
+      if (listed is not null && (listed.Day - episode.Day).Duration() > TimeSpan.FromDays(1))
+      {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   // Two seasons are the same episodes when at least half of the shorter list airs on the same days (a day

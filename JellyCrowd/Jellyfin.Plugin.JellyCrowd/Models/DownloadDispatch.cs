@@ -98,4 +98,18 @@ public sealed class DownloadDispatch
   /// </summary>
   [JsonIgnore]
   public bool KeepFiles { get; set; }
+
+  /// <summary>
+  /// Copies this payload for another season numbering (Sonarr's, for a show TMDB splits otherwise).
+  /// </summary>
+  /// <param name="season">The season in that numbering.</param>
+  /// <param name="keepScopes">What the title's other requests still cover, in that numbering.</param>
+  /// <returns>The copy.</returns>
+  public DownloadDispatch WithScope(int? season, IReadOnlyList<RequestScope> keepScopes)
+  {
+    var copy = (DownloadDispatch)MemberwiseClone();
+    copy.Season = season;
+    copy.KeepScopes = keepScopes;
+    return copy;
+  }
 }

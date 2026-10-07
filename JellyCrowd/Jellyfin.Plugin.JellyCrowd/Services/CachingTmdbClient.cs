@@ -90,6 +90,14 @@ public sealed class CachingTmdbClient : ITmdbClient
     => GetOrAddAsync(Key("filmography", personId, language), ShortTtl, () => _inner.GetPersonFilmographyAsync(personId, language, cancellationToken));
 
   /// <inheritdoc />
+  public Task<ShowLinks> GetShowLinksAsync(int tmdbId, CancellationToken cancellationToken)
+    => GetOrAddAsync(Key("links", tmdbId), LongTtl, () => _inner.GetShowLinksAsync(tmdbId, cancellationToken));
+
+  /// <inheritdoc />
+  public Task<IReadOnlyList<CatalogItem>> SearchShowsAsync(string query, CancellationToken cancellationToken)
+    => GetOrAddAsync(Key("searchtv", query), ShortTtl, () => _inner.SearchShowsAsync(query, cancellationToken));
+
+  /// <inheritdoc />
   public Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)
     => GetOrAddAsync(Key("release", tmdbId), ShortTtl, () => _inner.GetMovieReleaseAsync(tmdbId, cancellationToken));
 

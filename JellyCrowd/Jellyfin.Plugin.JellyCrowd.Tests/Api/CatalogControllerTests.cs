@@ -549,6 +549,12 @@ public class CatalogControllerTests
     public Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)
       => Task.FromResult(new MovieRelease());
 
+    public Task<ShowLinks> GetShowLinksAsync(int tmdbId, CancellationToken cancellationToken)
+      => Task.FromResult(new ShowLinks { TmdbId = tmdbId });
+
+    public Task<IReadOnlyList<CatalogItem>> SearchShowsAsync(string query, CancellationToken cancellationToken)
+      => Task.FromResult<IReadOnlyList<CatalogItem>>(Array.Empty<CatalogItem>());
+
     public Task<int?> GetTvdbIdAsync(int tmdbId, CancellationToken cancellationToken)
     {
       if (Throw is not null)

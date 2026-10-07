@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -16,16 +17,19 @@ public sealed class EmptyLibraryCleaner : IEmptyLibraryCleaner
 {
   private readonly ILibraryManager _libraryManager;
   private readonly ILogger<EmptyLibraryCleaner> _logger;
+  private readonly ISeriesMappingStore? _mappings;
 
   /// <summary>
   /// Initializes a new instance of the <see cref="EmptyLibraryCleaner"/> class.
   /// </summary>
   /// <param name="libraryManager">The Jellyfin library manager.</param>
   /// <param name="logger">The logger.</param>
-  public EmptyLibraryCleaner(ILibraryManager libraryManager, ILogger<EmptyLibraryCleaner> logger)
+  /// <param name="mappings">Where Sonarr files the TMDB shows TMDB splits otherwise, if any.</param>
+  public EmptyLibraryCleaner(ILibraryManager libraryManager, ILogger<EmptyLibraryCleaner> logger, ISeriesMappingStore? mappings = null)
   {
     _libraryManager = libraryManager;
     _logger = logger;
+    _mappings = mappings;
   }
 
   /// <inheritdoc />
@@ -54,7 +58,8 @@ public sealed class EmptyLibraryCleaner : IEmptyLibraryCleaner
         Limit = 1
       }).Count;
 
-      if (!EmptySeriesPolicy.ShouldRemove(episodeCount, candidate.DateCreated, now, minAge, ParseTmdb(candidate), wantedTmdbIds))
+      if (!EmptySeriesPolicy.ShouldRemove(episodeCount, candidate.DateCreated, now, minAge, ParseTmdb(candidate), wantedTmdbIds)
+          || IsWantedThroughAMapping(candidate, wantedTmdbIds))
       {
         continue;
       }
@@ -75,6 +80,12 @@ public sealed class EmptyLibraryCleaner : IEmptyLibraryCleaner
 
     return removed;
   }
+
+  // A series another TMDB show is mapped onto is wanted while that show is: its season may still be on its way.
+  private bool IsWantedThroughAMapping(BaseItem series, IReadOnlySet<int> wantedTmdbIds)
+    => _mappings is not null
+      && int.TryParse(series.GetProviderId(MetadataProvider.Tvdb), NumberStyles.Integer, CultureInfo.InvariantCulture, out var tvdbId)
+      && _mappings.ForTvdb(tvdbId).Any(m => wantedTmdbIds.Contains(m.TmdbId));
 
   private static int? ParseTmdb(BaseItem series)
   {

@@ -96,6 +96,22 @@ public interface ITmdbClient
   Task<IReadOnlyList<CatalogItem>> GetCollectionAsync(int collectionId, string language, CancellationToken cancellationToken);
 
   /// <summary>
+  /// Gets what ties a show to others: names, creators and TVDB id.
+  /// </summary>
+  /// <param name="tmdbId">The show's TMDB identifier.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The show's links.</returns>
+  Task<ShowLinks> GetShowLinksAsync(int tmdbId, CancellationToken cancellationToken);
+
+  /// <summary>
+  /// Searches TMDB's shows by name (first page).
+  /// </summary>
+  /// <param name="query">The name to search.</param>
+  /// <param name="cancellationToken">The cancellation token.</param>
+  /// <returns>The matching shows.</returns>
+  Task<IReadOnlyList<CatalogItem>> SearchShowsAsync(string query, CancellationToken cancellationToken);
+
+  /// <summary>
   /// Gets when a movie comes out: its earliest cinema, digital and physical releases, and its status.
   /// </summary>
   /// <param name="tmdbId">The movie's TMDB identifier.</param>

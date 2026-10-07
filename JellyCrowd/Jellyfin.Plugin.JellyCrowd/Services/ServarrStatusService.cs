@@ -24,6 +24,7 @@ public sealed class ServarrStatusService : IServarrStatusService
   private readonly IServarrClient _servarr;
   private readonly ITmdbClient _tmdb;
   private readonly Func<PluginConfiguration> _config;
+  private readonly ISeriesMappingStore? _mappings;
   private readonly ILogger<ServarrStatusService> _logger;
   private readonly ConcurrentDictionary<string, (DateTime At, string? State)> _itemStateCache = new(StringComparer.Ordinal);
 
@@ -34,12 +35,14 @@ public sealed class ServarrStatusService : IServarrStatusService
   /// <param name="tmdb">The TMDB client (TMDB-&gt;TVDB resolution for shows).</param>
   /// <param name="config">Accessor for the current plugin configuration.</param>
   /// <param name="logger">The logger.</param>
-  public ServarrStatusService(IServarrClient servarr, ITmdbClient tmdb, Func<PluginConfiguration> config, ILogger<ServarrStatusService> logger)
+  /// <param name="mappings">Where Sonarr files the TMDB shows TMDB splits otherwise, if any.</param>
+  public ServarrStatusService(IServarrClient servarr, ITmdbClient tmdb, Func<PluginConfiguration> config, ILogger<ServarrStatusService> logger, ISeriesMappingStore? mappings = null)
   {
     _servarr = servarr;
     _tmdb = tmdb;
     _config = config;
     _logger = logger;
+    _mappings = mappings;
   }
 
   /// <inheritdoc />
@@ -121,8 +124,11 @@ public sealed class ServarrStatusService : IServarrStatusService
 
   private async Task<string?> ResolveTvStateAsync(PluginConfiguration config, RequestRecord request, CancellationToken cancellationToken)
   {
-    var tvdbId = await _tmdb.GetTvdbIdAsync(request.TmdbId, cancellationToken).ConfigureAwait(false);
-    if (tvdbId is not { } tvdb)
+    // A show Sonarr files under another series is read there, in Sonarr's season numbering.
+    var mapping = _mappings?.Get(request.TmdbId);
+    var tvdbId = mapping?.TvdbId ?? await _tmdb.GetTvdbIdAsync(request.TmdbId, cancellationToken).ConfigureAwait(false);
+    var season = mapping is null ? request.Season : mapping.ToSonarrScope(request.Season);
+    if (tvdbId is not { } tvdb || (mapping is not null && season is null))
     {
       return null;
     }
@@ -134,7 +140,7 @@ public sealed class ServarrStatusService : IServarrStatusService
     }
 
     var episodesJson = await _servarr.GetEpisodesAsync(config.SonarrUrl, config.SonarrApiKey, seriesId, cancellationToken).ConfigureAwait(false);
-    return ServarrItemState.Episodes(episodesJson, request.Season, request.Episode, DateTime.UtcNow);
+    return ServarrItemState.Episodes(episodesJson, season, request.Episode, DateTime.UtcNow);
   }
 
   private async Task AddMovieStatusesAsync(PluginConfiguration config, List<RequestRecord> movies, List<DownloadStatusDto> result, CancellationToken cancellationToken)
@@ -174,19 +180,21 @@ public sealed class ServarrStatusService : IServarrStatusService
       var tvdbByTmdb = new Dictionary<int, int?>();
       foreach (var request in shows)
       {
+        var mapping = _mappings?.Get(request.TmdbId);
         if (!tvdbByTmdb.TryGetValue(request.TmdbId, out var tvdbId))
         {
-          tvdbId = await _tmdb.GetTvdbIdAsync(request.TmdbId, cancellationToken).ConfigureAwait(false);
+          tvdbId = mapping?.TvdbId ?? await _tmdb.GetTvdbIdAsync(request.TmdbId, cancellationToken).ConfigureAwait(false);
           tvdbByTmdb[request.TmdbId] = tvdbId;
         }
 
-        if (tvdbId is not { } tvdb)
+        var season = mapping is null ? request.Season : mapping.ToSonarrScope(request.Season);
+        if (tvdbId is not { } tvdb || (mapping is not null && season is null))
         {
           continue;
         }
 
         var matches = items.Where(i => i.TvdbId == tvdb
-          && (request.Season is null || i.Season == request.Season)
+          && (season is null || i.Season == season)
           && (request.Episode is null || i.Episode == request.Episode)).ToList();
         if (matches.Count > 0)
         {

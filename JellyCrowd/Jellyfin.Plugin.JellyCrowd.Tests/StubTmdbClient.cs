@@ -65,6 +65,15 @@ internal sealed class StubTmdbClient : ITmdbClient
   /// <summary>Gets the release dates per movie; a movie not listed has none (and no status).</summary>
   public System.Collections.Generic.Dictionary<int, MovieRelease> MovieReleases { get; } = new();
 
+  /// <summary>Gets the links per show; a show not listed has none.</summary>
+  public System.Collections.Generic.Dictionary<int, ShowLinks> Links { get; } = new();
+
+  public Task<ShowLinks> GetShowLinksAsync(int tmdbId, CancellationToken cancellationToken)
+    => Task.FromResult(Links.TryGetValue(tmdbId, out var links) ? links : new ShowLinks { TmdbId = tmdbId });
+
+  public Task<IReadOnlyList<CatalogItem>> SearchShowsAsync(string query, CancellationToken cancellationToken)
+    => Task.FromResult<IReadOnlyList<CatalogItem>>(Array.Empty<CatalogItem>());
+
   public Task<MovieRelease> GetMovieReleaseAsync(int tmdbId, CancellationToken cancellationToken)
     => Task.FromResult(MovieReleases.TryGetValue(tmdbId, out var release) ? release : new MovieRelease());
 

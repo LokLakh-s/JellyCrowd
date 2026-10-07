@@ -20,6 +20,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
   private const string WatchlistFileName = "watchlist.json";
   private const string NotificationsFileName = "notifications.json";
   private const string UserPrefsFileName = "user-prefs.json";
+  private const string SeriesMappingsFileName = "series-mappings.json";
   private const string CommentsFileName = "comments.json";
   private const string ReportsFileName = "reports.json";
   private const string PollsFileName = "polls.json";
@@ -68,6 +69,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
       _ => new JsonUserNotificationStore(Path.Combine(Plugin.Instance!.DataFolderPath, NotificationsFileName)));
     serviceCollection.AddSingleton<IUserPrefsStore>(
       _ => new JsonUserPrefsStore(Path.Combine(Plugin.Instance!.DataFolderPath, UserPrefsFileName)));
+    serviceCollection.AddSingleton<ISeriesMappingStore>(
+      _ => new JsonSeriesMappingStore(Path.Combine(Plugin.Instance!.DataFolderPath, SeriesMappingsFileName)));
     serviceCollection.AddSingleton<IMediaCommentStore>(
       _ => new JsonMediaCommentStore(Path.Combine(Plugin.Instance!.DataFolderPath, CommentsFileName)));
     serviceCollection.AddSingleton<IReportStore>(
@@ -188,6 +191,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     serviceCollection.AddHostedService<HiddenResumeEntryPoint>();
     serviceCollection.AddHostedService<ConfigChangeLogger>();
     serviceCollection.AddHostedService<MemberLanguageEntryPoint>();
+    serviceCollection.AddHostedService<SeriesMappingEntryPoint>();
   }
 
   // Skip Outro's IMediaSegmentProvider lives in an ISOLATED companion assembly, shipped TWICE: one half
