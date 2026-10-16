@@ -98,10 +98,13 @@ grouped notification** per channel (e.g. "6 episodes now available") rather than
 
 ## Reporting a problem
 
-Two ways in, both reaching the administrators the same way:
+Three ways in, all reaching the administrators the same way:
 
 - **About a title** — open its detail popup and click **⚠ Report a problem** at the top: wrong version,
   missing subtitles, wrong audio language… The title is attached to your report automatically.
+- **From Jellyfin's own page** of a film, a series, a season or an episode — click the **⚠** button next to
+  play and favourite, or pick **Report a problem** in the page's **⋮** menu (on a phone, where the row has no
+  room for the button, the menu is the way in). From a season or an episode, your report says which one.
 - **About anything else** — open your **avatar menu** (top right) and pick **Report a problem**: playback
   trouble, an account or access issue, or any question for the administrators. No title is attached.
 

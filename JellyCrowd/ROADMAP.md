@@ -791,3 +791,26 @@ Suite de l'issue #16 (fiche recouverte par l'en-tête sur téléphone, corrigée
 - ☐ 71 séries de la prod suivent les nouvelles saisons (`monitorNewItems: all`) sans demande de série entière :
   décision en attente.
 
+### M46 — Signaler un problème depuis les pages Jellyfin  ☑ *(livré)*
+
+Demandé dans l'issue #20 : signaler depuis la page d'un épisode, d'une saison ou d'une série, sans repasser par le
+catalogue.
+
+- ☑ **Pages natives d'un film, d'une série, d'une saison ou d'un épisode** : entrée **Signaler un problème** dans
+  le menu **⋮** de la page, sur tous les écrans, et icône **⚠** dans la rangée de boutons quand il y a la place.
+  Sous 62,5em l'icône porte la classe native `detailButtonHideonMobile` et disparaît : sur téléphone la rangée
+  n'a plus de place (titre écrasé, page qui défile de côté), le menu ⋮ prend le relais. Même formulaire que le
+  signalement général (menu sous l'avatar), avec les catégories du catalogue et le sujet en tête
+  (« Dark · S2E5 »).
+- ☑ Le signalement garde la **saison** et l'**épisode** (champs facultatifs `Season`/`Episode`) et l'**élément
+  Jellyfin** d'où il part (`ItemId`). Une saison ou un épisode prend l'identifiant TMDB **de la série**, jamais
+  le sien (celui de la saison ou de l'épisode chez TMDB). Un titre que Jellyfin n'a pas relié à TMDB se signale
+  quand même, sous son nom Jellyfin (`TmdbId` 0).
+- ☑ L'admin (*Modération → Signalements*) voit « Titre · S2E5 » et ouvre la page de l'élément d'un clic ; la
+  notification aux admins, le rappel, le journal et la réponse au déclarant nomment aussi la saison ou
+  l'épisode. Les signalements déjà enregistrés se relisent tels quels (portée vide).
+- ☑ Serveur tolérant : une saison sur un film, un épisode sans saison ou un identifiant d'élément mal formé sont
+  ignorés, le signalement part quand même.
+- Limite : seulement là où tourne le client web de Jellyfin (navigateur, applis qui l'embarquent). Les
+  applis natives (Android TV, Swiftfin…) ne chargent pas l'interface de Jelly Crowd.
+

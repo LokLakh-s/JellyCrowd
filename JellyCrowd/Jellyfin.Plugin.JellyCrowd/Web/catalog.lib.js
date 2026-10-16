@@ -342,6 +342,60 @@
     });
   }
 
+  // What a report narrows its title to: ' · S2E5', ' · S2', or '' for a whole title. Mirrors the server's
+  // ReportDigest.TitleOf; SxEy is left untranslated (universal).
+  function reportScopeLabel(season, episode) {
+    if (season == null || season === '') {
+      return '';
+    }
+    return ' · S' + season + (episode != null && episode !== '' ? 'E' + episode : '');
+  }
+
+  // Whether nativeReportTarget needs the parent series of `item` first: a season or an episode names its
+  // show through the series, not through its own fields.
+  function nativeReportNeedsSeries(item) {
+    return !!item && (item.Type === 'Season' || item.Type === 'Episode') && !!item.SeriesId;
+  }
+
+  // The report filed from a native Jellyfin detail page, built from the item shown there; null for a page
+  // that is not a movie, a series, a season or an episode. A season or an episode takes the show's TMDB id
+  // and name from `series` (its parent series item, may be missing): its own ProviderIds.Tmdb, when set, is
+  // TMDB's id for that season or episode, not the show's. A title Jellyfin never matched on TMDB stays
+  // reportable, under TmdbId 0 and Jellyfin's name. ItemId is the page's item, for the admin's link.
+  function nativeReportTarget(item, series) {
+    var it = item || {};
+    if (!it.Id) {
+      return null;
+    }
+    function tmdbOf(x) {
+      var ids = (x && x.ProviderIds) || {};
+      return parseInt(ids.Tmdb || ids.tmdb, 10) || 0;
+    }
+    if (it.Type === 'Movie' || it.Type === 'Series') {
+      return {
+        MediaType: it.Type === 'Movie' ? 'movie' : 'tv',
+        TmdbId: tmdbOf(it),
+        Title: it.Name || '',
+        Season: null,
+        Episode: null,
+        ItemId: it.Id
+      };
+    }
+    if (it.Type === 'Season' || it.Type === 'Episode') {
+      var season = it.Type === 'Season' ? it.IndexNumber : it.ParentIndexNumber;
+      var episode = it.Type === 'Episode' && season != null ? it.IndexNumber : null;
+      return {
+        MediaType: 'tv',
+        TmdbId: tmdbOf(series),
+        Title: (series && series.Name) || it.SeriesName || '',
+        Season: season != null ? season : null,
+        Episode: episode != null ? episode : null,
+        ItemId: it.Id
+      };
+    }
+    return null;
+  }
+
   // Whether a quota snapshot leaves no room at all: an unlimited quota never does, otherwise it is full
   // once the disk usage reaches it. What a title costs is only known server-side (its size on disk), so
   // this answers the one case the UI can settle on its own — nothing can fit, so actions that consume
@@ -1597,6 +1651,9 @@
     navCloseAllowed: navCloseAllowed,
     navSuppressWindow: navSuppressWindow,
     orderReports: orderReports,
+    reportScopeLabel: reportScopeLabel,
+    nativeReportNeedsSeries: nativeReportNeedsSeries,
+    nativeReportTarget: nativeReportTarget,
     quotaFull: quotaFull,
     quotaOver: quotaOver,
     quotaSegments: quotaSegments,

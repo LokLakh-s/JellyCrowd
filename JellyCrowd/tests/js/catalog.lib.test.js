@@ -746,6 +746,78 @@ test('orderReports tolerates an empty or unreadable list', () => {
   assert.deepStrictEqual(lib.orderReports([null], 'all'), []);
 });
 
+// ---------- reports from a native detail page (issue #20) ----------
+
+test('reportScopeLabel narrows a title to a season or an episode', () => {
+  assert.strictEqual(lib.reportScopeLabel(2, 5), ' · S2E5');
+  assert.strictEqual(lib.reportScopeLabel(2, null), ' · S2');
+  assert.strictEqual(lib.reportScopeLabel(0, 1), ' · S0E1'); // specials are season 0, not "no season"
+  assert.strictEqual(lib.reportScopeLabel(null, 5), '');
+  assert.strictEqual(lib.reportScopeLabel(undefined, undefined), '');
+});
+
+test('nativeReportNeedsSeries only for a season or an episode that names its series', () => {
+  assert.strictEqual(lib.nativeReportNeedsSeries({ Type: 'Episode', SeriesId: 's1' }), true);
+  assert.strictEqual(lib.nativeReportNeedsSeries({ Type: 'Season', SeriesId: 's1' }), true);
+  assert.strictEqual(lib.nativeReportNeedsSeries({ Type: 'Episode' }), false);
+  assert.strictEqual(lib.nativeReportNeedsSeries({ Type: 'Series', SeriesId: 's1' }), false);
+  assert.strictEqual(lib.nativeReportNeedsSeries({ Type: 'Movie' }), false);
+  assert.strictEqual(lib.nativeReportNeedsSeries(null), false);
+});
+
+const darkSeries = { Id: 's1', Type: 'Series', Name: 'Dark', ProviderIds: { Tmdb: '70523' } };
+
+test('nativeReportTarget: a movie or a series reports itself, by its own TMDB id', () => {
+  assert.deepStrictEqual(lib.nativeReportTarget({ Id: 'm1', Type: 'Movie', Name: 'Dune', ProviderIds: { Tmdb: '438631' } }), {
+    MediaType: 'movie', TmdbId: 438631, Title: 'Dune', Season: null, Episode: null, ItemId: 'm1'
+  });
+  assert.deepStrictEqual(lib.nativeReportTarget(darkSeries), {
+    MediaType: 'tv', TmdbId: 70523, Title: 'Dark', Season: null, Episode: null, ItemId: 's1'
+  });
+});
+
+test('nativeReportTarget: an episode reports its series, narrowed to the episode', () => {
+  // The episode's own Tmdb id is TMDB's id for that episode — it must not pass for the show's.
+  const episode = { Id: 'e1', Type: 'Episode', Name: 'Lost and Found', SeriesId: 's1', SeriesName: 'Dark', ParentIndexNumber: 2, IndexNumber: 5, ProviderIds: { Tmdb: '1638457' } };
+  assert.deepStrictEqual(lib.nativeReportTarget(episode, darkSeries), {
+    MediaType: 'tv', TmdbId: 70523, Title: 'Dark', Season: 2, Episode: 5, ItemId: 'e1'
+  });
+});
+
+test('nativeReportTarget: a season reports its series, narrowed to the season', () => {
+  const season = { Id: 'se1', Type: 'Season', Name: 'Season 0', SeriesId: 's1', SeriesName: 'Dark', IndexNumber: 0, ProviderIds: { Tmdb: '99' } };
+  assert.deepStrictEqual(lib.nativeReportTarget(season, darkSeries), {
+    MediaType: 'tv', TmdbId: 70523, Title: 'Dark', Season: 0, Episode: null, ItemId: 'se1'
+  });
+});
+
+test('nativeReportTarget: without the series, still reportable under Jellyfin\'s series name', () => {
+  const episode = { Id: 'e1', Type: 'Episode', SeriesId: 's1', SeriesName: 'Dark', ParentIndexNumber: 1, IndexNumber: 3 };
+  assert.deepStrictEqual(lib.nativeReportTarget(episode, null), {
+    MediaType: 'tv', TmdbId: 0, Title: 'Dark', Season: 1, Episode: 3, ItemId: 'e1'
+  });
+});
+
+test('nativeReportTarget: a title never matched on TMDB is reportable with TmdbId 0', () => {
+  assert.strictEqual(lib.nativeReportTarget({ Id: 'm2', Type: 'Movie', Name: 'Holidays 2019' }).TmdbId, 0);
+  assert.strictEqual(lib.nativeReportTarget({ Id: 'm3', Type: 'Movie', Name: 'X', ProviderIds: { Tmdb: 'oops' } }).TmdbId, 0);
+  assert.strictEqual(lib.nativeReportTarget({ Id: 'm4', Type: 'Movie', Name: 'Y', ProviderIds: { tmdb: '12' } }).TmdbId, 12);
+});
+
+test('nativeReportTarget: an episode of an unknown season reports the whole series', () => {
+  const episode = { Id: 'e2', Type: 'Episode', SeriesId: 's1', SeriesName: 'Dark', IndexNumber: 4 };
+  const target = lib.nativeReportTarget(episode, darkSeries);
+  assert.strictEqual(target.Season, null);
+  assert.strictEqual(target.Episode, null);
+});
+
+test('nativeReportTarget: nothing to report on other pages', () => {
+  assert.strictEqual(lib.nativeReportTarget({ Id: 'p1', Type: 'Person', Name: 'Someone' }), null);
+  assert.strictEqual(lib.nativeReportTarget({ Id: 'b1', Type: 'BoxSet', Name: 'Saga' }), null);
+  assert.strictEqual(lib.nativeReportTarget({ Type: 'Movie', Name: 'No id' }), null);
+  assert.strictEqual(lib.nativeReportTarget(null), null);
+});
+
 // ---------- quotaFull: no room left, so quota-consuming actions are offered disabled ----------
 
 test('quotaFull is true once the disk usage reaches the quota', () => {

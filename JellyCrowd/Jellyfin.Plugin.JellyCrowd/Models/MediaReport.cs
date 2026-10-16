@@ -22,6 +22,24 @@ public class MediaReport
   /// <summary>Gets or sets the title (captured at report time), empty for a general report.</summary>
   public string Title { get; set; } = string.Empty;
 
+  /// <summary>
+  /// Gets or sets the season a series report is about (filed from a season or an episode page);
+  /// <c>null</c> when it concerns the whole title.
+  /// </summary>
+  public int? Season { get; set; }
+
+  /// <summary>
+  /// Gets or sets the episode within <see cref="Season"/>; <c>null</c> when the report concerns a whole
+  /// season or the whole title.
+  /// </summary>
+  public int? Episode { get; set; }
+
+  /// <summary>
+  /// Gets or sets the Jellyfin library item the report was filed from (its native detail page), so an
+  /// administrator can open it; empty for a report from the catalogue or a general one.
+  /// </summary>
+  public string ItemId { get; set; } = string.Empty;
+
   /// <summary>Gets or sets the reporting user's id.</summary>
   public Guid UserId { get; set; }
 

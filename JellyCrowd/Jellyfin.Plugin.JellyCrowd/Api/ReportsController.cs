@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -64,10 +65,27 @@ public class ReportsController : ControllerBase
     return "other";
   }
 
+  // A season only means something on a series, and an episode only within a season. A value that does not
+  // fit is dropped rather than refused: the report itself is still worth filing.
+  private static (int? Season, int? Episode) NormalizeScope(string mediaType, int? season, int? episode)
+  {
+    if (!string.Equals(mediaType, "tv", StringComparison.Ordinal) || season is not >= 0)
+    {
+      return (null, null);
+    }
+
+    return (season, episode is >= 0 ? episode : null);
+  }
+
+  // The item id ends up in a link the administrators click, so only a well-formed Jellyfin id is kept.
+  private static string NormalizeItemId(string? itemId)
+    => Guid.TryParse(itemId, out var id) && id != Guid.Empty ? id.ToString("N", CultureInfo.InvariantCulture) : string.Empty;
+
   /// <summary>
-  /// Submits an issue report. It concerns a title when the media fields are filled in (the catalogue's
-  /// "Report a problem" button), otherwise it is a general one — the user reaching an administrator about
-  /// something that is not a specific title.
+  /// Submits an issue report. It concerns a title when the media fields are filled in (the "Report a problem"
+  /// button of the catalogue or of a native detail page, which may narrow a series down to a season or an
+  /// episode), otherwise it is a general one — the user reaching an administrator about something that is
+  /// not a specific title.
   /// </summary>
   /// <param name="dto">The report payload.</param>
   /// <param name="cancellationToken">The cancellation token.</param>
@@ -100,6 +118,7 @@ public class ReportsController : ControllerBase
       message = message[..MaxMessageLength];
     }
 
+    var scope = general ? (Season: null, Episode: null) : NormalizeScope(dto.MediaType, dto.Season, dto.Episode);
     var userId = await _userAccessor.GetUserIdAsync(Request).ConfigureAwait(false);
     var created = await _store.AddAsync(
       new MediaReport
@@ -107,6 +126,9 @@ public class ReportsController : ControllerBase
         MediaType = general ? string.Empty : dto.MediaType,
         TmdbId = general ? 0 : dto.TmdbId,
         Title = general ? string.Empty : dto.Title,
+        Season = scope.Season,
+        Episode = scope.Episode,
+        ItemId = general ? string.Empty : NormalizeItemId(dto.ItemId),
         UserId = userId,
         UserName = _resolveUserName(userId),
         Message = message,
@@ -164,16 +186,17 @@ public class ReportsController : ControllerBase
       return NotFound();
     }
 
-    await _activityLog.LogAsync("info", "report", $"Report resolved: {updated.Title}", updated.UserName, cancellationToken).ConfigureAwait(false);
+    await _activityLog.LogAsync("info", "report", $"Report resolved: {ReportDigest.LogSubjectOf(updated)}", updated.UserName, cancellationToken).ConfigureAwait(false);
 
     // Tell the reporter their ticket was handled (in-app bell always; personal channels are un-gated here).
     var t = ServerStrings.ForMember(Plugin.Instance?.Configuration?.Language, updated.UserId);
+    var title = ReportDigest.TitleOf(updated);
     var body = (string.IsNullOrWhiteSpace(updated.AdminResponse)
         ? t("notif_report_resolved_body")
         : t("notif_report_resolved_body_note").Replace("{note}", updated.AdminResponse, StringComparison.Ordinal))
-      .Replace("{title}", updated.Title, StringComparison.Ordinal);
+      .Replace("{title}", title, StringComparison.Ordinal);
     _ = _notifications.NotifyPersonalAsync(
-      updated.UserId, PersonalNotifyKind.None, updated.Title, t("notif_report_resolved_subject"), body, null, CancellationToken.None);
+      updated.UserId, PersonalNotifyKind.None, title, t("notif_report_resolved_subject"), body, null, CancellationToken.None);
 
     return Ok(updated);
   }

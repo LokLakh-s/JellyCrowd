@@ -14,6 +14,29 @@ namespace Jellyfin.Plugin.JellyCrowd.Services;
 public static class ReportDigest
 {
   /// <summary>
+  /// The title a report names, narrowed to the season or episode it was filed from ("Dark · S2E5", "Dark · S2"),
+  /// or empty for a general report. SxEy is left untranslated, as everywhere else in the plugin.
+  /// </summary>
+  /// <param name="report">The report.</param>
+  /// <returns>The title with its scope, or an empty string.</returns>
+  public static string TitleOf(MediaReport report)
+  {
+    ArgumentNullException.ThrowIfNull(report);
+    if (string.IsNullOrWhiteSpace(report.Title) || report.Season is not int season)
+    {
+      return report.Title;
+    }
+
+    var scope = " · S" + season.ToString(CultureInfo.InvariantCulture);
+    if (report.Episode is int episode)
+    {
+      scope += "E" + episode.ToString(CultureInfo.InvariantCulture);
+    }
+
+    return report.Title + scope;
+  }
+
+  /// <summary>
   /// What a report is about, for the activity log: the title it names, or a marker for the reports that
   /// carry none. Not translated — the log is server-side and read by whoever runs the server.
   /// </summary>
@@ -22,7 +45,7 @@ public static class ReportDigest
   public static string LogSubjectOf(MediaReport report)
   {
     ArgumentNullException.ThrowIfNull(report);
-    return string.IsNullOrWhiteSpace(report.Title) ? "(general)" : report.Title;
+    return string.IsNullOrWhiteSpace(report.Title) ? "(general)" : TitleOf(report);
   }
 
   /// <summary>
@@ -36,7 +59,7 @@ public static class ReportDigest
   {
     ArgumentNullException.ThrowIfNull(report);
     ArgumentNullException.ThrowIfNull(t);
-    return string.IsNullOrWhiteSpace(report.Title) ? t("report_general") : report.Title;
+    return string.IsNullOrWhiteSpace(report.Title) ? t("report_general") : TitleOf(report);
   }
 
   /// <summary>

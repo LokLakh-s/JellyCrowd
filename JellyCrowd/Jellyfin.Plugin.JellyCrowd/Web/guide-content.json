@@ -190,7 +190,7 @@
         ],
         [
           "Une fiche a une erreur, ou j'ai un autre souci ?",
-          "Sur une fiche : <b>⚠ Signaler un problème</b>, en haut. Pour tout le reste (lecture, compte, question) : le menu sous ton <b>avatar</b> → <b>Signaler un problème</b>. L'admin est prévenu tout de suite, et sa réponse arrive dans ta cloche 🔔."
+          "Sur un titre : <b>⚠ Signaler un problème</b>, en haut de sa fiche dans le catalogue — ou sur sa page Jellyfin (film, série, saison, épisode) : le bouton <b>⚠</b> ou le menu <b>⋮</b>. Pour tout le reste (lecture, compte, question) : le menu sous ton <b>avatar</b> → <b>Signaler un problème</b>. L'admin est prévenu tout de suite, et sa réponse arrive dans ta cloche 🔔."
         ]
       ],
       "footer": "Guide d'utilisation Jelly Crowd. L'apparence peut légèrement évoluer selon la version et la personnalisation du serveur.",
@@ -377,7 +377,7 @@
         ],
         [
           "A page has a mistake, or something else is wrong?",
-          "On a title: <b>⚠ Report a problem</b>, at the top. For anything else (playback, account, a question): your <b>avatar</b> menu → <b>Report a problem</b>. The admin is notified right away, and their answer lands in your 🔔 bell."
+          "On a title: <b>⚠ Report a problem</b>, at the top of its catalogue popup — or on its Jellyfin page (film, series, season, episode): the <b>⚠</b> button or the <b>⋮</b> menu. For anything else (playback, account, a question): your <b>avatar</b> menu → <b>Report a problem</b>. The admin is notified right away, and their answer lands in your 🔔 bell."
         ]
       ],
       "footer": "Jelly Crowd user guide. The look may change slightly between versions and with the server's own branding.",

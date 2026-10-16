@@ -77,4 +77,22 @@ public sealed class JsonReportStoreTests : IDisposable
     Assert.True(await _store.DeleteAsync(a.Id, CancellationToken.None));
     Assert.Empty(await _store.GetAllAsync(CancellationToken.None));
   }
+
+  [Fact]
+  public async Task Load_AReportStoredBeforeSeasonEpisodeAndItem_ReadsAsTheWholeTitle()
+  {
+    // Reports filed by earlier versions have no Season / Episode / ItemId: they must load as they were,
+    // about the whole title and with nothing to open.
+    await File.WriteAllTextAsync(
+      _path,
+      "{\"SchemaVersion\":1,\"Items\":[{\"Id\":\"6f1c2a52-3b5e-4d7a-9a51-2f8a0c1d9e44\",\"MediaType\":\"tv\",\"TmdbId\":70523,"
+      + "\"Title\":\"Dark\",\"UserName\":\"u\",\"Message\":\"no sound\",\"Type\":\"audio\",\"CreatedAt\":\"2026-09-20T10:00:00Z\"}]}");
+
+    var report = Assert.Single(await _store.GetAllAsync(CancellationToken.None));
+
+    Assert.Equal("Dark", report.Title);
+    Assert.Null(report.Season);
+    Assert.Null(report.Episode);
+    Assert.Equal(string.Empty, report.ItemId);
+  }
 }

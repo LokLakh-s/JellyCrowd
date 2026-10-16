@@ -76,8 +76,10 @@ Chaque canal est optionnel (activé dès qu'il est configuré). Événements not
 ## Onglet Modération
 
 Sous-onglet **Signalements** : la file des tickets ouverts par les utilisateurs — depuis la fiche d'un
-titre (*Signaler un problème*) ou depuis le menu sous leur avatar (signalement **général**, sans titre
-associé). Filtre **Ouverts / Traités / Tous** avec les compteurs ; les ouverts sont listés **du plus
+titre (*Signaler un problème*), depuis la page Jellyfin d'un film, d'une série, d'une saison ou d'un épisode
+(icône ⚠ ou menu ⋮), ou depuis le menu sous leur avatar (signalement **général**, sans titre associé). Un
+signalement fait depuis une saison ou un épisode l'indique à côté du titre (« Dark · S2E5 ») ; s'il vient
+d'une page Jellyfin, un clic sur le titre ouvre cette page. Filtre **Ouverts / Traités / Tous** avec les compteurs ; les ouverts sont listés **du plus
 ancien au plus récent**, c'est l'arriéré que les rappels décrivent. Par ligne : catégorie, auteur, date,
 message, puis **Résoudre** (avec une note facultative **envoyée au déclarant**) et **Supprimer**.
 

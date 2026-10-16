@@ -1106,9 +1106,11 @@
 
   // ---------- Report a problem (ticket) ----------
   // Opened from the avatar menu, so a user with a problem that is not about one title still has a way to
-  // reach an administrator. The per-title button in the catalogue popup posts to the same endpoint with
-  // the media fields filled in; here they are left empty, which files a general report.
-  function openReportDialog() {
+  // reach an administrator: the media fields are left empty, which files a general report. A native detail
+  // page (its ⚠ button and its ⋮ menu entry) opens it too, with `target` (JellyCrowdLib.nativeReportTarget)
+  // naming the title — and `subject` saying so on top, since that is what gets attached. The catalogue popup
+  // has its own inline form, posting to the same endpoint.
+  function openReportDialog(target, subject) {
     if (document.getElementById('jcReportDialog')) { return; }
 
     var back = document.createElement('div');
@@ -1125,11 +1127,19 @@
     var intro = document.createElement('div');
     intro.textContent = t('report_open_intro');
     intro.style.cssText = 'font-size:.85em;opacity:.8;line-height:1.35;margin-bottom:.7em;';
+    var about = null;
+    if (target && subject) {
+      about = document.createElement('div');
+      about.textContent = subject;
+      about.style.cssText = 'font-weight:600;margin-bottom:.4em;';
+    }
 
     var sel = document.createElement('select');
     sel.style.cssText = 'width:100%;background:#111;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:.3em;padding:.4em;';
+    // About a title: the catalogue's categories. "Account / access" only makes sense for a general report.
     [['bug', 'report_type_bug'], ['subtitles', 'report_type_subtitles'], ['audio', 'report_type_audio'],
       ['quality', 'report_type_quality'], ['account', 'report_type_account'], ['other', 'report_type_other']]
+      .filter(function (o) { return !target || o[0] !== 'account'; })
       .forEach(function (o) {
         var op = document.createElement('option');
         op.value = o[0];
@@ -1167,8 +1177,14 @@
       if (!msg) { ta.style.border = '1px solid #c62828'; ta.focus(); return; }
       send.disabled = true;
       cancel.disabled = true;
-      // No MediaType/TmdbId: this is a general report, not one about a title.
-      apiAjax('POST', 'JellyCrowd/Reports', { Message: msg, Type: sel.value })
+      // No MediaType/TmdbId without a target: a general report, not one about a title.
+      var payload = target
+        ? {
+          MediaType: target.MediaType, TmdbId: target.TmdbId, Title: target.Title,
+          Season: target.Season, Episode: target.Episode, ItemId: target.ItemId, Message: msg, Type: sel.value
+        }
+        : { Message: msg, Type: sel.value };
+      apiAjax('POST', 'JellyCrowd/Reports', payload)
         .then(function () {
           pop.innerHTML = '';
           var done = document.createElement('div');
@@ -1196,6 +1212,7 @@
     actions.appendChild(cancel);
     actions.appendChild(send);
     pop.appendChild(h);
+    if (about) { pop.appendChild(about); }
     pop.appendChild(intro);
     pop.appendChild(sel);
     pop.appendChild(ta);
@@ -2906,6 +2923,153 @@
       .catch(function () { detailClaimPendingId = null; });
   }
 
+  // ---------- "Report a problem" on the native Jellyfin detail page (issue #20) ----------
+  // The catalogue popup's report, on the pages people watch from: a movie, a series, a season or an
+  // episode. From a season or an episode, the report names which one, and every report from here carries
+  // the item itself so an administrator can open it. Two ways in: an entry in the page's ⋮ menu, on every
+  // screen, and an icon in the button row where there is room for it. Defensive + idempotent like the
+  // claim button.
+  var detailReportLoadedId = null;
+  var detailReportPendingId = null;
+  var detailReportNoneId = null; // an item with nothing to report on (a person, a collection…): not refetched
+  var detailReportTarget = null;  // what the current page reports, for the ⋮ menu entry
+  var detailReportSubject = '';
+
+  function removeDetailReport() {
+    var el = document.getElementById('jcDetailReport');
+    if (el && el.parentNode) { el.parentNode.removeChild(el); }
+    detailReportLoadedId = null;
+    detailReportPendingId = null;
+    detailReportNoneId = null;
+    detailReportTarget = null;
+    detailReportSubject = '';
+  }
+
+  // The client keeps the previous page in the DOM, hidden, for a moment after a navigation (and longer to
+  // go back): a button sitting there is not on screen, so it counts as missing.
+  function onVisibleDetailPage(el) {
+    return !!(el && el.closest && el.closest('.itemDetailPage:not(.hide)'));
+  }
+
+  // Shaped like its native neighbours (play, favourite, ⋮) so it sits in the row as one of them. They are
+  // is="emby-button" elements, which the client upgrades by adding the emby-button class — that class is
+  // what strips the browser's own button look, so ours carries it from the start. detailButtonHideonMobile
+  // is the client's own class for a row button that goes away under 62.5em: on a phone the row has no room
+  // left (the title gets squeezed, the page scrolls sideways), and the ⋮ menu entry takes over there.
+  function buildDetailReport(target, subject) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'jcDetailReport';
+    btn.className = 'emby-button button-flat detailButton detailButtonHideonMobile';
+    btn.title = t('report_problem');
+    btn.setAttribute('aria-label', t('report_problem'));
+    var content = document.createElement('div');
+    content.className = 'detailButton-content';
+    var icon = document.createElement('span');
+    icon.className = 'material-icons detailButton-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = 'report_problem';
+    content.appendChild(icon);
+    btn.appendChild(content);
+    btn.addEventListener('click', function () { openReportDialog(target, subject); });
+    return btn;
+  }
+
+  function maybeInjectReportButton(retries) {
+    if (!pluginVisible()) { removeDetailReport(); return; }
+    var id = currentDetailItemId();
+    if (!id) { removeDetailReport(); return; }
+    if (id === detailReportLoadedId && onVisibleDetailPage(document.getElementById('jcDetailReport'))) { return; }
+    if (id === detailReportPendingId || id === detailReportNoneId) { return; }
+    if (!(window.ApiClient && window.ApiClient.getItem && window.ApiClient.getCurrentUserId)) { return; }
+
+    // The item -> report mapping lives in catalog.lib.js, which the base page pulls in lazily.
+    var L = window.JellyCrowdLib;
+    var anchor = document.querySelector('.itemDetailPage:not(.hide) .mainDetailButtons');
+    if (!L || !L.nativeReportTarget || !anchor) {
+      if (!L) { ensureLib(function () { /* loaded — the retry below picks it up */ }); }
+      if ((retries || 0) < 12) { setTimeout(function () { maybeInjectReportButton((retries || 0) + 1); }, 300); }
+      return;
+    }
+
+    detailReportPendingId = id;
+    var uid = window.ApiClient.getCurrentUserId();
+
+    function inject(item, series) {
+      var target = L.nativeReportTarget(item, series);
+      detailReportPendingId = null;
+      if (currentDetailItemId() !== id) { return; }
+      if (!target) { detailReportNoneId = id; return; }
+      // Looked up again: the page found before the fetch may be the one we just navigated away from.
+      var row = document.querySelector('.itemDetailPage:not(.hide) .mainDetailButtons');
+      if (!row) { return; } // the next pass finds it
+      var old = document.getElementById('jcDetailReport');
+      if (old && old.parentNode) { old.parentNode.removeChild(old); }
+      // Among the native icons, just before the ⋮ menu that ends the row.
+      var more = row.querySelector('.btnMoreCommands');
+      var subject = target.Title + L.reportScopeLabel(target.Season, target.Episode);
+      row.insertBefore(buildDetailReport(target, subject), more && more.parentNode === row ? more : null);
+      // No longer pending: if the client re-renders the row and drops the button, the next pass puts it back.
+      detailReportLoadedId = id;
+      detailReportTarget = target;
+      detailReportSubject = subject;
+    }
+
+    window.ApiClient.getItem(uid, id)
+      .then(function (it) {
+        if (currentDetailItemId() !== id) { detailReportPendingId = null; return; }
+        if (!L.nativeReportNeedsSeries(it)) { inject(it, null); return; }
+        // Without the series (fetch failed), the report still goes out under Jellyfin's series name.
+        window.ApiClient.getItem(uid, it.SeriesId)
+          .then(function (series) { inject(it, series); })
+          .catch(function () { inject(it, null); });
+      })
+      .catch(function () { detailReportPendingId = null; });
+  }
+
+  // The ⋮ menu is the client's action sheet, built when the button is clicked: note that click (capture),
+  // then add our entry to the sheet it opens — the way "Remove from Continue watching" joins a card's menu.
+  // Our entry carries the native item class, so the sheet closes itself on it like on any of its own.
+  var REPORT_MENU_PENDING_MS = 3000;
+  var reportMenuPending = null;
+
+  function reportNoteMoreClick(e) {
+    var t0 = e.target;
+    var more = t0 && t0.closest ? t0.closest('.itemDetailPage:not(.hide) .btnMoreCommands') : null;
+    if (!more || !detailReportTarget || detailReportLoadedId !== currentDetailItemId()) { reportMenuPending = null; return; }
+    reportMenuPending = { target: detailReportTarget, subject: detailReportSubject, at: Date.now() };
+  }
+
+  function maybeInjectReportMenuItem() {
+    if (!reportMenuPending) { return; }
+    if (Date.now() - reportMenuPending.at > REPORT_MENU_PENDING_MS) { reportMenuPending = null; return; }
+    var sheet = document.querySelector('.actionSheet');
+    var scroller = sheet ? sheet.querySelector('.actionSheetScroller') : null;
+    if (!scroller || scroller.querySelector('[data-id="jellycrowd-report"]')) { return; }
+    var native = scroller.querySelector('.actionSheetMenuItem');
+    if (!native) { return; }
+    var pending = reportMenuPending;
+    reportMenuPending = null;
+    var item = document.createElement('button');
+    item.type = 'button';
+    item.setAttribute('is', 'emby-button');
+    item.className = native.className;
+    item.setAttribute('data-id', 'jellycrowd-report');
+    var icon = document.createElement('span');
+    icon.className = 'actionsheetMenuItemIcon listItemIcon listItemIcon-transparent material-icons report_problem';
+    icon.setAttribute('aria-hidden', 'true');
+    var body = document.createElement('div');
+    body.className = 'listItemBody actionsheetListItemBody';
+    var text = document.createElement('div');
+    text.className = 'listItemBodyText actionSheetItemText';
+    text.textContent = t('report_problem');
+    body.appendChild(text);
+    item.appendChild(icon);
+    item.appendChild(body);
+    item.addEventListener('click', function () { openReportDialog(pending.target, pending.subject); });
+    scroller.appendChild(item);
+  }
+
   // ---------- notification e-mail on the native user-profile page ----------
   // Jelly Crowd's per-user notification e-mail also lives in the notifications panel; we mirror it as a
   // field above the password fields on the native profile page. Only on the CURRENT user's own profile —
@@ -3463,6 +3627,7 @@
         detailInjectTimer = null;
         maybeInjectDetailReviews(0);
         maybeInjectClaimButton(0);
+        maybeInjectReportButton(0);
         maybeInjectProfileEmail(0);
       }, 200);
     }
@@ -3474,6 +3639,7 @@
       maybeInjectHomeCustomize(); // and the "Customize home" shortcut on the home screen
       maybeInjectLibrarySort(); // and the sort control on the Jellyfin 12 library lists
       maybeInjectContinueWatchingAction(); // and "Remove from Continue watching" in a card's menu
+      maybeInjectReportMenuItem(); // and "Report a problem" in a detail page's ⋮ menu
       cwApplyRecent(); // and keep just-removed cards out of a row rendered from 12's query cache
       if (overlay && overlay.style.display !== 'none') { positionOverlay(); }
       scheduleDetailInject();
@@ -3510,6 +3676,7 @@
     function onDetailNav() {
       removeDetailReviews(); maybeInjectDetailReviews(0);
       removeDetailClaim(); maybeInjectClaimButton(0);
+      removeDetailReport(); maybeInjectReportButton(0);
       removeProfileEmail(); maybeInjectProfileEmail(0);
       removeSettingsTabs(); maybeInjectSettingsTabs(0);
       maybeInjectHomeCustomize();
@@ -3519,6 +3686,7 @@
     window.addEventListener('popstate', onDetailNav);
     maybeInjectDetailReviews(0); // initial load may already be a detail page
     maybeInjectClaimButton(0);
+    maybeInjectReportButton(0);
     maybeInjectProfileEmail(0); // initial load may already be the profile page
     maybeInjectSettingsTabs(0); // initial load may already be a settings page
     maybeInjectHomeCustomize(); // initial load may already be the home screen
@@ -3526,6 +3694,8 @@
     // Note which "Continue watching" / "Next up" card a menu is opened for (its ⋮ button or a long press).
     document.addEventListener('click', cwNoteCard, true);
     document.addEventListener('contextmenu', cwNoteCard, true);
+    // Note when a detail page's ⋮ menu is opened, to add "Report a problem" to it.
+    document.addEventListener('click', reportNoteMoreClick, true);
     // Catch-all: while the overlay is open, a click on anything that isn't our overlay or one of our
     // header controls / popups means the user touched the underlying Jellyfin UI -> close the overlay
     // so it never lingers when it shouldn't (native home/back/search/library, drawer, etc.).

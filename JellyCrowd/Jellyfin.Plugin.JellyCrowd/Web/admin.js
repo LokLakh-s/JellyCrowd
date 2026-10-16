@@ -2276,7 +2276,17 @@
       var title = document.createElement('div');
       title.style.fontWeight = '600';
       // A report with no title stands on its own (playback, account…): say so rather than show a blank.
-      title.textContent = (r.Title || t('report_general')) + (r.Resolved ? ' ✓' : '');
+      title.textContent = (r.Title ? r.Title + lib.reportScopeLabel(r.Season, r.Episode) : t('report_general')) + (r.Resolved ? ' ✓' : '');
+      // Filed from a native detail page: the item itself is one click away (the overlay closes on the way).
+      if (r.ItemId) {
+        title.classList.add('jellycrowd-link');
+        title.title = t('open_in_jellyfin');
+        title.addEventListener('click', function () {
+          var serverId = (window.ApiClient && typeof window.ApiClient.serverId === 'function') ? window.ApiClient.serverId() : '';
+          var hash = lib.jellyfinDetailsHash(r.ItemId, serverId);
+          if (hash) { window.location.hash = hash; }
+        });
+      }
       var msg = document.createElement('div');
       msg.className = 'jellycrowd-admin-sub';
       msg.textContent = r.Message;

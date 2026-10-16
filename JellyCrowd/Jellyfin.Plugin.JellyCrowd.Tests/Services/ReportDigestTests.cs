@@ -52,6 +52,41 @@ public class ReportDigestTests
   }
 
   [Fact]
+  public void TitleOf_NamesTheSeasonOrEpisodeTheReportWasFiledFrom()
+  {
+    var episode = Report(0, title: "Dark");
+    episode.MediaType = "tv";
+    episode.Season = 2;
+    episode.Episode = 5;
+    var season = Report(0, title: "Dark");
+    season.MediaType = "tv";
+    season.Season = 2;
+    var specials = Report(0, title: "Dark");
+    specials.MediaType = "tv";
+    specials.Season = 0;
+    specials.Episode = 1;
+
+    Assert.Equal("Dark · S2E5", ReportDigest.TitleOf(episode));
+    Assert.Equal("Dark · S2", ReportDigest.TitleOf(season));
+    Assert.Equal("Dark · S0E1", ReportDigest.TitleOf(specials));
+    Assert.Equal("Dune", ReportDigest.TitleOf(Report(0)));
+    Assert.Equal(string.Empty, ReportDigest.TitleOf(Report(0, title: string.Empty)));
+  }
+
+  [Fact]
+  public void SubjectAndLogSubject_CarryTheEpisode()
+  {
+    var report = Report(0, title: "Dark");
+    report.MediaType = "tv";
+    report.Season = 2;
+    report.Episode = 5;
+
+    Assert.Equal("Dark · S2E5", ReportDigest.SubjectOf(report, T));
+    Assert.Equal("Dark · S2E5", ReportDigest.LogSubjectOf(report));
+    Assert.Equal("mel|Audio|Dark · S2E5|no sound", ReportDigest.NewReportBody(report, T));
+  }
+
+  [Fact]
   public void NewReportBody_CarriesWhoWhatAndTheMessage()
   {
     Assert.Equal("mel|Audio|Dune|no sound", ReportDigest.NewReportBody(Report(0), T));
