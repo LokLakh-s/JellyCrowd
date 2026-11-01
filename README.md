@@ -18,6 +18,14 @@ notifications, full UI branding and built-in stats — all in one plugin, **no a
 
 ---
 
+> [!IMPORTANT]
+> **Jelly Crowd's features are moving into a complete web client.** I'm working on **LokView**, a full client that
+> brings everything Jelly Crowd does (catalog, requests, quotas, notifications, statistics, branding…) natively, and
+> that I plan to publish openly, as an independent replacement for the stock Jellyfin web client.
+>
+> This plugin **stays available and supported, but will only receive security and compatibility updates**: it will
+> keep being maintained for future Jellyfin versions, with no new features.
+
 > [!TIP]
 > Think **Overseerr + Tautulli + a theme engine**, fused into your Jellyfin UI — requests, quotas,
 > statistics and branding, with nothing else to install.
