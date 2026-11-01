@@ -17,7 +17,7 @@
     <PackageReference Include="Moq" Version="4.21.0" />
     <!-- Real HTTP server for end-to-end integration tests of the Radarr/Sonarr client + dispatch flow. -->
     <PackageReference Include="WireMock.Net" Version="2.18.0" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
