@@ -147,6 +147,47 @@
     return b;
   }
 
+  // ---------- this device: browser notifications (issue #28) ----------
+  // Stored in this browser only and applied as soon as it is flipped (the Save button is for what the
+  // server keeps). Turning it on is the user gesture a browser wants before it asks for the permission.
+
+  function localStore() {
+    try { return window.localStorage; } catch (e) { return null; }
+  }
+
+  function notificationPermission() {
+    return typeof window.Notification === 'function' ? window.Notification.permission : null;
+  }
+
+  function deviceGroup() {
+    var uid = (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+    var section = group('prefs_group_device');
+    var sw = toggle('prefs_browser_notif', false, 'prefs_browser_hint');
+    var hint = sw.wrap.querySelector('.jellycrowd-field-hint');
+    section.appendChild(sw.wrap);
+
+    function paint() {
+      var state = lib.browserNotifSwitch(notificationPermission(), lib.browserNotifEnabled(localStore(), uid));
+      sw.input.checked = state.checked;
+      sw.input.disabled = state.disabled;
+      if (hint) { hint.textContent = t(state.hintKey); }
+    }
+
+    sw.input.addEventListener('change', function () {
+      var on = sw.input.checked;
+      lib.setBrowserNotifEnabled(localStore(), uid, on);
+      if (on && notificationPermission() === 'default') {
+        var asked = window.Notification.requestPermission(paint);
+        if (asked && typeof asked.then === 'function') { asked.then(paint, paint); }
+        return;
+      }
+
+      paint();
+    });
+    paint();
+    return section;
+  }
+
   // ---------- page ----------
 
   function render(prefs) {
@@ -188,6 +229,8 @@
     var quota = toggle('notif_cat_quota', p.NotifyQuotaExpiry);
     [unreleased, released, decisions, quota].forEach(function (c) { cats.appendChild(c.wrap); });
     form.appendChild(cats);
+
+    form.appendChild(deviceGroup());
 
     var actions = document.createElement('div');
     actions.className = 'jellycrowd-prefs-actions';

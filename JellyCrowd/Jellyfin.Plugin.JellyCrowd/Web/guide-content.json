@@ -90,7 +90,8 @@
           "bullets": [
             "Renseigne ton <b>adresse e-mail</b> et coche <b>M'envoyer des notifications</b>.",
             "Choisis <b>ce qui déclenche un e-mail</b> : un titre demandé qui sort, une demande devenue disponible, une décision sur tes demandes, ou une alerte de quota.",
-            "Clique <b>Enregistrer</b>. Les alertes dans l'appli (la cloche) restent toujours actives, même sans e-mail."
+            "Clique <b>Enregistrer</b>. Les alertes dans l'appli (la cloche) restent toujours actives, même sans e-mail.",
+            "Pas besoin d'e-mail pour la suite : dans <b>Sur cet appareil</b>, <b>Notifications du navigateur</b> affiche en notification ce qui arrive dans la cloche, tant qu'un onglet Jellyfin est ouvert. C'est actif dès que ton navigateur autorise les notifications."
           ],
           "figs": [
             [
@@ -277,7 +278,8 @@
           "bullets": [
             "Enter your <b>email address</b> and tick <b>Send me notifications</b>.",
             "Choose <b>what triggers an email</b>: a requested title getting released, a request becoming available, a decision on your requests, or a quota alert.",
-            "Click <b>Save</b>. In-app alerts (the bell) always stay on, even without email."
+            "Click <b>Save</b>. In-app alerts (the bell) always stay on, even without email.",
+            "No email needed for the next one: under <b>On this device</b>, <b>Browser notifications</b> pops up what lands in the bell while a Jellyfin tab is open. It's on as soon as your browser allows notifications."
           ],
           "figs": [
             [

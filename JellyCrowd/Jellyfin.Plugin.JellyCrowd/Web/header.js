@@ -1382,8 +1382,79 @@
       return;
     }
     apiAjax('GET', 'JellyCrowd/Notifications/Mine')
-      .then(function (d) { setBellBadge(d ? d.Unread : 0); })
+      .then(function (d) {
+        setBellBadge(d ? d.Unread : 0);
+        popUpNewNotifications(d ? d.Items : []);
+      })
       .catch(function () { /* best-effort */ });
+  }
+
+  // ---------- browser notifications (issue #28) ----------
+  // New bell entries also pop up as system notifications while a Jellyfin tab is open. They ride on the
+  // bell's own refresh (no request of their own) and on the permission Jellyfin's web client already asks
+  // for on the first click, for its own "New episode" pop-ups. On by default; each user can turn it off
+  // per device from the Preferences page.
+
+  var browserNotifBaseline = null; // newest CreatedAt (ms) this tab has dealt with; null until armed
+
+  function currentUserId() {
+    return (window.ApiClient && window.ApiClient.getCurrentUserId && window.ApiClient.getCurrentUserId()) || '';
+  }
+
+  function localStore() {
+    try { return window.localStorage; } catch (e) { return null; }
+  }
+
+  function popUpNewNotifications(items) {
+    var L = window.JellyCrowdLib;
+    var on = typeof window.Notification === 'function' && window.Notification.permission === 'granted'
+      && (!L || L.browserNotifEnabled(localStore(), currentUserId()));
+    if (!on) {
+      // Re-armed from scratch when it comes back on, so switching it on never replays the whole bell.
+      browserNotifBaseline = null;
+      return;
+    }
+
+    if (!L) {
+      ensureLib(function () { /* loaded — the next refresh uses it */ });
+      return;
+    }
+
+    // Like Jellyfin's own pop-ups, never over a playing video; the baseline stays put, so what arrived
+    // during the film pops up once it is over.
+    if (document.querySelector('.videoPlayerContainer')) { return; }
+    var plan = L.browserNotificationPlan(items, browserNotifBaseline, 3);
+    browserNotifBaseline = plan.baseline;
+    var logo = getUrl('JellyCrowd/Web/logo.png');
+    plan.show.forEach(function (n) {
+      showBrowserNotification(n.Title, n.Message, L.browserNotificationIcon(n, logo), 'jellycrowd-' + n.Id);
+    });
+    if (plan.more > 0) {
+      showBrowserNotification(t('browser_notif_more').replace('{n}', String(plan.more)), t('browser_notif_more_body'), logo, 'jellycrowd-more');
+    }
+  }
+
+  // The tag makes a pop-up shown by two open tabs replace itself instead of appearing twice. A page may
+  // not construct notifications itself on Android, where only the service worker can show them; the click
+  // handler (back to Jellyfin, bell open) only exists for the page-built kind. Jellyfin's service worker
+  // reads `data.serverId` on every click, so `data` must be there (empty: its click then opens Jellyfin).
+  function showBrowserNotification(title, body, icon, tag) {
+    var options = { body: body || '', icon: icon, tag: tag, lang: lang(), data: {} };
+    try {
+      var n = new window.Notification(title, options);
+      n.onclick = function () {
+        try { window.focus(); } catch (e) { /* ignore */ }
+        n.close();
+        var bell = document.querySelector('.jcHeaderBell button');
+        if (bell) { bell.click(); }
+      };
+    } catch (e) {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+        navigator.serviceWorker.getRegistration()
+          .then(function (reg) { if (reg && reg.showNotification) { return reg.showNotification(title, options); } })
+          .catch(function () { /* best-effort */ });
+      }
+    }
   }
 
   // A status emoji per notification (green ✅ good / red 🟥 bad / yellow 🟨 warning).

@@ -93,6 +93,11 @@ The 🔔 bell lists your in-app notifications (request approved/denied, media av
 In its **settings** (⚙) you can enable delivery by **email / ntfy** and pick the categories you care
 about (everything is off by default — in-app alerts always stay on).
 
+While a Jellyfin tab is open, new bell entries also pop up as **browser notifications**, using the
+permission Jellyfin's web client already asks for. It's per device: switch it off (or on, which asks the
+browser) under **On this device** on the same settings page. Native apps that don't use the web client
+(Swiftfin, Findroid, the Android TV app…) don't run Jelly Crowd at all; email or ntfy is the way to reach users there.
+
 When several episodes of a season you requested become available at once, they arrive as a **single
 grouped notification** per channel (e.g. "6 episodes now available") rather than one message per episode.
 

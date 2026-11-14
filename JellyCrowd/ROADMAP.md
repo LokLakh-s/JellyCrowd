@@ -291,6 +291,12 @@ Objectif : prévenir **le demandeur** (aujourd'hui tout part vers les canaux adm
   - ☑ **Borné** : plafond par utilisateur (50) + TTL (30 j).
 - ☑ Notifier le demandeur sur **Approved / Denied / Available / Échec** (`NotificationEvent.Failed` émis au **premier** échec de dispatch, in-app + canaux perso).
 - ☑ **Préférences de notif par utilisateur** (son propre canal : e-mail perso, topic ntfy, etc.) en plus de l'in-app.
+- ☑ **Notifications du navigateur** (issue #28) : chaque nouvelle entrée de la cloche s'affiche aussi en notification
+  système tant qu'un onglet Jellyfin est ouvert. Greffé sur le rafraîchissement de la cloche (15 s, aucune requête en
+  plus), avec la permission que le client web de Jellyfin demande déjà pour ses propres notifications. Par appareil,
+  actif par défaut, coupé ou rallumé depuis Préférences › *Sur cet appareil*. Le premier rafraîchissement d'un onglet
+  ne fait que s'armer (ce qui était déjà dans la cloche reste sur la pastille) ; jamais par-dessus une vidéo en
+  cours (affiché après) ; au-delà de 3 d'un coup, un résumé « N notifications de plus ».
 
 ### M18 — Diagnostic & santé  ☑ *(livré)*
 

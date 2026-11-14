@@ -1306,6 +1306,64 @@
     return p > 100 ? 100 : Math.round(p);
   }
 
+  // ---------- browser notifications (issue #28) ----------
+  // New bell entries also pop up as system notifications while a Jellyfin tab is open. The switch is per
+  // device (it is this browser's permission that makes it work), so it lives in localStorage, per user.
+
+  function browserNotifKey(userId) { return 'jcBrowserNotif:' + (userId || ''); }
+
+  // On unless the user turned it off on this device; unreadable storage counts as "never touched".
+  function browserNotifEnabled(store, userId) {
+    try { return !store || store.getItem(browserNotifKey(userId)) !== '0'; } catch (e) { return true; }
+  }
+
+  function setBrowserNotifEnabled(store, userId, on) {
+    try { if (store) { store.setItem(browserNotifKey(userId), on ? '1' : '0'); } } catch (e) { /* ignore */ }
+  }
+
+  // What the Preferences switch shows for a given browser: `permission` is Notification.permission, or
+  // null when the browser (or the app wrapping the web client) has no notifications at all. A permission
+  // the user refused can only be given back from the browser's own site settings, so the switch is locked
+  // off there and the hint says where to go.
+  function browserNotifSwitch(permission, enabled) {
+    if (!permission) { return { checked: false, disabled: true, hintKey: 'prefs_browser_unsupported' }; }
+    if (permission === 'denied') { return { checked: false, disabled: true, hintKey: 'prefs_browser_denied' }; }
+    if (permission === 'granted') { return { checked: !!enabled, disabled: false, hintKey: 'prefs_browser_hint' }; }
+    return { checked: false, disabled: false, hintKey: 'prefs_browser_ask' };
+  }
+
+  // Which bell entries to pop up after a refresh of the bell. `baseline` is the newest CreatedAt (ms) this
+  // tab has already dealt with, or null on its first refresh: that one only sets it, so what was already in
+  // the bell when Jellyfin opened stays on the badge instead of arriving as a burst. Entries already read
+  // (in another tab, on another device) are skipped but still move the baseline. Past `max`, the newest
+  // ones are shown and the rest is summed up in `more`.
+  function browserNotificationPlan(items, baseline, max) {
+    var list = Array.isArray(items) ? items : [];
+    var cap = max > 0 ? max : 3;
+    var newest = baseline;
+    var fresh = [];
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      var at = n ? Date.parse(n.CreatedAt) : NaN;
+      if (!isFinite(at)) { continue; }
+      if (newest === null || newest === undefined || at > newest) { newest = at; }
+      if (baseline !== null && baseline !== undefined && at > baseline && !n.Read) { fresh.push({ item: n, at: at }); }
+    }
+
+    fresh.sort(function (a, b) { return a.at - b.at; });
+    return {
+      show: fresh.slice(Math.max(0, fresh.length - cap)).map(function (f) { return f.item; }),
+      more: Math.max(0, fresh.length - cap),
+      // An empty bell on the first refresh still has to arm the next one, hence 0 rather than null.
+      baseline: (newest === null || newest === undefined) ? 0 : newest
+    };
+  }
+
+  // The picture next to a pop-up: the title's poster when the entry has one, else the plugin's logo.
+  function browserNotificationIcon(item, logoUrl) {
+    return item && item.PosterPath ? 'https://image.tmdb.org/t/p/w154' + item.PosterPath : logoUrl;
+  }
+
   // ---------- sort control on the Jellyfin 12 library lists ----------
   // Jellyfin 12 moved the library toolbar (play, shuffle, filters, sort, layout) into the app bar, in
   // the same MUI stack as the per-library shortcuts we hide to make room for our own tabs — so its sort
@@ -1673,6 +1731,12 @@
     pollDismissed: pollDismissed,
     pollDismiss: pollDismiss,
     pollBarPercent: pollBarPercent,
+    browserNotifKey: browserNotifKey,
+    browserNotifEnabled: browserNotifEnabled,
+    setBrowserNotifEnabled: setBrowserNotifEnabled,
+    browserNotifSwitch: browserNotifSwitch,
+    browserNotificationPlan: browserNotificationPlan,
+    browserNotificationIcon: browserNotificationIcon,
     LIBRARY_ROUTE_TABS: LIBRARY_ROUTE_TABS,
     librarySortOptions: librarySortOptions,
     defaultLibraryViewSettings: defaultLibraryViewSettings,
