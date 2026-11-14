@@ -809,10 +809,18 @@
       toolbar.insertBefore(nav, toolbar.querySelector(':scope > .MuiBox-root'));
     }
     // Clone the className of an existing native nav link (Movies / a tab link) so our tabs match exactly.
-    // They are hidden, not removed, so they still serve as the styling template.
-    var template = stack.querySelector('a[href*="/movies"]') || stack.querySelector('a[href*="tab="]')
-      || stack.querySelectorAll('a')[1] || stack.querySelector('a');
+    // They are hidden, not removed, so they still serve as the styling template. Without one (the login
+    // page, a server with no library yet) the fallback is another kind of link, so tabs built at different
+    // times — the Admin tab arrives once the sign-in is known — came out in two styles: the tabs we already
+    // have outrank the fallback, and every pass brings them all to the same class.
+    var native = stack.querySelector('a[href*="/movies"]') || stack.querySelector('a[href*="tab="]');
+    var ownTab = nav.querySelector('[data-jc-nav]');
+    var template = native || ownTab || stack.querySelectorAll('a')[1] || stack.querySelector('a');
     var cls = template ? template.className : '';
+    var built = nav.querySelectorAll('[data-jc-nav]');
+    for (var b = 0; b < built.length; b++) {
+      if (built[b].className !== cls) { built[b].className = cls; }
+    }
     muiNavItems().forEach(function (item) {
       if (nav.querySelector('[data-jc-nav="' + item.id + '"]')) {
         return; // already present
@@ -2629,6 +2637,58 @@
     insertMuiNav();      // Jellyfin 12 (MUI) toolbar — no-op on 10.11
     insertMuiUserMenuItems(); // and our entries in 12's own avatar menu
     watchMuiToolbar();   // re-inject our MUI tabs when React re-renders the toolbar
+    keepClusterAfterNative(); // and keep our icons behind the native ones React renders after sign-in
+  }
+
+  // ---------- header after an in-page sign-in ----------
+  // Jellyfin can start on its login page and sign the user in without reloading. The header is built on
+  // that login page, where the per-user calls (quota, admin status, announcement, polls) are refused,
+  // and React only renders its own icons (SyncPlay, Cast, Search) after the sign-in — after ours.
+
+  var signedInUserId = '';   // the last user seen signed in, '' before anyone is
+  var RIGHT_CLUSTER = '.jcHeaderSearch,.jcHeaderLinks,.jcHeaderAnnounce,.jcHeaderBell,.jcHeaderQuota';
+
+  // Mirrors JellyCrowdLib.signInChange (duplicated: the base page has no lib).
+  function watchSignIn() {
+    var uid = currentUserId();
+    if (!uid || uid === signedInUserId) { return; }
+    var switched = !!signedInUserId;
+    signedInUserId = uid;
+    if (switched) {
+      // Another account in the same tab: what the previous one saw (its Admin tab, its quota) must go,
+      // and a reload is the only reset that covers all of it.
+      window.location.reload();
+      return;
+    }
+
+    browserNotifBaseline = null;
+    resolveAdminVisibility(0); // admin status, then the nav, the announcement, the polls, the language
+    refreshQuota();
+    refreshBellBadge();
+  }
+
+  // Mirrors JellyCrowdLib.headerClusterMisplaced (duplicated: the base page has no lib). Only our own
+  // nodes are moved, never React's, and only when out of order, so the move cannot feed the observer.
+  function keepClusterAfterNative() {
+    var host = rightHost();
+    if (!host) { return; }
+    var ours = [];
+    var anchor = null;
+    var firstOurs = -1;
+    var lastNative = -1;
+    for (var i = 0; i < host.children.length; i++) {
+      var c = host.children[i];
+      if (c.classList.contains('headerUserButton')) { anchor = c; break; }
+      if (c.matches(RIGHT_CLUSTER)) {
+        ours.push(c);
+        if (firstOurs < 0) { firstOurs = i; }
+      } else {
+        lastNative = i;
+      }
+    }
+
+    if (firstOurs < 0 || lastNative < firstOurs) { return; }
+    ours.forEach(function (el) { host.insertBefore(el, anchor); });
   }
 
   // ---------- Internal reviews on the native Jellyfin detail page (M25.2) ----------
@@ -3703,7 +3763,10 @@
       }, 200);
     }
 
+    // Whoever is signed in as the header starts needs nothing more: the start chain fetches their state.
+    signedInUserId = currentUserId();
     var observer = new MutationObserver(function () {
+      watchSignIn(); // a sign-in from the login page rebuilds the whole page body
       tryInsert();
       applyBranding(); // re-assert branding when the web client re-renders (idempotent)
       maybeInjectSettingsTabs(); // React reconciles the settings pages — keep our sub-tab bar present
@@ -3719,6 +3782,7 @@
     tryInsert();
     applyBranding();
     setInterval(refreshBellBadge, 15000); // M28: notif badge appears faster (Note 10)
+    setInterval(watchSignIn, 15000);      // backstop, should a sign-in ever land without a DOM change
     window.jellyCrowdRefreshBell = refreshBellBadge;
     // Polls change far less often than notifications, and a new one must not wait for a page reload.
     setInterval(refreshPolls, 60000);

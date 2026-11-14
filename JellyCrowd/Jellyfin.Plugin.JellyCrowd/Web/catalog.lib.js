@@ -1306,6 +1306,35 @@
     return p > 100 ? 100 : Math.round(p);
   }
 
+  // ---------- header after an in-page sign-in ----------
+  // Jellyfin can start on its login page and sign the user in without reloading. Our header is built on
+  // that login page, so what it fetched there (quota, admin status, announcement, polls) failed, and
+  // React only renders the native icons once someone is signed in.
+
+  // What a change of the signed-in user means. `previous` is the last user seen signed in ('' or null when
+  // none yet), `current` the one signed in now ('' when none). A first sign-in refetches the per-user
+  // parts; another account signing in reloads the page, the only way to drop what the previous one saw
+  // (its Admin tab, for one). Signing out changes nothing until the next sign-in.
+  function signInChange(previous, current) {
+    if (!current || current === previous) { return 'none'; }
+    return previous ? 'switched' : 'signed-in';
+  }
+
+  // Whether our right-cluster icons need moving back behind the native ones. `kinds` lists the header
+  // host's children in DOM order: 'ours', 'native', or 'anchor' (10.11's avatar, which stays last).
+  // A reload renders the native icons first; a sign-in renders them after ours, which this catches.
+  function headerClusterMisplaced(kinds) {
+    var firstOurs = -1;
+    var lastNative = -1;
+    for (var i = 0; i < (kinds || []).length; i++) {
+      if (kinds[i] === 'anchor') { break; }
+      if (kinds[i] === 'ours' && firstOurs < 0) { firstOurs = i; }
+      if (kinds[i] === 'native') { lastNative = i; }
+    }
+
+    return firstOurs >= 0 && lastNative > firstOurs;
+  }
+
   // ---------- browser notifications (issue #28) ----------
   // New bell entries also pop up as system notifications while a Jellyfin tab is open. The switch is per
   // device (it is this browser's permission that makes it work), so it lives in localStorage, per user.
@@ -1731,6 +1760,8 @@
     pollDismissed: pollDismissed,
     pollDismiss: pollDismiss,
     pollBarPercent: pollBarPercent,
+    signInChange: signInChange,
+    headerClusterMisplaced: headerClusterMisplaced,
     browserNotifKey: browserNotifKey,
     browserNotifEnabled: browserNotifEnabled,
     setBrowserNotifEnabled: setBrowserNotifEnabled,
